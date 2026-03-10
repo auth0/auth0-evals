@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+
+# Environment
+.env
+
+# Generated run artifacts
+scores-*.json
+results_*.jsonl
+report.html
+
+# Swift package manager
+**/.swiftpm/
+**/Package.resolved
+
+# macOS
+.DS_Store
