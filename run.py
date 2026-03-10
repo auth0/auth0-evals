@@ -87,7 +87,6 @@ def run_job(
             api_key=api_key,
             model=model,
             eval_def=eval_def,
-            skills_dir=FRAMEWORK_ROOT / "skills",
         )
         grader_results = _grade_text(eval_def, result.response_text, api_key)
         return _serialise_simple(eval_def, result, grader_results)
