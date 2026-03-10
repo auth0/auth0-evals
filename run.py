@@ -8,7 +8,10 @@ Follows the architecture from the reference TypeScript framework:
   - Parallel execution across eval × model pairs
 
 Usage:
-    ATKO_API_KEY=sk-... python run.py [options]
+    python run.py [options]
+
+    API key is loaded from .env automatically. Copy .env.example to .env
+    and fill in your ATKO_API_KEY.
 
 Options:
     --eval      Eval ID to run (default: all). Can be repeated.
@@ -28,6 +31,25 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 FRAMEWORK_ROOT = Path(__file__).parent
+
+
+def _load_env(path: Path) -> None:
+    """Load key=value pairs from a .env file into os.environ.
+    Skips comments and blank lines. Does not override existing env vars."""
+    if not path.exists():
+        return
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_env(FRAMEWORK_ROOT / ".env")
 
 # Make agent_eval importable
 sys.path.insert(0, str(FRAMEWORK_ROOT))
