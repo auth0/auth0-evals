@@ -24,6 +24,7 @@ class EvalDefinition:
     user_prompt: str
     graders: list[dict]
     scaffold: dict[str, str]               # relative_path -> content
+    skills: list[str] = field(default_factory=list)   # skill names to fetch
     metadata: dict = field(default_factory=dict)
 
 
@@ -42,6 +43,8 @@ def load_eval(eval_config: dict, framework_root: Path) -> EvalDefinition:
     graders_module = _load_graders_module(eval_path / "graders.py")
     scaffold = _load_scaffold(eval_path / "scaffold")
 
+    skills = [s.strip() for s in meta.get("skills", "").split(",") if s.strip()]
+
     return EvalDefinition(
         id=eval_config["id"],
         name=eval_config.get("name", meta.get("name", eval_config["id"])),
@@ -51,6 +54,7 @@ def load_eval(eval_config: dict, framework_root: Path) -> EvalDefinition:
         user_prompt=user_prompt,
         graders=graders_module.define_graders(),
         scaffold=scaffold,
+        skills=skills,
         metadata={
             "provider_name": meta.get("provider_name", "Auth0"),
             "provider_url":  meta.get("provider_url", "auth0.com"),

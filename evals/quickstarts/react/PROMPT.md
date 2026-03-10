@@ -4,6 +4,7 @@ category: quickstarts
 task_description: React — Auth0 Authentication Integration
 provider_name: Auth0
 provider_url: auth0.com
+skills: auth0-react
 ---
 
 Add Auth0 authentication to a React application using the @auth0/auth0-react SDK.
