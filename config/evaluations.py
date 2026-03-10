@@ -29,4 +29,10 @@ EVALUATIONS = [
         "category": "auth-credentials",
         "path":     "evals/ios_credentials_manager",
     },
+    {
+        "id":       "react_quickstart",
+        "name":     "React Quickstart",
+        "category": "quickstarts",
+        "path":     "evals/quickstarts/react",
+    },
 ]
