@@ -91,8 +91,6 @@ agent_eval/
   agent.py                      # ReAct agent runner with tool execution
   graders.py                    # contains() / matches() / judge() primitives
   scorer.py                     # 5-dimension scoring
-skills/
-  <sdk>.md                      # local SDK reference (fallback when no skills: declared)
 ```
 
 ## Adding an Eval
