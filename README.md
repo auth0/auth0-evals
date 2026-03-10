@@ -5,12 +5,10 @@ Evaluation framework for measuring how well LLM agents complete developer integr
 ## Quick Start
 
 ```bash
-ATKO_API_KEY=sk-... python run.py
-```
+cp .env.example .env
+# add your ATKO_API_KEY to .env
 
-Then generate a report:
-
-```bash
+python run.py
 python report.py
 ```
 
