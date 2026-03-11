@@ -85,7 +85,7 @@ def render_summary_table(grouped: dict, columns: list[tuple]) -> str:
             f'font-family:monospace">{eval_id}</td>'
         )
         for col_key in columns:
-            if col_key in results_for_eval:
+            if col_key in results_for_eval and results_for_eval[col_key].get("grader_pass_rate") is not None:
                 rate = results_for_eval[col_key]["grader_pass_rate"]
                 row += pct_cell(rate)
             else:
@@ -135,7 +135,23 @@ def render_detail_card(model: str, mode: str, result: dict) -> str:
     cost   = result.get("cost_usd", 0)
     wall   = result.get("wall_time", 0)
     color  = grade_color(rate)
-    graders_html = render_graders(result["graders"])
+    if result.get("status") == "error":
+        error_msg = result.get("error", "Unknown error")[:200]
+        return f"""
+    <div style="background:#0f172a;border:1px solid #7f1d1d;border-radius:8px;
+                padding:16px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <span style="background:#1e293b;color:#94a3b8;padding:3px 10px;
+                       border-radius:12px;font-size:12px;font-weight:600;
+                       text-transform:uppercase">{mode}</span>
+          <span style="margin-left:10px;font-size:13px;color:#64748b">{model}</span>
+        </div>
+        <span style="color:#ef4444;font-size:13px;font-weight:600">ERROR</span>
+      </div>
+      <div style="margin-top:10px;font-size:12px;color:#ef4444;font-family:monospace">{error_msg}</div>
+    </div>"""
+    graders_html = render_graders(graders_list)
 
     filled = round(rate * 20)
     bar_color = color

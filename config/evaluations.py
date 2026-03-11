@@ -18,12 +18,6 @@ To add a new eval:
 
 EVALUATIONS = [
     {
-        "id":       "ios_auth0_integration",
-        "name":     "iOS Auth0 Integration",
-        "category": "auth",
-        "path":     "evals/ios_auth0_integration",
-    },
-    {
         "id":       "ios_credentials_manager",
         "name":     "iOS CredentialsManager Setup",
         "category": "auth-credentials",
