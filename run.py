@@ -16,7 +16,7 @@ Usage:
 Options:
     --eval      Eval ID to run (default: all). Can be repeated.
     --model     Model(s) to run (default: gpt-4o-mini). Can be repeated.
-    --mode      Execution mode: agent | baseline | skills (default: agent)
+    --mode      Execution mode: agent | baseline | skills (default: baseline)
     --workers   Parallel workers (default: 4)
     --output    Output JSON path (default: scores-<mode>.json)
     --keep-workspace   (agent mode) Keep temp workspace after run
@@ -206,9 +206,9 @@ def main():
                         help="Eval ID(s) to run (default: all)")
     parser.add_argument("--model",   action="append", dest="models",
                         default=None, help="Model(s) to run (default: gpt-4o-mini)")
-    parser.add_argument("--mode",    default="agent",
+    parser.add_argument("--mode",    default="baseline",
                         choices=["agent", "baseline", "skills"],
-                        help="Execution mode (default: agent)")
+                        help="Execution mode (default: baseline)")
     parser.add_argument("--workers", type=int, default=4,
                         help="Parallel workers (default: 4)")
     parser.add_argument("--output",  default=None,
