@@ -80,7 +80,6 @@ The framework maintains a list of models that work reliably across all modes (ba
 
 | Category | ID | Description |
 |----------|----|-------------|
-| `auth-credentials` | `ios_credentials_manager` | Add CredentialsManager to an existing auth stub |
 | `quickstarts` | `react_quickstart` | Add Auth0 authentication to a React app using @auth0/auth0-react |
 | `quickstarts` | `swift_quickstart` | Add Auth0 authentication to a Swift iOS app using Auth0.swift |
 
