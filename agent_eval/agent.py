@@ -270,6 +270,17 @@ def llm_call(
     messages: list[dict],
     tools: list[dict],
 ) -> dict:
+    # Calculate approximate input size for logging
+    input_text = json.dumps(messages)
+    input_size_kb = len(input_text.encode('utf-8')) / 1024
+    
+    print(f"\n[LLM API] Calling remote API: {BASE_URL}/chat/completions")
+    print(f"[LLM API] Model: {model}")
+    print(f"[LLM API] Messages: {len(messages)} in history (~{input_size_kb:.1f} KB)")
+    print(f"[LLM API] Waiting for response...")
+    
+    call_start = time.time()
+    
     payload = json.dumps({
         "model": model,
         "messages": messages,
@@ -289,9 +300,31 @@ def llm_call(
     )
     try:
         resp = urllib.request.urlopen(req, timeout=120)
-        return json.loads(resp.read())
+        response_data = json.loads(resp.read())
+        
+        call_duration = time.time() - call_start
+        usage = response_data.get("usage", {})
+        prompt_tokens = usage.get("prompt_tokens", 0)
+        completion_tokens = usage.get("completion_tokens", 0)
+        
+        print(f"[LLM API] Response received ({call_duration:.2f}s)")
+        print(f"[LLM API] Tokens: {prompt_tokens} in / {completion_tokens} out")
+        
+        # Check if response has tool calls or is final message
+        message = response_data.get("choices", [{}])[0].get("message", {})
+        tool_calls = message.get("tool_calls")
+        if tool_calls:
+            print(f"[LLM API] Agent requested {len(tool_calls)} tool call(s)")
+        else:
+            content_preview = (message.get("content") or "")[:80]
+            print(f"[LLM API] Agent finished: \"{content_preview}...\"")
+        
+        return response_data
     except urllib.error.HTTPError as e:
+        call_duration = time.time() - call_start
         body = e.read().decode()
+        print(f"[LLM API] ❌ API error {e.code} after {call_duration:.2f}s")
+        print(f"[LLM API] 💥 Error: {body[:200]}")
         raise RuntimeError(f"LLM API error {e.code}: {body[:400]}") from e
 
 
