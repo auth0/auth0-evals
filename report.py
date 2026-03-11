@@ -127,9 +127,10 @@ def render_graders(graders: list[dict]) -> str:
 
 
 def render_detail_card(model: str, mode: str, result: dict) -> str:
-    rate   = result["grader_pass_rate"]
-    passed = result["graders_passed"]
-    total  = result["graders_total"]
+    graders_list = result.get("graders", [])
+    passed = result.get("graders_passed", sum(1 for g in graders_list if g.get("passed")))
+    total  = result.get("graders_total", len(graders_list))
+    rate   = result.get("grader_pass_rate", (passed / total if total else 0))
     tokens = result.get("tokens", 0)
     cost   = result.get("cost_usd", 0)
     wall   = result.get("wall_time", 0)
