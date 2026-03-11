@@ -18,12 +18,6 @@ To add a new eval:
 
 EVALUATIONS = [
     {
-        "id":       "ios_credentials_manager",
-        "name":     "iOS CredentialsManager Setup",
-        "category": "auth-credentials",
-        "path":     "evals/ios_credentials_manager",
-    },
-    {
         "id":       "react_quickstart",
         "name":     "React Quickstart",
         "category": "quickstarts",
