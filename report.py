@@ -126,6 +126,73 @@ def render_graders(graders: list[dict]) -> str:
     return f'<table style="width:100%;border-collapse:collapse;font-size:13px">{rows}</table>'
 
 
+def render_score_breakdown(dimensions: list[dict], overall_score: float, overall_grade: str) -> str:
+    """Render the 8-dimension score computation breakdown with process/output grouping."""
+    
+    # Group dimensions into process (first 5) and output (last 3)
+    process_dims = dimensions[:5] if len(dimensions) >= 5 else dimensions
+    output_dims = dimensions[5:8] if len(dimensions) >= 8 else []
+    
+    def render_group(dims, title):
+        rows = ""
+        for dim in dims:
+            name = dim.get("name", "")
+            score = dim.get("score", 0)
+            weight = dim.get("weight", 0.0)
+            weighted = dim.get("weighted", score * weight)
+            grade = dim.get("grade", "")
+            grade_color = {"A": "#22c55e", "B": "#84cc16", "C": "#f59e0b", "D": "#ef4444", "F": "#ef4444"}.get(grade, "#64748b")
+            
+            rows += f"""
+            <tr>
+              <td style="padding:6px 0;color:#cbd5e1;font-size:13px">{name}</td>
+              <td style="padding:6px 8px;text-align:right;font-family:monospace;color:#e2e8f0">{score:.1f}</td>
+              <td style="padding:6px 8px;text-align:center;color:#64748b;font-size:12px">× {weight:.2f}</td>
+              <td style="padding:6px 8px;text-align:right;font-family:monospace;color:#94a3b8">= {weighted:.2f}</td>
+              <td style="padding:6px 8px;text-align:center">
+                <span style="background:{grade_color};color:#0f172a;padding:2px 8px;border-radius:4px;
+                             font-size:11px;font-weight:700">{grade}</span>
+              </td>
+            </tr>"""
+        
+        return f"""
+        <tr>
+          <td colspan="5" style="padding:8px 0 4px 0;color:#94a3b8;font-size:11px;
+                                 text-transform:uppercase;letter-spacing:.05em;font-weight:600">
+            {title}
+          </td>
+        </tr>
+        {rows}"""
+    
+    process_html = render_group(process_dims, "Process Dimensions (50%)")
+    output_html = render_group(output_dims, "Output Dimensions (50%)")
+    
+    overall_color = {"A": "#22c55e", "B": "#84cc16", "C": "#f59e0b", "D": "#ef4444", "F": "#ef4444"}.get(overall_grade, "#64748b")
+    
+    return f"""
+    <div style="background:#1e293b;border-radius:6px;padding:12px;margin:12px 0">
+      <div style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+                  margin-bottom:8px;font-weight:600">Score Computation</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        {process_html}
+        {output_html}
+        <tr style="border-top:1px solid #334155;margin-top:4px">
+          <td style="padding:8px 0 4px 0;color:#e2e8f0;font-weight:600">Weighted Total</td>
+          <td colspan="3" style="padding:8px 8px 4px 8px;text-align:right;font-family:monospace;
+                                 color:#e2e8f0;font-size:16px;font-weight:700">{overall_score:.1f} / 100</td>
+          <td style="padding:8px 8px 4px 8px;text-align:center">
+            <span style="background:{overall_color};color:#0f172a;padding:3px 12px;border-radius:4px;
+                         font-size:14px;font-weight:700">{overall_grade}</span>
+          </td>
+        </tr>
+      </table>
+      <div style="color:#64748b;font-size:11px;margin-top:8px;font-family:monospace">
+        Process (50%): friction×15% + speed×10% + efficiency×10% + errors×5% + docs×10%<br>
+        Output (50%): correctness×25% + hallucination×15% + security×10%
+      </div>
+    </div>"""
+
+
 def render_detail_card(model: str, mode: str, result: dict) -> str:
     graders_list = result.get("graders", [])
     passed = result.get("graders_passed", sum(1 for g in graders_list if g.get("passed")))
@@ -135,6 +202,15 @@ def render_detail_card(model: str, mode: str, result: dict) -> str:
     cost   = result.get("cost_usd", 0)
     wall   = result.get("wall_time", 0)
     color  = grade_color(rate)
+    
+    # Check for dimension scores (agent mode)
+    dimensions = result.get("dimensions", [])
+    overall_score = result.get("overall_score")
+    overall_grade = result.get("overall_grade")
+    score_breakdown_html = ""
+    if dimensions and overall_score is not None:
+        score_breakdown_html = render_score_breakdown(dimensions, overall_score, overall_grade)
+    
     if result.get("status") == "error":
         error_msg = result.get("error", "Unknown error")[:200]
         return f"""
@@ -178,6 +254,7 @@ def render_detail_card(model: str, mode: str, result: dict) -> str:
         </div>
       </div>
       <div style="margin-bottom:12px">{bar}</div>
+      {score_breakdown_html}
       {graders_html}
       <div style="margin-top:10px;display:flex;gap:16px;font-size:12px;color:#475569">
         <span>⏱ {wall:.1f}s</span>

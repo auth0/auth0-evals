@@ -29,4 +29,10 @@ EVALUATIONS = [
         "category": "quickstarts",
         "path":     "evals/quickstarts/react",
     },
+    {
+        "id":       "swift_quickstart",
+        "name":     "Swift iOS Quickstart",
+        "category": "quickstarts",
+        "path":     "evals/quickstarts/swift",
+    },
 ]

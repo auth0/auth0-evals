@@ -20,6 +20,18 @@ from pathlib import Path
 from typing import Optional
 
 BASE_URL = "<LLM_PROXY_URL>/v1"
+
+# Models known to have toolConfig issues with Bedrock
+BEDROCK_INCOMPATIBLE_MODELS = [
+    "claude-4-5-opus",
+    "claude-4-5-sonnet", 
+    "claude-4-5-haiku",
+]
+
+
+def is_bedrock_model(model: str) -> bool:
+    """Check if model is a Bedrock Claude model that requires special toolConfig."""
+    return any(bedrock in model for bedrock in BEDROCK_INCOMPATIBLE_MODELS)
 MAX_TURNS = 30
 
 
@@ -325,6 +337,18 @@ def llm_call(
         body = e.read().decode()
         print(f"[LLM API] ❌ API error {e.code} after {call_duration:.2f}s")
         print(f"[LLM API] 💥 Error: {body[:200]}")
+        
+        # Detect Bedrock toolConfig error and provide helpful message
+        if "toolConfig" in body and "BedrockException" in body:
+            print(f"\n[LLM API] 🔍 This is a Bedrock model toolConfig error")
+            print(f"[LLM API] 💡 Use Anthropic API models instead of Bedrock:")
+            print(f"[LLM API]    --model claude-3-5-sonnet-20241022")
+            print(f"[LLM API]    --model claude-3-5-haiku-20241022")
+            raise RuntimeError(
+                f"Bedrock model '{model}' requires toolConfig field which is not supported. "
+                f"Use Anthropic API models (claude-3-5-sonnet-20241022, etc.) instead."
+            ) from e
+        
         raise RuntimeError(f"LLM API error {e.code}: {body[:400]}") from e
 
 
@@ -339,7 +363,17 @@ def run_agent(
 ) -> RunRecord:
     """
     Run the agent against a task. Returns a fully populated RunRecord.
+    Includes validation for Bedrock models that don't support tool calling.
     """
+    # Check for incompatible Bedrock models upfront
+    if is_bedrock_model(model):
+        print(f"\n[Agent] ⚠️  WARNING: Model '{model}' is a Bedrock model")
+        print(f"[Agent] Bedrock models require toolConfig field which is not supported")
+        print(f"[Agent] This will likely fail. Use Anthropic API models instead:")
+        print(f"[Agent]   - claude-3-5-sonnet-20241022")
+        print(f"[Agent]   - claude-3-5-haiku-20241022")
+        print(f"[Agent]   - claude-3-opus-20240229")
+    
     record = RunRecord(task_name=task.name, model=model, workspace=workspace)
     executor = ToolExecutor(workspace, credentials)
 

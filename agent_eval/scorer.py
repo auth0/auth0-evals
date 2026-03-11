@@ -1,10 +1,13 @@
 """
-5-dimension scorer.
+8-dimension scorer.
 
-Implements the quantitative formula from the 2027.dev Agent Arena scorecard:
-  score = friction×0.25 + speed×0.20 + efficiency×0.20 + errors×0.15 + docs×0.20
+Process dimensions (50%): Setup Friction (15%), Setup Speed (10%), Efficiency (10%), 
+Error Recovery (5%), Docs Quality (10%)
+
+Output dimensions (50%): Correctness (25%), Hallucination (15%), Security (10%)
 
 Each dimension is scored 0–100 and maps to a letter grade.
+Overall score = weighted sum across all 8 dimensions.
 """
 
 from dataclasses import dataclass, field
@@ -61,8 +64,9 @@ class ScoredResult:
 
 def _score_friction(record: RunRecord) -> tuple[float, str]:
     """
-    Penalise hard interruptions (agent asked user a question) and provider errors.
-    Reference: 2 interruptions → 72.0
+    Setup Friction: Did the agent get stuck and need human help? 
+    Did it hit errors during setup?
+    Penalise hard interruptions and provider errors.
     """
     score = 100.0
     # Hard interrupt penalty (agent couldn't proceed without user input)
@@ -87,8 +91,8 @@ def _score_friction(record: RunRecord) -> tuple[float, str]:
 
 def _score_speed(record: RunRecord, reference_active_s: float = 60.0) -> tuple[float, str]:
     """
-    Score active agent time. Ideal ≤ 60 s = 100; degrades by 0.4 pts/sec beyond that.
-    Reference: 80 s active → ~92 (close to 91.1 in report).
+    Setup Speed: How long did the agent actively spend on the task?
+    Ideal ≤ 60 s = 100; degrades by 0.4 pts/sec beyond that.
     """
     excess = max(0.0, record.active_time - reference_active_s)
     score = max(0.0, 100.0 - excess * 0.4)
@@ -101,12 +105,15 @@ def _score_speed(record: RunRecord, reference_active_s: float = 60.0) -> tuple[f
 
 def _score_efficiency(record: RunRecord, ideal_calls: int = 10) -> tuple[float, str]:
     """
-    Score tool-call count. Ideal = ideal_calls; degrades proportionally above that.
-    Reference: 18 calls → 100×(10/18) ≈ 55.6 ≈ 56.4 in report.
+    Efficiency: How many actions did it take to complete the task? 
+    Did the agent thrash or take a direct path? How many tokens did the agent spend?
+    Scores tool-call count. Ideal = ideal_calls; degrades proportionally above that.
+    For non-agent modes (baseline/skills), returns 100 (N/A - no tools used).
     """
     total = len(record.tool_calls)
     if total == 0:
-        return 0.0, "No tool calls recorded"
+        # Baseline/skills modes don't use tools - this dimension doesn't apply
+        return 100.0, "N/A (no tools in baseline/skills mode)"
     score = min(100.0, 100.0 * ideal_calls / max(ideal_calls, total))
     summary = record.tool_call_summary()
     notes = f"{total} tool calls — {summary}"
@@ -115,6 +122,7 @@ def _score_efficiency(record: RunRecord, ideal_calls: int = 10) -> tuple[float, 
 
 def _score_errors(record: RunRecord) -> tuple[float, str]:
     """
+    Error Recovery: When the agent hit errors, did it recover or spiral?
     Score provider-caused errors. Zero errors = 100.
     Critical errors (SDK crash, auth failure) = -30 each; minor = -10 each.
     """
@@ -129,6 +137,8 @@ def _score_errors(record: RunRecord) -> tuple[float, str]:
 
 def _score_docs(doc_features: dict[str, bool]) -> tuple[float, str]:
     """
+    Docs Quality: Can agents discover SDKs, CLI, llms.txt, MCP server, 
+    agent0skills, OpenAPI spec?
     Pre-scored AI discoverability. Each of 5 features worth 20 points.
     Features: llms_txt, context7, mcp_server, typed_sdk, openapi_spec.
     """
@@ -141,6 +151,112 @@ def _score_docs(doc_features: dict[str, bool]) -> tuple[float, str]:
         f"{len(present)}/5 AI discoverability: {present_str}. "
         f"Missing: {missing_str}."
     )
+    return round(score, 1), notes
+
+
+def _score_correctness(grader_results: list[GraderResult]) -> tuple[float, str]:
+    """
+    Correctness: Did the agent produce code that passes the eval's graders?
+    What fraction of checks pass?
+    Score = 100 * (passed / total)
+    """
+    if not grader_results:
+        return 0.0, "No graders run"
+    
+    passed = sum(1 for g in grader_results if g.passed)
+    total = len(grader_results)
+    score = 100.0 * passed / total
+    notes = f"{passed}/{total} graders passed ({score:.0f}%)"
+    return round(score, 1), notes
+
+
+def _score_hallucination(workspace: str) -> tuple[float, str]:
+    """
+    Hallucination: Did the agent invent things that don't exist—
+    fake imports, non-existent methods, made-up packages?
+    
+    Checks for common hallucination patterns in code.
+    """
+    import re
+    from pathlib import Path
+    
+    score = 100.0
+    issues = []
+    
+    # Common fake packages/imports in Auth0 context
+    fake_patterns = [
+        (r"from\s+auth0\s+import\s+Auth0Client", "Auth0Client doesn't exist in auth0 package"),
+        (r"import\s+@auth0/auth0-sdk", "@auth0/auth0-sdk doesn't exist"),
+        (r"Auth0\.configure\(", "Auth0.configure() not a real method"),
+        (r"auth0\.loginWithRedirect\(", "Incorrect method name (should be loginWithPopup)"),
+    ]
+    
+    # Scan all files
+    for path in Path(workspace).rglob("*"):
+        if path.is_file() and path.suffix in ['.js', '.jsx', '.ts', '.tsx', '.swift', '.py']:
+            try:
+                content = path.read_text(errors='replace')
+                for pattern, description in fake_patterns:
+                    if re.search(pattern, content, re.IGNORECASE):
+                        issues.append(f"{path.name}: {description}")
+                        score -= 20.0
+            except Exception:
+                pass
+    
+    score = max(0.0, score)
+    
+    if not issues:
+        notes = "No hallucinations detected"
+    else:
+        notes = "; ".join(issues[:3])  # Limit to first 3
+        if len(issues) > 3:
+            notes += f" (+{len(issues)-3} more)"
+    
+    return round(score, 1), notes
+
+
+def _score_security(workspace: str) -> tuple[float, str]:
+    """
+    Security: Did the agent introduce auth-specific vulnerabilities—
+    hardcoded secrets, tokens in localStorage, missing CSRF, 
+    exposed client_secret in SPA code?
+    """
+    import re
+    from pathlib import Path
+    
+    score = 100.0
+    issues = []
+    
+    # Security vulnerability patterns
+    vuln_patterns = [
+        (r"client_secret\s*[=:]\s*['\"][^'\"]+['\"]", "Hardcoded client_secret", 30),
+        (r"localStorage\.setItem\(['\"].*token", "Token in localStorage (use secure cookie)", 20),
+        (r"api_key\s*[=:]\s*['\"][^'\"]+['\"]", "Hardcoded API key", 30),
+        (r"password\s*[=:]\s*['\"][^'\"]+['\"]", "Hardcoded password", 30),
+        (r"client_secret.*process\.env", "client_secret exposed in frontend", 25),
+    ]
+    
+    # Scan all files
+    for path in Path(workspace).rglob("*"):
+        if path.is_file() and path.suffix in ['.js', '.jsx', '.ts', '.tsx', '.swift', '.py']:
+            try:
+                content = path.read_text(errors='replace')
+                for pattern, description, penalty in vuln_patterns:
+                    if re.search(pattern, content, re.IGNORECASE):
+                        issues.append(f"{path.name}: {description}")
+                        score -= penalty
+            except Exception:
+                pass
+    
+    score = max(0.0, score)
+    
+    if not issues:
+        notes = "No security vulnerabilities detected"
+    else:
+        notes = "; ".join(issues[:3])  # Limit to first 3
+        if len(issues) > 3:
+            notes += f" (+{len(issues)-3} more)"
+    
     return round(score, 1), notes
 
 
@@ -159,34 +275,52 @@ AUTH0_SWIFT_DOC_FEATURES = {
 def score(
     record: RunRecord,
     doc_features: Optional[dict[str, bool]] = None,
+    grader_results: Optional[list[GraderResult]] = None,
 ) -> ScoredResult:
     """
     Score a RunRecord and return a ScoredResult with all dimension breakdowns.
+    8 dimensions: 5 process + 3 output.
     """
     if doc_features is None:
         doc_features = AUTH0_SWIFT_DOC_FEATURES
+    if grader_results is None:
+        grader_results = []
 
+    # Process dimensions (50% total)
     friction_score, friction_notes = _score_friction(record)
     speed_score, speed_notes       = _score_speed(record)
     eff_score, eff_notes           = _score_efficiency(record)
     err_score, err_notes           = _score_errors(record)
     doc_score, doc_notes           = _score_docs(doc_features)
+    
+    # Output dimensions (50% total)
+    correctness_score, correctness_notes = _score_correctness(grader_results)
+    hallucination_score, hallucination_notes = _score_hallucination(record.workspace)
+    security_score, security_notes = _score_security(record.workspace)
 
     dimensions = [
-        DimensionScore("Setup Friction",  0.25, friction_score, score_to_grade(friction_score), friction_notes),
-        DimensionScore("Setup Speed",     0.20, speed_score,    score_to_grade(speed_score),    speed_notes),
-        DimensionScore("Efficiency",      0.20, eff_score,      score_to_grade(eff_score),      eff_notes),
-        DimensionScore("Error Recovery",  0.15, err_score,      score_to_grade(err_score),      err_notes),
-        DimensionScore("Doc Quality",     0.20, doc_score,      score_to_grade(doc_score),      doc_notes),
+        # Process dimensions (50%)
+        DimensionScore("Setup Friction",  0.15, friction_score, score_to_grade(friction_score), friction_notes),
+        DimensionScore("Setup Speed",     0.10, speed_score,    score_to_grade(speed_score),    speed_notes),
+        DimensionScore("Efficiency",      0.10, eff_score,      score_to_grade(eff_score),      eff_notes),
+        DimensionScore("Error Recovery",  0.05, err_score,      score_to_grade(err_score),      err_notes),
+        DimensionScore("Docs Quality",    0.10, doc_score,      score_to_grade(doc_score),      doc_notes),
+        # Output dimensions (50%)
+        DimensionScore("Correctness",     0.25, correctness_score, score_to_grade(correctness_score), correctness_notes),
+        DimensionScore("Hallucination",   0.15, hallucination_score, score_to_grade(hallucination_score), hallucination_notes),
+        DimensionScore("Security",        0.10, security_score, score_to_grade(security_score), security_notes),
     ]
 
     overall = sum(d.weighted for d in dimensions)
     overall = round(overall, 1)
 
-    return ScoredResult(
+    result = ScoredResult(
         run_record=record,
         dimensions=dimensions,
         overall_score=overall,
         overall_grade=score_to_grade(overall),
         doc_features=doc_features,
+        grader_results=grader_results,
     )
+    
+    return result
