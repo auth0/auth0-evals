@@ -8,7 +8,10 @@ Evaluation framework for measuring how well LLM agents complete developer integr
 cp .env.example .env
 # add your ATKO_API_KEY to .env
 
-python run.py --mode baseline
+# Run all evals × all models × all modes (recommended)
+python run.py --mode all --model all --workers 8
+
+# Generate and view report
 python report.py
 ```
 
