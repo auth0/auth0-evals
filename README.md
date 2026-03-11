@@ -8,7 +8,7 @@ Evaluation framework for measuring how well LLM agents complete developer integr
 cp .env.example .env
 # add your ATKO_API_KEY to .env
 
-python run.py
+python run.py --mode baseline
 python report.py
 ```
 
@@ -16,8 +16,8 @@ python report.py
 
 | Mode | Description |
 |------|-------------|
-| `baseline` | Single LLM call, no tools |
-| `skills` | Single LLM call with SDK reference docs prepended to context |
+| `baseline` | Single LLM call, no tools (default) |
+| `skills` | Single LLM call with SKILL.md files prepended to context |
 | `agent` | Full agentic loop with read/write/bash/fetch tools |
 
 ```bash
@@ -29,24 +29,24 @@ python run.py --mode agent
 ## Options
 
 ```
---eval      Eval ID to run (default: all)
+--eval      Eval ID to run (default: all). Can be repeated.
 --model     Model to use (default: gpt-4o-mini). Can be repeated for multiple models.
---mode      baseline | skills | agent (default: agent)
+--mode      baseline | skills | agent (default: baseline)
 --workers   Parallel workers (default: 4)
 --output    JSON output path (default: scores-<mode>.json)
+--keep-workspace   (agent mode only) Keep temp workspace after run
 ```
 
 ## Evals
 
 | Category | ID | Description |
 |----------|----|-------------|
-| `ios` | `ios_auth0_integration` | Full Auth0 integration: login, logout, CredentialsManager, protected profile |
-| `ios` | `ios_credentials_manager` | Add CredentialsManager to an existing auth stub |
+| `auth-credentials` | `ios_credentials_manager` | Add CredentialsManager to an existing auth stub |
 | `quickstarts` | `react_quickstart` | Add Auth0 authentication to a React app using @auth0/auth0-react |
 
 ## Skills
 
-In `skills` mode, SDK reference material is injected into the system prompt before the LLM call.
+In `skills` mode, SKILL.md files are fetched from the [auth0/agent-skills](https://github.com/auth0/agent-skills) repository and injected into the system prompt before the LLM call.
 
 Each eval declares which skill it needs in its `PROMPT.md` frontmatter:
 
@@ -86,11 +86,11 @@ evals/
 runners/
   loader.py                     # parses PROMPT.md, imports graders.py
   baseline.py                   # pure LLM, no tools
-  skills.py                     # LLM + SDK reference docs prepended
+  skills.py                     # LLM + SKILL.md files prepended
 agent_eval/
   agent.py                      # ReAct agent runner with tool execution
   graders.py                    # contains() / matches() / judge() primitives
-  scorer.py                     # 5-dimension scoring
+  scorer.py                     # 5-dimension scoring (friction, speed, efficiency, errors, docs)
 ```
 
 ## Adding an Eval
@@ -107,7 +107,7 @@ EVALUATIONS = [
         "id":       "your_eval_id",
         "name":     "Your Eval Name",
         "category": "your-category",
-        "path":     "evals/your-category/your_eval_id",
+        "path":     "evals/<category>/your_eval_id",
     },
 ]
 ```
