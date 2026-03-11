@@ -12,6 +12,36 @@ python run.py --mode baseline
 python report.py
 ```
 
+### Run with multiple models and modes
+
+```bash
+# Quick test - baseline mode with gpt-4o-mini (fastest)
+python run.py --eval react_quickstart --mode baseline
+
+# Test all modes with one model
+python run.py --eval react_quickstart --mode all --model gpt-4o-mini
+
+# Run all known working models in baseline mode
+python run.py --model all --mode baseline
+
+# Run specific models across all modes
+python run.py --model gpt-4o --model gpt-4-turbo --mode all
+
+# Full evaluation - all modes × all models (13 jobs, ~15s with 8 workers)
+python run.py --eval react_quickstart --mode all --model all --workers 8
+
+# Run everything (all evals × all models × all modes)
+python run.py --mode all --model all
+
+# Generate HTML report from results
+python report.py --input scores-all-modes.json
+
+# Run and view results in one command
+python run.py --eval react_quickstart --mode all --model all && python report.py --input scores-all-modes.json && open report.html
+```
+
+**Note:** Bedrock models (claude-4-5-sonnet, claude-4-5-haiku) are automatically skipped in agent mode but run in baseline/skills modes.
+
 ## Modes
 
 | Mode | Description |
@@ -20,22 +50,31 @@ python report.py
 | `skills` | Single LLM call with SKILL.md files prepended to context |
 | `agent` | Full agentic loop with read/write/bash/fetch tools |
 
-```bash
-python run.py --mode baseline
-python run.py --mode skills
-python run.py --mode agent
-```
+Use `--mode all` to run all three modes in parallel for faster evaluation.
 
 ## Options
 
 ```
 --eval      Eval ID to run (default: all). Can be repeated.
 --model     Model to use (default: gpt-4o-mini). Can be repeated for multiple models.
---mode      baseline | skills | agent (default: baseline)
+            Use 'all' to run all known working models.
+--mode      baseline | skills | agent | all (default: baseline)
+            Use 'all' to run all three modes in parallel.
 --workers   Parallel workers (default: 4)
---output    JSON output path (default: scores-<mode>.json)
+--output    JSON output path (default: scores-<mode>.json or scores-all-modes.json)
 --keep-workspace   (agent mode only) Keep temp workspace after run
 ```
+
+### Known Working Models
+
+The framework maintains a list of models that work reliably across all modes (baseline, skills, and agent):
+
+**OpenAI:**
+- `gpt-4o-mini` (default)
+- `gpt-4o`
+- `gpt-4-turbo`
+
+**Note:** Model availability depends on your ATKO API key configuration. Bedrock Claude models (`claude-4-5-*`) require special toolConfig and will fail in agent mode.
 
 ## Evals
 
@@ -43,6 +82,7 @@ python run.py --mode agent
 |----------|----|-------------|
 | `auth-credentials` | `ios_credentials_manager` | Add CredentialsManager to an existing auth stub |
 | `quickstarts` | `react_quickstart` | Add Auth0 authentication to a React app using @auth0/auth0-react |
+| `quickstarts` | `swift_quickstart` | Add Auth0 authentication to a Swift iOS app using Auth0.swift |
 
 ## Skills
 

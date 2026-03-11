@@ -16,9 +16,11 @@ Usage:
 Options:
     --eval      Eval ID to run (default: all). Can be repeated.
     --model     Model(s) to run (default: gpt-4o-mini). Can be repeated.
-    --mode      Execution mode: agent | baseline | skills (default: baseline)
+                Use 'all' to run all known working models.
+    --mode      Execution mode: agent | baseline | skills | all (default: baseline)
+                Use 'all' to run all three modes.
     --workers   Parallel workers (default: 4)
-    --output    Output JSON path (default: scores-<mode>.json)
+    --output    JSON output path (default: scores-<mode>.json or scores-all-modes.json)
     --keep-workspace   (agent mode) Keep temp workspace after run
 """
 
@@ -31,6 +33,26 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 FRAMEWORK_ROOT = Path(__file__).parent
+
+# Known working models - OpenAI and Bedrock Claude models accessible via ATKO API
+KNOWN_WORKING_MODELS = [
+    "gpt-4o-mini",
+    "gpt-4o",
+    "gpt-4-turbo",
+    "claude-4-5-sonnet",
+    "claude-4-5-haiku",
+]
+
+DEFAULT_MODEL = "gpt-4o-mini"
+
+ALL_MODES = ["baseline", "skills", "agent"]
+
+# Bedrock models that don't work in agent mode (require toolConfig)
+AGENT_INCOMPATIBLE_MODELS = [
+    "claude-4-5-opus",
+    "claude-4-5-sonnet", 
+    "claude-4-5-haiku",
+]
 
 
 def _load_env(path: Path) -> None:
@@ -71,31 +93,48 @@ def run_job(
     """
     Execute one eval × model pair in the given mode.
     Returns a result dict suitable for JSON serialisation.
+    Handles errors gracefully and returns error state in result.
     """
     eval_def = load_eval(eval_config, FRAMEWORK_ROOT)
     print(f"  [{mode}] {eval_def.id} / {model}")
 
-    if mode == "baseline":
-        from runners.baseline import run_baseline
-        result = run_baseline(api_key=api_key, model=model, eval_def=eval_def)
-        grader_results = _grade_text(eval_def, result.response_text, api_key)
-        return _serialise_simple(eval_def, result, grader_results)
+    try:
+        if mode == "baseline":
+            from runners.baseline import run_baseline
+            result = run_baseline(api_key=api_key, model=model, eval_def=eval_def)
+            grader_results = _grade_text(eval_def, result.response_text, api_key)
+            return _serialise_simple(eval_def, result, grader_results)
 
-    elif mode == "skills":
-        from runners.skills import run_skills
-        result = run_skills(
-            api_key=api_key,
-            model=model,
-            eval_def=eval_def,
-        )
-        grader_results = _grade_text(eval_def, result.response_text, api_key)
-        return _serialise_simple(eval_def, result, grader_results)
+        elif mode == "skills":
+            from runners.skills import run_skills
+            result = run_skills(
+                api_key=api_key,
+                model=model,
+                eval_def=eval_def,
+            )
+            grader_results = _grade_text(eval_def, result.response_text, api_key)
+            return _serialise_simple(eval_def, result, grader_results)
 
-    elif mode == "agent":
-        return _run_agent_job(eval_def, model, api_key, keep_workspace)
+        elif mode == "agent":
+            return _run_agent_job(eval_def, model, api_key, keep_workspace)
 
-    else:
-        raise ValueError(f"Unknown mode: {mode}")
+        else:
+            raise ValueError(f"Unknown mode: {mode}")
+
+    except Exception as e:
+        # Graceful error handling - return error state instead of crashing
+        error_msg = str(e)
+        print(f"  ✗ [{eval_def.id}] {model} - ERROR: {error_msg[:100]}")
+        return {
+            "eval_id": eval_def.id,
+            "model": model,
+            "mode": mode,
+            "status": "error",
+            "error": error_msg,
+            "wall_time": 0,
+            "tokens": 0,
+            "cost_usd": 0,
+        }
 
 
 def _grade_text(eval_def: EvalDefinition, text: str, api_key: str) -> list:
@@ -131,8 +170,7 @@ def _run_agent_job(eval_def: EvalDefinition, model: str, api_key: str, keep_work
         if eval_def.graders:
             grader_results = run_graders(eval_def.graders, workspace, api_key)
 
-        scored = score(record)
-        scored.grader_results = grader_results
+        scored = score(record, grader_results=grader_results)
 
         return {
             "eval_id":       eval_def.id,
@@ -150,7 +188,13 @@ def _run_agent_job(eval_def: EvalDefinition, model: str, api_key: str, keep_work
             "tokens":        record.input_tokens + record.output_tokens,
             "cost_usd":      record.cost_usd,
             "dimensions": [
-                {"name": d.name, "score": d.raw_score, "grade": d.grade}
+                {
+                    "name": d.name, 
+                    "score": d.raw_score, 
+                    "grade": d.grade,
+                    "weight": d.weight,
+                    "weighted": d.weighted
+                }
                 for d in scored.dimensions
             ],
             "graders": [
@@ -205,14 +249,14 @@ def main():
     parser.add_argument("--eval",    action="append", dest="evals",
                         help="Eval ID(s) to run (default: all)")
     parser.add_argument("--model",   action="append", dest="models",
-                        default=None, help="Model(s) to run (default: gpt-4o-mini)")
+                        default=None, 
+                        help=f"Model(s) to run (default: {DEFAULT_MODEL}). Use 'all' for all known working models.")
     parser.add_argument("--mode",    default="baseline",
-                        choices=["agent", "baseline", "skills"],
-                        help="Execution mode (default: baseline)")
+                        help="Execution mode: baseline | skills | agent | all (default: baseline)")
     parser.add_argument("--workers", type=int, default=4,
                         help="Parallel workers (default: 4)")
     parser.add_argument("--output",  default=None,
-                        help="JSON output path (default: scores-<mode>.json)")
+                        help="JSON output path (default: scores-<mode>.json or scores-all-modes.json)")
     parser.add_argument("--keep-workspace", action="store_true",
                         help="(agent mode) Keep temp workspace after run")
     args = parser.parse_args()
@@ -221,7 +265,23 @@ def main():
     if not api_key:
         raise SystemExit("Error: ATKO_API_KEY environment variable not set.")
 
-    models = args.models or ["gpt-4o-mini"]
+    # Handle model selection
+    if args.models and "all" in args.models:
+        models = KNOWN_WORKING_MODELS
+        print(f"Using all known working models: {', '.join(models)}")
+    elif args.models:
+        models = args.models
+    else:
+        models = [DEFAULT_MODEL]
+
+    # Handle mode selection
+    if args.mode == "all":
+        modes = ALL_MODES
+        print(f"Running all modes: {', '.join(modes)}")
+    else:
+        if args.mode not in ALL_MODES:
+            raise SystemExit(f"Invalid mode: {args.mode}. Choose from: {', '.join(ALL_MODES)} or 'all'")
+        modes = [args.mode]
 
     # Filter evals by --eval flag (default: all)
     registry = EVALUATIONS
@@ -229,15 +289,28 @@ def main():
         registry = [e for e in EVALUATIONS if e["id"] in args.evals]
         unknown  = set(args.evals) - {e["id"] for e in EVALUATIONS}
         if unknown:
-            raise SystemExit(f"Unknown eval ID(s): {unknown}. "
-                             f"Available: {[e['id'] for e in EVALUATIONS]}")
+            raise SystemExit(f"Unknown eval(s): {', '.join(unknown)}")
 
-    # Build job list: eval × model
-    jobs = [(eval_cfg, model) for eval_cfg in registry for model in models]
+    if not registry:
+        raise SystemExit("No evals to run. Check your --eval flag.")
 
-    print(f"\nRunning {len(jobs)} job(s)  mode={args.mode}  workers={args.workers}")
-    print(f"Evals : {[j[0]['id'] for j in jobs]}")
-    print(f"Models: {models}\n")
+    # Build job list: eval × model × mode
+    jobs = [
+        (eval_cfg, model, mode) 
+        for eval_cfg in registry 
+        for model in models
+        for mode in modes
+        # Skip Bedrock models in agent mode
+        if not (mode == "agent" and model in AGENT_INCOMPATIBLE_MODELS)
+    ]
+
+    skipped = len(registry) * len(models) * len(modes) - len(jobs)
+    print(f"\nRunning {len(jobs)} job(s)  modes={modes}  workers={args.workers}")
+    if skipped > 0:
+        print(f"Skipped {skipped} job(s) (Bedrock models in agent mode)")
+    print(f"Evals : {[e['id'] for e in registry]}")
+    print(f"Models: {models}")
+    print(f"Modes : {modes}\n")
 
     results: list[dict] = []
     t_start = time.time()
@@ -246,23 +319,23 @@ def main():
         futures = {
             pool.submit(
                 run_job,
-                eval_cfg, model, args.mode, api_key, args.keep_workspace,
-            ): (eval_cfg["id"], model)
-            for eval_cfg, model in jobs
+                eval_cfg, model, mode, api_key, args.keep_workspace,
+            ): (eval_cfg["id"], model, mode)
+            for eval_cfg, model, mode in jobs
         }
 
         for future in as_completed(futures):
-            eval_id, model = futures[future]
+            eval_id, model, mode = futures[future]
             try:
                 result = future.result()
                 results.append(result)
                 _print_result(result)
             except Exception as exc:
-                print(f"  [ERROR] {eval_id}/{model}: {exc}")
+                print(f"  [ERROR] {eval_id}/{model}/{mode}: {exc}")
                 results.append({
                     "eval_id": eval_id,
                     "model": model,
-                    "mode": args.mode,
+                    "mode": mode,
                     "status": "error",
                     "error": str(exc),
                 })
@@ -271,13 +344,20 @@ def main():
     _print_summary(results, elapsed)
 
     # Save results to JSON
-    output_path = args.output or f"scores-{args.mode}.json"
+    if args.output:
+        output_path = args.output
+    elif len(modes) > 1:
+        output_path = "scores-all-modes.json"
+    else:
+        output_path = f"scores-{modes[0]}.json"
+    
     output_path = str(FRAMEWORK_ROOT / output_path)
     with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
     print(f"\n[Output] Results saved to: {output_path}")
 
 
+# ── Summary helpers ───────────────────────────────────────────────────────────
 # ── Summary helpers ───────────────────────────────────────────────────────────
 
 def _print_result(r: dict) -> None:
