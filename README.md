@@ -18,19 +18,19 @@ python report.py
 ### Run with multiple models and modes
 
 ```bash
-# Quick test - baseline mode with gpt-4o-mini (fastest)
+# Quick test - baseline mode with default model
 python run.py --eval react_quickstart --mode baseline
 
 # Test all modes with one model
-python run.py --eval react_quickstart --mode all --model gpt-4o-mini
+python run.py --eval react_quickstart --mode all --model gpt-5.2
 
 # Run all known working models in baseline mode
 python run.py --model all --mode baseline
 
 # Run specific models across all modes
-python run.py --model gpt-4o --model gpt-4-turbo --mode all
+python run.py --model claude-4-6-sonnet --model claude-4-6-opus --mode all
 
-# Full evaluation - all modes × all models (13 jobs, ~15s with 8 workers)
+# Full evaluation - all modes × all models
 python run.py --eval react_quickstart --mode all --model all --workers 8
 
 # Run everything (all evals × all models × all modes)
@@ -43,8 +43,6 @@ python report.py --input scores-all-modes.json
 python run.py --eval react_quickstart --mode all --model all && python report.py --input scores-all-modes.json && open report.html
 ```
 
-**Note:** Bedrock models (claude-4-5-sonnet, claude-4-5-haiku) are automatically skipped in agent mode but run in baseline/skills modes.
-
 ## Modes
 
 | Mode | Description |
@@ -55,11 +53,44 @@ python run.py --eval react_quickstart --mode all --model all && python report.py
 
 Use `--mode all` to run all three modes in parallel for faster evaluation.
 
+## Models
+
+| Model | ID |
+|-------|----|
+| GPT-5.2 | `gpt-5.2` |
+| Claude Sonnet 4.6 | `claude-4-6-sonnet` |
+| Claude Opus 4.6 | `claude-4-6-opus` |
+| Gemini 3 Pro | `gemini-3-pro-preview` |
+
+```bash
+# Run with a specific model
+python run.py --model gpt-5.2
+python run.py --model claude-4-6-sonnet
+python run.py --model claude-4-6-opus
+python run.py --model gemini-3-pro-preview
+
+# Run with multiple models
+python run.py --model claude-4-6-sonnet --model claude-4-6-opus
+
+# Run with a specific model and mode
+python run.py --model gpt-5.2 --mode agent
+```
+
+Results are merged into the output file by `(eval_id, model, mode)` key. Re-running a single model updates only its entries — scores for all other models are preserved.
+
+```bash
+# Run all models once to build the full baseline
+python run.py --model all
+
+# Later, re-run only one model without losing the rest
+python run.py --model gpt-5.2
+```
+
 ## Options
 
 ```
 --eval      Eval ID to run (default: all). Can be repeated.
---model     Model to use (default: gpt-4o-mini). Can be repeated for multiple models.
+--model     Model to use (default: gpt-5.2). Can be repeated for multiple models.
             Use 'all' to run all known working models.
 --mode      baseline | skills | agent | all (default: baseline)
             Use 'all' to run all three modes in parallel.
@@ -73,11 +104,16 @@ Use `--mode all` to run all three modes in parallel for faster evaluation.
 The framework maintains a list of models that work reliably across all modes (baseline, skills, and agent):
 
 **OpenAI:**
-- `gpt-4o-mini` (default)
-- `gpt-4o`
-- `gpt-4-turbo`
+- `gpt-5.2` (default)
 
-**Note:** Model availability depends on your ATKO API key configuration. Bedrock Claude models (`claude-4-5-*`) require special toolConfig and will fail in agent mode.
+**Anthropic:**
+- `claude-4-6-sonnet`
+- `claude-4-6-opus`
+
+**Google:**
+- `gemini-3-pro-preview`
+
+**Note:** Model availability depends on your ATKO API key configuration.
 
 ## Evals
 
