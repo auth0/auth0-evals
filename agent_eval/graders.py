@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Callable
 
 BASE_URL = "https://llm.atko.ai/v1"
-JUDGE_MODEL = "gpt-4o-mini"
+JUDGE_MODEL = "claude-4-5-sonnet"
 
 
 # ── Result type ───────────────────────────────────────────────────────────────
@@ -129,11 +129,11 @@ def run_graders(
 def _llm_judge(question: str, code: str, api_key: str, model: str) -> tuple[bool, str]:
     """Ask the LLM judge a yes/no question about the generated code."""
     system = (
-        "You are a strict code reviewer for the Auth0.swift iOS SDK. "
+        "You are a strict code reviewer for Auth0 SDK integrations. "
         "Answer only 'yes' or 'no' — no other text."
     )
     user = (
-        f"Review the following generated Swift code and answer this question:\n\n"
+        f"Review the following generated code and answer this question:\n\n"
         f"Question: {question}\n\n"
         f"Code:\n{code[:6000]}\n\n"
         f"Answer (yes/no):"
@@ -163,9 +163,9 @@ def _llm_judge(question: str, code: str, api_key: str, model: str) -> tuple[bool
         data = json.loads(resp.read())
         answer = data["choices"][0]["message"]["content"].strip().lower()
         passed = answer.startswith("yes")
-        return passed, f"Judge answered: '{answer}'"
+        return passed, f"Judge ({model}): '{answer}'"
     except Exception as e:
-        return False, f"Judge error: {e}"
+        return False, f"Judge ({model}) error: {e}"
 
 
 # ── Summary helpers ───────────────────────────────────────────────────────────
