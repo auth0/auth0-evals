@@ -159,8 +159,8 @@ def _llm_judge(question: str, code: str, api_key: str, model: str) -> tuple[bool
         method="POST",
     )
     try:
-        resp = urllib.request.urlopen(req, timeout=30)
-        data = json.loads(resp.read())
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read())
         answer = data["choices"][0]["message"]["content"].strip().lower()
         passed = answer.startswith("yes")
         return passed, f"Judge answered: '{answer}'"
