@@ -12,6 +12,7 @@ def define_graders() -> list[dict]:
         contains("credentialsManager"),
         judge(
             "Does the solution correctly integrate Auth0 into a Swift iOS app using "
-            "Auth0.webAuth(), login, logout, and credential management?"
+            "Auth0.webAuth(), login, logout, and credential management?",
+            framework="ios"
         ),
     ]
