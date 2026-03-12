@@ -251,8 +251,8 @@ class ToolExecutor:
     def _fetch_url(self, url: str) -> str:
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "auth0-eval-agent/1.0"})
-            resp = urllib.request.urlopen(req, timeout=15)
-            raw = resp.read(8000).decode("utf-8", errors="replace")
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                raw = resp.read(8000).decode("utf-8", errors="replace")
             # Strip HTML tags for readability
             import re
             text = re.sub(r"<[^>]+>", " ", raw)
@@ -311,9 +311,9 @@ def llm_call(
         method="POST",
     )
     try:
-        resp = urllib.request.urlopen(req, timeout=120)
-        response_data = json.loads(resp.read())
-        
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            response_data = json.loads(resp.read())
+
         call_duration = time.time() - call_start
         usage = response_data.get("usage", {})
         prompt_tokens = usage.get("prompt_tokens", 0)
