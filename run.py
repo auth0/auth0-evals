@@ -15,7 +15,7 @@ Usage:
 
 Options:
     --eval      Eval ID to run (default: all). Can be repeated.
-    --model     Model(s) to run (default: gpt-4o-mini). Can be repeated.
+    --model     Model(s) to run (default: gpt-5.2). Can be repeated.
                 Use 'all' to run all known working models.
     --mode      Execution mode: agent | baseline | skills | all (default: baseline)
                 Use 'all' to run all three modes.
@@ -34,25 +34,20 @@ from pathlib import Path
 
 FRAMEWORK_ROOT = Path(__file__).parent
 
-# Known working models - OpenAI and Bedrock Claude models accessible via ATKO API
+# Known working models - OpenAI, Anthropic, and Gemini models accessible via ATKO API
 KNOWN_WORKING_MODELS = [
-    "gpt-4o-mini",
-    "gpt-4o",
-    "gpt-4-turbo",
-    "claude-4-5-sonnet",
-    "claude-4-5-haiku",
+    "gpt-5.2",
+    "claude-4-6-sonnet",
+    "claude-4-6-opus",
+    "gemini-3-pro-preview",
 ]
 
-DEFAULT_MODEL = "gpt-4o-mini"
+DEFAULT_MODEL = "gpt-5.2"
 
 ALL_MODES = ["baseline", "skills", "agent"]
 
-# Bedrock models that don't work in agent mode (require toolConfig)
-AGENT_INCOMPATIBLE_MODELS = [
-    "claude-4-5-opus",
-    "claude-4-5-sonnet", 
-    "claude-4-5-haiku",
-]
+# Models that don't support agent mode. Currently empty; add model IDs here to exclude them from agent runs.
+AGENT_INCOMPATIBLE_MODELS = []
 
 
 def _load_env(path: Path) -> None:
@@ -79,7 +74,6 @@ sys.path.insert(0, str(FRAMEWORK_ROOT))
 from config.evaluations import EVALUATIONS
 from runners.loader import load_eval, EvalDefinition
 from agent_eval.graders import run_graders
-
 
 # ── Per-job execution ─────────────────────────────────────────────────────────
 
@@ -300,14 +294,14 @@ def main():
         for eval_cfg in registry 
         for model in models
         for mode in modes
-        # Skip Bedrock models in agent mode
+        # Skip models that don't support agent mode
         if not (mode == "agent" and model in AGENT_INCOMPATIBLE_MODELS)
     ]
 
     skipped = len(registry) * len(models) * len(modes) - len(jobs)
     print(f"\nRunning {len(jobs)} job(s)  modes={modes}  workers={args.workers}")
     if skipped > 0:
-        print(f"Skipped {skipped} job(s) (Bedrock models in agent mode)")
+        print(f"Skipped {skipped} job(s) (agent-incompatible models)")
     print(f"Evals : {[e['id'] for e in registry]}")
     print(f"Models: {models}")
     print(f"Modes : {modes}\n")
@@ -352,8 +346,28 @@ def main():
         output_path = f"scores-{modes[0]}.json"
     
     output_path = str(FRAMEWORK_ROOT / output_path)
+
+    existing: list[dict] = []
+    if os.path.exists(output_path):
+        with open(output_path) as f:
+            try:
+                loaded = json.load(f)
+            except (json.JSONDecodeError, ValueError):
+                loaded = []
+
+        if not isinstance(loaded, list):
+            print(f"[Warning] {output_path} contains {type(loaded).__name__}, not a list — ignoring existing data.")
+            loaded = []
+
+        existing = [r for r in loaded if isinstance(r, dict) and "eval_id" in r and "model" in r]
+
+    # Filter out potential duplicates, keeping the last result per (eval_id, model, mode)
+    results = list({(r["eval_id"], r["model"], r.get("mode")): r for r in results}.values())
+    new_keys = {(r["eval_id"], r["model"], r.get("mode")) for r in results}
+    merged = [r for r in existing if (r["eval_id"], r["model"], r.get("mode")) not in new_keys] + results
+
     with open(output_path, "w") as f:
-        json.dump(results, f, indent=2)
+        json.dump(merged, f, indent=2)
     print(f"\n[Output] Results saved to: {output_path}")
 
 

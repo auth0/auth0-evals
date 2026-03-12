@@ -471,13 +471,13 @@ def _summarise_args(tool_name: str, args: dict) -> str:
     return str(args)[:80]
 
 
-# Cost per 1M tokens (approximate, adjust as needed)
+# TODO: prices below are approximate and have not been verified.
+# Review before using cost figures for any reporting or budgeting.
 _COST_TABLE = {
-    "gpt-4o": (5.0, 15.0),
-    "gpt-4o-mini": (0.15, 0.60),
-    "claude-4-5-sonnet": (3.0, 15.0),
-    "claude-4-5-opus": (15.0, 75.0),
-    "claude-4-6-sonnet": (3.0, 15.0),
+    "gpt-5.2":           (10.0, 30.0),
+    "claude-4-6-sonnet": (3.0,  15.0),
+    "claude-4-6-opus":   (15.0, 75.0),
+    "gemini-3-pro-preview":  (2.0,  10.0),
 }
 
 def _estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
