@@ -84,8 +84,8 @@ def _llm_call(api_key: str, model: str, messages: list[dict]) -> dict:
         method="POST",
     )
     try:
-        resp = urllib.request.urlopen(req, timeout=120)
-        return json.loads(resp.read())
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         body = e.read().decode()
         raise RuntimeError(f"LLM API error {e.code}: {body[:400]}") from e
