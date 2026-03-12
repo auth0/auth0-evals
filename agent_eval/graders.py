@@ -8,7 +8,7 @@ pass/fail per grader.
 Three primitives:
   contains(needle)          — substring present in any written file
   matches(pattern)          — regex match in any written file
-  judge(question)           — LLM-as-judge yes/no question about the code
+  judge(question, framework=None) — LLM-as-judge yes/no question about the code
 """
 
 import json
@@ -21,6 +21,12 @@ from typing import Callable
 
 BASE_URL = "<LLM_PROXY_URL>/v1"
 JUDGE_MODEL = "claude-4-5-sonnet"
+
+_FRAMEWORK_PROMPTS: dict[str, str] = {
+    "react":   "You are a strict code reviewer for Auth0 React SPA integrations using the @auth0/auth0-react SDK.",
+    "ios":     "You are a strict code reviewer for Auth0 iOS/Swift integrations using the Auth0.swift SDK.",
+}
+_DEFAULT_FRAMEWORK_PROMPT = "You are a strict code reviewer for Auth0 SDK integrations."
 
 
 # ── Result type ───────────────────────────────────────────────────────────────
@@ -73,11 +79,15 @@ def matches(pattern: str, description: str | None = None) -> dict:
     }
 
 
-def judge(question: str) -> dict:
-    """Pass if LLM judge answers 'yes' to `question` about the generated code."""
+def judge(question: str, framework: str | None = None) -> dict:
+    """Pass if LLM judge answers 'yes' to `question` about the generated code.
+
+    `framework` sets the judge's context (e.g. 'react', 'ios'). Falls back to a generic Auth0 prompt if an unknown or no framework is provided.
+    """
     return {
         "kind": "judge",
         "question": question,
+        "framework": framework,
         "name": question[:80],
     }
 
@@ -117,7 +127,8 @@ def run_graders(
 
         elif kind == "judge":
             question = g["question"]
-            passed, detail = _llm_judge(question, combined, api_key, judge_model)
+            framework = g.get("framework")
+            passed, detail = _llm_judge(question, combined, api_key, judge_model, framework)
             results.append(GraderResult(name=name, kind=kind, passed=passed, detail=detail))
 
         else:
@@ -126,12 +137,10 @@ def run_graders(
     return results
 
 
-def _llm_judge(question: str, code: str, api_key: str, model: str) -> tuple[bool, str]:
+def _llm_judge(question: str, code: str, api_key: str, model: str, framework: str | None = None) -> tuple[bool, str]:
     """Ask the LLM judge a yes/no question about the generated code."""
-    system = (
-        "You are a strict code reviewer for Auth0 SDK integrations. "
-        "Answer only 'yes' or 'no' — no other text."
-    )
+    base = _FRAMEWORK_PROMPTS.get(framework or "", _DEFAULT_FRAMEWORK_PROMPT)
+    system = f"{base} Answer only 'yes' or 'no' — no other text."
     user = (
         f"Review the following generated code and answer this question:\n\n"
         f"Question: {question}\n\n"

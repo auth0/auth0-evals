@@ -13,6 +13,7 @@ def define_graders() -> list[dict]:
         contains("user.email"),
         judge(
             "Does the solution correctly integrate Auth0 into a React app using "
-            "Auth0Provider, useAuth0, login, logout, and display the user profile?"
+            "Auth0Provider, useAuth0, login, logout, and display the user profile?",
+            framework="react",
         ),
     ]
