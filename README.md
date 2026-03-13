@@ -8,6 +8,13 @@ Evaluation framework for measuring how well LLM agents complete developer integr
 cp .env.example .env
 # add your ATKO_API_KEY to .env
 
+# Create and activate a virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
 # Run all evals × all models × all modes (recommended)
 python run.py --mode all --model all --workers 8
 
@@ -192,4 +199,4 @@ EVALUATIONS = [
 
 ## Requirements
 
-Python 3.11+. No third-party dependencies.
+Python 3.11+. Dependencies are listed in `requirements.txt`.

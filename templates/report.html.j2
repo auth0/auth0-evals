@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auth0 SDK Eval Report</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #020817;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 32px;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    a { color: #60a5fa; }
+  </style>
+</head>
+<body>
+
+{# ── helpers ─────────────────────────────────────────────────────────────── #}
+
+{% macro pct_cell(rate) %}
+<td style="text-align:center;padding:10px 14px"><span style="font-size:15px;font-weight:700;color:{{ grade_color(rate) }}">{{ (rate * 100) | round | int }}%</span></td>
+{% endmacro %}
+
+{% macro empty_cell() %}
+<td style="text-align:center;padding:10px 14px;color:#334155">—</td>
+{% endmacro %}
+
+{# ── summary table ────────────────────────────────────────────────────────── #}
+
+{% macro render_summary_table(grouped, all_keys) %}
+<div style="overflow-x:auto;margin-bottom:40px">
+  <table style="width:100%;border-collapse:collapse;background:#0f172a;border:1px solid #1e293b;border-radius:8px;overflow:hidden">
+    <thead>
+      <tr style="background:#1e293b">
+        <th style="text-align:left;padding:10px 14px;color:#94a3b8;font-weight:600;font-size:13px">Eval</th>
+        {% for model, mode in all_keys %}
+        <th style="text-align:center;padding:10px 14px;min-width:120px">
+          <div style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:600">{{ mode }}</div>
+          <div style="color:#cbd5e1;font-size:12px;margin-top:2px">{{ model }}</div>
+        </th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for eval_id in grouped | sort %}
+      <tr style="border-top:1px solid #1e293b">
+        <td style="padding:10px 14px;font-size:13px;color:#e2e8f0;font-family:monospace">{{ eval_id }}</td>
+        {% for model, mode in all_keys %}
+        {% set result = grouped[eval_id].get(model ~ "|" ~ mode) %}
+        {% if result and result.get("grader_pass_rate") is not none %}
+          {{ pct_cell(result["grader_pass_rate"]) }}
+        {% else %}
+          {{ empty_cell() }}
+        {% endif %}
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+
+{# ── graders table ────────────────────────────────────────────────────────── #}
+
+{% macro render_graders(graders) %}
+<table style="width:100%;border-collapse:collapse;font-size:13px">
+  {% for g in graders %}
+  {% set icon  = "✓" if g["passed"] else "✗" %}
+  {% set color = "#22c55e" if g["passed"] else "#ef4444" %}
+  <tr>
+    <td style="color:{{ color }};font-weight:bold;width:24px;padding:4px 0">{{ icon }}</td>
+    <td style="padding:4px 8px">
+      <span style="font-size:11px;background:#1e293b;color:#94a3b8;padding:1px 6px;border-radius:4px;margin-right:6px">{{ g["kind"] }}</span>
+      {{ g["name"] }}
+    </td>
+    <td style="color:#64748b;font-size:12px;padding:4px 0">{{ g.get("detail", "") }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endmacro %}
+
+{# ── score breakdown ──────────────────────────────────────────────────────── #}
+
+{% macro render_dim_group(dims, title) %}
+<tr>
+  <td colspan="5" style="padding:8px 0 4px 0;color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:600">
+    {{ title }}
+  </td>
+</tr>
+{% for dim in dims %}
+{% set grade_colors = {"A": "#22c55e", "B": "#84cc16", "C": "#f59e0b", "D": "#ef4444", "F": "#ef4444"} %}
+{% set gc = grade_colors.get(dim.get("grade", ""), "#64748b") %}
+{% set weighted = dim.get("weighted", dim.get("score", 0) * dim.get("weight", 0.0)) %}
+<tr>
+  <td style="padding:6px 0;color:#cbd5e1;font-size:13px">{{ dim.get("name", "") }}</td>
+  <td style="padding:6px 8px;text-align:right;font-family:monospace;color:#e2e8f0">{{ "%.1f" | format(dim.get("score", 0)) }}</td>
+  <td style="padding:6px 8px;text-align:center;color:#64748b;font-size:12px">× {{ "%.2f" | format(dim.get("weight", 0.0)) }}</td>
+  <td style="padding:6px 8px;text-align:right;font-family:monospace;color:#94a3b8">= {{ "%.2f" | format(weighted) }}</td>
+  <td style="padding:6px 8px;text-align:center">
+    <span style="background:{{ gc }};color:#0f172a;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">{{ dim.get("grade", "") }}</span>
+  </td>
+</tr>
+{% endfor %}
+{% endmacro %}
+
+{% macro render_score_breakdown(dimensions, overall_score, overall_grade) %}
+{% set grade_colors = {"A": "#22c55e", "B": "#84cc16", "C": "#f59e0b", "D": "#ef4444", "F": "#ef4444"} %}
+{% set overall_color = grade_colors.get(overall_grade, "#64748b") %}
+{% set process_dims = dimensions if dimensions | length < 5 else dimensions[:5] %}
+{% set output_dims  = dimensions[5:8] if dimensions | length >= 8 else [] %}
+<div style="background:#1e293b;border-radius:6px;padding:12px;margin:12px 0">
+  <div style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;font-weight:600">Score Computation</div>
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    {{ render_dim_group(process_dims, "Process Dimensions (50%)") }}
+    {% if output_dims %}{{ render_dim_group(output_dims, "Output Dimensions (50%)") }}{% endif %}
+    <tr style="border-top:1px solid #334155;margin-top:4px">
+      <td style="padding:8px 0 4px 0;color:#e2e8f0;font-weight:600">Weighted Total</td>
+      <td colspan="3" style="padding:8px 8px 4px 8px;text-align:right;font-family:monospace;color:#e2e8f0;font-size:16px;font-weight:700">{{ "%.1f" | format(overall_score) }} / 100</td>
+      <td style="padding:8px 8px 4px 8px;text-align:center">
+        <span style="background:{{ overall_color }};color:#0f172a;padding:3px 12px;border-radius:4px;font-size:14px;font-weight:700">{{ overall_grade }}</span>
+      </td>
+    </tr>
+  </table>
+  <div style="color:#64748b;font-size:11px;margin-top:8px;font-family:monospace">
+    Process (50%): friction×15% + speed×10% + efficiency×10% + errors×5% + docs×10%<br>
+    Output (50%): correctness×25% + hallucination×15% + security×10%
+  </div>
+</div>
+{% endmacro %}
+
+{# ── detail card ──────────────────────────────────────────────────────────── #}
+
+{% macro render_detail_card(model, mode, result) %}
+{% set graders_list  = result.get("graders", []) %}
+{% set passed        = result.get("graders_passed", graders_list | selectattr("passed") | list | length) %}
+{% set total         = result.get("graders_total",  graders_list | length) %}
+{% set rate          = result.get("grader_pass_rate", (passed / total if total else 0)) %}
+{% set tokens        = result.get("tokens", 0) %}
+{% set cost          = result.get("cost_usd", 0) %}
+{% set wall          = result.get("wall_time", 0) %}
+{% set color         = grade_color(rate) %}
+{% set dimensions    = result.get("dimensions", []) %}
+{% set overall_score = result.get("overall_score") %}
+{% set overall_grade = result.get("overall_grade") %}
+
+{% if result.get("status") == "error" %}
+<div style="background:#0f172a;border:1px solid #7f1d1d;border-radius:8px;padding:16px;margin-bottom:12px">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <span style="background:#1e293b;color:#94a3b8;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;text-transform:uppercase">{{ mode }}</span>
+      <span style="margin-left:10px;font-size:13px;color:#64748b">{{ model }}</span>
+    </div>
+    <span style="color:#ef4444;font-size:13px;font-weight:600">ERROR</span>
+  </div>
+  <div style="margin-top:10px;font-size:12px;color:#ef4444;font-family:monospace">{{ result.get("error", "Unknown error")[:200] }}</div>
+</div>
+{% else %}
+{% set filled    = (rate * 20) | round | int %}
+{% set bar_filled  = "█" * filled %}
+{% set bar_empty   = "░" * (20 - filled) %}
+<div style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:16px;margin-bottom:12px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div>
+      <span style="background:#1e293b;color:#94a3b8;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;text-transform:uppercase">{{ mode }}</span>
+      <span style="margin-left:10px;font-size:13px;color:#64748b">{{ model }}</span>
+    </div>
+    <div style="text-align:right">
+      <span style="font-size:22px;font-weight:700;color:{{ color }}">{{ passed }}/{{ total }}</span>
+      <span style="font-size:13px;color:#64748b;margin-left:4px">graders</span>
+    </div>
+  </div>
+  <div style="margin-bottom:12px"><span style="font-family:monospace;color:{{ color }}">{{ bar_filled }}{{ bar_empty }}</span> {{ (rate * 100) | round | int }}%</div>
+  {% if dimensions and overall_score is not none %}
+  {{ render_score_breakdown(dimensions, overall_score, overall_grade) }}
+  {% endif %}
+  {{ render_graders(graders_list) }}
+  <div style="margin-top:10px;display:flex;gap:16px;font-size:12px;color:#475569">
+    <span>⏱ {{ "%.1f" | format(wall) }}s</span>
+    <span>🔤 {{ "{:,}".format(tokens) }} tokens</span>
+    <span>💰 ${{ "%.4f" | format(cost) }}</span>
+  </div>
+</div>
+{% endif %}
+{% endmacro %}
+
+{# ── detail section ───────────────────────────────────────────────────────── #}
+
+{% macro render_detail_section(eval_id, results_for_eval) %}
+<div style="margin-bottom:36px">
+  <h2 style="font-size:16px;color:#f1f5f9;font-family:monospace;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #1e293b">
+    {{ eval_id }}
+  </h2>
+  {% set sorted_keys = results_for_eval.keys() | sort_result_keys %}
+  {% for key in sorted_keys %}
+  {% set parts = key.split("|", 1) %}
+  {% set model = parts[0] %}
+  {% set mode  = parts[1] %}
+  {% set result = results_for_eval[key] %}
+  {{ render_detail_card(model, mode, result) }}
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{# Page body                                                                  #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+
+  <div style="margin-bottom:32px;border-bottom:1px solid #1e293b;padding-bottom:24px">
+    <h1 style="font-size:26px;font-weight:700;color:#f8fafc;margin-bottom:6px">
+      Auth0 SDK — Eval Report
+    </h1>
+    <div style="color:#64748b;font-size:13px;margin-bottom:12px">{{ generated_at }}</div>
+    <div style="display:flex;gap:24px;font-size:13px;color:#94a3b8;margin-bottom:10px">
+      <span><strong style="color:#e2e8f0">{{ total_runs }}</strong> runs</span>
+      <span><strong style="color:#e2e8f0">{{ grouped | length }}</strong> evals</span>
+      <span><strong style="color:#e2e8f0">{{ models_run | join(", ") }}</strong></span>
+      <span>total cost <strong style="color:#e2e8f0">${{ "%.4f" | format(total_cost) }}</strong></span>
+    </div>
+    <div>
+      {% for m in modes_run %}
+      <span style="background:#1e293b;color:#94a3b8;padding:3px 10px;border-radius:12px;font-size:12px;margin-right:6px">{{ m }}</span>
+      {% endfor %}
+    </div>
+  </div>
+
+  <h2 style="font-size:14px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Summary</h2>
+  {{ render_summary_table(grouped, all_keys) }}
+
+  <h2 style="font-size:14px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:16px">Details</h2>
+  {% for eval_id in grouped | sort %}
+  {{ render_detail_section(eval_id, grouped[eval_id]) }}
+  {% endfor %}
+
+  <div style="margin-top:32px;padding-top:16px;border-top:1px solid #1e293b;font-size:12px;color:#475569">
+    Generated by auth0-evals
+  </div>
+</body>
+</html>
