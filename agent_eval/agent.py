@@ -19,20 +19,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-BASE_URL = "https://llm.atko.ai/v1"
-
-# Models known to have toolConfig issues with Bedrock
-BEDROCK_INCOMPATIBLE_MODELS = [
-    "claude-4-5-opus",
-    "claude-4-5-sonnet", 
-    "claude-4-5-haiku",
-]
+from config.costs import estimate_cost
+from config.settings import BASE_URL, BEDROCK_INCOMPATIBLE_MODELS, MAX_TURNS
 
 
 def is_bedrock_model(model: str) -> bool:
     """Check if model is a Bedrock Claude model that requires special toolConfig."""
     return any(bedrock in model for bedrock in BEDROCK_INCOMPATIBLE_MODELS)
-MAX_TURNS = 30
 
 
 # ── Data model ───────────────────────────────────────────────────────────────
@@ -450,7 +443,7 @@ def run_agent(
         print("[Agent] Max turns reached without completion.")
 
     record.end_time = time.time()
-    record.cost_usd = _estimate_cost(model, record.input_tokens, record.output_tokens)
+    record.cost_usd = estimate_cost(model, record.input_tokens, record.output_tokens)
     return record
 
 
@@ -469,20 +462,6 @@ def _summarise_args(tool_name: str, args: dict) -> str:
     if tool_name == "ask_user":
         return f'"{args.get("question","")[:60]}"'
     return str(args)[:80]
-
-
-# TODO: prices below are approximate and have not been verified.
-# Review before using cost figures for any reporting or budgeting.
-_COST_TABLE = {
-    "gpt-5.2":           (10.0, 30.0),
-    "claude-4-6-sonnet": (3.0,  15.0),
-    "claude-4-6-opus":   (15.0, 75.0),
-    "gemini-3-pro-preview":  (2.0,  10.0),
-}
-
-def _estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
-    in_price, out_price = _COST_TABLE.get(model, (1.0, 5.0))
-    return (input_tokens * in_price + output_tokens * out_price) / 1_000_000
 
 
 def setup_workspace(scaffold: dict[str, str]) -> str:

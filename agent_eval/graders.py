@@ -19,8 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-BASE_URL = "https://llm.atko.ai/v1"
-JUDGE_MODEL = "claude-4-5-sonnet"
+from config.settings import BASE_URL, JUDGE_MODEL
 
 _JUDGE_PROMPTS_DIR = Path(__file__).parent.parent / "prompts" / "judge"
 
