@@ -40,12 +40,10 @@ def run_skills(
     skill_context = _fetch_skills(eval_def.skills) if eval_def.skills else ""
 
     if skill_context:
-        augmented_system = (
-            "## SDK Reference Material\n\n"
-            + skill_context
-            + "\n\n---\n\n"
-            + eval_def.system_prompt
-        )
+        parts = ["## SDK Reference Material\n\n" + skill_context]
+        if eval_def.system_prompt:
+            parts.append(eval_def.system_prompt)
+        augmented_system = "\n\n---\n\n".join(parts)
     else:
         augmented_system = eval_def.system_prompt
 
