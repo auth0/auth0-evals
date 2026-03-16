@@ -27,6 +27,7 @@ Options:
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -131,16 +132,28 @@ def run_job(
         }
 
 
+def _extract_code_blocks(text: str) -> str:
+    blocks = re.findall(
+        r"(?m)^[ \t]{0,3}```[^\r\n]*\r?\n([\s\S]*?)^[ \t]{0,3}```[ \t]*\r?$",
+        text,
+    )
+    if blocks:
+        return "\n\n".join(blocks)
+    opening_fence_match = re.search(r"(?m)^[ \t]{0,3}```[^\r\n]*\r?\n", text)
+    if opening_fence_match:
+        return text[opening_fence_match.end():]
+    return text
+
+
 def _grade_text(eval_def: EvalDefinition, text: str, api_key: str) -> list:
-    """Run graders against a single text blob (for baseline / skills modes)."""
+    """Run graders against extracted code only (for baseline / skills modes)."""
     import tempfile
     from pathlib import Path as P
 
+    code = _extract_code_blocks(text)
     with tempfile.TemporaryDirectory() as tmp:
-        # Write the LLM response as a virtual file so the existing
-        # file-scanning graders can find patterns in it
         response_file = P(tmp) / "llm_response.txt"
-        response_file.write_text(text)
+        response_file.write_text(code)
         return run_graders(eval_def.graders, tmp, api_key)
 
 
