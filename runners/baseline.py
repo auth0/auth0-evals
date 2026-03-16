@@ -45,10 +45,10 @@ def run_baseline(
     result = BaselineResult(eval_id=eval_def.id, model=model)
     t_start = time.time()
 
-    messages = [
-        {"role": "system", "content": eval_def.system_prompt},
-        {"role": "user",   "content": eval_def.user_prompt},
-    ]
+    messages = []
+    if eval_def.system_prompt:
+        messages.append({"role": "system", "content": eval_def.system_prompt})
+    messages.append({"role": "user", "content": eval_def.user_prompt})
 
     try:
         response = _llm_call(api_key, model, messages)

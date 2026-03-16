@@ -13,6 +13,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+_PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
+
 
 @dataclass
 class EvalDefinition:
@@ -101,12 +103,8 @@ def _parse_prompt_md(prompt_path: Path) -> tuple[str, str, dict]:
     system_match = re.search(r"^## System\s*\n(.*?)(?=^## |\Z)", text, re.DOTALL | re.MULTILINE)
     task_match   = re.search(r"^## Task\s*\n(.*?)(?=^## |\Z)",   text, re.DOTALL | re.MULTILINE)
 
-    if system_match or task_match:
-        system_prompt = system_match.group(1).strip() if system_match else ""
-        user_prompt   = task_match.group(1).strip()   if task_match   else text.strip()
-    else:
-        system_prompt = "You are an expert iOS/Swift developer."
-        user_prompt   = text.strip()
+    system_prompt = system_match.group(1).strip() if system_match else ""
+    user_prompt   = task_match.group(1).strip()   if task_match   else text.strip()
 
     return system_prompt, user_prompt, meta
 

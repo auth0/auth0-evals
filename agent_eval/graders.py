@@ -22,11 +22,18 @@ from typing import Callable
 BASE_URL = "https://llm.atko.ai/v1"
 JUDGE_MODEL = "claude-4-5-sonnet"
 
-_FRAMEWORK_PROMPTS: dict[str, str] = {
-    "react":   "You are a strict code reviewer for Auth0 React SPA integrations using the @auth0/auth0-react SDK.",
-    "ios":     "You are a strict code reviewer for Auth0 iOS/Swift integrations using the Auth0.swift SDK.",
-}
-_DEFAULT_FRAMEWORK_PROMPT = "You are a strict code reviewer for Auth0 SDK integrations."
+_JUDGE_PROMPTS_DIR = Path(__file__).parent.parent / "prompts" / "judge"
+
+
+def _load_framework_prompt(framework: str | None) -> str:
+    """Load judge system prompt from a markdown file in prompts/judge/."""
+    name = framework if framework and (_JUDGE_PROMPTS_DIR / f"{framework}.md").exists() else "default"
+    return (_JUDGE_PROMPTS_DIR / f"{name}.md").read_text().strip()
+
+
+def _load_user_template() -> str:
+    """Load judge user message template from prompts/judge/user_template.md."""
+    return (_JUDGE_PROMPTS_DIR / "user_template.md").read_text().strip()
 
 
 # ── Result type ───────────────────────────────────────────────────────────────
@@ -139,14 +146,9 @@ def run_graders(
 
 def _llm_judge(question: str, code: str, api_key: str, model: str, framework: str | None = None) -> tuple[bool, str]:
     """Ask the LLM judge a yes/no question about the generated code."""
-    base = _FRAMEWORK_PROMPTS.get(framework or "", _DEFAULT_FRAMEWORK_PROMPT)
+    base = _load_framework_prompt(framework)
     system = f"{base} Answer only 'yes' or 'no' — no other text."
-    user = (
-        f"Review the following generated code and answer this question:\n\n"
-        f"Question: {question}\n\n"
-        f"Code:\n{code[:6000]}\n\n"
-        f"Answer (yes/no):"
-    )
+    user = _load_user_template().format(question=question, code=code[:6000])
 
     payload = json.dumps({
         "model": model,

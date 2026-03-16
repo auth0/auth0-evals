@@ -377,10 +377,10 @@ def run_agent(
     record = RunRecord(task_name=task.name, model=model, workspace=workspace)
     executor = ToolExecutor(workspace, credentials)
 
-    messages: list[dict] = [
-        {"role": "system", "content": task.system_prompt},
-        {"role": "user", "content": task.user_prompt},
-    ]
+    messages: list[dict] = []
+    if task.system_prompt:
+        messages.append({"role": "system", "content": task.system_prompt})
+    messages.append({"role": "user", "content": task.user_prompt})
 
     record.start_time = time.time()
     print(f"\n[Agent] Starting task: {task.name}")
