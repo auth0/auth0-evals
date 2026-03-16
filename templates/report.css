@@ -1,0 +1,330 @@
+/* ── CSS Custom Properties ──────────────────────────────────────────────── */
+:root {
+  --bg:           #020817;
+  --surface-1:    #0f172a;
+  --surface-2:    #1e293b;
+  --surface-3:    #334155;
+  --text-bright:  #f8fafc;
+  --text-light:   #f1f5f9;
+  --text-medium:  #cbd5e1;
+  --text-primary: #e2e8f0;
+  --text-sec:     #94a3b8;
+  --text-ter:     #64748b;
+  --text-quat:    #475569;
+  --link:         #60a5fa;
+  --border:       #1e293b;
+  --border-2:     #334155;
+
+  --grade-excellent: #22c55e;
+  --grade-good:      #84cc16;
+  --grade-fair:      #f59e0b;
+  --grade-poor:      #ef4444;
+  --grade-unknown:   #64748b;
+  --grade-on:        #0f172a;
+
+  --error-border: #7f1d1d;
+}
+
+/* ── Reset ──────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Base ───────────────────────────────────────────────────────────────── */
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  padding: 32px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+a { color: var(--link); }
+.mono { font-family: monospace; }
+
+/* ── Rate-based color classes ───────────────────────────────────────────── */
+.rate-excellent { color: var(--grade-excellent); }
+.rate-good      { color: var(--grade-good); }
+.rate-fair      { color: var(--grade-fair); }
+.rate-poor      { color: var(--grade-poor); }
+
+/* ── Grade badge ────────────────────────────────────────────────────────── */
+.badge {
+  color: var(--grade-on);
+  border-radius: 4px;
+  font-weight: 700;
+}
+.badge-a  { background: var(--grade-excellent); }
+.badge-b  { background: var(--grade-good); }
+.badge-c  { background: var(--grade-fair); }
+.badge-df { background: var(--grade-poor); }
+.badge-sm { padding: 2px 8px;  font-size: 11px; }
+.badge-lg { padding: 3px 12px; font-size: 14px; }
+
+/* ── Page header ────────────────────────────────────────────────────────── */
+.page-header {
+  margin-bottom: 32px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 24px;
+}
+.page-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 6px;
+}
+.page-date {
+  color: var(--text-ter);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+.page-stats {
+  display: flex;
+  gap: 24px;
+  font-size: 13px;
+  color: var(--text-sec);
+  margin-bottom: 10px;
+}
+.stat-value { color: var(--text-primary); }
+
+/* ── Mode badge ─────────────────────────────────────────────────────────── */
+.mode-badge {
+  background: var(--surface-2);
+  color: var(--text-sec);
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-right: 6px;
+}
+
+/* ── Section heading ────────────────────────────────────────────────────── */
+.section-heading {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-ter);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-bottom: 12px;
+}
+.section-heading--details { margin-bottom: 16px; }
+
+/* ── Summary table ──────────────────────────────────────────────────────── */
+.summary-wrap {
+  overflow-x: auto;
+  margin-bottom: 40px;
+}
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.summary-table thead tr { background: var(--surface-2); }
+.summary-eval-heading {
+  text-align: left;
+  padding: 10px 14px;
+  color: var(--text-sec);
+  font-weight: 600;
+  font-size: 13px;
+}
+.summary-column-heading {
+  text-align: center;
+  padding: 10px 14px;
+  min-width: 120px;
+}
+.summary-column-mode {
+  color: var(--text-sec);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-weight: 600;
+}
+.summary-column-model {
+  color: var(--text-medium);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.summary-row { border-top: 1px solid var(--border); }
+.summary-eval-id {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text-primary);
+  font-family: monospace;
+}
+.pct-cell {
+  text-align: center;
+  padding: 10px 14px;
+}
+.pct-value {
+  font-size: 15px;
+  font-weight: 700;
+}
+.empty-cell {
+  text-align: center;
+  padding: 10px 14px;
+  color: var(--surface-3);
+}
+
+/* ── Graders table ──────────────────────────────────────────────────────── */
+.graders-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.grader-icon {
+  font-weight: bold;
+  width: 24px;
+  padding: 4px 0;
+}
+.grader-icon--pass { color: var(--grade-excellent); }
+.grader-icon--fail { color: var(--grade-poor); }
+.grader-name { padding: 4px 8px; }
+.grader-kind {
+  font-size: 11px;
+  background: var(--surface-2);
+  color: var(--text-sec);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-right: 6px;
+}
+.grader-detail {
+  color: var(--text-ter);
+  font-size: 12px;
+  padding: 4px 0;
+}
+
+/* ── Score breakdown ────────────────────────────────────────────────────── */
+.score-breakdown {
+  background: var(--surface-2);
+  border-radius: 6px;
+  padding: 12px;
+  margin: 12px 0;
+}
+.score-breakdown-title {
+  color: var(--text-sec);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.score-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.dimension-group-header {
+  padding: 8px 0 4px 0;
+  color: var(--text-sec);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-weight: 600;
+}
+.dimension-name {
+  padding: 6px 0;
+  color: var(--text-medium);
+  font-size: 13px;
+}
+.dimension-score {
+  padding: 6px 8px;
+  text-align: right;
+  font-family: monospace;
+  color: var(--text-primary);
+}
+.dimension-weight {
+  padding: 6px 8px;
+  text-align: center;
+  color: var(--text-ter);
+  font-size: 12px;
+}
+.dimension-weighted {
+  padding: 6px 8px;
+  text-align: right;
+  font-family: monospace;
+  color: var(--text-sec);
+}
+.dimension-grade { padding: 6px 8px; text-align: center; }
+.weighted-total-row { border-top: 1px solid var(--border-2); }
+.weighted-total-label {
+  padding: 8px 0 4px 0;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.weighted-total-score {
+  padding: 8px 8px 4px 8px;
+  text-align: right;
+  font-family: monospace;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 700;
+}
+.weighted-total-grade { padding: 8px 8px 4px 8px; text-align: center; }
+.score-formula {
+  color: var(--text-ter);
+  font-size: 11px;
+  margin-top: 8px;
+  font-family: monospace;
+}
+
+/* ── Detail card ────────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.card--error { border-color: var(--error-border); }
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.card--error .card-header { margin-bottom: 0; }
+.card-model {
+  margin-left: 10px;
+  font-size: 13px;
+  color: var(--text-ter);
+}
+.card-score { text-align: right; }
+.card-score-value { font-size: 22px; font-weight: 700; }
+.card-score-label { font-size: 13px; color: var(--text-ter); margin-left: 4px; }
+.error-label { color: var(--grade-poor); font-size: 13px; font-weight: 600; }
+.error-message {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--grade-poor);
+  font-family: monospace;
+}
+.progress-bar { margin-bottom: 12px; }
+.card-footer {
+  margin-top: 10px;
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-quat);
+}
+
+/* ── Detail section ─────────────────────────────────────────────────────── */
+.detail-section { margin-bottom: 36px; }
+.detail-section-title {
+  font-size: 16px;
+  color: var(--text-light);
+  font-family: monospace;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ── Page footer ────────────────────────────────────────────────────────── */
+.page-footer {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-quat);
+}

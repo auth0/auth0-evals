@@ -51,6 +51,13 @@ def grade_color(rate: float) -> str:
     return "#ef4444"
 
 
+def grade_class(rate: float) -> str:
+    if rate == 1.0:  return "rate-excellent"
+    if rate >= 0.75: return "rate-good"
+    if rate >= 0.5:  return "rate-fair"
+    return "rate-poor"
+
+
 def render_html(results: list[dict], generated_at: str) -> str:
     grouped_tuples = group_results(results)
 
@@ -81,6 +88,7 @@ def render_html(results: list[dict], generated_at: str) -> str:
         autoescape=select_autoescape(["html", "j2"]),
     )
     env.globals["grade_color"] = grade_color
+    env.globals["grade_class"] = grade_class
     env.filters["sort_result_keys"] = sort_result_keys
 
     template = env.get_template("report.html.j2")

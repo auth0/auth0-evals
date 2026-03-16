@@ -4,51 +4,40 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Auth0 SDK Eval Report</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: #020817;
-      color: #e2e8f0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      padding: 32px;
-      max-width: 1000px;
-      margin: 0 auto;
-    }
-    a { color: #60a5fa; }
-  </style>
+  <style>{% include 'report.css' %}</style>
 </head>
 <body>
 
 {# ── helpers ─────────────────────────────────────────────────────────────── #}
 
 {% macro pct_cell(rate) %}
-<td style="text-align:center;padding:10px 14px"><span style="font-size:15px;font-weight:700;color:{{ grade_color(rate) }}">{{ (rate * 100) | round | int }}%</span></td>
+<td class="pct-cell"><span class="pct-value {{ grade_class(rate) }}">{{ (rate * 100) | round | int }}%</span></td>
 {% endmacro %}
 
 {% macro empty_cell() %}
-<td style="text-align:center;padding:10px 14px;color:#334155">—</td>
+<td class="empty-cell">—</td>
 {% endmacro %}
 
 {# ── summary table ────────────────────────────────────────────────────────── #}
 
 {% macro render_summary_table(grouped, all_keys) %}
-<div style="overflow-x:auto;margin-bottom:40px">
-  <table style="width:100%;border-collapse:collapse;background:#0f172a;border:1px solid #1e293b;border-radius:8px;overflow:hidden">
+<div class="summary-wrap">
+  <table class="summary-table">
     <thead>
-      <tr style="background:#1e293b">
-        <th style="text-align:left;padding:10px 14px;color:#94a3b8;font-weight:600;font-size:13px">Eval</th>
+      <tr>
+        <th class="summary-eval-heading">Eval</th>
         {% for model, mode in all_keys %}
-        <th style="text-align:center;padding:10px 14px;min-width:120px">
-          <div style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:600">{{ mode }}</div>
-          <div style="color:#cbd5e1;font-size:12px;margin-top:2px">{{ model }}</div>
+        <th class="summary-column-heading">
+          <div class="summary-column-mode">{{ mode }}</div>
+          <div class="summary-column-model">{{ model }}</div>
         </th>
         {% endfor %}
       </tr>
     </thead>
     <tbody>
       {% for eval_id in grouped | sort %}
-      <tr style="border-top:1px solid #1e293b">
-        <td style="padding:10px 14px;font-size:13px;color:#e2e8f0;font-family:monospace">{{ eval_id }}</td>
+      <tr class="summary-row">
+        <td class="summary-eval-id">{{ eval_id }}</td>
         {% for model, mode in all_keys %}
         {% set result = grouped[eval_id].get(model ~ "|" ~ mode) %}
         {% if result and result.get("grader_pass_rate") is not none %}
@@ -67,17 +56,14 @@
 {# ── graders table ────────────────────────────────────────────────────────── #}
 
 {% macro render_graders(graders) %}
-<table style="width:100%;border-collapse:collapse;font-size:13px">
+<table class="graders-table">
   {% for g in graders %}
-  {% set icon  = "✓" if g["passed"] else "✗" %}
-  {% set color = "#22c55e" if g["passed"] else "#ef4444" %}
   <tr>
-    <td style="color:{{ color }};font-weight:bold;width:24px;padding:4px 0">{{ icon }}</td>
-    <td style="padding:4px 8px">
-      <span style="font-size:11px;background:#1e293b;color:#94a3b8;padding:1px 6px;border-radius:4px;margin-right:6px">{{ g["kind"] }}</span>
-      {{ g["name"] }}
+    <td class="grader-icon {{ 'grader-icon--pass' if g['passed'] else 'grader-icon--fail' }}">{{ "✓" if g["passed"] else "✗" }}</td>
+    <td class="grader-name">
+      <span class="grader-kind">{{ g["kind"] }}</span>{{ g["name"] }}
     </td>
-    <td style="color:#64748b;font-size:12px;padding:4px 0">{{ g.get("detail", "") }}</td>
+    <td class="grader-detail">{{ g.get("detail", "") }}</td>
   </tr>
   {% endfor %}
 </table>
@@ -86,46 +72,42 @@
 {# ── score breakdown ──────────────────────────────────────────────────────── #}
 
 {% macro render_dim_group(dims, title) %}
+{% set badge_class = {"A": "badge-a", "B": "badge-b", "C": "badge-c", "D": "badge-df", "F": "badge-df"} %}
 <tr>
-  <td colspan="5" style="padding:8px 0 4px 0;color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:600">
-    {{ title }}
-  </td>
+  <td colspan="5" class="dimension-group-header">{{ title }}</td>
 </tr>
 {% for dim in dims %}
-{% set grade_colors = {"A": "#22c55e", "B": "#84cc16", "C": "#f59e0b", "D": "#ef4444", "F": "#ef4444"} %}
-{% set gc = grade_colors.get(dim.get("grade", ""), "#64748b") %}
 {% set weighted = dim.get("weighted", dim.get("score", 0) * dim.get("weight", 0.0)) %}
 <tr>
-  <td style="padding:6px 0;color:#cbd5e1;font-size:13px">{{ dim.get("name", "") }}</td>
-  <td style="padding:6px 8px;text-align:right;font-family:monospace;color:#e2e8f0">{{ "%.1f" | format(dim.get("score", 0)) }}</td>
-  <td style="padding:6px 8px;text-align:center;color:#64748b;font-size:12px">× {{ "%.2f" | format(dim.get("weight", 0.0)) }}</td>
-  <td style="padding:6px 8px;text-align:right;font-family:monospace;color:#94a3b8">= {{ "%.2f" | format(weighted) }}</td>
-  <td style="padding:6px 8px;text-align:center">
-    <span style="background:{{ gc }};color:#0f172a;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">{{ dim.get("grade", "") }}</span>
+  <td class="dimension-name">{{ dim.get("name", "") }}</td>
+  <td class="dimension-score">{{ "%.1f" | format(dim.get("score", 0)) }}</td>
+  <td class="dimension-weight">× {{ "%.2f" | format(dim.get("weight", 0.0)) }}</td>
+  <td class="dimension-weighted">= {{ "%.2f" | format(weighted) }}</td>
+  <td class="dimension-grade">
+    <span class="badge badge-sm {{ badge_class.get(dim.get('grade', ''), '') }}">{{ dim.get("grade", "") }}</span>
   </td>
 </tr>
 {% endfor %}
 {% endmacro %}
 
 {% macro render_score_breakdown(dimensions, overall_score, overall_grade) %}
-{% set grade_colors = {"A": "#22c55e", "B": "#84cc16", "C": "#f59e0b", "D": "#ef4444", "F": "#ef4444"} %}
-{% set overall_color = grade_colors.get(overall_grade, "#64748b") %}
+{% set badge_class = {"A": "badge-a", "B": "badge-b", "C": "badge-c", "D": "badge-df", "F": "badge-df"} %}
 {% set process_dims = dimensions if dimensions | length < 5 else dimensions[:5] %}
 {% set output_dims  = dimensions[5:8] if dimensions | length >= 8 else [] %}
-<div style="background:#1e293b;border-radius:6px;padding:12px;margin:12px 0">
-  <div style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;font-weight:600">Score Computation</div>
-  <table style="width:100%;border-collapse:collapse;font-size:13px">
+<div class="score-breakdown">
+  <div class="score-breakdown-title">Score Computation</div>
+  <table class="score-table">
     {{ render_dim_group(process_dims, "Process Dimensions (50%)") }}
     {% if output_dims %}{{ render_dim_group(output_dims, "Output Dimensions (50%)") }}{% endif %}
-    <tr style="border-top:1px solid #334155;margin-top:4px">
-      <td style="padding:8px 0 4px 0;color:#e2e8f0;font-weight:600">Weighted Total</td>
-      <td colspan="3" style="padding:8px 8px 4px 8px;text-align:right;font-family:monospace;color:#e2e8f0;font-size:16px;font-weight:700">{{ "%.1f" | format(overall_score) }} / 100</td>
-      <td style="padding:8px 8px 4px 8px;text-align:center">
-        <span style="background:{{ overall_color }};color:#0f172a;padding:3px 12px;border-radius:4px;font-size:14px;font-weight:700">{{ overall_grade }}</span>
+    <tr class="weighted-total-row">
+      <td class="weighted-total-label">Weighted Total</td>
+      <td colspan="3" class="weighted-total-score">{{ "%.1f" | format(overall_score) }} / 100</td>
+      <td class="weighted-total-grade">
+        <span class="badge badge-lg {{ badge_class.get(overall_grade, '') }}">{{ overall_grade }}</span>
       </td>
     </tr>
   </table>
-  <div style="color:#64748b;font-size:11px;margin-top:8px;font-family:monospace">
+  <div class="score-formula">
     Process (50%): friction×15% + speed×10% + efficiency×10% + errors×5% + docs×10%<br>
     Output (50%): correctness×25% + hallucination×15% + security×10%
   </div>
@@ -142,43 +124,43 @@
 {% set tokens        = result.get("tokens", 0) %}
 {% set cost          = result.get("cost_usd", 0) %}
 {% set wall          = result.get("wall_time", 0) %}
-{% set color         = grade_color(rate) %}
+{% set rate_cls      = grade_class(rate) %}
 {% set dimensions    = result.get("dimensions", []) %}
 {% set overall_score = result.get("overall_score") %}
 {% set overall_grade = result.get("overall_grade") %}
 
 {% if result.get("status") == "error" %}
-<div style="background:#0f172a;border:1px solid #7f1d1d;border-radius:8px;padding:16px;margin-bottom:12px">
-  <div style="display:flex;justify-content:space-between;align-items:center">
+<div class="card card--error">
+  <div class="card-header">
     <div>
-      <span style="background:#1e293b;color:#94a3b8;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;text-transform:uppercase">{{ mode }}</span>
-      <span style="margin-left:10px;font-size:13px;color:#64748b">{{ model }}</span>
+      <span class="mode-badge">{{ mode }}</span>
+      <span class="card-model">{{ model }}</span>
     </div>
-    <span style="color:#ef4444;font-size:13px;font-weight:600">ERROR</span>
+    <span class="error-label">ERROR</span>
   </div>
-  <div style="margin-top:10px;font-size:12px;color:#ef4444;font-family:monospace">{{ result.get("error", "Unknown error")[:200] }}</div>
+  <div class="error-message">{{ result.get("error", "Unknown error")[:200] }}</div>
 </div>
 {% else %}
-{% set filled    = (rate * 20) | round | int %}
+{% set filled      = (rate * 20) | round | int %}
 {% set bar_filled  = "█" * filled %}
 {% set bar_empty   = "░" * (20 - filled) %}
-<div style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:16px;margin-bottom:12px">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+<div class="card">
+  <div class="card-header">
     <div>
-      <span style="background:#1e293b;color:#94a3b8;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;text-transform:uppercase">{{ mode }}</span>
-      <span style="margin-left:10px;font-size:13px;color:#64748b">{{ model }}</span>
+      <span class="mode-badge">{{ mode }}</span>
+      <span class="card-model">{{ model }}</span>
     </div>
-    <div style="text-align:right">
-      <span style="font-size:22px;font-weight:700;color:{{ color }}">{{ passed }}/{{ total }}</span>
-      <span style="font-size:13px;color:#64748b;margin-left:4px">graders</span>
+    <div class="card-score">
+      <span class="card-score-value {{ rate_cls }}">{{ passed }}/{{ total }}</span>
+      <span class="card-score-label">graders</span>
     </div>
   </div>
-  <div style="margin-bottom:12px"><span style="font-family:monospace;color:{{ color }}">{{ bar_filled }}{{ bar_empty }}</span> {{ (rate * 100) | round | int }}%</div>
+  <div class="progress-bar"><span class="mono {{ rate_cls }}">{{ bar_filled }}{{ bar_empty }}</span> {{ (rate * 100) | round | int }}%</div>
   {% if dimensions and overall_score is not none %}
   {{ render_score_breakdown(dimensions, overall_score, overall_grade) }}
   {% endif %}
   {{ render_graders(graders_list) }}
-  <div style="margin-top:10px;display:flex;gap:16px;font-size:12px;color:#475569">
+  <div class="card-footer">
     <span>⏱ {{ "%.1f" | format(wall) }}s</span>
     <span>🔤 {{ "{:,}".format(tokens) }} tokens</span>
     <span>💰 ${{ "%.4f" | format(cost) }}</span>
@@ -190,10 +172,8 @@
 {# ── detail section ───────────────────────────────────────────────────────── #}
 
 {% macro render_detail_section(eval_id, results_for_eval) %}
-<div style="margin-bottom:36px">
-  <h2 style="font-size:16px;color:#f1f5f9;font-family:monospace;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #1e293b">
-    {{ eval_id }}
-  </h2>
+<div class="detail-section">
+  <h2 class="detail-section-title">{{ eval_id }}</h2>
   {% set sorted_keys = results_for_eval.keys() | sort_result_keys %}
   {% for key in sorted_keys %}
   {% set parts = key.split("|", 1) %}
@@ -209,34 +189,30 @@
 {# Page body                                                                  #}
 {# ══════════════════════════════════════════════════════════════════════════ #}
 
-  <div style="margin-bottom:32px;border-bottom:1px solid #1e293b;padding-bottom:24px">
-    <h1 style="font-size:26px;font-weight:700;color:#f8fafc;margin-bottom:6px">
-      Auth0 SDK — Eval Report
-    </h1>
-    <div style="color:#64748b;font-size:13px;margin-bottom:12px">{{ generated_at }}</div>
-    <div style="display:flex;gap:24px;font-size:13px;color:#94a3b8;margin-bottom:10px">
-      <span><strong style="color:#e2e8f0">{{ total_runs }}</strong> runs</span>
-      <span><strong style="color:#e2e8f0">{{ grouped | length }}</strong> evals</span>
-      <span><strong style="color:#e2e8f0">{{ models_run | join(", ") }}</strong></span>
-      <span>total cost <strong style="color:#e2e8f0">${{ "%.4f" | format(total_cost) }}</strong></span>
+  <div class="page-header">
+    <h1 class="page-title">Auth0 SDK — Eval Report</h1>
+    <div class="page-date">{{ generated_at }}</div>
+    <div class="page-stats">
+      <span><strong class="stat-value">{{ total_runs }}</strong> runs</span>
+      <span><strong class="stat-value">{{ grouped | length }}</strong> evals</span>
+      <span><strong class="stat-value">{{ models_run | join(", ") }}</strong></span>
+      <span>total cost <strong class="stat-value">${{ "%.4f" | format(total_cost) }}</strong></span>
     </div>
     <div>
       {% for m in modes_run %}
-      <span style="background:#1e293b;color:#94a3b8;padding:3px 10px;border-radius:12px;font-size:12px;margin-right:6px">{{ m }}</span>
+      <span class="mode-badge">{{ m }}</span>
       {% endfor %}
     </div>
   </div>
 
-  <h2 style="font-size:14px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Summary</h2>
+  <h2 class="section-heading">Summary</h2>
   {{ render_summary_table(grouped, all_keys) }}
 
-  <h2 style="font-size:14px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:16px">Details</h2>
+  <h2 class="section-heading section-heading--details">Details</h2>
   {% for eval_id in grouped | sort %}
   {{ render_detail_section(eval_id, grouped[eval_id]) }}
   {% endfor %}
 
-  <div style="margin-top:32px;padding-top:16px;border-top:1px solid #1e293b;font-size:12px;color:#475569">
-    Generated by auth0-evals
-  </div>
+  <div class="page-footer">Generated by auth0-evals</div>
 </body>
 </html>
