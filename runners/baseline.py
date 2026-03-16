@@ -16,7 +16,8 @@ import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
-BASE_URL = "<LLM_PROXY_URL>/v1"
+from config.costs import estimate_cost
+from config.settings import BASE_URL
 
 
 @dataclass
@@ -56,7 +57,7 @@ def run_baseline(
         result.input_tokens  = usage.get("prompt_tokens", 0)
         result.output_tokens = usage.get("completion_tokens", 0)
         result.response_text = response["choices"][0]["message"].get("content", "")
-        result.cost_usd = _estimate_cost(model, result.input_tokens, result.output_tokens)
+        result.cost_usd = estimate_cost(model, result.input_tokens, result.output_tokens)
     except Exception as e:
         result.status = "failure"
         result.error  = str(e)
@@ -91,17 +92,3 @@ def _llm_call(api_key: str, model: str, messages: list[dict]) -> dict:
         raise RuntimeError(f"LLM API error {e.code}: {body[:400]}") from e
 
 
-# ── Cost estimate ─────────────────────────────────────────────────────────────
-
-# TODO: prices below are approximate and have not been verified.
-# Review before using cost figures for any reporting or budgeting.
-_COST_TABLE = {
-    "gpt-5.2":           (10.0, 30.0),
-    "claude-4-6-sonnet": (3.0,  15.0),
-    "claude-4-6-opus":   (15.0, 75.0),
-    "gemini-3-pro-preview":  (2.0,  10.0),
-}
-
-def _estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
-    in_p, out_p = _COST_TABLE.get(model, (1.0, 5.0))
-    return (input_tokens * in_p + output_tokens * out_p) / 1_000_000
