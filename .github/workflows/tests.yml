@@ -1,0 +1,26 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on:
+      labels: ubuntu-22.04-2cpu-8ram-75ssd
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: pytest tests/ --cov=agent_eval --cov=runners --cov=config --cov=run --cov=report --cov-report=term-missing --cov-report=xml
