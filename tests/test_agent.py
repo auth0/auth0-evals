@@ -9,6 +9,7 @@ import pytest
 from agent_eval.agent import (
     TOOL_DEFINITIONS,
     ToolExecutor,
+    _extract_tokens,
     _summarise_args,
     llm_call,
     run_agent,
@@ -127,6 +128,44 @@ def test_summarise_args_finish_task_includes_summary():
 def test_summarise_args_finish_task_truncates_long_summary():
     result = _summarise_args("finish_task", {"summary": "x" * 100})
     assert len(result) <= 65
+
+
+# ── _extract_tokens tests ─────────────────────────────────────────────────────
+
+
+def test_extract_tokens_openai_style():
+    input_tokens, output_tokens = _extract_tokens({"prompt_tokens": 10, "completion_tokens": 5})
+    assert input_tokens == 10
+    assert output_tokens == 5
+
+
+def test_extract_tokens_anthropic_style():
+    input_tokens, output_tokens = _extract_tokens({"input_tokens": 20, "output_tokens": 8})
+    assert input_tokens == 20
+    assert output_tokens == 8
+
+
+def test_extract_tokens_defaults_to_zero_when_missing():
+    input_tokens, output_tokens = _extract_tokens({})
+    assert input_tokens == 0
+    assert output_tokens == 0
+
+
+def test_extract_tokens_zero_values_not_treated_as_missing():
+    # An explicit 0 must not fall back to the other naming convention.
+    input_tokens, output_tokens = _extract_tokens(
+        {"prompt_tokens": 0, "completion_tokens": 0, "input_tokens": 99, "output_tokens": 99}
+    )
+    assert input_tokens == 0
+    assert output_tokens == 0
+
+
+def test_extract_tokens_openai_style_takes_precedence_over_anthropic():
+    input_tokens, output_tokens = _extract_tokens(
+        {"prompt_tokens": 10, "completion_tokens": 5, "input_tokens": 20, "output_tokens": 8}
+    )
+    assert input_tokens == 10
+    assert output_tokens == 5
 
 
 # ── run_agent system prompt tests ─────────────────────────────────────────────
