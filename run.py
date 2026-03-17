@@ -217,12 +217,13 @@ def _run_agent_job(eval_def: EvalDefinition, model: str, api_key: str, keep_work
 class _EvalAdapter:
     """Adapts EvalDefinition to the attribute interface run_agent() expects."""
     def __init__(self, eval_def: EvalDefinition):
-        self.name          = eval_def.id
-        self.system_prompt = eval_def.system_prompt
-        self.user_prompt   = eval_def.user_prompt
-        self.scaffold      = eval_def.scaffold
-        self.graders       = eval_def.graders
-        self.metadata      = eval_def.metadata
+        self.name                = eval_def.id
+        self.system_prompt       = eval_def.system_prompt
+        self.agent_system_prompt = eval_def.agent_system_prompt
+        self.user_prompt         = eval_def.user_prompt
+        self.scaffold            = eval_def.scaffold
+        self.graders             = eval_def.graders
+        self.metadata            = eval_def.metadata
 
 
 def _serialise_simple(eval_def, result, grader_results) -> dict:
