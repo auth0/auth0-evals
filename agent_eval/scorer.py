@@ -17,16 +17,50 @@ from .agent import RunRecord
 from .graders import GraderResult, pass_rate as grader_pass_rate_fn
 
 
+# ── Scoring constants ─────────────────────────────────────────────────────────
+
+# Grade thresholds
+GRADE_A_MIN: float = 90
+GRADE_B_MIN: float = 75
+GRADE_C_MIN: float = 60
+GRADE_D_MIN: float = 40
+
+# Setup Friction
+FRICTION_INTERRUPTION_PENALTY: float = 14.0   # pts per hard interruption
+FRICTION_PROVIDER_ERROR_PENALTY: float = 10.0  # pts per provider-caused error
+
+# Setup Speed
+SPEED_IDEAL_ACTIVE_S: float = 60.0  # seconds; at or below this = 100 pts
+SPEED_DEGRADATION_RATE: float = 0.4  # pts lost per second over ideal
+
+# Efficiency
+EFFICIENCY_IDEAL_CALLS: int = 10  # tool calls at or below this = 100 pts
+
+# Error Recovery
+ERROR_RECOVERY_PENALTY: float = 20.0  # pts per provider error
+
+# Docs Quality
+DOCS_FEATURE_POINTS: float = 20.0  # pts per AI-discoverability feature (5 features × 20 = 100)
+
+# Hallucination
+HALLUCINATION_PENALTY: float = 20.0  # pts per hallucination detected
+
+# Security
+SECURITY_PENALTY_HARDCODED_SECRET: float = 30.0  # hardcoded client_secret / api_key / password
+SECURITY_PENALTY_INSECURE_STORAGE: float = 20.0  # token stored in localStorage
+SECURITY_PENALTY_EXPOSED_SECRET: float = 25.0    # secret leaked to frontend via env var
+
+
 # ── Grade thresholds ──────────────────────────────────────────────────────────
 
 def score_to_grade(score: float) -> str:
-    if score >= 90:
+    if score >= GRADE_A_MIN:
         return "A"
-    if score >= 75:
+    if score >= GRADE_B_MIN:
         return "B"
-    if score >= 60:
+    if score >= GRADE_C_MIN:
         return "C"
-    if score >= 40:
+    if score >= GRADE_D_MIN:
         return "D"
     return "F"
 
@@ -70,9 +104,9 @@ def _score_friction(record: RunRecord) -> tuple[float, str]:
     """
     score = 100.0
     # Hard interrupt penalty (agent couldn't proceed without user input)
-    score -= record.interruption_count * 14.0
+    score -= record.interruption_count * FRICTION_INTERRUPTION_PENALTY
     # Provider-caused error penalty
-    score -= len(record.provider_errors) * 10.0
+    score -= len(record.provider_errors) * FRICTION_PROVIDER_ERROR_PENALTY
     score = max(0.0, score)
 
     interrupt_str = (
@@ -89,13 +123,13 @@ def _score_friction(record: RunRecord) -> tuple[float, str]:
     return round(score, 1), notes
 
 
-def _score_speed(record: RunRecord, reference_active_s: float = 60.0) -> tuple[float, str]:
+def _score_speed(record: RunRecord, reference_active_s: float = SPEED_IDEAL_ACTIVE_S) -> tuple[float, str]:
     """
     Setup Speed: How long did the agent actively spend on the task?
     Ideal ≤ 60 s = 100; degrades by 0.4 pts/sec beyond that.
     """
     excess = max(0.0, record.active_time - reference_active_s)
-    score = max(0.0, 100.0 - excess * 0.4)
+    score = max(0.0, 100.0 - excess * SPEED_DEGRADATION_RATE)
     notes = (
         f"{record.active_time:.0f}s active / {record.wall_time:.0f}s wall; "
         f"{'no' if record.doc_lookup_count == 0 else str(record.doc_lookup_count)} doc lookups"
@@ -103,7 +137,7 @@ def _score_speed(record: RunRecord, reference_active_s: float = 60.0) -> tuple[f
     return round(score, 1), notes
 
 
-def _score_efficiency(record: RunRecord, ideal_calls: int = 10) -> tuple[float, str]:
+def _score_efficiency(record: RunRecord, ideal_calls: int = EFFICIENCY_IDEAL_CALLS) -> tuple[float, str]:
     """
     Efficiency: How many actions did it take to complete the task? 
     Did the agent thrash or take a direct path? How many tokens did the agent spend?
@@ -124,9 +158,9 @@ def _score_errors(record: RunRecord) -> tuple[float, str]:
     """
     Error Recovery: When the agent hit errors, did it recover or spiral?
     Score provider-caused errors. Zero errors = 100.
-    Critical errors (SDK crash, auth failure) = -30 each; minor = -10 each.
+    Each provider error = -20 pts (ERROR_RECOVERY_PENALTY).
     """
-    score = 100.0 - len(record.provider_errors) * 20.0
+    score = 100.0 - len(record.provider_errors) * ERROR_RECOVERY_PENALTY
     score = max(0.0, score)
     if not record.provider_errors:
         notes = "Zero provider errors. SDK behaved correctly on first use."
@@ -142,13 +176,13 @@ def _score_docs(doc_features: dict[str, bool]) -> tuple[float, str]:
     Pre-scored AI discoverability. Each of 5 features worth 20 points.
     Features: llms_txt, context7, mcp_server, typed_sdk, openapi_spec.
     """
-    score = sum(20.0 for v in doc_features.values() if v)
+    score = min(100.0, sum(DOCS_FEATURE_POINTS for v in doc_features.values() if v))
     present = [k for k, v in doc_features.items() if v]
     missing = [k for k, v in doc_features.items() if not v]
     present_str = ", ".join(present) if present else "none"
     missing_str = ", ".join(missing) if missing else "none"
     notes = (
-        f"{len(present)}/5 AI discoverability: {present_str}. "
+        f"{len(present)}/{len(doc_features)} AI discoverability: {present_str}. "
         f"Missing: {missing_str}."
     )
     return round(score, 1), notes
@@ -199,7 +233,7 @@ def _score_hallucination(workspace: str) -> tuple[float, str]:
                 for pattern, description in fake_patterns:
                     if re.search(pattern, content, re.IGNORECASE):
                         issues.append(f"{path.name}: {description}")
-                        score -= 20.0
+                        score -= HALLUCINATION_PENALTY
             except Exception:
                 pass
     
@@ -229,11 +263,11 @@ def _score_security(workspace: str) -> tuple[float, str]:
     
     # Security vulnerability patterns
     vuln_patterns = [
-        (r"client_secret\s*[=:]\s*['\"][^'\"]+['\"]", "Hardcoded client_secret", 30),
-        (r"localStorage\.setItem\(['\"].*token", "Token in localStorage (use secure cookie)", 20),
-        (r"api_key\s*[=:]\s*['\"][^'\"]+['\"]", "Hardcoded API key", 30),
-        (r"password\s*[=:]\s*['\"][^'\"]+['\"]", "Hardcoded password", 30),
-        (r"client_secret.*process\.env", "client_secret exposed in frontend", 25),
+        (r"client_secret\s*[=:]\s*['\"][^'\"]+['\"]", "Hardcoded client_secret", SECURITY_PENALTY_HARDCODED_SECRET),
+        (r"localStorage\.setItem\(['\"].*token", "Token in localStorage (use secure cookie)", SECURITY_PENALTY_INSECURE_STORAGE),
+        (r"api_key\s*[=:]\s*['\"][^'\"]+['\"]", "Hardcoded API key", SECURITY_PENALTY_HARDCODED_SECRET),
+        (r"password\s*[=:]\s*['\"][^'\"]+['\"]", "Hardcoded password", SECURITY_PENALTY_HARDCODED_SECRET),
+        (r"client_secret.*process\.env", "client_secret exposed in frontend", SECURITY_PENALTY_EXPOSED_SECRET),
     ]
     
     # Scan all files
