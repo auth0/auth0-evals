@@ -1,3 +1,11 @@
+"""Tests for run.py.
+
+run_job() is the main public function but is difficult to unit test because
+FRAMEWORK_ROOT is a module-level constant (not injectable) and every execution
+path calls out to real LLM APIs. The components it orchestrates are covered by
+their own test modules: test_loader, test_baseline, test_graders, test_scorer.
+"""
+
 import run
 
 
