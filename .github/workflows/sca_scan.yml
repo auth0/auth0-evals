@@ -1,0 +1,16 @@
+# If you have questions about this integration please contact DevSecOps through
+# #rex-sca-integration
+name: SCA
+
+on:
+  push:
+    branches: ["master", "main"]
+  pull_request:
+    branches: ["master", "main"]
+
+jobs:
+  snyk-cli:
+    uses: auth0/devsecops-tooling/.github/workflows/sca-scan.yml@main
+    with:
+      pre-scan-commands: "pip install -r requirements-dev.txt"
+    secrets: inherit
