@@ -180,6 +180,23 @@ TOOL_DEFINITIONS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "finish_task",
+            "description": (
+                "Signal that the task is complete. Call this when all required "
+                "files have been written and no further changes are needed."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "summary": {"type": "string", "description": "Brief summary of what was done"}
+                },
+                "required": ["summary"],
+            },
+        },
+    },
 ]
 
 
@@ -205,6 +222,8 @@ class ToolExecutor:
                 return self._fetch_url(args["url"]), True, False, False
             elif name == "ask_user":
                 return self._ask_user(args["question"]), False, True, False
+            elif name == "finish_task":
+                return args.get("summary", "Task complete."), False, False, False
             else:
                 return f"Unknown tool: {name}", False, False, True
         except Exception as e:
@@ -290,7 +309,7 @@ def llm_call(
         "model": model,
         "messages": messages,
         "tools": tools,
-        "tool_choice": "auto",
+        "tool_choice": "required",
         "temperature": 0.0,
     }).encode()
 
@@ -371,8 +390,8 @@ def run_agent(
     executor = ToolExecutor(workspace, credentials)
 
     messages: list[dict] = []
-    if task.system_prompt:
-        messages.append({"role": "system", "content": task.system_prompt})
+    if task.agent_system_prompt:
+        messages.append({"role": "system", "content": task.agent_system_prompt})
     messages.append({"role": "user", "content": task.user_prompt})
 
     record.start_time = time.time()
@@ -397,13 +416,13 @@ def run_agent(
         tool_calls = message.get("tool_calls") or []
 
         if not tool_calls:
-            # Agent is done
             record.final_summary = message.get("content") or ""
             record.status = "success"
             print(f"\n[Agent] Done. Final message: {record.final_summary[:200]}")
             break
 
         # Execute each tool call
+        task_finished = False
         for tc in tool_calls:
             fn = tc["function"]
             tool_name = fn["name"]
@@ -438,6 +457,15 @@ def run_agent(
                 "content": result,
             })
 
+            if tool_name == "finish_task":
+                record.final_summary = tool_args.get("summary", result)
+                record.status = "success"
+                task_finished = True
+                print(f"\n[Agent] Done. Summary: {record.final_summary[:200]}")
+
+        if task_finished:
+            break
+
     else:
         record.status = "failure"
         print("[Agent] Max turns reached without completion.")
@@ -461,6 +489,8 @@ def _summarise_args(tool_name: str, args: dict) -> str:
         return f'"{args.get("url","")[:60]}"'
     if tool_name == "ask_user":
         return f'"{args.get("question","")[:60]}"'
+    if tool_name == "finish_task":
+        return f'"{args.get("summary","")[:60]}"'
     return str(args)[:80]
 
 

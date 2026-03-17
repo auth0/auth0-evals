@@ -28,6 +28,7 @@ class EvalDefinition:
     scaffold: dict[str, str]               # relative_path -> content
     skills: list[str] = field(default_factory=list)   # skill names to fetch
     metadata: dict = field(default_factory=dict)
+    agent_system_prompt: str = ""          # injected only in agent mode
 
 
 def load_eval(eval_config: dict, framework_root: Path) -> EvalDefinition:
@@ -41,7 +42,7 @@ def load_eval(eval_config: dict, framework_root: Path) -> EvalDefinition:
     if not eval_path.is_dir():
         raise FileNotFoundError(f"Eval directory not found: {eval_path}")
 
-    system_prompt, user_prompt, meta = _parse_prompt_md(eval_path / "PROMPT.md")
+    system_prompt, user_prompt, agent_system_prompt, meta = _parse_prompt_md(eval_path / "PROMPT.md")
     graders_module = _load_graders_module(eval_path / "graders.py")
     scaffold = _load_scaffold(eval_path / "scaffold")
 
@@ -54,6 +55,7 @@ def load_eval(eval_config: dict, framework_root: Path) -> EvalDefinition:
         path=eval_path,
         system_prompt=system_prompt,
         user_prompt=user_prompt,
+        agent_system_prompt=agent_system_prompt,
         graders=graders_module.define_graders(),
         scaffold=scaffold,
         skills=skills,
@@ -68,9 +70,9 @@ def load_eval(eval_config: dict, framework_root: Path) -> EvalDefinition:
 
 # ── PROMPT.md parser ──────────────────────────────────────────────────────────
 
-def _parse_prompt_md(prompt_path: Path) -> tuple[str, str, dict]:
+def _parse_prompt_md(prompt_path: Path) -> tuple[str, str, str, dict]:
     """
-    Parse PROMPT.md into (system_prompt, user_prompt, metadata_dict).
+    Parse PROMPT.md into (system_prompt, user_prompt, agent_system_prompt, metadata_dict).
 
     Expected format:
       ---
@@ -78,7 +80,10 @@ def _parse_prompt_md(prompt_path: Path) -> tuple[str, str, dict]:
       ---
 
       ## System
-      <system prompt text>
+      <system prompt — used in baseline and skills modes>
+
+      ## Agent System
+      <system prompt — used only in agent mode>
 
       ## Task
       <user/task prompt text>
@@ -98,15 +103,15 @@ def _parse_prompt_md(prompt_path: Path) -> tuple[str, str, dict]:
                 meta[k.strip()] = v.strip()
         text = text[front_match.end():]
 
-    # If ## System / ## Task sections exist, use them; otherwise treat the
-    # whole body as the user prompt and use a minimal system prompt.
-    system_match = re.search(r"^## System\s*\n(.*?)(?=^## |\Z)", text, re.DOTALL | re.MULTILINE)
-    task_match   = re.search(r"^## Task\s*\n(.*?)(?=^## |\Z)",   text, re.DOTALL | re.MULTILINE)
+    system_match       = re.search(r"^## System\s*\n(.*?)(?=^## |\Z)",        text, re.DOTALL | re.MULTILINE)
+    agent_system_match = re.search(r"^## Agent System\s*\n(.*?)(?=^## |\Z)",  text, re.DOTALL | re.MULTILINE)
+    task_match         = re.search(r"^## Task\s*\n(.*?)(?=^## |\Z)",          text, re.DOTALL | re.MULTILINE)
 
-    system_prompt = system_match.group(1).strip() if system_match else ""
-    user_prompt   = task_match.group(1).strip()   if task_match   else text.strip()
+    system_prompt       = system_match.group(1).strip()       if system_match       else ""
+    agent_system_prompt = agent_system_match.group(1).strip() if agent_system_match else ""
+    user_prompt         = task_match.group(1).strip()         if task_match         else text.strip()
 
-    return system_prompt, user_prompt, meta
+    return system_prompt, user_prompt, agent_system_prompt, meta
 
 
 # ── graders.py dynamic import ─────────────────────────────────────────────────

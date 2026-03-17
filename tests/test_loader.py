@@ -133,6 +133,83 @@ def test_load_eval_missing_prompt_raises(tmp_path):
         load_eval(EVAL_CONFIG, tmp_path)
 
 
+# ── Agent System prompt tests ─────────────────────────────────────────────────
+
+
+def test_load_eval_parses_agent_system_section(tmp_path):
+    """## Agent System is parsed into agent_system_prompt and kept separate
+    from system_prompt so the two modes receive different instructions."""
+    make_eval_dir(
+        tmp_path,
+        prompt_text=(
+            "---\nskills: auth0-react\n---\n\n"
+            "## Agent System\n"
+            "Use tools to write code.\n"
+            "\n"
+            "## Task\n"
+            "Add Auth0 authentication.\n"
+        ),
+    )
+
+    result = load_eval(EVAL_CONFIG, tmp_path)
+
+    assert "Use tools to write code" in result.agent_system_prompt
+    assert result.system_prompt == ""
+
+
+def test_load_eval_agent_system_prompt_empty_without_section(tmp_path):
+    """agent_system_prompt defaults to empty string when ## Agent System is
+    absent so existing evals without the section behave unchanged."""
+    make_eval_dir(tmp_path)
+
+    result = load_eval(EVAL_CONFIG, tmp_path)
+
+    assert result.agent_system_prompt == ""
+
+
+def test_load_eval_system_and_agent_system_coexist(tmp_path):
+    """## System and ## Agent System can both be present; each is parsed into
+    its own field so baseline/skills and agent modes each get the right prompt."""
+    make_eval_dir(
+        tmp_path,
+        prompt_text=(
+            "## System\n"
+            "Generic system prompt.\n"
+            "\n"
+            "## Agent System\n"
+            "Agent-specific prompt.\n"
+            "\n"
+            "## Task\n"
+            "Do the task.\n"
+        ),
+    )
+
+    result = load_eval(EVAL_CONFIG, tmp_path)
+
+    assert "Generic system prompt" in result.system_prompt
+    assert "Agent-specific prompt" in result.agent_system_prompt
+
+
+def test_load_eval_agent_system_does_not_bleed_into_system_prompt(tmp_path):
+    """## Agent System content must not appear in system_prompt so baseline
+    and skills modes are never contaminated with tool-calling instructions."""
+    make_eval_dir(
+        tmp_path,
+        prompt_text=(
+            "## Agent System\n"
+            "Call finish_task when done.\n"
+            "\n"
+            "## Task\n"
+            "Do the task.\n"
+        ),
+    )
+
+    result = load_eval(EVAL_CONFIG, tmp_path)
+
+    assert "finish_task" not in result.system_prompt
+    assert "finish_task" in result.agent_system_prompt
+
+
 # ── Scaffold loading tests ────────────────────────────────────────────────────
 
 
