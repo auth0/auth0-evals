@@ -330,11 +330,11 @@ def llm_call(
 
         call_duration = time.time() - call_start
         usage = response_data.get("usage", {})
-        prompt_tokens = usage.get("prompt_tokens", 0)
-        completion_tokens = usage.get("completion_tokens", 0)
-        
+
+        input_tokens, output_tokens = _extract_tokens(usage)
+
         print(f"[LLM API] Response received ({call_duration:.2f}s)")
-        print(f"[LLM API] Tokens: {prompt_tokens} in / {completion_tokens} out")
+        print(f"[LLM API] Tokens: {input_tokens} in / {output_tokens} out")
         
         # Check if response has tool calls or is final message
         message = response_data.get("choices", [{}])[0].get("message", {})
@@ -405,8 +405,9 @@ def run_agent(
 
         # Accumulate token usage
         usage = response.get("usage", {})
-        record.input_tokens += usage.get("prompt_tokens", 0)
-        record.output_tokens += usage.get("completion_tokens", 0)
+        turn_input, turn_output = _extract_tokens(usage)
+        record.input_tokens  += turn_input
+        record.output_tokens += turn_output
 
         choice = response["choices"][0]
         message = choice["message"]
@@ -480,6 +481,22 @@ def run_agent(
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _extract_tokens(usage: dict) -> tuple[int, int]:
+    """Extract input and output token counts from an API usage dict.
+
+    Handles both naming conventions:
+      - OpenAI-style:  prompt_tokens / completion_tokens
+      - Anthropic-style: input_tokens / output_tokens
+    """
+    input_tokens  = usage.get("prompt_tokens")
+    if input_tokens is None:
+        input_tokens  = usage.get("input_tokens",  0)
+    output_tokens = usage.get("completion_tokens")
+    if output_tokens is None:
+        output_tokens = usage.get("output_tokens", 0)
+    return input_tokens, output_tokens
+
 
 def _normalize_tool_args(name: str, args: dict) -> dict:
     """Normalize tool arguments, handling common parameter name variations.
