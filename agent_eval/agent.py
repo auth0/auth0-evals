@@ -211,6 +211,8 @@ class ToolExecutor:
         """
         Returns (result, is_doc_lookup, is_interruption, caused_error).
         """
+        args = _normalize_tool_args(name, args)
+
         try:
             if name == "read_file":
                 return self._read_file(args["path"]), False, False, False
@@ -431,6 +433,8 @@ def run_agent(
             except json.JSONDecodeError:
                 tool_args = {}
 
+            tool_args = _normalize_tool_args(tool_name, tool_args)
+
             print(f"  [{turn+1}] {tool_name}({_summarise_args(tool_name, tool_args)})")
 
             t_start = time.time()
@@ -476,6 +480,25 @@ def run_agent(
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _normalize_tool_args(name: str, args: dict) -> dict:
+    """Normalize tool arguments, handling common parameter name variations.
+
+    Different LLM providers use different parameter names for the same
+    conceptual argument, e.g. gpt-4-turbo sends {"filename": ...} instead
+    of {"path": ...}.  This function converts known aliases to the canonical
+    key so the rest of the code only needs to handle one name per tool.
+    """
+    if name in ("read_file", "write_file") and "path" not in args:
+        for alias in ("filename", "file_path", "filepath", "file"):
+            if alias in args:
+                return {**args, "path": args[alias]}
+    if name == "run_command" and "command" not in args:
+        for alias in ("cmd", "shell_command", "bash_command"):
+            if alias in args:
+                return {**args, "command": args[alias]}
+    return args
+
 
 def _summarise_args(tool_name: str, args: dict) -> str:
     if tool_name in ("read_file", "write_file"):
