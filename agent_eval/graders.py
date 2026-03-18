@@ -5,8 +5,9 @@ Each eval task defines a list of graders. After the agent finishes,
 run_graders() evaluates all written files against them and returns
 pass/fail per grader.
 
-Three primitives:
+Primitives:
   contains(needle)          — substring present in any written file
+  not_contains(needle)      — substring must NOT appear in any written file
   matches(pattern)          — regex match in any written file
   judge(question, framework=None) — LLM-as-judge yes/no question about the code
 """
@@ -40,7 +41,7 @@ def _load_user_template() -> str:
 @dataclass
 class GraderResult:
     name: str
-    kind: str          # "contains" | "matches" | "judge"
+    kind: str          # "contains" | "not_contains" | "matches" | "judge"
     passed: bool
     detail: str        # what was checked / why it passed or failed
 
@@ -73,6 +74,15 @@ def contains(needle: str, description: str | None = None) -> dict:
         "kind": "contains",
         "needle": needle,
         "name": description or f"contains '{needle}'",
+    }
+
+
+def not_contains(needle: str, description: str | None = None) -> dict:
+    """Pass if `needle` does NOT appear (case-insensitive) in any written file."""
+    return {
+        "kind": "not_contains",
+        "needle": needle,
+        "name": description or f"not_contains '{needle}'",
     }
 
 
@@ -111,14 +121,22 @@ def run_graders(
     combined = _combined(files)
     results: list[GraderResult] = []
 
+    combined_lower = combined.lower()
+
     for g in grader_defs:
         kind = g["kind"]
         name = g["name"]
 
         if kind == "contains":
             needle = g["needle"]
-            passed = needle.lower() in combined.lower()
+            passed = needle.lower() in combined_lower
             detail = f"'{needle}' {'found' if passed else 'NOT found'} in written files"
+            results.append(GraderResult(name=name, kind=kind, passed=passed, detail=detail))
+
+        elif kind == "not_contains":
+            needle = g["needle"]
+            passed = needle.lower() not in combined_lower
+            detail = f"'{needle}' {'NOT found (good)' if passed else 'FOUND (bad)'} in written files"
             results.append(GraderResult(name=name, kind=kind, passed=passed, detail=detail))
 
         elif kind == "matches":

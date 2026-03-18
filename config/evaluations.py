@@ -24,6 +24,12 @@ EVALUATIONS = [
         "path":     "evals/quickstarts/react",
     },
     {
+        "id":       "nextjs_quickstart",
+        "name":     "Next.js App Router Quickstart",
+        "category": "quickstarts",
+        "path":     "evals/quickstarts/nextjs",
+    },
+    {
         "id":       "swift_quickstart",
         "name":     "Swift iOS Quickstart",
         "category": "quickstarts",
