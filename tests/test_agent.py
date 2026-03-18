@@ -11,6 +11,7 @@ from agent_eval.agent import (
     ToolExecutor,
     _extract_tokens,
     _summarise_args,
+    is_gemini_model,
     llm_call,
     run_agent,
 )
@@ -244,3 +245,133 @@ def test_run_agent_terminates_gracefully_on_empty_tool_calls(tmp_path):
 
     assert record.status == "success"
     assert record.final_summary == "All done."
+
+
+# ── Gemini helpers ─────────────────────────────────────────────────────────────
+
+
+def make_gemini_finish_response(summary="Done."):
+    """Simulate Gemini's function_call response format."""
+    return {
+        "choices": [{
+            "message": {
+                "content": None,
+                "tool_calls": None,
+                "function_call": {
+                    "name": "finish_task",
+                    "arguments": json.dumps({"summary": summary}),
+                },
+            },
+            "finish_reason": "function_call",
+        }],
+        "usage": {"prompt_tokens": 100, "completion_tokens": 50},
+    }
+
+
+# ── is_gemini_model tests ──────────────────────────────────────────────────────
+
+
+def test_is_gemini_model_detects_gemini_prefix():
+    assert is_gemini_model("gemini-3-pro-preview") is True
+    assert is_gemini_model("gemini-2.5-pro") is True
+
+
+def test_is_gemini_model_returns_false_for_non_gemini():
+    assert is_gemini_model("gpt-4o") is False
+    assert is_gemini_model("claude-4-6-sonnet") is False
+
+
+# ── Gemini llm_call tests ──────────────────────────────────────────────────────
+
+
+def test_llm_call_sends_functions_api_for_gemini():
+    """Gemini requests must use functions/function_call, not tools/tool_choice."""
+    captured = {}
+
+    def mock_urlopen(req, timeout=None):
+        captured.update(json.loads(req.data))
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({
+            "choices": [{"message": {"content": "ok", "tool_calls": None}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }).encode()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        return mock_resp
+
+    with patch("urllib.request.urlopen", side_effect=mock_urlopen):
+        llm_call("key", "gemini-3-pro-preview", [{"role": "user", "content": "test"}], TOOL_DEFINITIONS)
+
+    assert "functions" in captured
+    assert captured.get("function_call") == "auto"
+    assert "tools" not in captured
+    assert "tool_choice" not in captured
+
+
+def test_llm_call_gemini_functions_match_tool_definitions():
+    """functions sent to Gemini must cover all tools defined in TOOL_DEFINITIONS."""
+    captured = {}
+
+    def mock_urlopen(req, timeout=None):
+        captured.update(json.loads(req.data))
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({
+            "choices": [{"message": {"content": "ok", "tool_calls": None}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }).encode()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        return mock_resp
+
+    with patch("urllib.request.urlopen", side_effect=mock_urlopen):
+        llm_call("key", "gemini-2.5-pro", [{"role": "user", "content": "test"}], TOOL_DEFINITIONS)
+
+    expected_names = {t["function"]["name"] for t in TOOL_DEFINITIONS}
+    actual_names = {f["name"] for f in captured["functions"]}
+    assert actual_names == expected_names
+
+
+# ── Gemini run_agent tests ─────────────────────────────────────────────────────
+
+
+def test_run_agent_normalises_gemini_function_call_response(tmp_path):
+    """run_agent must handle Gemini's function_call format and complete successfully."""
+    with patch("agent_eval.agent.llm_call", return_value=make_gemini_finish_response("Gemini done.")):
+        record = run_agent("key", "gemini-3-pro-preview", make_task(), str(tmp_path))
+
+    assert record.status == "success"
+    assert "Gemini done" in record.final_summary
+
+
+def test_run_agent_sends_function_role_for_gemini_tool_results(tmp_path):
+    """Tool results for Gemini must be returned as role=function messages."""
+    captured_messages = []
+
+    read_response = {
+        "choices": [{
+            "message": {
+                "content": None,
+                "tool_calls": None,
+                "function_call": {
+                    "name": "read_file",
+                    "arguments": json.dumps({"path": "src/App.js"}),
+                },
+            },
+            "finish_reason": "function_call",
+        }],
+        "usage": {"prompt_tokens": 50, "completion_tokens": 20},
+    }
+
+    call_count = {"n": 0}
+
+    def mock_llm(api_key, model, messages, tools):
+        captured_messages.extend(messages)
+        call_count["n"] += 1
+        return read_response if call_count["n"] == 1 else make_gemini_finish_response()
+
+    with patch("agent_eval.agent.llm_call", side_effect=mock_llm):
+        run_agent("key", "gemini-3-pro-preview", make_task(), str(tmp_path))
+
+    function_msgs = [m for m in captured_messages if m.get("role") == "function"]
+    assert len(function_msgs) == 1
+    assert function_msgs[0]["name"] == "read_file"

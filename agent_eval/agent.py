@@ -20,12 +20,17 @@ from pathlib import Path
 from typing import Optional
 
 from config.costs import estimate_cost
-from config.settings import BASE_URL, BEDROCK_MODELS, MAX_TURNS
+from config.settings import BASE_URL, BEDROCK_MODELS, GEMINI_MODELS, MAX_TURNS
 
 
 def is_bedrock_model(model: str) -> bool:
     """Check if model is routed through Bedrock and requires special handling."""
     return any(bedrock in model for bedrock in BEDROCK_MODELS)
+
+
+def is_gemini_model(model: str) -> bool:
+    """Check if model uses the functions/function_call API (Gemini via proxy)."""
+    return any(model.startswith(prefix) for prefix in GEMINI_MODELS)
 
 
 # ── Data model ───────────────────────────────────────────────────────────────
@@ -311,6 +316,16 @@ def llm_call(
     # on XML tool-call parsing from the response content instead.
     if is_bedrock_model(model):
         body: dict = {"model": model, "messages": messages, "temperature": 0.0}
+    elif is_gemini_model(model):
+        # Gemini via proxy uses the older functions/function_call API.
+        functions = [t["function"] for t in tools]
+        body = {
+            "model": model,
+            "messages": messages,
+            "functions": functions,
+            "function_call": "auto",
+            "temperature": 0.0,
+        }
     else:
         body = {
             "model": model,
@@ -346,11 +361,14 @@ def llm_call(
         # Check if response has tool calls or is final message
         message = response_data.get("choices", [{}])[0].get("message", {})
         tool_calls = message.get("tool_calls")
+        function_call = message.get("function_call")
         if tool_calls:
             print(f"[LLM API] Agent requested {len(tool_calls)} tool call(s)")
+        elif function_call:
+            print(f"[LLM API] Agent requested function call: {function_call.get('name')}")
         else:
             content_preview = (message.get("content") or "")[:80]
-            print(f"[LLM API] Agent finished: \"{content_preview}...\"")
+            print(f"[LLM API] Agent finished: \"{content_preview}\"")
         
         return response_data
     except urllib.error.HTTPError as e:
@@ -385,6 +403,8 @@ def run_agent(
     # Bedrock models use XML tool calling — log that we're in fallback mode
     if is_bedrock_model(model):
         print(f"\n[Agent] Model '{model}' is Bedrock-routed — using XML tool-call fallback mode")
+    elif is_gemini_model(model):
+        print(f"\n[Agent] Model '{model}' is Gemini — using functions/function_call API")
     
     record = RunRecord(task_name=task.name, model=model, workspace=workspace)
     executor = ToolExecutor(workspace, credentials)
@@ -415,6 +435,19 @@ def run_agent(
         messages.append(message)
 
         tool_calls = message.get("tool_calls") or []
+
+        # Gemini via proxy returns a single function_call object instead of
+        # a tool_calls list — normalise it into the standard format.
+        if not tool_calls and message.get("function_call"):
+            fc = message["function_call"]
+            tool_calls = [{
+                "id": "fc_0",
+                "type": "function",
+                "function": {
+                    "name": fc["name"],
+                    "arguments": fc.get("arguments", "{}"),
+                },
+            }]
 
         # Fallback: some models (e.g. claude-4-6-opus via Bedrock) embed tool
         # calls as <tool_call>{"name":...}</tool_call> in the content field
@@ -472,10 +505,17 @@ def run_agent(
             # Bedrock models don't support role=tool — return results inline
             # as a user message. Avoid <tool_result> tags since LiteLLM
             # intercepts them and requires tools= to be present.
+            # Gemini via proxy uses role=function with the function name.
             if is_bedrock_model(model):
                 messages.append({
                     "role": "user",
                     "content": f"[Result of {tool_name}]:\n{result}",
+                })
+            elif is_gemini_model(model):
+                messages.append({
+                    "role": "function",
+                    "name": tool_name,
+                    "content": result,
                 })
             else:
                 messages.append({

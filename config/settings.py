@@ -11,3 +11,9 @@ MAX_TURNS = 30
 BEDROCK_MODELS = [
     "claude-",
 ]
+
+# Model name prefixes that use the older functions/function_call API
+# instead of tools/tool_choice.
+GEMINI_MODELS = [
+    "gemini-",
+]
