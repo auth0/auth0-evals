@@ -4,9 +4,10 @@ JUDGE_MODEL = "claude-4-5-sonnet"
 
 MAX_TURNS = 30
 
-# Models known to have toolConfig issues with Bedrock
-BEDROCK_INCOMPATIBLE_MODELS = [
-    "claude-4-5-opus",
-    "claude-4-5-sonnet",
-    "claude-4-5-haiku",
+# Model name prefixes routed through Bedrock — require special handling
+# (XML tool calls, no tool_choice, results as user messages).
+# Using a prefix means all current and future Claude models are covered
+# without needing individual entries.
+BEDROCK_MODELS = [
+    "claude-",
 ]
