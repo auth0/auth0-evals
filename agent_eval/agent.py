@@ -20,12 +20,12 @@ from pathlib import Path
 from typing import Optional
 
 from config.costs import estimate_cost
-from config.settings import BASE_URL, BEDROCK_INCOMPATIBLE_MODELS, MAX_TURNS
+from config.settings import BASE_URL, BEDROCK_MODELS, MAX_TURNS
 
 
 def is_bedrock_model(model: str) -> bool:
-    """Check if model is a Bedrock Claude model that requires special toolConfig."""
-    return any(bedrock in model for bedrock in BEDROCK_INCOMPATIBLE_MODELS)
+    """Check if model is routed through Bedrock and requires special handling."""
+    return any(bedrock in model for bedrock in BEDROCK_MODELS)
 
 
 # ── Data model ───────────────────────────────────────────────────────────────
@@ -299,21 +299,28 @@ def llm_call(
     # Calculate approximate input size for logging
     input_text = json.dumps(messages)
     input_size_kb = len(input_text.encode('utf-8')) / 1024
-    
+
     print(f"\n[LLM API] Calling remote API: {BASE_URL}/chat/completions")
     print(f"[LLM API] Model: {model}")
     print(f"[LLM API] Messages: {len(messages)} in history (~{input_size_kb:.1f} KB)")
     print(f"[LLM API] Waiting for response...")
-    
+
     call_start = time.time()
-    
-    payload = json.dumps({
-        "model": model,
-        "messages": messages,
-        "tools": tools,
-        "tool_choice": "required",
-        "temperature": 0.0,
-    }).encode()
+
+    # Bedrock models do not support toolConfig — omit tools entirely and rely
+    # on XML tool-call parsing from the response content instead.
+    if is_bedrock_model(model):
+        body: dict = {"model": model, "messages": messages, "temperature": 0.0}
+    else:
+        body = {
+            "model": model,
+            "messages": messages,
+            "tools": tools,
+            "tool_choice": "required",
+            "temperature": 0.0,
+        }
+
+    payload = json.dumps(body).encode()
 
     req = urllib.request.Request(
         f"{BASE_URL}/chat/completions",
@@ -354,13 +361,9 @@ def llm_call(
         
         # Detect Bedrock toolConfig error and provide helpful message
         if "toolConfig" in body and "BedrockException" in body:
-            print(f"\n[LLM API] 🔍 This is a Bedrock model toolConfig error")
-            print(f"[LLM API] 💡 Use Anthropic API models instead of Bedrock:")
-            print(f"[LLM API]    --model claude-3-5-sonnet-20241022")
-            print(f"[LLM API]    --model claude-3-5-haiku-20241022")
             raise RuntimeError(
-                f"Bedrock model '{model}' requires toolConfig field which is not supported. "
-                f"Use Anthropic API models (claude-3-5-sonnet-20241022, etc.) instead."
+                f"Bedrock model '{model}' requires special handling. "
+                f"Ensure it is listed in BEDROCK_MODELS in config/settings.py."
             ) from e
         
         raise RuntimeError(f"LLM API error {e.code}: {body[:400]}") from e
@@ -379,14 +382,9 @@ def run_agent(
     Run the agent against a task. Returns a fully populated RunRecord.
     Includes validation for Bedrock models that don't support tool calling.
     """
-    # Check for incompatible Bedrock models upfront
+    # Bedrock models use XML tool calling — log that we're in fallback mode
     if is_bedrock_model(model):
-        print(f"\n[Agent] ⚠️  WARNING: Model '{model}' is a Bedrock model")
-        print(f"[Agent] Bedrock models require toolConfig field which is not supported")
-        print(f"[Agent] This will likely fail. Use Anthropic API models instead:")
-        print(f"[Agent]   - claude-3-5-sonnet-20241022")
-        print(f"[Agent]   - claude-3-5-haiku-20241022")
-        print(f"[Agent]   - claude-3-opus-20240229")
+        print(f"\n[Agent] Model '{model}' is Bedrock-routed — using XML tool-call fallback mode")
     
     record = RunRecord(task_name=task.name, model=model, workspace=workspace)
     executor = ToolExecutor(workspace, credentials)
@@ -417,6 +415,21 @@ def run_agent(
         messages.append(message)
 
         tool_calls = message.get("tool_calls") or []
+
+        # Fallback: some models (e.g. claude-4-6-opus via Bedrock) embed tool
+        # calls as <tool_call>{"name":...}</tool_call> in the content field
+        # instead of using the standard tool_calls API field.
+        if not tool_calls:
+            tool_calls = _parse_xml_tool_calls(message.get("content") or "")
+            if tool_calls and not is_bedrock_model(model):
+                # For non-Bedrock models inject into message so the loop can
+                # use the standard tool execution path.
+                message["tool_calls"] = tool_calls
+                content = message.get("content") or ""
+                clean = content[:content.find("<tool_call>")].strip() if "<tool_call>" in content else content
+                message["content"] = clean or None
+            # For Bedrock models we keep tool_calls local only — mutating the
+            # message would cause LiteLLM to trigger Bedrock tool_use handling.
 
         if not tool_calls:
             record.final_summary = message.get("content") or ""
@@ -456,11 +469,20 @@ def run_agent(
                 caused_error=is_error,
             ))
 
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tc["id"],
-                "content": result,
-            })
+            # Bedrock models don't support role=tool — return results inline
+            # as a user message. Avoid <tool_result> tags since LiteLLM
+            # intercepts them and requires tools= to be present.
+            if is_bedrock_model(model):
+                messages.append({
+                    "role": "user",
+                    "content": f"[Result of {tool_name}]:\n{result}",
+                })
+            else:
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": result,
+                })
 
             if tool_name == "finish_task":
                 record.final_summary = tool_args.get("summary", result)
@@ -515,6 +537,42 @@ def _normalize_tool_args(name: str, args: dict) -> dict:
             if alias in args:
                 return {**args, "command": args[alias]}
     return args
+
+
+def _parse_xml_tool_calls(content: str) -> list[dict]:
+    """
+    Extract tool calls from models that embed them as XML in the content field
+    instead of using the standard tool_calls API field, e.g.:
+
+        <tool_call>
+        {"name": "read_file", "arguments": {"path": "foo.swift"}}
+        </tool_call>
+
+    Only extracts calls that appear before the first <tool_result> block so
+    that hallucinated results from the same response are ignored.
+    """
+    import re
+
+    # Truncate at the first <tool_result> — everything after is hallucinated
+    cutoff = content.find("<tool_result>")
+    text = content[:cutoff] if cutoff != -1 else content
+
+    pattern = re.compile(r"<tool_call>\s*(.*?)\s*</tool_call>", re.DOTALL)
+    tool_calls = []
+    for i, match in enumerate(pattern.finditer(text)):
+        try:
+            body = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            continue
+        tool_calls.append({
+            "id": f"xml_call_{i}",
+            "type": "function",
+            "function": {
+                "name": body.get("name", ""),
+                "arguments": json.dumps(body.get("arguments", {})),
+            },
+        })
+    return tool_calls
 
 
 def _summarise_args(tool_name: str, args: dict) -> str:
