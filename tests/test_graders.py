@@ -4,6 +4,7 @@ import pytest
 from agent_eval.graders import (
     GraderResult,
     contains,
+    not_contains,
     matches,
     pass_rate,
     run_graders,
@@ -72,6 +73,43 @@ def test_run_graders_ignores_pycache_directory(tmp_path):
     (cache_dir / "app.pyc").write_text("Auth0Provider cached bytecode")
     (tmp_path / "app.py").write_text("import react")
     graders = [contains("Auth0Provider")]
+
+    results = run_graders(graders, str(tmp_path), api_key="unused")
+
+    assert results[0].passed is False
+
+
+# ── run_graders — not_contains ────────────────────────────────────────────────
+
+
+def test_run_graders_not_contains_passes_when_needle_absent(tmp_path):
+    """A not_contains grader passes when the needle is not found in any file."""
+    (tmp_path / "App.js").write_text("import React from 'react';")
+    graders = [not_contains("Auth0Provider", description="no Auth0Provider")]
+
+    results = run_graders(graders, str(tmp_path), api_key="unused")
+
+    assert len(results) == 1
+    assert results[0].passed is True
+    assert results[0].kind == "not_contains"
+    assert results[0].name == "no Auth0Provider"
+
+
+def test_run_graders_not_contains_fails_when_needle_present(tmp_path):
+    """A not_contains grader fails when the needle appears in any file."""
+    (tmp_path / "App.js").write_text("import { Auth0Provider } from '@auth0/auth0-react';")
+    graders = [not_contains("Auth0Provider")]
+
+    results = run_graders(graders, str(tmp_path), api_key="unused")
+
+    assert results[0].passed is False
+
+
+def test_run_graders_not_contains_is_case_insensitive(tmp_path):
+    """Not_contains matching ignores letter case so 'auth0provider' triggers
+    failure even when the grader specifies 'Auth0Provider'."""
+    (tmp_path / "app.js").write_text("auth0provider is used here")
+    graders = [not_contains("Auth0Provider")]
 
     results = run_graders(graders, str(tmp_path), api_key="unused")
 
