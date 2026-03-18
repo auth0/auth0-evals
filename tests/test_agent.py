@@ -10,6 +10,7 @@ from agent_eval.agent import (
     TOOL_DEFINITIONS,
     ToolExecutor,
     _extract_tokens,
+    _collect_files,
     _summarise_args,
     is_gemini_model,
     llm_call,
@@ -72,7 +73,7 @@ def test_finish_task_requires_summary():
 
 def test_all_expected_tools_present():
     names = {t["function"]["name"] for t in TOOL_DEFINITIONS}
-    assert names == {"read_file", "write_file", "run_command", "fetch_url", "ask_user", "finish_task"}
+    assert names == {"read_file", "list_files", "write_file", "run_command", "fetch_url", "ask_user", "finish_task"}
 
 
 # ── tool_choice tests ─────────────────────────────────────────────────────────
@@ -167,6 +168,134 @@ def test_extract_tokens_openai_style_takes_precedence_over_anthropic():
     )
     assert input_tokens == 10
     assert output_tokens == 5
+
+
+# ── _collect_files tests ────────────────────────────────────────────────────────
+
+
+def test_collect_files_returns_sorted_relative_paths(tmp_path):
+    (tmp_path / "b.txt").write_text("b")
+    (tmp_path / "a.txt").write_text("a")
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "c.txt").write_text("c")
+
+    result = _collect_files(tmp_path, tmp_path)
+
+    assert result == ["a.txt", "b.txt", "sub/c.txt"]
+
+
+def test_collect_files_empty_directory_returns_empty_list(tmp_path):
+    assert _collect_files(tmp_path, tmp_path) == []
+
+
+def test_collect_files_truncates_at_limit_and_appends_notice(tmp_path, monkeypatch):
+    monkeypatch.setattr("agent_eval.agent._MAX_LISTED_FILES", 3)
+    for i in range(5):
+        (tmp_path / f"file{i}.txt").write_text("")
+
+    result = _collect_files(tmp_path, tmp_path)
+
+    assert len(result) == 4  # 3 files + truncation notice
+    assert "truncated" in result[-1]
+
+
+def test_collect_files_skips_symlinked_file_pointing_outside_workspace(tmp_path):
+    outside = tmp_path.parent / "secret.txt"
+    outside.write_text("secret")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "real.txt").write_text("real")
+    (workspace / "link.txt").symlink_to(outside)
+
+    result = _collect_files(workspace, workspace)
+
+    assert result == ["real.txt"]
+
+
+def test_collect_files_does_not_follow_symlinked_directory(tmp_path):
+    outside_dir = tmp_path / "outside"
+    outside_dir.mkdir()
+    (outside_dir / "secret.txt").write_text("secret")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "linked_dir").symlink_to(outside_dir)
+
+    result = _collect_files(workspace, workspace)
+
+    assert result == []
+
+
+# ── ToolExecutor._read_file safety tests ─────────────────────────────────────
+
+
+def test_read_file_rejects_path_traversal(tmp_path):
+    executor = ToolExecutor(str(tmp_path))
+    result, _, _, _ = executor.execute("read_file", {"path": "../../etc/passwd"})
+
+    assert "Access denied" in result
+
+
+def test_read_file_returns_error_for_directory(tmp_path):
+    (tmp_path / "src").mkdir()
+
+    executor = ToolExecutor(str(tmp_path))
+    result, _, _, _ = executor.execute("read_file", {"path": "src"})
+
+    assert "list_files" in result
+
+
+def test_read_file_returns_error_for_workspace_root(tmp_path):
+    executor = ToolExecutor(str(tmp_path))
+    result, _, _, _ = executor.execute("read_file", {"path": ""})
+
+    assert "list_files" in result
+
+
+# ── ToolExecutor.list_files tests ─────────────────────────────────────────────
+
+
+def test_list_files_tool_rejects_path_traversal(tmp_path):
+    executor = ToolExecutor(str(tmp_path))
+    result, _, _, _ = executor.execute("list_files", {"path": "../../etc"})
+
+    assert "Access denied" in result
+
+
+def test_list_files_tool_returns_directory_listing_for_subdir(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "index.ts").write_text("export {}")
+
+    executor = ToolExecutor(str(tmp_path))
+    result, _, _, _ = executor.execute("list_files", {"path": "src"})
+
+    assert "Directory listing" in result
+    assert "src/index.ts" in result
+
+
+def test_list_files_tool_returns_listing_for_workspace_root(tmp_path):
+    (tmp_path / "README.md").write_text("# hello")
+
+    executor = ToolExecutor(str(tmp_path))
+    result, _, _, _ = executor.execute("list_files", {"path": ""})
+
+    assert "Directory listing" in result
+    assert "README.md" in result
+
+
+def test_list_files_tool_returns_error_for_file_path(tmp_path):
+    (tmp_path / "main.py").write_text("print('hi')")
+
+    executor = ToolExecutor(str(tmp_path))
+    result, _, _, _ = executor.execute("list_files", {"path": "main.py"})
+
+    assert "read_file" in result
+
+
+def test_list_files_tool_returns_error_for_missing_directory(tmp_path):
+    executor = ToolExecutor(str(tmp_path))
+    result, _, _, _ = executor.execute("list_files", {"path": "nonexistent"})
+
+    assert "not found" in result.lower()
 
 
 # ── run_agent system prompt tests ─────────────────────────────────────────────

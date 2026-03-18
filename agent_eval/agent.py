@@ -95,6 +95,7 @@ class RunRecord:
         """e.g. 'Read×7 Bash×3 Write×2'"""
         label_map = {
             "read_file": "Read",
+            "list_files": "List",
             "write_file": "Write",
             "run_command": "Bash",
             "fetch_url": "Fetch",
@@ -107,6 +108,10 @@ class RunRecord:
         return " ".join(parts)
 
 
+# Maximum number of files to include in a directory listing. Prevents memory
+# and token bloat when the workspace contains large dependency trees.
+_MAX_LISTED_FILES = 200
+
 # ── Tool definitions sent to the LLM ─────────────────────────────────────────
 
 TOOL_DEFINITIONS = [
@@ -118,7 +123,30 @@ TOOL_DEFINITIONS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Relative path within the workspace"}
+                    "path": {"type": "string", "description": "Relative path to a file within the workspace"}
+                },
+                "required": ["path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_files",
+            "description": (
+                "List all files under a directory in the project workspace. "
+                "Pass an empty string to list the entire workspace."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": (
+                            "Relative path to a directory within the workspace, "
+                            "or an empty string for the workspace root."
+                        ),
+                    }
                 },
                 "required": ["path"],
             },
@@ -221,6 +249,8 @@ class ToolExecutor:
         try:
             if name == "read_file":
                 return self._read_file(args["path"]), False, False, False
+            elif name == "list_files":
+                return self._list_files(args["path"]), False, False, False
             elif name == "write_file":
                 return self._write_file(args["path"], args["content"]), False, False, False
             elif name == "run_command":
@@ -238,14 +268,36 @@ class ToolExecutor:
 
     def _read_file(self, path: str) -> str:
         full = self.workspace / path
+        if not full.resolve().is_relative_to(self.workspace.resolve()):
+            return f"Access denied: path is outside workspace"
+        if full.is_dir():
+            return f"Path is a directory: {path!r}. Use list_files to list its contents."
         if not full.exists():
-            # Try listing directory to help orient the agent
+            # Try listing sibling files to help orient the agent
             parent = full.parent
             if parent.exists():
-                files = [str(f.relative_to(self.workspace)) for f in parent.iterdir()]
-                return f"File not found: {path}\nFiles in {parent.name}/: {files}"
+                lines = _collect_files(parent, self.workspace)
+                listing = "\n".join(lines) if lines else "(empty directory)"
+                try:
+                    label = str(parent.relative_to(self.workspace)) or "(workspace root)"
+                except ValueError:
+                    label = parent.name or "(workspace root)"
+                return f"File not found: {path}\nNearby files in {label}:\n{listing}"
             return f"File not found: {path}"
         return full.read_text(errors="replace")
+
+    def _list_files(self, path: str) -> str:
+        full = self.workspace / path
+        if not full.resolve().is_relative_to(self.workspace.resolve()):
+            return f"Access denied: path is outside workspace"
+        if not full.exists():
+            return f"Directory not found: {path!r}"
+        if not full.is_dir():
+            return f"Path is a file: {path!r}. Use read_file to read its contents."
+        lines = _collect_files(full, self.workspace)
+        listing = "\n".join(lines) if lines else "(empty directory)"
+        label = path if path else "(workspace root)"
+        return f"Directory listing for {label}:\n{listing}"
 
     def _write_file(self, path: str, content: str) -> str:
         full = self.workspace / path
@@ -544,6 +596,33 @@ def run_agent(
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def _collect_files(root: Path, relative_to: Path) -> list[str]:
+    """Return a sorted list of files under root, relative to relative_to.
+
+    Capped at _MAX_LISTED_FILES entries; a truncation notice is appended if
+    the limit is hit. Symlinked directories are never followed; symlinked
+    files that resolve outside the workspace boundary are silently skipped.
+    """
+    workspace_root = relative_to.resolve()
+    files = []
+    truncated = False
+    for dirpath, _, filenames in os.walk(root, followlinks=False):
+        for filename in filenames:
+            p = Path(dirpath) / filename
+            if not p.resolve().is_relative_to(workspace_root):
+                continue
+            files.append(p.relative_to(relative_to).as_posix())
+            if len(files) >= _MAX_LISTED_FILES:
+                truncated = True
+                break
+        if truncated:
+            break
+    files.sort()
+    if truncated:
+        files.append(f"… (truncated at {_MAX_LISTED_FILES} files)")
+    return files
+
+
 def _extract_tokens(usage: dict) -> tuple[int, int]:
     """Extract input and output token counts from an API usage dict.
 
@@ -568,7 +647,7 @@ def _normalize_tool_args(name: str, args: dict) -> dict:
     of {"path": ...}.  This function converts known aliases to the canonical
     key so the rest of the code only needs to handle one name per tool.
     """
-    if name in ("read_file", "write_file") and "path" not in args:
+    if name in ("read_file", "list_files", "write_file") and "path" not in args:
         for alias in ("filename", "file_path", "filepath", "file"):
             if alias in args:
                 return {**args, "path": args[alias]}
@@ -616,7 +695,7 @@ def _parse_xml_tool_calls(content: str) -> list[dict]:
 
 
 def _summarise_args(tool_name: str, args: dict) -> str:
-    if tool_name in ("read_file", "write_file"):
+    if tool_name in ("read_file", "list_files", "write_file"):
         path = args.get("path", "")
         suffix = f", {len(args.get('content',''))} chars" if "content" in args else ""
         return f'"{path}"{suffix}'
