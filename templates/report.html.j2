@@ -11,7 +11,7 @@
 {# ── helpers ─────────────────────────────────────────────────────────────── #}
 
 {% macro pct_cell(rate) %}
-<td class="pct-cell"><span class="pct-value {{ grade_class(rate) }}">{{ (rate * 100) | round | int }}%</span></td>
+<td class="pct-cell"><span class="pct-value {{ rate | rate_css_class }}">{{ (rate * 100) | round | int }}%</span></td>
 {% endmacro %}
 
 {% macro empty_cell() %}
@@ -73,7 +73,6 @@
 {# ── score breakdown ──────────────────────────────────────────────────────── #}
 
 {% macro render_dim_group(dims, title) %}
-{% set badge_class = {"A": "badge-a", "B": "badge-b", "C": "badge-c", "D": "badge-df", "F": "badge-df"} %}
 <tr>
   <td colspan="5" class="dimension-group-header">{{ title }}</td>
 </tr>
@@ -86,14 +85,13 @@
   <td class="dimension-weighted">= {{ "%.2f" | format(weighted) }}</td>
   <td class="dimension-grade">
     {% set grade = dim.grade if dim.grade else "" %}
-    <span class="badge badge-sm {{ badge_class[grade] if badge_class[grade] else '' }}">{{ grade }}</span>
+    <span class="badge badge-sm {{ grade | grade_css_class }}">{{ grade }}</span>
   </td>
 </tr>
 {% endfor %}
 {% endmacro %}
 
 {% macro render_score_breakdown(dimensions, overall_score, overall_grade) %}
-{% set badge_class = {"A": "badge-a", "B": "badge-b", "C": "badge-c", "D": "badge-df", "F": "badge-df"} %}
 {% set process_dims = dimensions | batch(5) | first %}
 {% set output_dims = [] %}
 {% if dimensions | length >= 8 %}
@@ -108,7 +106,7 @@
       <td class="weighted-total-label">Weighted Total</td>
       <td colspan="3" class="weighted-total-score">{{ "%.1f" | format(overall_score) }} / 100</td>
       <td class="weighted-total-grade">
-        <span class="badge badge-lg {{ badge_class[overall_grade] if badge_class[overall_grade] else '' }}">{{ overall_grade }}</span>
+        <span class="badge badge-lg {{ overall_grade | grade_css_class }}">{{ overall_grade }}</span>
       </td>
     </tr>
   </table>
@@ -129,7 +127,7 @@
 {% set tokens        = result.tokens if result.tokens else 0 %}
 {% set cost          = result.cost_usd if result.cost_usd else 0 %}
 {% set wall          = result.wall_time if result.wall_time else 0 %}
-{% set rate_cls      = grade_class(rate) %}
+{% set rate_cls      = rate | rate_css_class %}
 {% set dimensions    = result.dimensions if result.dimensions else [] %}
 {% set overall_score = result.overall_score if result.overall_score is defined else none %}
 {% set overall_grade = result.overall_grade if result.overall_grade is defined else none %}
