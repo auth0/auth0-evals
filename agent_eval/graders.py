@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from config.settings import BASE_URL, JUDGE_MODEL
+from config.settings import BASE_URL, JUDGE_MAX_TOKENS, JUDGE_MODEL
 
 _JUDGE_PROMPTS_DIR = Path(__file__).parent.parent / "prompts" / "judge"
 
@@ -164,7 +164,10 @@ def run_graders(
 def _llm_judge(question: str, code: str, api_key: str, model: str, framework: str | None = None) -> tuple[bool, str]:
     """Ask the LLM judge a yes/no question about the generated code."""
     base = _load_framework_prompt(framework)
-    system = f"{base} Answer only 'yes' or 'no' — no other text."
+    system = (
+        f"{base} Reply with 'yes' or 'no' on the first line, "
+        "then a brief explanation of your reasoning on the following lines."
+    )
     user = _load_user_template().format(question=question, code=code[:6000])
 
     payload = json.dumps({
@@ -174,7 +177,7 @@ def _llm_judge(question: str, code: str, api_key: str, model: str, framework: st
             {"role": "user",   "content": user},
         ],
         "temperature": 0.0,
-        "max_tokens": 10,
+        "max_tokens": JUDGE_MAX_TOKENS,
     }).encode()
 
     req = urllib.request.Request(
@@ -189,9 +192,15 @@ def _llm_judge(question: str, code: str, api_key: str, model: str, framework: st
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             data = json.loads(resp.read())
-        answer = data["choices"][0]["message"]["content"].strip().lower()
-        passed = answer.startswith("yes")
-        return passed, f"Judge ({model}): '{answer}'"
+        answer = data["choices"][0]["message"]["content"].strip()
+        if not answer:
+            return False, f"Judge ({model}) error: empty response"
+        first_line = answer.splitlines()[0].lower()
+        m = re.match(r"^(yes|no)\b", first_line)
+        if not m:
+            return False, f"Judge ({model}) error: unexpected verdict {first_line!r}: {answer}"
+        passed = m.group(1) == "yes"
+        return passed, f"Judge ({model}): {answer}"
     except Exception as e:
         return False, f"Judge ({model}) error: {e}"
 
@@ -202,18 +211,3 @@ def pass_rate(results: list[GraderResult]) -> float:
     if not results:
         return 1.0
     return sum(1 for r in results if r.passed) / len(results)
-
-
-def print_grader_results(results: list[GraderResult]) -> None:
-    print(f"\n{'─'*60}")
-    print(f"  Code Graders  ({sum(r.passed for r in results)}/{len(results)} passing)")
-    print(f"{'─'*60}")
-    for r in results:
-        mark = "✓" if r.passed else "✗"
-        colour = "" # terminal colour optional
-        print(f"  {mark} [{r.kind:<8}] {r.name}")
-        if not r.passed:
-            print(f"           → {r.detail}")
-    rate = pass_rate(results)
-    print(f"{'─'*60}")
-    print(f"  Pass rate: {rate*100:.0f}%")

@@ -2,6 +2,8 @@ BASE_URL = "https://llm.atko.ai/v1"
 
 JUDGE_MODEL = "claude-4-5-sonnet"
 
+JUDGE_MAX_TOKENS = 300
+
 MAX_TURNS = 30
 
 # Model name prefixes routed through Bedrock — require special handling
