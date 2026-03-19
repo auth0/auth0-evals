@@ -1,8 +1,12 @@
 """Happy path tests for agent_eval/graders.py."""
 
-import pytest
+import json
+from unittest.mock import MagicMock, patch
+
+from config.settings import JUDGE_MAX_TOKENS
 from agent_eval.graders import (
     GraderResult,
+    _llm_judge,
     contains,
     not_contains,
     matches,
@@ -230,3 +234,109 @@ def test_pass_rate_empty_list_returns_one():
     """With no graders to evaluate the run is considered fully passing — an
     absence of checks should not penalise a result."""
     assert pass_rate([]) == 1.0
+
+
+# ── _llm_judge reasoning tests ────────────────────────────────────────────────
+
+
+def _mock_judge_response(content: str):
+    """Build a minimal fake urlopen context manager that returns `content`."""
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = json.dumps({
+        "choices": [{"message": {"content": content}}]
+    }).encode()
+    mock_resp.__enter__ = lambda s: s
+    mock_resp.__exit__ = MagicMock(return_value=False)
+    return mock_resp
+
+
+def test_llm_judge_passes_when_first_line_is_yes():
+    """Judge passes when the LLM's first line starts with 'yes', regardless of
+    reasoning on subsequent lines."""
+    with patch("urllib.request.urlopen", return_value=_mock_judge_response(
+        "yes\n\nThe code correctly wraps the app with Auth0Provider."
+    )):
+        passed, _ = _llm_judge("Does it use Auth0Provider?", "code", "key", "model")
+
+    assert passed is True
+
+
+def test_llm_judge_fails_when_first_line_is_no():
+    """Judge fails when the LLM's first line starts with 'no'."""
+    with patch("urllib.request.urlopen", return_value=_mock_judge_response(
+        "no\n\nAuth0Provider is missing from the component tree."
+    )):
+        passed, _ = _llm_judge("Does it use Auth0Provider?", "code", "key", "model")
+
+    assert passed is False
+
+
+def test_llm_judge_detail_contains_full_reasoning():
+    """The detail string includes the full LLM response, not just the verdict,
+    so reasoning is available in the report."""
+    reasoning = "yes\n\nThe loginWithRedirect call is present on the button."
+    with patch("urllib.request.urlopen", return_value=_mock_judge_response(reasoning)):
+        _, detail = _llm_judge("Does it call loginWithRedirect?", "code", "key", "model")
+
+    assert "loginWithRedirect call is present" in detail
+
+
+def test_llm_judge_request_allows_reasoning_length():
+    """The request sends max_tokens=JUDGE_MAX_TOKENS to give the judge room to explain."""
+    captured = {}
+
+    def mock_urlopen(req, timeout=None):
+        captured.update(json.loads(req.data))
+        return _mock_judge_response("yes")
+
+    with patch("urllib.request.urlopen", side_effect=mock_urlopen):
+        _llm_judge("question", "code", "key", "model")
+
+    assert captured["max_tokens"] == JUDGE_MAX_TOKENS
+
+
+def test_llm_judge_rejects_yes_prefix_words():
+    """Words that merely start with 'yes' (e.g. 'yesterday') are not treated
+    as a passing verdict — the word boundary in the regex prevents this."""
+    with patch("urllib.request.urlopen", return_value=_mock_judge_response(
+        "yesterday the code was correct"
+    )):
+        passed, detail = _llm_judge("question", "code", "key", "model")
+
+    assert passed is False
+    assert "unexpected verdict" in detail
+
+
+def test_llm_judge_passes_when_yes_has_trailing_punctuation():
+    """'yes.' and similar punctuated forms are accepted as a passing verdict —
+    models commonly append punctuation that should not cause a spurious failure."""
+    with patch("urllib.request.urlopen", return_value=_mock_judge_response(
+        "yes.\n\nThe Auth0Provider wrapper is present."
+    )):
+        passed, _ = _llm_judge("question", "code", "key", "model")
+
+    assert passed is True
+
+
+def test_llm_judge_fails_when_no_has_trailing_punctuation():
+    """'no,' and similar punctuated forms are accepted as a failing verdict —
+    the judge correctly returns False rather than an unexpected-verdict error."""
+    with patch("urllib.request.urlopen", return_value=_mock_judge_response(
+        "no, the provider is missing."
+    )):
+        passed, detail = _llm_judge("question", "code", "key", "model")
+
+    assert passed is False
+    assert "unexpected verdict" not in detail
+
+
+def test_llm_judge_unexpected_token_returns_error_detail():
+    """When the first token is neither 'yes' nor 'no' the result fails and
+    the detail includes 'unexpected verdict' plus the raw response so the
+    problem is visible in the report."""
+    with patch("urllib.request.urlopen", return_value=_mock_judge_response("maybe")):
+        passed, detail = _llm_judge("question", "code", "key", "model")
+
+    assert passed is False
+    assert "unexpected verdict" in detail
+    assert "maybe" in detail
