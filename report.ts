@@ -15,6 +15,7 @@ import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
 import { Command } from 'commander';
 import nunjucks from 'nunjucks';
+import { ALL_FILTERS } from './report-filters.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -42,20 +43,6 @@ export function groupResults(results: Record<string, unknown>[]): Record<string,
     grouped[eid][key] = r;
   }
   return grouped;
-}
-
-export function gradeColor(rate: number): string {
-  if (rate === 1.0) return '#22c55e';
-  if (rate >= 0.75) return '#84cc16';
-  if (rate >= 0.5) return '#f59e0b';
-  return '#ef4444';
-}
-
-export function gradeClass(rate: number): string {
-  if (rate === 1.0) return 'rate-excellent';
-  if (rate >= 0.75) return 'rate-good';
-  if (rate >= 0.5) return 'rate-fair';
-  return 'rate-poor';
 }
 
 export function renderHtml(results: Record<string, unknown>[], generatedAt: string): string {
@@ -97,8 +84,9 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
     autoescape: true,
     noCache: true,
   });
-  env.addGlobal('grade_color', gradeColor);
-  env.addGlobal('grade_class', gradeClass);
+  for (const [name, fn] of Object.entries(ALL_FILTERS)) {
+    env.addFilter(name, fn);
+  }
   env.addFilter('sort_result_keys', (obj: Record<string, unknown>) => sortResultKeys(Object.keys(obj)));
   env.addFilter('sort', (obj: unknown) => {
     if (Array.isArray(obj)) return [...obj].sort();

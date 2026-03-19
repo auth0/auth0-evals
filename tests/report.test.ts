@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { writeFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { gradeColor, loadScores, renderHtml } from '../report.js';
+import { loadScores, renderHtml } from '../report.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -26,26 +26,6 @@ function makeResult(
     ...overrides,
   };
 }
-
-// ── gradeColor tests ───────────────────────────────────────────────────────────
-
-describe('gradeColor', () => {
-  it('perfect pass rate = green', () => {
-    expect(gradeColor(1.0)).toBe('#22c55e');
-  });
-
-  it('high pass rate = lime', () => {
-    expect(gradeColor(0.75)).toBe('#84cc16');
-  });
-
-  it('medium pass rate = amber', () => {
-    expect(gradeColor(0.5)).toBe('#f59e0b');
-  });
-
-  it('low pass rate = red', () => {
-    expect(gradeColor(0.0)).toBe('#ef4444');
-  });
-});
 
 // ── renderHtml tests ──────────────────────────────────────────────────────────
 
@@ -108,5 +88,42 @@ describe('renderHtml from score files', () => {
 
     expect(html).toContain('react_quickstart');
     expect(html).toContain('gpt-5.2');
+  });
+});
+
+// ── CSS class integration tests ───────────────────────────────────────────────
+
+describe('renderHtml CSS class integration', () => {
+  it('100% pass rate applies rate-excellent to card-score-value', () => {
+    const html = renderHtml([makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 1.0 })], '2024-01-01 00:00');
+    expect(html).toContain('class="card-score-value rate-excellent"');
+  });
+
+  it('50% pass rate (lower boundary of fair tier) applies rate-fair, not rate-poor', () => {
+    const html = renderHtml([makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 0.5 })], '2024-01-01 00:00');
+    expect(html).toContain('class="card-score-value rate-fair"');
+  });
+
+  it('0% pass rate applies rate-poor to card-score-value', () => {
+    const html = renderHtml([makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 0.0 })], '2024-01-01 00:00');
+    expect(html).toContain('class="card-score-value rate-poor"');
+  });
+
+  it('overall grade A produces badge-a class on weighted-total badge', () => {
+    const html = renderHtml([makeResult('react_quickstart', 'gpt-5.2', 'baseline', {
+      overall_grade: 'A',
+      overall_score: 95.0,
+      dimensions: [{ name: 'friction', score: 95.0, weight: 0.15, grade: 'A' }],
+    })], '2024-01-01 00:00');
+    expect(html).toContain('class="badge badge-lg badge-a"');
+  });
+
+  it('overall grade F produces badge-df class (shared with D) on weighted-total badge', () => {
+    const html = renderHtml([makeResult('react_quickstart', 'gpt-5.2', 'baseline', {
+      overall_grade: 'F',
+      overall_score: 20.0,
+      dimensions: [{ name: 'friction', score: 20.0, weight: 0.15, grade: 'F' }],
+    })], '2024-01-01 00:00');
+    expect(html).toContain('class="badge badge-lg badge-df"');
   });
 });
