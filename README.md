@@ -171,7 +171,7 @@ runners/
   loader.ts                     # parses PROMPT.md, imports graders.ts
   baseline.ts                   # pure LLM, no tools
   skills.ts                     # fetches + injects SKILL.md into eval prompts (agent+skills mode)
-agent/
+agent_eval/
   agent.ts                      # ReAct agent runner with tool execution
   graders.ts                    # contains() / matches() / judge() primitives
   scorer.ts                     # 8-dimension scoring
@@ -211,7 +211,7 @@ export const EVALUATIONS: EvalConfig[] = [
 
 ```typescript
 // evals/<category>/your_eval_id/graders.ts
-import { contains, judge } from '../../../agent/graders.js';
+import { contains, judge } from '../../../agent_eval/graders.js';
 
 export function defineGraders() {
   return [

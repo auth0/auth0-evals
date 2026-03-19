@@ -1,5 +1,5 @@
 /**
- * Happy path tests for src/agent/graders.ts
+ * Happy path tests for src/agent_eval/graders.ts
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
@@ -14,7 +14,7 @@ import {
   runGraders,
   llmJudge,
   type GraderResult,
-} from '../agent/graders.js';
+} from '../agent_eval/graders.js';
 import { JUDGE_MAX_TOKENS } from '../config/settings.js';
 
 function tmpDir(): string {

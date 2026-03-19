@@ -1,5 +1,5 @@
 /**
- * Tests for src/agent/agent.ts
+ * Tests for src/agent_eval/agent.ts
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -17,7 +17,7 @@ import {
   runAgent,
   MAX_LISTED_FILES,
   EXCLUDED_DIRS,
-} from '../agent/agent.js';
+} from '../agent_eval/agent.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
