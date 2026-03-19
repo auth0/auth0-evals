@@ -1,0 +1,26 @@
+{
+  "name": "auth0-evals",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "run": "node dist/run.js",
+    "report": "node dist/report.js"
+  },
+  "dependencies": {
+    "commander": "^14.0.3",
+    "dotenv": "^17.3.1",
+    "nunjucks": "^3.2.4",
+    "p-limit": "^7.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@types/nunjucks": "^3.2.6",
+    "typescript": "^5.4.5",
+    "vite": "^8.0.1",
+    "vitest": "^4.1.0"
+  }
+}

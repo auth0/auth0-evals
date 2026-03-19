@@ -26,22 +26,23 @@
     <thead>
       <tr>
         <th class="summary-eval-heading">Eval</th>
-        {% for model, mode in all_keys %}
+        {% for col in all_keys %}
         <th class="summary-column-heading">
-          <div class="summary-column-mode">{{ mode }}</div>
-          <div class="summary-column-model">{{ model }}</div>
+          <div class="summary-column-mode">{{ col.mode }}</div>
+          <div class="summary-column-model">{{ col.model }}</div>
         </th>
         {% endfor %}
       </tr>
     </thead>
     <tbody>
-      {% for eval_id in grouped | sort %}
+      {% for eval_id in grouped_sorted_keys %}
       <tr class="summary-row">
         <td class="summary-eval-id">{{ eval_id }}</td>
-        {% for model, mode in all_keys %}
-        {% set result = grouped[eval_id].get(model ~ "|" ~ mode) %}
-        {% if result and result.get("grader_pass_rate") is not none %}
-          {{ pct_cell(result["grader_pass_rate"]) }}
+        {% for col in all_keys %}
+        {% set eval_runs = grouped[eval_id] %}
+        {% set result = eval_runs[col.key] %}
+        {% if result and result.grader_pass_rate is not none %}
+          {{ pct_cell(result.grader_pass_rate) }}
         {% else %}
           {{ empty_cell() }}
         {% endif %}
@@ -59,11 +60,11 @@
 <table class="graders-table">
   {% for g in graders %}
   <tr>
-    <td class="grader-icon {{ 'grader-icon--pass' if g['passed'] else 'grader-icon--fail' }}">{{ "✓" if g["passed"] else "✗" }}</td>
+    <td class="grader-icon {{ 'grader-icon--pass' if g.passed else 'grader-icon--fail' }}">{{ "✓" if g.passed else "✗" }}</td>
     <td class="grader-name">
-      <span class="grader-kind">{{ g["kind"] }}</span>{{ g["name"] }}
+      <span class="grader-kind">{{ g.kind }}</span>{{ g.name }}
     </td>
-    <td class="grader-detail">{{ g.get("detail", "") }}</td>
+    <td class="grader-detail">{{ g.detail if g.detail else "" }}</td>
   </tr>
   {% endfor %}
 </table>
@@ -77,14 +78,15 @@
   <td colspan="5" class="dimension-group-header">{{ title }}</td>
 </tr>
 {% for dim in dims %}
-{% set weighted = dim.get("weighted", dim.get("score", 0) * dim.get("weight", 0.0)) %}
+{% set weighted = dim.weighted if dim.weighted else (dim.score * dim.weight if dim.score and dim.weight else 0) %}
 <tr>
-  <td class="dimension-name">{{ dim.get("name", "") }}</td>
-  <td class="dimension-score">{{ "%.1f" | format(dim.get("score", 0)) }}</td>
-  <td class="dimension-weight">× {{ "%.2f" | format(dim.get("weight", 0.0)) }}</td>
+  <td class="dimension-name">{{ dim.name if dim.name else "" }}</td>
+  <td class="dimension-score">{{ "%.1f" | format(dim.score if dim.score else 0) }}</td>
+  <td class="dimension-weight">× {{ "%.2f" | format(dim.weight if dim.weight else 0) }}</td>
   <td class="dimension-weighted">= {{ "%.2f" | format(weighted) }}</td>
   <td class="dimension-grade">
-    <span class="badge badge-sm {{ badge_class.get(dim.get('grade', ''), '') }}">{{ dim.get("grade", "") }}</span>
+    {% set grade = dim.grade if dim.grade else "" %}
+    <span class="badge badge-sm {{ badge_class[grade] if badge_class[grade] else '' }}">{{ grade }}</span>
   </td>
 </tr>
 {% endfor %}
@@ -92,18 +94,21 @@
 
 {% macro render_score_breakdown(dimensions, overall_score, overall_grade) %}
 {% set badge_class = {"A": "badge-a", "B": "badge-b", "C": "badge-c", "D": "badge-df", "F": "badge-df"} %}
-{% set process_dims = dimensions if dimensions | length < 5 else dimensions[:5] %}
-{% set output_dims  = dimensions[5:8] if dimensions | length >= 8 else [] %}
+{% set process_dims = dimensions | batch(5) | first %}
+{% set output_dims = [] %}
+{% if dimensions | length >= 8 %}
+  {% set output_dims = [dimensions[5], dimensions[6], dimensions[7]] %}
+{% endif %}
 <div class="score-breakdown">
   <div class="score-breakdown-title">Score Computation</div>
   <table class="score-table">
     {{ render_dim_group(process_dims, "Process Dimensions (50%)") }}
-    {% if output_dims %}{{ render_dim_group(output_dims, "Output Dimensions (50%)") }}{% endif %}
+    {% if output_dims | length > 0 %}{{ render_dim_group(output_dims, "Output Dimensions (50%)") }}{% endif %}
     <tr class="weighted-total-row">
       <td class="weighted-total-label">Weighted Total</td>
       <td colspan="3" class="weighted-total-score">{{ "%.1f" | format(overall_score) }} / 100</td>
       <td class="weighted-total-grade">
-        <span class="badge badge-lg {{ badge_class.get(overall_grade, '') }}">{{ overall_grade }}</span>
+        <span class="badge badge-lg {{ badge_class[overall_grade] if badge_class[overall_grade] else '' }}">{{ overall_grade }}</span>
       </td>
     </tr>
   </table>
@@ -117,33 +122,33 @@
 {# ── detail card ──────────────────────────────────────────────────────────── #}
 
 {% macro render_detail_card(model, mode, result) %}
-{% set graders_list  = result.get("graders", []) %}
-{% set passed        = result.get("graders_passed", graders_list | selectattr("passed") | list | length) %}
-{% set total         = result.get("graders_total",  graders_list | length) %}
-{% set rate          = result.get("grader_pass_rate", (passed / total if total else 0)) %}
-{% set tokens        = result.get("tokens", 0) %}
-{% set cost          = result.get("cost_usd", 0) %}
-{% set wall          = result.get("wall_time", 0) %}
+{% set graders_list  = result.graders if result.graders else [] %}
+{% set passed        = result.graders_passed if result.graders_passed is defined else (graders_list | selectattr("passed") | list | length) %}
+{% set total         = result.graders_total if result.graders_total is defined else (graders_list | length) %}
+{% set rate          = result.grader_pass_rate if result.grader_pass_rate is defined else (passed / total if total else 0) %}
+{% set tokens        = result.tokens if result.tokens else 0 %}
+{% set cost          = result.cost_usd if result.cost_usd else 0 %}
+{% set wall          = result.wall_time if result.wall_time else 0 %}
 {% set rate_cls      = grade_class(rate) %}
-{% set dimensions    = result.get("dimensions", []) %}
-{% set overall_score = result.get("overall_score") %}
-{% set overall_grade = result.get("overall_grade") %}
+{% set dimensions    = result.dimensions if result.dimensions else [] %}
+{% set overall_score = result.overall_score if result.overall_score is defined else none %}
+{% set overall_grade = result.overall_grade if result.overall_grade is defined else none %}
 
-{% if result.get("status") == "error" %}
+{% if result.status != "success" %}
 <div class="card card--error">
   <div class="card-header">
     <div>
       <span class="mode-badge">{{ mode }}</span>
       <span class="card-model">{{ model }}</span>
     </div>
-    <span class="error-label">ERROR</span>
+    <span class="error-label">{{ result.status | upper }}</span>
   </div>
-  <div class="error-message">{{ result.get("error", "Unknown error")[:200] }}</div>
+  <div class="error-message">{{ result.error | truncate_str(200) if result.error else "Agent reached the turn limit without completing the task." }}</div>
 </div>
 {% else %}
 {% set filled      = (rate * 20) | round | int %}
-{% set bar_filled  = "█" * filled %}
-{% set bar_empty   = "░" * (20 - filled) %}
+{% set bar_filled  = "█" | repeat_str(filled) %}
+{% set bar_empty   = "░" | repeat_str(20 - filled) %}
 <div class="card">
   <div class="card-header">
     <div>
@@ -156,13 +161,13 @@
     </div>
   </div>
   <div class="progress-bar"><span class="mono {{ rate_cls }}">{{ bar_filled }}{{ bar_empty }}</span> {{ (rate * 100) | round | int }}%</div>
-  {% if dimensions and overall_score is not none %}
+  {% if dimensions | length > 0 and overall_score is not none %}
   {{ render_score_breakdown(dimensions, overall_score, overall_grade) }}
   {% endif %}
   {{ render_graders(graders_list) }}
   <div class="card-footer">
     <span>⏱ {{ "%.1f" | format(wall) }}s</span>
-    <span>🔤 {{ "{:,}".format(tokens) }} tokens</span>
+    <span>🔤 {{ tokens }} tokens</span>
     <span>💰 ${{ "%.4f" | format(cost) }}</span>
   </div>
 </div>
@@ -174,9 +179,9 @@
 {% macro render_detail_section(eval_id, results_for_eval) %}
 <div class="detail-section">
   <h2 class="detail-section-title">{{ eval_id }}</h2>
-  {% set sorted_keys = results_for_eval.keys() | sort_result_keys %}
+  {% set sorted_keys = results_for_eval | sort_result_keys %}
   {% for key in sorted_keys %}
-  {% set parts = key.split("|", 1) %}
+  {% set parts = key.split("|") %}
   {% set model = parts[0] %}
   {% set mode  = parts[1] %}
   {% set result = results_for_eval[key] %}
@@ -209,7 +214,7 @@
   {{ render_summary_table(grouped, all_keys) }}
 
   <h2 class="section-heading section-heading--details">Details</h2>
-  {% for eval_id in grouped | sort %}
+  {% for eval_id in grouped_sorted_keys %}
   {{ render_detail_section(eval_id, grouped[eval_id]) }}
   {% endfor %}
 

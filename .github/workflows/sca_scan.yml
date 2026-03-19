@@ -11,6 +11,4 @@ on:
 jobs:
   snyk-cli:
     uses: atko-security/devsecops-tooling/.github/workflows/sca-scan.yml@main
-    with:
-      pre-scan-commands: "pip install -r requirements-dev.txt"
     secrets: inherit

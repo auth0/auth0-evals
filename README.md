@@ -8,46 +8,43 @@ Evaluation framework for measuring how well LLM agents complete developer integr
 cp .env.example .env
 # add your ATKO_API_KEY to .env
 
-# Create and activate a virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
+npm install
 
 # Run all evals × all models × all modes (recommended)
-python run.py --mode all --model all --workers 8
+npm run build && node dist/run.js --mode all --model all --workers 8
 
 # Generate and view report
-python report.py
+node dist/report.js
 ```
 
 ### Run with multiple models and modes
 
 ```bash
+npm run build
+
 # Quick test - baseline mode with default model
-python run.py --eval react_quickstart --mode baseline
+node dist/run.js --eval react_quickstart --mode baseline
 
 # Test all modes with one model
-python run.py --eval react_quickstart --mode all --model gpt-5.2
+node dist/run.js --eval react_quickstart --mode all --model gpt-5.2
 
 # Run all known working models in baseline mode
-python run.py --model all --mode baseline
+node dist/run.js --model all --mode baseline
 
 # Run specific models across all modes
-python run.py --model claude-4-6-sonnet --model claude-4-6-opus --mode all
+node dist/run.js --model claude-4-6-sonnet --model claude-4-6-opus --mode all
 
 # Full evaluation - all modes × all models
-python run.py --eval react_quickstart --mode all --model all --workers 8
+node dist/run.js --eval react_quickstart --mode all --model all --workers 8
 
 # Run everything (all evals × all models × all modes)
-python run.py --mode all --model all
+node dist/run.js --mode all --model all
 
 # Generate HTML report from results
-python report.py --input scores-all-modes.json
+node dist/report.js --input scores-all-modes.json
 
 # Run and view results in one command
-python run.py --eval react_quickstart --mode all --model all && python report.py --input scores-all-modes.json && open report.html
+node dist/run.js --eval react_quickstart --mode all --model all && node dist/report.js --input scores-all-modes.json && open report.html
 ```
 
 ## Modes
@@ -76,26 +73,26 @@ The delta between modes tells you where to invest:
 
 ```bash
 # Run with a specific model
-python run.py --model gpt-5.2
-python run.py --model claude-4-6-sonnet
-python run.py --model claude-4-6-opus
-python run.py --model gemini-3-pro-preview
+node dist/run.js --model gpt-5.2
+node dist/run.js --model claude-4-6-sonnet
+node dist/run.js --model claude-4-6-opus
+node dist/run.js --model gemini-3-pro-preview
 
 # Run with multiple models
-python run.py --model claude-4-6-sonnet --model claude-4-6-opus
+node dist/run.js --model claude-4-6-sonnet --model claude-4-6-opus
 
 # Run with a specific model and mode
-python run.py --model gpt-5.2 --mode agent
+node dist/run.js --model gpt-5.2 --mode agent
 ```
 
 Results are merged into the output file by `(eval_id, model, mode)` key. Re-running a single model updates only its entries — scores for all other models are preserved.
 
 ```bash
 # Run all models once to build the full baseline
-python run.py --model all
+node dist/run.js --model all
 
 # Later, re-run only one model without losing the rest
-python run.py --model gpt-5.2
+node dist/run.js --model gpt-5.2
 ```
 
 ## Options
@@ -113,7 +110,7 @@ python run.py --model gpt-5.2
 
 ### Known Working Models
 
-The framework maintains a list of models that work reliably across all modes (baseline, skills, and agent):
+The framework maintains a list of models that work reliably across all modes (baseline, agent, and agent+skills):
 
 **OpenAI:**
 - `gpt-5.2` (default)
@@ -132,6 +129,7 @@ The framework maintains a list of models that work reliably across all modes (ba
 | Category | ID | Description |
 |----------|----|-------------|
 | `quickstarts` | `react_quickstart` | Add Auth0 authentication to a React app using @auth0/auth0-react |
+| `quickstarts` | `nextjs_quickstart` | Add Auth0 authentication to a Next.js App Router app using @auth0/nextjs-auth0 |
 | `quickstarts` | `swift_quickstart` | Add Auth0 authentication to a Swift iOS app using Auth0.swift |
 
 ## Skills
@@ -163,45 +161,81 @@ skills: auth0-react, auth0-nextjs
 ## Structure
 
 ```
-run.py                          # single entry point
-report.py                       # HTML report generator
+run.ts                          # CLI entry point
+report.ts                       # HTML report generator
 config/
-  evaluations.py                # central eval registry
+  evaluations.ts                # central eval registry
+  settings.ts                   # API base URL, judge model, limits
+  costs.ts                      # per-model token cost table
+runners/
+  loader.ts                     # parses PROMPT.md, imports graders.ts
+  baseline.ts                   # pure LLM, no tools
+  skills.ts                     # fetches + injects SKILL.md into eval prompts (agent+skills mode)
+agent/
+  agent.ts                      # ReAct agent runner with tool execution
+  graders.ts                    # contains() / matches() / judge() primitives
+  scorer.ts                     # 8-dimension scoring
 evals/
   <category>/
     <eval-id>/
       PROMPT.md                 # task description + optional skills declaration
-      graders.py                # define_graders() — acceptance criteria
+      graders.ts                # defineGraders() — acceptance criteria
       scaffold/                 # optional starter files for agent workspace
-runners/
-  loader.py                     # parses PROMPT.md, imports graders.py
-  baseline.py                   # pure LLM, no tools
-  skills.py                     # LLM + SKILL.md files prepended
-agent_eval/
-  agent.py                      # ReAct agent runner with tool execution
-  graders.py                    # contains() / matches() / judge() primitives
-  scorer.py                     # 5-dimension scoring (friction, speed, efficiency, errors, docs)
+templates/
+  report.html.j2                # Nunjucks HTML report template
+prompts/
+  judge/                        # LLM-as-judge system prompts per framework
+tests/                          # Vitest test suite
 ```
 
 ## Adding an Eval
 
 1. Create `evals/<category>/<eval-id>/PROMPT.md`
-2. Create `evals/<category>/<eval-id>/graders.py` with a `define_graders()` function
+2. Create `evals/<category>/<eval-id>/graders.ts` with a `defineGraders()` function
 3. Optionally declare a skill in `PROMPT.md` frontmatter (`skills: auth0-react`)
 4. Optionally add starter files in `evals/<category>/<eval-id>/scaffold/`
-5. Register it in `config/evaluations.py`
+5. Register it in `config/evaluations.ts`
+6. Add it as a Vite entry in `vite.config.ts`
 
-```python
-EVALUATIONS = [
-    {
-        "id":       "your_eval_id",
-        "name":     "Your Eval Name",
-        "category": "your-category",
-        "path":     "evals/<category>/your_eval_id",
-    },
-]
+```typescript
+// config/evaluations.ts
+export const EVALUATIONS: EvalConfig[] = [
+  {
+    id: 'your_eval_id',
+    name: 'Your Eval Name',
+    category: 'your-category',
+    path: 'evals/<category>/your_eval_id',
+  },
+];
+```
+
+```typescript
+// evals/<category>/your_eval_id/graders.ts
+import { contains, judge } from '../../../agent/graders.js';
+
+export function defineGraders() {
+  return [
+    contains('SomeImport'),
+    judge('Does the solution correctly integrate X?', 'framework'),
+  ];
+}
+```
+
+```typescript
+// vite.config.ts — add to the entry object
+'evals/<category>/your_eval_id/graders': resolve(__dirname, 'evals/<category>/your_eval_id/graders.ts'),
+```
+
+Then rebuild: `npm run build`
+
+## Development
+
+```bash
+npm install       # install dependencies
+npm test          # run Vitest test suite
+npm run build     # compile to dist/
 ```
 
 ## Requirements
 
-Python 3.11+. Dependencies are listed in `requirements.txt`.
+Node.js 24+. Dependencies are managed via `npm`.

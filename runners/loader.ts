@@ -1,0 +1,155 @@
+/**
+ * Eval loader — reads a self-contained eval directory.
+ *
+ * Each eval directory contains:
+ *   PROMPT.md   — frontmatter metadata + ## System and ## Task sections
+ *   graders.ts  — defineGraders() returning a list of grader dicts
+ *   scaffold/   — (optional) starter files written to the agent workspace
+ */
+
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import type { EvalConfig } from '../config/evaluations.js';
+
+export interface EvalDefinition {
+  id: string;
+  name: string;
+  category: string;
+  path: string;
+  systemPrompt: string;
+  userPrompt: string;
+  agentSystemPrompt: string;
+  graders: GraderDef[];
+  scaffold: Record<string, string>;
+  skills: string[];
+  metadata: Record<string, string>;
+}
+
+export interface GraderDef {
+  kind: string;
+  name: string;
+  needle?: string;
+  pattern?: string;
+  question?: string;
+  framework?: string;
+}
+
+export async function loadEval(evalConfig: EvalConfig, frameworkRoot: string): Promise<EvalDefinition> {
+  const evalPath = join(frameworkRoot, evalConfig.path);
+  if (!existsSync(evalPath) || !statSync(evalPath).isDirectory()) {
+    throw new Error(`Eval directory not found: ${evalPath}`);
+  }
+
+  const { systemPrompt, userPrompt, agentSystemPrompt, meta } = parsePromptMd(join(evalPath, 'PROMPT.md'));
+  const distGradersPath = join(frameworkRoot, 'dist', evalConfig.path, 'graders.js');
+  const srcGradersPath = join(evalPath, 'graders.ts');
+  const gradersPath = existsSync(distGradersPath) ? distGradersPath : srcGradersPath;
+  const graders = await loadGraders(gradersPath);
+  const scaffold = loadScaffold(join(evalPath, 'scaffold'));
+
+  const skillsRaw = meta.skills ?? '';
+  const skills = skillsRaw.split(',').map((s: string) => s.trim()).filter(Boolean);
+
+  return {
+    id: evalConfig.id,
+    name: evalConfig.name ?? meta.name ?? evalConfig.id,
+    category: evalConfig.category ?? meta.category ?? '',
+    path: evalPath,
+    systemPrompt,
+    userPrompt,
+    agentSystemPrompt,
+    graders,
+    scaffold,
+    skills,
+    metadata: {
+      provider_name: meta.provider_name ?? 'Auth0',
+      provider_url: meta.provider_url ?? 'auth0.com',
+      category: evalConfig.category ?? '',
+      task_description: meta.task_description ?? evalConfig.name ?? '',
+    },
+  };
+}
+
+// ── PROMPT.md parser ──────────────────────────────────────────────────────────
+
+function parsePromptMd(promptPath: string): {
+  systemPrompt: string;
+  userPrompt: string;
+  agentSystemPrompt: string;
+  meta: Record<string, string>;
+} {
+  if (!existsSync(promptPath)) {
+    throw new Error(`PROMPT.md not found: ${promptPath}`);
+  }
+
+  let text = readFileSync(promptPath, 'utf-8').replace(/\r\n/g, '\n');
+
+  // Extract YAML-ish frontmatter between --- delimiters
+  const meta: Record<string, string> = {};
+  const frontMatch = text.match(/^---\n([\s\S]*?)\n---\n/);
+  if (frontMatch) {
+    for (const line of frontMatch[1].split('\n')) {
+      const colonIdx = line.indexOf(':');
+      if (colonIdx !== -1) {
+        const k = line.slice(0, colonIdx).trim();
+        const v = line.slice(colonIdx + 1).trim();
+        meta[k] = v;
+      }
+    }
+    text = text.slice(frontMatch[0].length);
+  }
+
+  const systemMatch = text.match(/^## System\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
+  const agentSystemMatch = text.match(/^## Agent System\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
+  const taskMatch = text.match(/^## Task\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
+
+  const systemPrompt = systemMatch ? systemMatch[1].trim() : '';
+  const agentSystemPrompt = agentSystemMatch ? agentSystemMatch[1].trim() : '';
+  const userPrompt = taskMatch ? taskMatch[1].trim() : text.trim();
+
+  return { systemPrompt, userPrompt, agentSystemPrompt, meta };
+}
+
+// ── graders.ts dynamic import ─────────────────────────────────────────────────
+
+async function loadGraders(gradersPath: string): Promise<GraderDef[]> {
+  if (!existsSync(gradersPath)) {
+    throw new Error(`graders file not found: ${gradersPath}`);
+  }
+
+  const mod = await import(pathToFileURL(gradersPath).href);
+  if (typeof mod.defineGraders !== 'function') {
+    throw new Error(`graders.ts missing defineGraders(): ${gradersPath}`);
+  }
+
+  return mod.defineGraders();
+}
+
+// ── scaffold loader ───────────────────────────────────────────────────────────
+
+function loadScaffold(scaffoldDir: string): Record<string, string> {
+  if (!existsSync(scaffoldDir) || !statSync(scaffoldDir).isDirectory()) {
+    return {};
+  }
+
+  const files: Record<string, string> = {};
+  walkDir(scaffoldDir, scaffoldDir, files);
+  return files;
+}
+
+function walkDir(dir: string, root: string, files: Record<string, string>): void {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      walkDir(fullPath, root, files);
+    } else if (entry.isFile()) {
+      const rel = relative(root, fullPath);
+      try {
+        files[rel] = readFileSync(fullPath, 'utf-8');
+      } catch {
+        // skip unreadable files
+      }
+    }
+  }
+}
