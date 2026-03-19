@@ -17,7 +17,7 @@ Options:
     --eval      Eval ID to run (default: all). Can be repeated.
     --model     Model(s) to run (default: gpt-5.2). Can be repeated.
                 Use 'all' to run all known working models.
-    --mode      Execution mode: agent | baseline | skills | all (default: baseline)
+    --mode      Execution mode: baseline | agent | agent+skills | all (default: baseline)
                 Use 'all' to run all three modes.
     --workers   Parallel workers (default: 4)
     --output    JSON output path (default: scores-<mode>.json or scores-all-modes.json)
@@ -45,7 +45,7 @@ KNOWN_WORKING_MODELS = [
 
 DEFAULT_MODEL = "gpt-5.2"
 
-ALL_MODES = ["baseline", "skills", "agent"]
+ALL_MODES = ["baseline", "agent", "agent+skills"]
 
 # Models that don't support agent mode. Currently empty; add model IDs here to exclude them from agent runs.
 AGENT_INCOMPATIBLE_MODELS = []
@@ -100,18 +100,13 @@ def run_job(
             grader_results = _grade_text(eval_def, result.response_text, api_key)
             return _serialise_simple(eval_def, result, grader_results)
 
-        elif mode == "skills":
-            from runners.skills import run_skills
-            result = run_skills(
-                api_key=api_key,
-                model=model,
-                eval_def=eval_def,
-            )
-            grader_results = _grade_text(eval_def, result.response_text, api_key)
-            return _serialise_simple(eval_def, result, grader_results)
-
         elif mode == "agent":
-            return _run_agent_job(eval_def, model, api_key, keep_workspace)
+            return _run_agent_job(eval_def, model, mode, api_key, keep_workspace)
+
+        elif mode == "agent+skills":
+            from runners.skills import augment_with_skills
+            augmented = augment_with_skills(eval_def)
+            return _run_agent_job(augmented, model, mode, api_key, keep_workspace)
 
         else:
             raise ValueError(f"Unknown mode: {mode}")
@@ -157,7 +152,7 @@ def _grade_text(eval_def: EvalDefinition, text: str, api_key: str) -> list:
         return run_graders(eval_def.graders, tmp, api_key)
 
 
-def _run_agent_job(eval_def: EvalDefinition, model: str, api_key: str, keep_workspace: bool) -> dict:
+def _run_agent_job(eval_def: EvalDefinition, model: str, mode: str, api_key: str, keep_workspace: bool) -> dict:
     """Run the full agentic loop for one eval × model pair."""
     from agent_eval.agent import RunRecord, run_agent, setup_workspace, cleanup_workspace
     from agent_eval.scorer import score
@@ -182,7 +177,7 @@ def _run_agent_job(eval_def: EvalDefinition, model: str, api_key: str, keep_work
         return {
             "eval_id":       eval_def.id,
             "model":         model,
-            "mode":          "agent",
+            "mode":          mode,
             "session_id":    record.session_id,
             "status":        record.status,
             "overall_score": scored.overall_score,
@@ -260,7 +255,7 @@ def main():
                         default=None, 
                         help=f"Model(s) to run (default: {DEFAULT_MODEL}). Use 'all' for all known working models.")
     parser.add_argument("--mode",    default="baseline",
-                        help="Execution mode: baseline | skills | agent | all (default: baseline)")
+                        help="Execution mode: baseline | agent | agent+skills | all (default: baseline)")
     parser.add_argument("--workers", type=int, default=4,
                         help="Parallel workers (default: 4)")
     parser.add_argument("--output",  default=None,
@@ -308,8 +303,8 @@ def main():
         for eval_cfg in registry 
         for model in models
         for mode in modes
-        # Skip models that don't support agent mode
-        if not (mode == "agent" and model in AGENT_INCOMPATIBLE_MODELS)
+        # Skip models that don't support agent mode (applies to both agent and agent+skills)
+        if not (mode in ("agent", "agent+skills") and model in AGENT_INCOMPATIBLE_MODELS)
     ]
 
     skipped = len(registry) * len(models) * len(modes) - len(jobs)
@@ -390,7 +385,7 @@ def main():
 
 def _print_result(r: dict) -> None:
     mode = r.get("mode", "?")
-    if mode == "agent":
+    if mode in ("agent", "agent+skills"):
         grade = r.get("overall_grade", "?")
         score = r.get("overall_score", 0)
         rate  = r.get("grader_pass_rate", 0)

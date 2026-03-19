@@ -20,7 +20,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 FRAMEWORK_ROOT = Path(__file__).parent
 
-MODES = ["baseline", "skills", "agent"]
+MODES = ["baseline", "agent", "agent+skills"]
 
 
 def load_scores(paths: list[str]) -> list[dict]:
