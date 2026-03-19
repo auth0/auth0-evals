@@ -399,7 +399,7 @@ def llm_call(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        with urllib.request.urlopen(req, timeout=300) as resp:
             response_data = json.loads(resp.read())
 
         call_duration = time.time() - call_start

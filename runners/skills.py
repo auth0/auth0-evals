@@ -1,9 +1,12 @@
 """
-Skills runner — LLM with skill file context, no tools.
+Skills loader — fetches and injects SKILL.md context into eval prompts.
 
-Each eval declares which skills to load in its PROMPT.md frontmatter. The
-runner fetches the corresponding SKILL.md files from the auth0/agent-skills
-GitHub repo and injects them into the system prompt.
+Each eval declares which skills to load in its PROMPT.md frontmatter. This
+module resolves SKILL.md files from the auth0/agent-skills GitHub repo and
+augments the eval's system prompt with the skill content.
+
+In agent+skills mode, the augmented eval is then run through the full
+agentic loop — the agent gets both tool access and skill context.
 
 PROMPT.md frontmatter example:
     ---
@@ -17,7 +20,6 @@ Multiple skills (comma-separated):
 """
 
 import urllib.request
-from .baseline import BaselineResult, run_baseline
 
 AGENT_SKILLS_RAW = (
     "https://raw.githubusercontent.com/auth0/agent-skills/main"
@@ -28,39 +30,32 @@ AGENT_SKILLS_RAW = (
 _skill_cache: dict[str, str] = {}
 
 
-def run_skills(
-    api_key: str,
-    model: str,
-    eval_def,           # EvalDefinition from loader.py
-) -> BaselineResult:
+def augment_with_skills(eval_def):
     """
-    Same as baseline but with skill content injected into the system prompt.
-    Skills are fetched from GitHub based on the eval's skills declaration.
+    Return a copy of eval_def with skill content injected into the system prompt.
+    If the eval has no skills declared, returns the original eval_def unchanged.
     """
-    skill_context = _fetch_skills(eval_def.skills) if eval_def.skills else ""
+    if not eval_def.skills:
+        return eval_def
 
-    if skill_context:
-        parts = ["## SDK Reference Material\n\n" + skill_context]
-        if eval_def.system_prompt:
-            parts.append(eval_def.system_prompt)
-        augmented_system = "\n\n---\n\n".join(parts)
-    else:
-        augmented_system = eval_def.system_prompt
+    skill_context = _fetch_skills(eval_def.skills)
+    if not skill_context:
+        return eval_def
 
-    class _PatchedEval:
+    parts = ["## SDK Reference Material\n\n" + skill_context]
+    if eval_def.system_prompt:
+        parts.append(eval_def.system_prompt)
+    augmented_system = "\n\n---\n\n".join(parts)
+
+    class _AugmentedEval:
         def __init__(self, base, system):
             self.__dict__.update(base.__dict__)
             self.system_prompt = system
 
-    patched = _PatchedEval(eval_def, augmented_system)
-    patched.mode = "skills"
-
-    result = run_baseline(api_key, model, patched)
-    result.mode = "skills"
-    return result
+    return _AugmentedEval(eval_def, augmented_system)
 
 
-# ── GitHub fetcher ─────────────────────────────────────────────────────────────
+# ── GitHub fetcher ────────────────────────────────────────────────────────────
 
 def _fetch_skills(skill_names: list[str]) -> str:
     """Fetch SKILL.md for each named skill from auth0/agent-skills on GitHub."""
@@ -88,4 +83,3 @@ def _fetch_one(name: str) -> str:
         print(f"  [skills] Failed to fetch {url}: {exc}")
         _skill_cache[name] = ""
         return ""
-

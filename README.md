@@ -54,11 +54,16 @@ python run.py --eval react_quickstart --mode all --model all && python report.py
 
 | Mode | Description |
 |------|-------------|
-| `baseline` | Single LLM call, no tools (default) |
-| `skills` | Single LLM call with SKILL.md files prepended to context |
-| `agent` | Full agentic loop with read/write/bash/fetch tools |
+| `baseline` | Single LLM call, no tools, no skills. What the model knows from training data alone. |
+| `agent` | Full agentic loop with tools (read/write/bash/fetch). What agents do without our investment. |
+| `agent+skills` | Full agentic loop with tools + SKILL.md injected into context. The real-world scenario. |
 
 Use `--mode all` to run all three modes in parallel for faster evaluation.
+
+The delta between modes tells you where to invest:
+- **baseline → agent**: value of tool access alone
+- **agent → agent+skills**: value of our skills investment
+- **baseline → agent+skills**: total end-to-end improvement
 
 ## Models
 
@@ -99,7 +104,7 @@ python run.py --model gpt-5.2
 --eval      Eval ID to run (default: all). Can be repeated.
 --model     Model to use (default: gpt-5.2). Can be repeated for multiple models.
             Use 'all' to run all known working models.
---mode      baseline | skills | agent | all (default: baseline)
+--mode      baseline | agent | agent+skills | all (default: baseline)
             Use 'all' to run all three modes in parallel.
 --workers   Parallel workers (default: 4)
 --output    JSON output path (default: scores-<mode>.json or scores-all-modes.json)
@@ -131,7 +136,7 @@ The framework maintains a list of models that work reliably across all modes (ba
 
 ## Skills
 
-In `skills` mode, SKILL.md files are fetched from the [auth0/agent-skills](https://github.com/auth0/agent-skills) repository and injected into the system prompt before the LLM call.
+In `agent+skills` mode, SKILL.md files are fetched from the [auth0/agent-skills](https://github.com/auth0/agent-skills) repository and injected into the agent's system prompt alongside full tool access.
 
 Each eval declares which skill it needs in its `PROMPT.md` frontmatter:
 
@@ -147,7 +152,7 @@ The runner fetches the corresponding `SKILL.md` from [auth0/agent-skills](https:
 https://raw.githubusercontent.com/auth0/agent-skills/main/plugins/auth0-sdks/skills/<name>/SKILL.md
 ```
 
-Fetched skills are cached in memory across parallel workers to avoid redundant HTTP calls. If an eval has no `skills:` declared, skills mode runs without any injected context.
+Fetched skills are cached in memory across parallel workers to avoid redundant HTTP calls. If an eval has no `skills:` declared, agent+skills mode runs identically to agent mode.
 
 Multiple skills can be declared comma-separated:
 
