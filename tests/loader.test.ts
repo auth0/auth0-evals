@@ -12,7 +12,7 @@ import { loadEval, type EvalDefinition } from '../runners/loader.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 // Absolute path to graders module so dynamically-created graders.ts in tmpdir can import it
-const GRADERS_ABS_PATH = resolve(__dirname, '../agent/graders.js');
+const GRADERS_ABS_PATH = resolve(__dirname, '../agent_eval/graders.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

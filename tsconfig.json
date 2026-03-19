@@ -14,6 +14,6 @@
     "sourceMap": true,
     "types": ["node", "nunjucks"]
   },
-  "include": ["*.ts", "config/**/*", "runners/**/*", "agent/**/*", "tests/**/*", "evals/**/*.ts"],
+  "include": ["*.ts", "config/**/*", "runners/**/*", "agent_eval/**/*", "tests/**/*", "evals/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

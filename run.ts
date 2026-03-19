@@ -27,7 +27,7 @@ import pLimit from 'p-limit';
 import { config as loadDotenv } from 'dotenv';
 import { EVALUATIONS, type EvalConfig } from './config/evaluations.js';
 import { loadEval, type EvalDefinition } from './runners/loader.js';
-import { runGraders } from './agent/graders.js';
+import { runGraders } from './agent_eval/graders.js';
 import { tmpdir } from 'node:os';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -130,8 +130,8 @@ async function runAgentJob(
   apiKey: string,
   keepWorkspace: boolean,
 ): Promise<Record<string, unknown>> {
-  const { runAgent, setupWorkspace, cleanupWorkspace } = await import('./agent/agent.js');
-  const { score } = await import('./agent/scorer.js');
+  const { runAgent, setupWorkspace, cleanupWorkspace } = await import('./agent_eval/agent.js');
+  const { score } = await import('./agent_eval/scorer.js');
 
   const workspace = setupWorkspace(evalDef.scaffold);
   try {

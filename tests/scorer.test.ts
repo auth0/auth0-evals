@@ -1,14 +1,14 @@
 /**
- * Happy path tests for src/agent/scorer.ts
+ * Happy path tests for src/agent_eval/scorer.ts
  */
 
 import { describe, it, expect } from 'vitest';
 import { mkdirSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import type { RunRecord, ToolCallRecord } from '../agent/agent.js';
-import type { GraderResult } from '../agent/graders.js';
-import { score, scoreToGrade, type ScoredResult, type DimensionScore } from '../agent/scorer.js';
+import type { RunRecord, ToolCallRecord } from '../agent_eval/agent.js';
+import type { GraderResult } from '../agent_eval/graders.js';
+import { score, scoreToGrade, type ScoredResult, type DimensionScore } from '../agent_eval/scorer.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-import { contains, judge } from '../../../agent/graders.js';
+import { contains, judge } from '../../../agent_eval/graders.js';
 
 export function defineGraders() {
   return [
