@@ -1,3 +1,0 @@
-# All networking uses stdlib urllib.request against the <LLM_PROXY_HOST> endpoint.
-# Python 3.11+ recommended.
-jinja2>=3.0
