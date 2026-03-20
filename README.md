@@ -11,40 +11,38 @@ cp .env.example .env
 npm install
 
 # Run all evals × all models × all modes (recommended)
-npm run build && node dist/run.js --mode all --model all --workers 8
+npm run run -- --mode all --model all --workers 8
 
 # Generate and view report
-node dist/report.js
+npm run report
 ```
 
 ### Run with multiple models and modes
 
 ```bash
-npm run build
-
 # Quick test - baseline mode with default model
-node dist/run.js --eval react_quickstart --mode baseline
+npm run run -- --eval react_quickstart --mode baseline
 
 # Test all modes with one model
-node dist/run.js --eval react_quickstart --mode all --model gpt-5.2
+npm run run -- --eval react_quickstart --mode all --model gpt-5.2
 
 # Run all known working models in baseline mode
-node dist/run.js --model all --mode baseline
+npm run run -- --model all --mode baseline
 
 # Run specific models across all modes
-node dist/run.js --model claude-4-6-sonnet --model claude-4-6-opus --mode all
+npm run run -- --model claude-4-6-sonnet --model claude-4-6-opus --mode all
 
 # Full evaluation - all modes × all models
-node dist/run.js --eval react_quickstart --mode all --model all --workers 8
+npm run run -- --eval react_quickstart --mode all --model all --workers 8
 
 # Run everything (all evals × all models × all modes)
-node dist/run.js --mode all --model all
+npm run run -- --mode all --model all
 
 # Generate HTML report from results
-node dist/report.js --input scores-all-modes.json
+npm run report -- --input scores-all-modes.json
 
 # Run and view results in one command
-node dist/run.js --eval react_quickstart --mode all --model all && node dist/report.js --input scores-all-modes.json && open report.html
+npm run run -- --eval react_quickstart --mode all --model all && npm run report -- --input scores-all-modes.json && open report.html
 ```
 
 ## Modes
@@ -73,26 +71,26 @@ The delta between modes tells you where to invest:
 
 ```bash
 # Run with a specific model
-node dist/run.js --model gpt-5.2
-node dist/run.js --model claude-4-6-sonnet
-node dist/run.js --model claude-4-6-opus
-node dist/run.js --model gemini-3-pro-preview
+npm run run -- --model gpt-5.2
+npm run run -- --model claude-4-6-sonnet
+npm run run -- --model claude-4-6-opus
+npm run run -- --model gemini-3-pro-preview
 
 # Run with multiple models
-node dist/run.js --model claude-4-6-sonnet --model claude-4-6-opus
+npm run run -- --model claude-4-6-sonnet --model claude-4-6-opus
 
 # Run with a specific model and mode
-node dist/run.js --model gpt-5.2 --mode agent
+npm run run -- --model gpt-5.2 --mode agent
 ```
 
 Results are merged into the output file by `(eval_id, model, mode)` key. Re-running a single model updates only its entries — scores for all other models are preserved.
 
 ```bash
 # Run all models once to build the full baseline
-node dist/run.js --model all
+npm run run -- --model all
 
 # Later, re-run only one model without losing the rest
-node dist/run.js --model gpt-5.2
+npm run run -- --model gpt-5.2
 ```
 
 ## Options
