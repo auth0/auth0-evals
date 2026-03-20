@@ -7,7 +7,9 @@
     "build": "vite build",
     "test": "vitest run",
     "test:watch": "vitest",
+    "prerun": "npm run build",
     "run": "node dist/run.js",
+    "prereport": "npm run build",
     "report": "node dist/report.js"
   },
   "dependencies": {
