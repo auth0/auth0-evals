@@ -292,8 +292,9 @@ describe('llmJudge', () => {
 
   it('passes when yes has trailing punctuation', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('yes.\n\nThe Auth0Provider wrapper is present.'));
-    const { passed } = await llmJudge('question', 'code', 'key', 'model');
+    const { passed, detail } = await llmJudge('question', 'code', 'key', 'model');
     expect(passed).toBe(true);
+    expect(detail).not.toContain('unexpected verdict');
   });
 
   it('fails when no has trailing punctuation', async () => {

@@ -91,7 +91,7 @@ describe('score - Setup Friction', () => {
       makeToolCall('ask_user', 1, { isInterruption: true }),
     ];
     const result = score(record);
-    expect(getDim(result, 'Setup Friction').rawScore).toBeLessThan(100.0);
+    expect(getDim(result, 'Setup Friction').rawScore).toBe(72.0); // 100 - 2 * 14
   });
 
   it('penalises provider errors', () => {
@@ -113,28 +113,16 @@ describe('score - Setup Friction', () => {
 // ── Setup Speed tests ─────────────────────────────────────────────────────────
 
 describe('score - Setup Speed', () => {
-  it('at reference = 100', () => {
+  it.each([
+    [30.0,  100.0],  // below reference
+    [60.0,  100.0],  // at exact reference
+    [110.0,  80.0],  // 50s over: 100 - 50*0.4
+  ])('duration %fs → score %f', (duration, expectedScore) => {
     const dir = tmpDir();
     const record = makeRecord({ workspace: dir });
-    record.toolCalls = [makeToolCall('read_file', 60.0)];
+    record.toolCalls = [makeToolCall('read_file', duration)];
     const result = score(record);
-    expect(getDim(result, 'Setup Speed').rawScore).toBe(100.0);
-  });
-
-  it('below reference = 100', () => {
-    const dir = tmpDir();
-    const record = makeRecord({ workspace: dir });
-    record.toolCalls = [makeToolCall('read_file', 30.0)];
-    const result = score(record);
-    expect(getDim(result, 'Setup Speed').rawScore).toBe(100.0);
-  });
-
-  it('degrades beyond reference', () => {
-    const dir = tmpDir();
-    const record = makeRecord({ workspace: dir });
-    record.toolCalls = [makeToolCall('read_file', 110.0)]; // 50s over 60s reference
-    const result = score(record);
-    expect(getDim(result, 'Setup Speed').rawScore).toBeCloseTo(100.0 - 50.0 * 0.4, 1);
+    expect(getDim(result, 'Setup Speed').rawScore).toBeCloseTo(expectedScore, 1);
   });
 });
 
