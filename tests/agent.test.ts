@@ -62,11 +62,6 @@ function tmpDir(): string {
 // ── TOOL_DEFINITIONS tests ─────────────────────────────────────────────────────
 
 describe('TOOL_DEFINITIONS', () => {
-  it('contains finish_task', () => {
-    const names = TOOL_DEFINITIONS.map((t) => t.function.name);
-    expect(names).toContain('finish_task');
-  });
-
   it('finish_task requires summary', () => {
     const finish = TOOL_DEFINITIONS.find((t) => t.function.name === 'finish_task')!;
     expect(finish.function.parameters.required).toContain('summary');
@@ -211,6 +206,17 @@ describe('extractTokens', () => {
     expect(output).toBe(0);
   });
 
+  it('falls back to Anthropic style when OpenAI fields are undefined', () => {
+    const [input, output] = extractTokens({
+      prompt_tokens: undefined as unknown as number,
+      completion_tokens: undefined as unknown as number,
+      input_tokens: 20,
+      output_tokens: 8,
+    });
+    expect(input).toBe(20);
+    expect(output).toBe(8);
+  });
+
   it('OpenAI style takes precedence', () => {
     const [input, output] = extractTokens({
       prompt_tokens: 10,
@@ -249,8 +255,10 @@ describe('collectFiles', () => {
     }
 
     const result = collectFiles(dir, dir);
-    expect(result.length).toBe(MAX_LISTED_FILES + 1); // MAX_LISTED_FILES files + truncation notice
-    expect(result[result.length - 1]).toContain(`truncated at ${MAX_LISTED_FILES}`);
+    const notice = result[result.length - 1];
+    const files = result.slice(0, -1);
+    expect(files.length).toBe(MAX_LISTED_FILES);
+    expect(notice).toContain(`truncated at ${MAX_LISTED_FILES}`);
   });
 
   it('skips symlinked file pointing outside workspace', () => {

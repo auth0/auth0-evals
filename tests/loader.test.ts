@@ -222,7 +222,8 @@ describe('loadEval - scaffold loading', () => {
 
     const result = await loadEval(EVAL_CONFIG, tmpBase);
 
-    expect(Object.keys(result.scaffold).some((k) => k.includes('src'))).toBe(true);
+    expect(Object.keys(result.scaffold)).toContain('src/App.js');
+    expect(result.scaffold['src/App.js']).toBe('app code');
   });
 
   it('loads single scaffold file correctly', async () => {

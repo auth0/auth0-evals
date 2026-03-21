@@ -36,18 +36,10 @@ describe('renderHtml', () => {
     expect(html.length).toBeGreaterThan(0);
   });
 
-  it('contains eval_id', () => {
-    const html = renderHtml([makeResult('react_quickstart')], '2024-01-01 00:00');
+  it('contains eval_id, model name, and generated_at', () => {
+    const html = renderHtml([makeResult('react_quickstart', 'gpt-5.2')], '2024-01-01 12:34');
     expect(html).toContain('react_quickstart');
-  });
-
-  it('contains model name', () => {
-    const html = renderHtml([makeResult('react_quickstart', 'gpt-5.2')], '2024-01-01 00:00');
     expect(html).toContain('gpt-5.2');
-  });
-
-  it('contains generated_at', () => {
-    const html = renderHtml([makeResult()], '2024-01-01 12:34');
     expect(html).toContain('2024-01-01 12:34');
   });
 
@@ -102,6 +94,7 @@ describe('renderHtml CSS class integration', () => {
   it('50% pass rate (lower boundary of fair tier) applies rate-fair, not rate-poor', () => {
     const html = renderHtml([makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 0.5 })], '2024-01-01 00:00');
     expect(html).toContain('class="card-score-value rate-fair"');
+    expect(html).not.toContain('class="card-score-value rate-poor"');
   });
 
   it('0% pass rate applies rate-poor to card-score-value', () => {

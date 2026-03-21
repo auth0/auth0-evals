@@ -102,8 +102,10 @@ describe('augmentWithSkills - success path', () => {
     expect(result.systemPrompt).toContain('---');
     expect(result.systemPrompt).toContain('You are an expert.');
     const skillIdx = result.systemPrompt.indexOf('## SDK Reference Material');
+    const separatorIdx = result.systemPrompt.indexOf('---');
     const promptIdx = result.systemPrompt.indexOf('You are an expert.');
-    expect(skillIdx).toBeLessThan(promptIdx);
+    expect(skillIdx).toBeLessThan(separatorIdx);
+    expect(separatorIdx).toBeLessThan(promptIdx);
   });
 
   it('does not add separator when there is no existing system prompt', async () => {

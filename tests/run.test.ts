@@ -22,6 +22,9 @@ describe('extractCodeBlocks', () => {
     const result = extractCodeBlocks(text);
     expect(result).toContain('const a = 1;');
     expect(result).toContain('const b = 2;');
+    expect(result).not.toContain('Intro');
+    expect(result).not.toContain('Middle');
+    expect(result).not.toContain('End');
   });
 
   it('strips surrounding prose', () => {

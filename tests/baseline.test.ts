@@ -101,6 +101,17 @@ describe('runBaseline', () => {
     expect(result.outputTokens).toBe(250);
   });
 
+  it('defaults token counts to zero when usage is missing', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: 'ok' } }], usage: {} }),
+    } as unknown as Response);
+
+    const result = await runBaseline('key', 'gpt-5.2', makeEvalDef());
+    expect(result.inputTokens).toBe(0);
+    expect(result.outputTokens).toBe(0);
+  });
+
   it('calculates cost from token counts', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
