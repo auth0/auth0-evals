@@ -16,3 +16,6 @@ report.html
 
 # macOS
 .DS_Store
+
+#Coverage
+coverage/
