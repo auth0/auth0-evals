@@ -8,6 +8,7 @@
 
 import { execFileSync, execSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import type { Dirent } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { estimateCost } from '../config/costs.js';
@@ -586,7 +587,7 @@ export function collectFiles(root: string, relativeTo: string): string[] {
 
   function walk(dir: string): void {
     if (truncated) return;
-    let entries: ReturnType<typeof readdirSync>;
+    let entries: Dirent<string>[];
     try {
       entries = readdirSync(dir, { withFileTypes: true });
     } catch {
