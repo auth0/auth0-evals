@@ -10,42 +10,60 @@
 
 {# ── helpers ─────────────────────────────────────────────────────────────── #}
 
-{% macro pct_cell(rate) %}
-<td class="pct-cell"><span class="pct-value {{ rate | rate_css_class }}">{{ (rate * 100) | round | int }}%</span></td>
+{% macro pct_cell(rate, delta, cost) %}
+<td class="pct-cell">
+  <span class="pct-value {{ rate | rate_css_class }}">{{ (rate * 100) | round | int }}%</span>
+  {% if delta is not none %}
+    {% set dp = (delta * 100) | round | int %}
+    {% if dp > 0 %}
+      <span class="delta delta-pos">+{{ dp }}%</span>
+    {% elif dp < 0 %}
+      <span class="delta delta-neg">{{ dp }}%</span>
+    {% else %}
+      <span class="delta delta-zero">0%</span>
+    {% endif %}
+  {% endif %}
+  {% if cost is defined and cost is not none %}
+    <span class="cell-cost">${{ "%.4f" | format(cost) }}</span>
+  {% endif %}
+</td>
 {% endmacro %}
 
 {% macro empty_cell() %}
-<td class="empty-cell">—</td>
+<td class="empty-cell">&mdash;</td>
 {% endmacro %}
 
-{# ── summary table ────────────────────────────────────────────────────────── #}
+{# ── summary table for a single mode ────────────────────────────────────── #}
+{# Rows = models, Columns = evals                                            #}
 
-{% macro render_summary_table(grouped, all_keys) %}
+{% macro render_summary_table_for_mode(mode, mode_grouped, evals_run, models_run, deltas) %}
+{% set mode_data = mode_grouped[mode] if mode_grouped[mode] else {} %}
+{% set mode_deltas = deltas[mode] if deltas[mode] else {} %}
 <div class="summary-wrap">
   <table class="summary-table">
     <thead>
       <tr>
-        <th class="summary-eval-heading">Eval</th>
-        {% for col in all_keys %}
+        <th class="summary-eval-heading">Model</th>
+        {% for eval_id in evals_run %}
         <th class="summary-column-heading">
-          <div class="summary-column-mode">{{ col.mode }}</div>
-          <div class="summary-column-model">{{ col.model }}</div>
+          <div class="summary-column-model">{{ eval_id }}</div>
         </th>
         {% endfor %}
       </tr>
     </thead>
     <tbody>
-      {% for eval_id in grouped_sorted_keys %}
+      {% for model in models_run %}
       <tr class="summary-row">
-        <td class="summary-eval-id">{{ eval_id }}</td>
-        {% for col in all_keys %}
-        {% set eval_runs = grouped[eval_id] %}
-        {% set result = eval_runs[col.key] %}
-        {% if result and result.grader_pass_rate is not none %}
-          {{ pct_cell(result.grader_pass_rate) }}
-        {% else %}
-          {{ empty_cell() }}
-        {% endif %}
+        <td class="summary-eval-id">{{ model }}</td>
+        {% for eval_id in evals_run %}
+          {% set result = mode_data[eval_id][model] if mode_data[eval_id] and mode_data[eval_id][model] else none %}
+          {% if result and result.grader_pass_rate is not none %}
+            {% set d = mode_deltas[eval_id][model] if mode_deltas[eval_id] and mode_deltas[eval_id][model] is not none else none %}
+            {% set c = result.cost_usd if result.cost_usd else none %}
+            {{ pct_cell(result.grader_pass_rate, d, c) }}
+          {% else %}
+            {{ empty_cell() }}
+          {% endif %}
         {% endfor %}
       </tr>
       {% endfor %}
@@ -81,7 +99,7 @@
 <tr>
   <td class="dimension-name">{{ dim.name if dim.name else "" }}</td>
   <td class="dimension-score">{{ "%.1f" | format(dim.score if dim.score else 0) }}</td>
-  <td class="dimension-weight">× {{ "%.2f" | format(dim.weight if dim.weight else 0) }}</td>
+  <td class="dimension-weight">&times; {{ "%.2f" | format(dim.weight if dim.weight else 0) }}</td>
   <td class="dimension-weighted">= {{ "%.2f" | format(weighted) }}</td>
   <td class="dimension-grade">
     {% set grade = dim.grade if dim.grade else "" %}
@@ -111,8 +129,8 @@
     </tr>
   </table>
   <div class="score-formula">
-    Process (50%): friction×15% + speed×10% + efficiency×10% + errors×5% + docs×10%<br>
-    Output (50%): correctness×25% + hallucination×15% + security×10%
+    Process (50%): friction&times;15% + speed&times;10% + efficiency&times;10% + errors&times;5% + docs&times;10%<br>
+    Output (50%): correctness&times;25% + hallucination&times;15% + security&times;10%
   </div>
 </div>
 {% endmacro %}
@@ -193,23 +211,31 @@
 {# ══════════════════════════════════════════════════════════════════════════ #}
 
   <div class="page-header">
-    <h1 class="page-title">Auth0 SDK — Eval Report</h1>
+    <h1 class="page-title">Auth0 SDK &mdash; Eval Report</h1>
     <div class="page-date">{{ generated_at }}</div>
     <div class="page-stats">
       <span><strong class="stat-value">{{ total_runs }}</strong> runs</span>
-      <span><strong class="stat-value">{{ grouped | length }}</strong> evals</span>
+      <span><strong class="stat-value">{{ evals_run | length }}</strong> evals</span>
       <span><strong class="stat-value">{{ models_run | join(", ") }}</strong></span>
       <span>total cost <strong class="stat-value">${{ "%.4f" | format(total_cost) }}</strong></span>
-    </div>
-    <div>
-      {% for m in modes_run %}
-      <span class="mode-badge">{{ m }}</span>
-      {% endfor %}
     </div>
   </div>
 
   <h2 class="section-heading">Summary</h2>
-  {{ render_summary_table(grouped, all_keys) }}
+
+  {# Mode toggle buttons #}
+  <div class="mode-toggle">
+    {% for mode in modes_present %}
+    <button class="mode-toggle-btn {{ 'active' if loop.first }}" data-mode="{{ mode }}">{{ mode }}</button>
+    {% endfor %}
+  </div>
+
+  {# One summary panel per mode #}
+  {% for mode in modes_present %}
+  <div class="summary-panel {{ 'active' if loop.first }}" data-mode="{{ mode }}">
+    {{ render_summary_table_for_mode(mode, mode_grouped, evals_run, models_run, deltas) }}
+  </div>
+  {% endfor %}
 
   <h2 class="section-heading section-heading--details">Details</h2>
   {% for eval_id in grouped_sorted_keys %}
@@ -217,5 +243,19 @@
   {% endfor %}
 
   <div class="page-footer">Generated by auth0-evals</div>
+
+<script>
+// Summary mode toggle
+document.querySelectorAll('.mode-toggle-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var mode = btn.getAttribute('data-mode');
+    document.querySelectorAll('.mode-toggle-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    document.querySelectorAll('.summary-panel').forEach(function(p) { p.classList.remove('active'); });
+    var target = document.querySelector('.summary-panel[data-mode="' + mode + '"]');
+    if (target) target.classList.add('active');
+  });
+});
+</script>
 </body>
 </html>
