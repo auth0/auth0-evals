@@ -5,11 +5,11 @@ export default defineConfig({
   build: {
     lib: {
       entry: {
-        run: resolve(__dirname, 'run.ts'),
-        report: resolve(__dirname, 'report.ts'),
-        'evals/quickstarts/react/graders': resolve(__dirname, 'evals/quickstarts/react/graders.ts'),
-        'evals/quickstarts/nextjs/graders': resolve(__dirname, 'evals/quickstarts/nextjs/graders.ts'),
-        'evals/quickstarts/swift/graders': resolve(__dirname, 'evals/quickstarts/swift/graders.ts'),
+        run: resolve(__dirname, 'src/run.ts'),
+        report: resolve(__dirname, 'src/report.ts'),
+        'src/evals/quickstarts/react/graders': resolve(__dirname, 'src/evals/quickstarts/react/graders.ts'),
+        'src/evals/quickstarts/nextjs/graders': resolve(__dirname, 'src/evals/quickstarts/nextjs/graders.ts'),
+        'src/evals/quickstarts/swift/graders': resolve(__dirname, 'src/evals/quickstarts/swift/graders.ts'),
       },
       formats: ['es'],
     },

@@ -132,7 +132,7 @@ The framework maintains a list of models that work reliably across all modes (ba
 
 ## Skills
 
-In `agent+skills` mode, SKILL.md files are fetched from the [auth0/agent-skills](https://github.com/auth0/agent-skills) repository and injected into the agent's system prompt alongside full tool access.
+In `agent+skills` mode, SKILL.md files are fetched from the [auth0/agent-skills](https://github.com/auth0/agent-skills) repository and prepended to the agent system prompt (`## Agent System`) alongside full tool access.
 
 Each eval declares which skill it needs in its `PROMPT.md` frontmatter:
 
@@ -159,56 +159,57 @@ skills: auth0-react, auth0-nextjs
 ## Structure
 
 ```
-run.ts                          # CLI entry point
-report.ts                       # HTML report generator
-config/
-  evaluations.ts                # central eval registry
-  settings.ts                   # API base URL, judge model, limits
-  costs.ts                      # per-model token cost table
-runners/
-  loader.ts                     # parses PROMPT.md, imports graders.ts
-  baseline.ts                   # pure LLM, no tools
-  skills.ts                     # fetches + injects SKILL.md into eval prompts (agent+skills mode)
-agent_eval/
-  agent.ts                      # ReAct agent runner with tool execution
-  graders.ts                    # contains() / matches() / judge() primitives
-  scorer.ts                     # 8-dimension scoring
-evals/
-  <category>/
-    <eval-id>/
-      PROMPT.md                 # task description + optional skills declaration
-      graders.ts                # defineGraders() — acceptance criteria
-      scaffold/                 # optional starter files for agent workspace
-templates/
-  report.html.j2                # Nunjucks HTML report template
-prompts/
-  judge/                        # LLM-as-judge system prompts per framework
+src/
+  run.ts                        # CLI entry point
+  report.ts                     # HTML report generator
+  config/
+    evaluations.ts              # central eval registry
+    settings.ts                 # API base URL, judge model, limits
+    costs.ts                    # per-model token cost table
+  runners/
+    loader.ts                   # parses PROMPT.md, imports graders.ts
+    baseline.ts                 # pure LLM, no tools
+    skills.ts                   # fetches + injects SKILL.md into eval prompts (agent+skills mode)
+  agent_eval/
+    agent.ts                    # ReAct agent runner with tool execution
+    graders.ts                  # contains() / matches() / judge() primitives
+    scorer.ts                   # 8-dimension scoring
+  evals/
+    <category>/
+      <eval-id>/
+        PROMPT.md               # task description + optional skills declaration
+        graders.ts              # defineGraders() — acceptance criteria
+        scaffold/               # optional starter files for agent workspace
+  templates/
+    report.html.j2              # Nunjucks HTML report template
+  prompts/
+    judge/                      # LLM-as-judge system prompts per framework
 tests/                          # Vitest test suite
 ```
 
 ## Adding an Eval
 
-1. Create `evals/<category>/<eval-id>/PROMPT.md`
-2. Create `evals/<category>/<eval-id>/graders.ts` with a `defineGraders()` function
+1. Create `src/evals/<category>/<eval-id>/PROMPT.md`
+2. Create `src/evals/<category>/<eval-id>/graders.ts` with a `defineGraders()` function
 3. Optionally declare a skill in `PROMPT.md` frontmatter (`skills: auth0-react`)
-4. Optionally add starter files in `evals/<category>/<eval-id>/scaffold/`
-5. Register it in `config/evaluations.ts`
+4. Optionally add starter files in `src/evals/<category>/<eval-id>/scaffold/`
+5. Register it in `src/config/evaluations.ts`
 6. Add it as a Vite entry in `vite.config.ts`
 
 ```typescript
-// config/evaluations.ts
+// src/config/evaluations.ts
 export const EVALUATIONS: EvalConfig[] = [
   {
     id: 'your_eval_id',
     name: 'Your Eval Name',
     category: 'your-category',
-    path: 'evals/<category>/your_eval_id',
+    path: 'src/evals/<category>/your_eval_id',
   },
 ];
 ```
 
 ```typescript
-// evals/<category>/your_eval_id/graders.ts
+// src/evals/<category>/your_eval_id/graders.ts
 import { contains, judge } from '../../../agent_eval/graders.js';
 
 export function defineGraders() {
@@ -221,7 +222,7 @@ export function defineGraders() {
 
 ```typescript
 // vite.config.ts — add to the entry object
-'evals/<category>/your_eval_id/graders': resolve(__dirname, 'evals/<category>/your_eval_id/graders.ts'),
+'src/evals/<category>/your_eval_id/graders': resolve(__dirname, 'src/evals/<category>/your_eval_id/graders.ts'),
 ```
 
 Then rebuild: `npm run build`

@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { writeFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { loadScores, renderHtml, groupByMode, computeDeltas } from '../report.js';
+import { loadScores, renderHtml, groupByMode, computeDeltas } from '../src/report.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

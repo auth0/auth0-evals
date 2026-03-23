@@ -19,7 +19,7 @@ import {
   MAX_LISTED_FILES,
   EXCLUDED_DIRS,
   type ToolCallRecord,
-} from '../agent_eval/agent.js';
+} from '../src/agent_eval/agent.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

@@ -14,8 +14,8 @@ import {
   runGraders,
   llmJudge,
   type GraderResult,
-} from '../agent_eval/graders.js';
-import { JUDGE_MAX_TOKENS } from '../config/settings.js';
+} from '../src/agent_eval/graders.js';
+import { JUDGE_MAX_TOKENS } from '../src/config/settings.js';
 
 function tmpDir(): string {
   return mkdtempSync(join(tmpdir(), 'graders_test_'));

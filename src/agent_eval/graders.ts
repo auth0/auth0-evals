@@ -29,7 +29,7 @@ function resolveProjectRoot(): string {
   throw new Error('Could not find project root (no package.json found)');
 }
 
-const JUDGE_PROMPTS_DIR = join(resolveProjectRoot(), 'prompts', 'judge');
+const JUDGE_PROMPTS_DIR = join(resolveProjectRoot(), 'src', 'prompts', 'judge');
 
 function loadFrameworkPrompt(framework?: string): string {
   const name = framework && existsSync(join(JUDGE_PROMPTS_DIR, `${framework}.md`)) ? framework : 'default';

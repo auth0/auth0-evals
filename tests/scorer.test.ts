@@ -6,9 +6,9 @@ import { describe, it, expect } from 'vitest';
 import { writeFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import type { RunRecord, ToolCallRecord } from '../agent_eval/agent.js';
-import type { GraderResult } from '../agent_eval/graders.js';
-import { score, scoreToGrade, type ScoredResult, type DimensionScore } from '../agent_eval/scorer.js';
+import type { RunRecord, ToolCallRecord } from '../src/agent_eval/agent.js';
+import type { GraderResult } from '../src/agent_eval/graders.js';
+import { score, scoreToGrade, type ScoredResult, type DimensionScore } from '../src/agent_eval/scorer.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

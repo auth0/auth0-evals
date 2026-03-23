@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { isPathInside, resolveInside } from '../agent_eval/path-utils.js';
+import { isPathInside, resolveInside } from '../src/agent_eval/path-utils.js';
 
 function tmpDir(): string {
   return mkdtempSync(join(tmpdir(), 'path_utils_test_'));

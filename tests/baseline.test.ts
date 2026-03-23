@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { estimateCost } from '../config/costs.js';
-import { runBaseline } from '../runners/baseline.js';
+import { estimateCost } from '../src/config/costs.js';
+import { runBaseline } from '../src/runners/baseline.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
