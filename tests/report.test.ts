@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { writeFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { loadScores, renderHtml } from '../report.js';
+import { loadScores, renderHtml, groupByMode, computeDeltas } from '../report.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -118,5 +118,151 @@ describe('renderHtml CSS class integration', () => {
       dimensions: [{ name: 'friction', score: 20.0, weight: 0.15, grade: 'F' }],
     })], '2024-01-01 00:00');
     expect(html).toContain('class="badge badge-lg badge-df"');
+  });
+});
+
+// ── Mode toggle and summary panel tests ──────────────────────────────────────
+
+describe('renderHtml mode toggle', () => {
+  it('renders mode toggle buttons for each mode present', () => {
+    const results = [
+      makeResult('react_quickstart', 'gpt-5.2', 'baseline'),
+      makeResult('react_quickstart', 'gpt-5.2', 'agent'),
+      makeResult('react_quickstart', 'gpt-5.2', 'agent+skills'),
+    ];
+    const html = renderHtml(results, '2024-01-01 00:00');
+    expect(html).toContain('class="mode-toggle-btn active" data-mode="baseline"');
+    expect(html).toContain('data-mode="agent"');
+    expect(html).toContain('data-mode="agent+skills"');
+  });
+
+  it('renders one summary panel per mode', () => {
+    const results = [
+      makeResult('react_quickstart', 'gpt-5.2', 'baseline'),
+      makeResult('react_quickstart', 'gpt-5.2', 'agent'),
+    ];
+    const html = renderHtml(results, '2024-01-01 00:00');
+    expect(html).toContain('class="summary-panel active" data-mode="baseline"');
+    expect(html).toContain('class="summary-panel " data-mode="agent"');
+  });
+
+  it('summary table rows are models, columns are evals', () => {
+    const results = [
+      makeResult('react_quickstart', 'gpt-5.2', 'baseline'),
+      makeResult('swift_quickstart', 'gpt-5.2', 'baseline'),
+    ];
+    const html = renderHtml(results, '2024-01-01 00:00');
+    // Model name appears as a row label
+    expect(html).toContain('<td class="summary-eval-id">gpt-5.2</td>');
+    // Eval names appear as column headers
+    expect(html).toContain('react_quickstart');
+    expect(html).toContain('swift_quickstart');
+  });
+});
+
+// ── Delta badge tests ─────────────────────────────────────────────────────────
+
+describe('renderHtml delta badges', () => {
+  it('shows positive delta for agent mode improvement over baseline', () => {
+    const results = [
+      makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 0.5 }),
+      makeResult('react_quickstart', 'gpt-5.2', 'agent', { grader_pass_rate: 0.75 }),
+    ];
+    const html = renderHtml(results, '2024-01-01 00:00');
+    expect(html).toContain('delta-pos');
+    expect(html).toContain('+25%');
+  });
+
+  it('shows negative delta for agent mode degradation from baseline', () => {
+    const results = [
+      makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 1.0 }),
+      makeResult('react_quickstart', 'gpt-5.2', 'agent', { grader_pass_rate: 0.75 }),
+    ];
+    const html = renderHtml(results, '2024-01-01 00:00');
+    expect(html).toContain('delta-neg');
+    expect(html).toContain('-25%');
+  });
+
+  it('no delta shown on baseline tab', () => {
+    const results = [
+      makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 1.0 }),
+    ];
+    const html = renderHtml(results, '2024-01-01 00:00');
+    // Extract only the body content (after </style>) to avoid matching CSS class definitions
+    const body = html.slice(html.indexOf('</style>'));
+    expect(body).not.toContain('class="delta delta-pos"');
+    expect(body).not.toContain('class="delta delta-neg"');
+    expect(body).not.toContain('class="delta delta-zero"');
+  });
+});
+
+// ── Detail section tests ──────────────────────────────────────────────────────
+
+describe('renderHtml detail section', () => {
+  it('renders detail cards with mode badges', () => {
+    const results = [
+      makeResult('react_quickstart', 'gpt-5.2', 'baseline'),
+      makeResult('react_quickstart', 'gpt-5.2', 'agent'),
+    ];
+    const html = renderHtml(results, '2024-01-01 00:00');
+    expect(html).toContain('class="mode-badge"');
+    expect(html).toContain('detail-section-title');
+  });
+
+  it('renders all mode cards in a flat list per eval', () => {
+    const results = [
+      makeResult('react_quickstart', 'gpt-5.2', 'baseline'),
+      makeResult('react_quickstart', 'gpt-5.2', 'agent'),
+    ];
+    const html = renderHtml(results, '2024-01-01 00:00');
+    // Both modes should appear as mode badges in the same section (no tabs)
+    const body = html.slice(html.indexOf('</style>'));
+    const badgeMatches = body.match(/class="mode-badge"/g);
+    expect(badgeMatches).not.toBeNull();
+    expect(badgeMatches!.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ── groupByMode tests ─────────────────────────────────────────────────────────
+
+describe('groupByMode', () => {
+  it('groups results by mode, eval_id, model', () => {
+    const results = [
+      makeResult('react_quickstart', 'gpt-5.2', 'baseline'),
+      makeResult('react_quickstart', 'gpt-5.2', 'agent'),
+    ];
+    const grouped = groupByMode(results);
+    expect(grouped['baseline']['react_quickstart']['gpt-5.2']).toBeDefined();
+    expect(grouped['agent']['react_quickstart']['gpt-5.2']).toBeDefined();
+  });
+});
+
+// ── computeDeltas tests ───────────────────────────────────────────────────────
+
+describe('computeDeltas', () => {
+  it('computes positive delta correctly', () => {
+    const modeGrouped = groupByMode([
+      makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 0.5 }),
+      makeResult('react_quickstart', 'gpt-5.2', 'agent', { grader_pass_rate: 0.75 }),
+    ]);
+    const deltas = computeDeltas(modeGrouped);
+    expect(deltas['agent']['react_quickstart']['gpt-5.2']).toBeCloseTo(0.25);
+  });
+
+  it('computes negative delta correctly', () => {
+    const modeGrouped = groupByMode([
+      makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 1.0 }),
+      makeResult('react_quickstart', 'gpt-5.2', 'agent+skills', { grader_pass_rate: 0.75 }),
+    ]);
+    const deltas = computeDeltas(modeGrouped);
+    expect(deltas['agent+skills']['react_quickstart']['gpt-5.2']).toBeCloseTo(-0.25);
+  });
+
+  it('returns null delta when baseline is missing', () => {
+    const modeGrouped = groupByMode([
+      makeResult('react_quickstart', 'gpt-5.2', 'agent', { grader_pass_rate: 0.75 }),
+    ]);
+    const deltas = computeDeltas(modeGrouped);
+    expect(deltas['agent']['react_quickstart']['gpt-5.2']).toBeNull();
   });
 });

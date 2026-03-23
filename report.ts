@@ -45,30 +45,63 @@ export function groupResults(results: Record<string, unknown>[]): Record<string,
   return grouped;
 }
 
-export function renderHtml(results: Record<string, unknown>[], generatedAt: string): string {
-  const grouped = groupResults(results);
+// Group results by mode -> eval_id -> model -> result
+export function groupByMode(
+  results: Record<string, unknown>[],
+): Record<string, Record<string, Record<string, Record<string, unknown>>>> {
+  const modeGrouped: Record<string, Record<string, Record<string, Record<string, unknown>>>> = {};
+  for (const r of results) {
+    const mode = r.mode as string;
+    const eid = r.eval_id as string;
+    const model = r.model as string;
+    if (!modeGrouped[mode]) modeGrouped[mode] = {};
+    if (!modeGrouped[mode][eid]) modeGrouped[mode][eid] = {};
+    modeGrouped[mode][eid][model] = r;
+  }
+  return modeGrouped;
+}
 
-  const keySet = new Set<string>();
-  for (const runs of Object.values(grouped)) {
-    for (const key of Object.keys(runs)) {
-      keySet.add(key);
+// Compute grader_pass_rate delta vs baseline for agent modes
+export function computeDeltas(
+  modeGrouped: Record<string, Record<string, Record<string, Record<string, unknown>>>>,
+): Record<string, Record<string, Record<string, number | null>>> {
+  const deltas: Record<string, Record<string, Record<string, number | null>>> = {};
+  const baseline = modeGrouped['baseline'] ?? {};
+  for (const mode of ['agent', 'agent+skills']) {
+    deltas[mode] = {};
+    const modeData = modeGrouped[mode] ?? {};
+    for (const [eid, models] of Object.entries(modeData)) {
+      deltas[mode][eid] = {};
+      for (const [model, result] of Object.entries(models)) {
+        const baseResult = baseline[eid]?.[model];
+        const rate = result.grader_pass_rate as number | undefined;
+        const baseRate = baseResult?.grader_pass_rate as number | undefined;
+        if (rate != null && baseRate != null) {
+          deltas[mode][eid][model] = rate - baseRate;
+        } else {
+          deltas[mode][eid][model] = null;
+        }
+      }
     }
   }
-  const allKeys = [...keySet].sort((a, b) => {
-    const [aModel, aMode] = a.split('|');
-    const [bModel, bMode] = b.split('|');
-    const aModeIdx = MODES.indexOf(aMode) !== -1 ? MODES.indexOf(aMode) : 99;
-    const bModeIdx = MODES.indexOf(bMode) !== -1 ? MODES.indexOf(bMode) : 99;
-    if (aModeIdx !== bModeIdx) return aModeIdx - bModeIdx;
-    return aModel.localeCompare(bModel);
-  });
-  const allKeyObjects = allKeys.map((k) => { const [model, mode] = k.split('|'); return { model, mode, key: k }; });
+  return deltas;
+}
+
+export function renderHtml(results: Record<string, unknown>[], generatedAt: string): string {
+  const grouped = groupResults(results);
+  const modeGrouped = groupByMode(results);
+  const deltas = computeDeltas(modeGrouped);
 
   const totalRuns = results.length;
   const totalCost = results.reduce((sum, r) => sum + Number(r.cost_usd ?? 0), 0);
   const modelsRun = [...new Set(results.map((r) => r.model as string))].sort();
   const modesRun = [...new Set(results.map((r) => r.mode as string))].sort();
+  const evalsRun = [...new Set(results.map((r) => r.eval_id as string))].sort();
 
+  // Determine which modes are actually present
+  const modesPresent = MODES.filter((m) => modesRun.includes(m));
+
+  // Sort result keys for the detail section (original flat list, sorted by mode then model)
   function sortResultKeys(keys: string[]): string[] {
     return [...keys].sort((a, b) => {
       const [aModel, aMode] = a.split('|');
@@ -79,6 +112,7 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
       return aModel.localeCompare(bModel);
     });
   }
+  const groupedSortedKeys = Object.keys(grouped).sort();
 
   const env = nunjucks.configure(join(FRAMEWORK_ROOT, 'templates'), {
     autoescape: true,
@@ -93,7 +127,7 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
     if (obj && typeof obj === 'object') return Object.keys(obj as object).sort();
     return obj;
   });
-  env.addFilter('repeat_str', (str: string, n: number) => str.repeat(Math.max(0, n)));
+  env.addFilter('repeat_str', (str: string, n: number) => new nunjucks.runtime.SafeString(str.repeat(Math.max(0, n))));
   env.addFilter('truncate_str', (str: string, n: number) => str ? str.slice(0, n) : '');
   env.addFilter('format', (fmt: string, ...args: unknown[]) => {
     let i = 0;
@@ -108,16 +142,17 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
     });
   });
 
-  const groupedSortedKeys = Object.keys(grouped).sort();
-
   return nunjucks.render('report.html.j2', {
     grouped,
     grouped_sorted_keys: groupedSortedKeys,
-    all_keys: allKeyObjects,
+    mode_grouped: modeGrouped,
+    deltas,
     total_runs: totalRuns,
     total_cost: totalCost,
     models_run: modelsRun,
     modes_run: modesRun,
+    modes_present: modesPresent,
+    evals_run: evalsRun,
     generated_at: generatedAt,
     MODES,
   });

@@ -147,6 +147,10 @@ a { color: var(--link); }
   margin-top: 2px;
 }
 .summary-row { border-top: 1px solid var(--border); }
+.summary-row td {
+  height: 64px;
+  vertical-align: middle;
+}
 .summary-eval-id {
   padding: 10px 14px;
   font-size: 13px;
@@ -155,7 +159,7 @@ a { color: var(--link); }
 }
 .pct-cell {
   text-align: center;
-  padding: 10px 14px;
+  padding: 6px 14px;
 }
 .pct-value {
   font-size: 15px;
@@ -163,8 +167,14 @@ a { color: var(--link); }
 }
 .empty-cell {
   text-align: center;
-  padding: 10px 14px;
+  padding: 6px 14px;
   color: var(--surface-3);
+}
+.cell-cost {
+  display: block;
+  font-size: 11px;
+  color: var(--text-ter);
+  margin-top: 2px;
 }
 
 /* ── Graders table ──────────────────────────────────────────────────────── */
@@ -308,6 +318,50 @@ a { color: var(--link); }
   font-size: 12px;
   color: var(--text-quat);
 }
+
+/* ── Mode toggle ────────────────────────────────────────────────────────── */
+.mode-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+.mode-toggle-btn {
+  background: var(--surface-2);
+  color: var(--text-sec);
+  border: 1px solid var(--border);
+  padding: 6px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.mode-toggle-btn:hover {
+  background: var(--surface-3);
+  color: var(--text-medium);
+}
+.mode-toggle-btn.active {
+  background: var(--surface-3);
+  color: var(--text-bright);
+  border-color: var(--border-2);
+}
+
+/* ── Summary panels (show/hide) ────────────────────────────────────────── */
+.summary-panel { display: none; }
+.summary-panel.active { display: block; }
+
+/* ── Delta badge ───────────────────────────────────────────────────────── */
+.delta {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+.delta-pos { color: var(--grade-excellent); }
+.delta-neg { color: var(--grade-poor); }
+.delta-zero { color: var(--text-ter); }
 
 /* ── Detail section ─────────────────────────────────────────────────────── */
 .detail-section { margin-bottom: 36px; }
