@@ -3,7 +3,7 @@
  *
  * Each eval declares which skills to load in its PROMPT.md frontmatter. This
  * module resolves SKILL.md files from the auth0/agent-skills GitHub repo and
- * augments the eval's system prompt with the skill content.
+ * augments the eval's agentSystemPrompt with the skill content.
  *
  * In agent+skills mode, the augmented eval is then run through the full
  * agentic loop — the agent gets both tool access and skill context.
@@ -20,7 +20,7 @@ const skillCache: Record<string, string> = {};
 
 export async function augmentWithSkills(evalDef: EvalDefinition): Promise<EvalDefinition> {
   /**
-   * Return a copy of evalDef with skill content injected into the system prompt.
+   * Return a copy of evalDef with skill content prepended to agentSystemPrompt.
    * If the eval has no skills declared, returns the original evalDef unchanged.
    */
   if (!evalDef.skills.length) {
@@ -33,12 +33,12 @@ export async function augmentWithSkills(evalDef: EvalDefinition): Promise<EvalDe
   }
 
   const parts = ['## SDK Reference Material\n\n' + skillContext];
-  if (evalDef.systemPrompt) {
-    parts.push(evalDef.systemPrompt);
+  if (evalDef.agentSystemPrompt) {
+    parts.push(evalDef.agentSystemPrompt);
   }
-  const augmentedSystem = parts.join('\n\n---\n\n');
+  const augmentedAgentSystem = parts.join('\n\n---\n\n');
 
-  return { ...evalDef, systemPrompt: augmentedSystem };
+  return { ...evalDef, agentSystemPrompt: augmentedAgentSystem };
 }
 
 // ── GitHub fetcher ─────────────────────────────────────────────────────────────
