@@ -8,6 +8,7 @@
 
 import { estimateCost } from '../config/costs.js';
 import { BASE_URL } from '../config/settings.js';
+import { LlmApiError } from '../errors.js';
 import type { EvalDefinition } from './loader.js';
 
 export interface BaselineResult {
@@ -92,7 +93,7 @@ export async function llmCall(
 
   if (!resp.ok) {
     const body = await resp.text();
-    throw new Error(`LLM API error ${resp.status}: ${body.slice(0, 400)}`);
+    throw new LlmApiError(resp.status, body);
   }
 
   return resp.json() as Promise<Record<string, unknown>>;

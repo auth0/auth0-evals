@@ -11,6 +11,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpath
 import { join, relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { estimateCost } from '../config/costs.js';
+import { BedrockToolConfigError, LlmApiError } from '../errors.js';
 import { BASE_URL, BEDROCK_MODELS, GEMINI_MODELS, MAX_TURNS } from '../config/settings.js';
 
 export function isBedrockModel(model: string): boolean {
@@ -383,12 +384,9 @@ export async function llmCall(
     console.log(`[LLM API] 💥 Error: ${bodyText.slice(0, 200)}`);
 
     if (bodyText.includes('toolConfig') && bodyText.includes('BedrockException')) {
-      throw new Error(
-        `Bedrock model '${model}' requires special handling. ` +
-          `Ensure it is listed in BEDROCK_MODELS in config/settings.ts.`,
-      );
+      throw new BedrockToolConfigError(model);
     }
-    throw new Error(`LLM API error ${resp.status}: ${bodyText.slice(0, 400)}`);
+    throw new LlmApiError(resp.status, bodyText);
   }
 
   const responseData = (await resp.json()) as Record<string, unknown>;

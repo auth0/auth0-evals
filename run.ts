@@ -26,6 +26,7 @@ import { Command } from 'commander';
 import pLimit from 'p-limit';
 import { config as loadDotenv } from 'dotenv';
 import { EVALUATIONS, type EvalConfig } from './config/evaluations.js';
+import { UnknownModeError } from './errors.js';
 import { loadEval, type EvalDefinition } from './runners/loader.js';
 import { runGraders } from './agent_eval/graders.js';
 import { tmpdir } from 'node:os';
@@ -76,7 +77,7 @@ export async function runJob(
       const augmented = await augmentWithSkills(evalDef);
       return await runAgentJob(augmented, model, mode, apiKey, keepWorkspace);
     } else {
-      throw new Error(`Unknown mode: ${mode}`);
+      throw new UnknownModeError(mode);
     }
   } catch (e) {
     const errorMsg = String(e);
