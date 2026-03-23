@@ -28,10 +28,7 @@ function makeEvalDef(overrides: Partial<EvalDefinition> = {}): EvalDefinition {
 }
 
 function mockFetch(text: string, ok = true, status = 200) {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockResolvedValue({ ok, status, text: async () => text }),
-  );
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok, status, text: async () => text }));
 }
 
 function mockFetchError(error = new Error('network failure')) {

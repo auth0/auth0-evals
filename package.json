@@ -8,6 +8,8 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
+    "lint": "eslint \"./**/*.ts\"",
+    "format": "prettier --write \"./**/*.ts\"",
     "prerun": "npm run build",
     "run": "node dist/run.js",
     "prereport": "npm run build",
@@ -20,10 +22,14 @@
     "p-limit": "^7.3.0"
   },
   "devDependencies": {
-    "@types/node": "^24.12.0",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^25.5.0",
     "@types/nunjucks": "^3.2.6",
     "@vitest/coverage-v8": "^4.1.0",
+    "eslint": "^10.0.3",
+    "prettier": "^3.8.1",
     "typescript": "^5.4.5",
+    "typescript-eslint": "^8.57.1",
     "vite": "^8.0.1",
     "vitest": "^4.1.0"
   }

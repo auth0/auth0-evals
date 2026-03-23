@@ -38,12 +38,7 @@ const FRAMEWORK_ROOT = basename(__dirname) === 'dist' ? join(__dirname, '..') : 
 // Load .env
 loadDotenv({ path: join(FRAMEWORK_ROOT, '.env') });
 
-export const KNOWN_WORKING_MODELS = [
-  'gpt-5.2',
-  'claude-4-6-sonnet',
-  'claude-4-6-opus',
-  'gemini-3-pro-preview',
-];
+export const KNOWN_WORKING_MODELS = ['gpt-5.2', 'claude-4-6-sonnet', 'claude-4-6-opus', 'gemini-3-pro-preview'];
 
 export const DEFAULT_MODEL = 'gpt-5.2';
 
@@ -96,9 +91,7 @@ export async function runJob(
 }
 
 export function extractCodeBlocks(text: string): string {
-  const blocks = [...text.matchAll(/^[ \t]{0,3}```[^\r\n]*\r?\n([\s\S]*?)^[ \t]{0,3}```[ \t]*\r?$/gm)].map(
-    (m) => m[1],
-  );
+  const blocks = [...text.matchAll(/^[ \t]{0,3}```[^\r\n]*\r?\n([\s\S]*?)^[ \t]{0,3}```[ \t]*\r?$/gm)].map((m) => m[1]);
   if (blocks.length > 0) {
     return blocks.join('\n\n');
   }
@@ -188,7 +181,18 @@ async function runAgentJob(
 
 function serialiseSimple(
   evalDef: EvalDefinition,
-  result: { evalId: string; model: string; mode: string; sessionId: string; status: string; wallTime: number; inputTokens: number; outputTokens: number; costUsd: number; error?: string },
+  result: {
+    evalId: string;
+    model: string;
+    mode: string;
+    sessionId: string;
+    status: string;
+    wallTime: number;
+    inputTokens: number;
+    outputTokens: number;
+    costUsd: number;
+    error?: string;
+  },
   graderResults: { name: string; kind: string; passed: boolean; detail: string }[],
 ): Record<string, unknown> {
   const passed = graderResults.filter((r) => r.passed).length;
@@ -374,9 +378,7 @@ async function main(): Promise<void> {
   outputPath = join(FRAMEWORK_ROOT, outputPath);
 
   // Deduplicate and merge with existing
-  const deduped = Object.values(
-    Object.fromEntries(results.map((r) => [`${r.eval_id}|${r.model}|${r.mode}`, r])),
-  );
+  const deduped = Object.values(Object.fromEntries(results.map((r) => [`${r.eval_id}|${r.model}|${r.mode}`, r])));
   const newKeys = new Set(deduped.map((r) => `${r.eval_id}|${r.model}|${r.mode}`));
 
   let existing: Record<string, unknown>[] = [];
@@ -393,10 +395,7 @@ async function main(): Promise<void> {
     }
   }
 
-  const merged = [
-    ...existing.filter((r) => !newKeys.has(`${r.eval_id}|${r.model}|${r.mode}`)),
-    ...deduped,
-  ];
+  const merged = [...existing.filter((r) => !newKeys.has(`${r.eval_id}|${r.model}|${r.mode}`)), ...deduped];
 
   writeFileSync(outputPath, JSON.stringify(merged, null, 2), 'utf-8');
   console.log(`\n[Output] Results saved to: ${outputPath}`);

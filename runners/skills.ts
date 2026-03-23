@@ -12,8 +12,7 @@
 import type { EvalDefinition } from './loader.js';
 
 const AGENT_SKILLS_RAW =
-  'https://raw.githubusercontent.com/auth0/agent-skills/main' +
-  '/plugins/auth0-sdks/skills/{name}/SKILL.md';
+  'https://raw.githubusercontent.com/auth0/agent-skills/main' + '/plugins/auth0-sdks/skills/{name}/SKILL.md';
 
 // Module-level cache so parallel workers don't re-fetch the same file
 const skillCache: Record<string, string> = {};

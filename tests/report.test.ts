@@ -44,10 +44,15 @@ describe('renderHtml', () => {
   });
 
   it('renders numeric format strings (no raw %.Nf placeholders)', () => {
-    const html = renderHtml([makeResult('react_quickstart', 'gpt-5.2', 'baseline', {
-      cost_usd: 0.0123,
-      wall_time: 4.5,
-    })], '2024-01-01 00:00');
+    const html = renderHtml(
+      [
+        makeResult('react_quickstart', 'gpt-5.2', 'baseline', {
+          cost_usd: 0.0123,
+          wall_time: 4.5,
+        }),
+      ],
+      '2024-01-01 00:00',
+    );
     expect(html).not.toContain('%.4f');
     expect(html).not.toContain('%.1f');
     expect(html).not.toContain('%.2f');
@@ -56,10 +61,7 @@ describe('renderHtml', () => {
   });
 
   it('includes all evals and models', () => {
-    const results = [
-      makeResult('react_quickstart', 'gpt-5.2'),
-      makeResult('swift_quickstart', 'claude-4-6-sonnet'),
-    ];
+    const results = [makeResult('react_quickstart', 'gpt-5.2'), makeResult('swift_quickstart', 'claude-4-6-sonnet')];
     const html = renderHtml(results, '2024-01-01 00:00');
     expect(html).toContain('react_quickstart');
     expect(html).toContain('swift_quickstart');
@@ -87,36 +89,55 @@ describe('renderHtml from score files', () => {
 
 describe('renderHtml CSS class integration', () => {
   it('100% pass rate applies rate-excellent to card-score-value', () => {
-    const html = renderHtml([makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 1.0 })], '2024-01-01 00:00');
+    const html = renderHtml(
+      [makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 1.0 })],
+      '2024-01-01 00:00',
+    );
     expect(html).toContain('class="card-score-value rate-excellent"');
   });
 
   it('50% pass rate (lower boundary of fair tier) applies rate-fair, not rate-poor', () => {
-    const html = renderHtml([makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 0.5 })], '2024-01-01 00:00');
+    const html = renderHtml(
+      [makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 0.5 })],
+      '2024-01-01 00:00',
+    );
     expect(html).toContain('class="card-score-value rate-fair"');
     expect(html).not.toContain('class="card-score-value rate-poor"');
   });
 
   it('0% pass rate applies rate-poor to card-score-value', () => {
-    const html = renderHtml([makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 0.0 })], '2024-01-01 00:00');
+    const html = renderHtml(
+      [makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 0.0 })],
+      '2024-01-01 00:00',
+    );
     expect(html).toContain('class="card-score-value rate-poor"');
   });
 
   it('overall grade A produces badge-a class on weighted-total badge', () => {
-    const html = renderHtml([makeResult('react_quickstart', 'gpt-5.2', 'baseline', {
-      overall_grade: 'A',
-      overall_score: 95.0,
-      dimensions: [{ name: 'friction', score: 95.0, weight: 0.15, grade: 'A' }],
-    })], '2024-01-01 00:00');
+    const html = renderHtml(
+      [
+        makeResult('react_quickstart', 'gpt-5.2', 'baseline', {
+          overall_grade: 'A',
+          overall_score: 95.0,
+          dimensions: [{ name: 'friction', score: 95.0, weight: 0.15, grade: 'A' }],
+        }),
+      ],
+      '2024-01-01 00:00',
+    );
     expect(html).toContain('class="badge badge-lg badge-a"');
   });
 
   it('overall grade F produces badge-df class (shared with D) on weighted-total badge', () => {
-    const html = renderHtml([makeResult('react_quickstart', 'gpt-5.2', 'baseline', {
-      overall_grade: 'F',
-      overall_score: 20.0,
-      dimensions: [{ name: 'friction', score: 20.0, weight: 0.15, grade: 'F' }],
-    })], '2024-01-01 00:00');
+    const html = renderHtml(
+      [
+        makeResult('react_quickstart', 'gpt-5.2', 'baseline', {
+          overall_grade: 'F',
+          overall_score: 20.0,
+          dimensions: [{ name: 'friction', score: 20.0, weight: 0.15, grade: 'F' }],
+        }),
+      ],
+      '2024-01-01 00:00',
+    );
     expect(html).toContain('class="badge badge-lg badge-df"');
   });
 });

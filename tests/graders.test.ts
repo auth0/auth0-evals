@@ -275,10 +275,13 @@ describe('llmJudge', () => {
 
   it('request sends max_tokens equal to JUDGE_MAX_TOKENS', async () => {
     let capturedBody: Record<string, unknown> | undefined;
-    vi.stubGlobal('fetch', vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
-      capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
-      return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
     await llmJudge('question', 'code', 'key', 'model');
     expect(capturedBody?.max_tokens).toBe(JUDGE_MAX_TOKENS);
   });

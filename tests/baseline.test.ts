@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { estimateCost } from '../config/costs.js';
-import { runBaseline, llmCall, type BaselineResult } from '../runners/baseline.js';
+import { runBaseline } from '../runners/baseline.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

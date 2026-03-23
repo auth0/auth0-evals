@@ -28,8 +28,7 @@ describe('extractCodeBlocks', () => {
   });
 
   it('strips surrounding prose', () => {
-    const text =
-      'You should use Auth0Provider here.\n```jsx\nconst x = 1;\n```\nHope that helps!';
+    const text = 'You should use Auth0Provider here.\n```jsx\nconst x = 1;\n```\nHope that helps!';
     const result = extractCodeBlocks(text);
     expect(result).not.toContain('Auth0Provider');
     expect(result).not.toContain('Hope that helps');

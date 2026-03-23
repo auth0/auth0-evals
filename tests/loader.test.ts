@@ -7,7 +7,7 @@ import { mkdirSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { loadEval, type EvalDefinition } from '../runners/loader.js';
+import { loadEval } from '../runners/loader.js';
 import { EvalConfigError, EvalNotFoundError } from '../errors.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -77,10 +77,7 @@ describe('loadEval - PROMPT.md parsing', () => {
   });
 
   it('parses sections without frontmatter', async () => {
-    makeEvalDir(
-      tmpBase,
-      '## System\nYou are a developer.\n\n## Task\nWrite some code.\n',
-    );
+    makeEvalDir(tmpBase, '## System\nYou are a developer.\n\n## Task\nWrite some code.\n');
 
     const result = await loadEval(EVAL_CONFIG, tmpBase);
 
@@ -99,10 +96,7 @@ describe('loadEval - PROMPT.md parsing', () => {
   });
 
   it('exposes frontmatter in metadata', async () => {
-    makeEvalDir(
-      tmpBase,
-      '---\nprovider_name: MyProvider\nprovider_url: example.com\n---\n\n## Task\nDo the task.\n',
-    );
+    makeEvalDir(tmpBase, '---\nprovider_name: MyProvider\nprovider_url: example.com\n---\n\n## Task\nDo the task.\n');
 
     const result = await loadEval(EVAL_CONFIG, tmpBase);
 
@@ -152,10 +146,7 @@ describe('loadEval - Agent System prompt', () => {
   });
 
   it('captures all lines of a multi-line agent system section', async () => {
-    makeEvalDir(
-      tmpBase,
-      '## Agent System\nFirst line.\nSecond line.\nThird line.\n\n## Task\nDo the task.\n',
-    );
+    makeEvalDir(tmpBase, '## Agent System\nFirst line.\nSecond line.\nThird line.\n\n## Task\nDo the task.\n');
 
     const result = await loadEval(EVAL_CONFIG, tmpBase);
 
@@ -185,10 +176,7 @@ describe('loadEval - Agent System prompt', () => {
   });
 
   it('agent system content does not bleed into system prompt', async () => {
-    makeEvalDir(
-      tmpBase,
-      '## Agent System\nCall finish_task when done.\n\n## Task\nDo the task.\n',
-    );
+    makeEvalDir(tmpBase, '## Agent System\nCall finish_task when done.\n\n## Task\nDo the task.\n');
 
     const result = await loadEval(EVAL_CONFIG, tmpBase);
 
