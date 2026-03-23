@@ -16,6 +16,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BASE_URL, JUDGE_MAX_TOKENS, JUDGE_MODEL } from '../config/settings.js';
+import { LlmApiError } from '../errors.js';
 
 function resolveProjectRoot(): string {
   let dir = dirname(fileURLToPath(import.meta.url));
@@ -230,7 +231,7 @@ export async function llmJudge(
 
     if (!resp.ok) {
       const body = await resp.text();
-      throw new Error(`HTTP ${resp.status}: ${body.slice(0, 200)}`);
+      throw new LlmApiError(resp.status, body);
     }
 
     const data = (await resp.json()) as Record<string, unknown>;

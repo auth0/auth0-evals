@@ -8,6 +8,7 @@ import { join, resolve, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { loadEval, type EvalDefinition } from '../runners/loader.js';
+import { EvalConfigError, EvalNotFoundError } from '../errors.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -123,12 +124,15 @@ describe('loadEval - PROMPT.md parsing', () => {
     expect(result.skills).toEqual(['auth0-react']);
   });
 
-  it('throws when PROMPT.md is missing', async () => {
+  it('throws EvalConfigError with path when PROMPT.md is missing', async () => {
     const evalDir = join(tmpBase, 'my_eval');
     mkdirSync(evalDir, { recursive: true });
     writeFileSync(join(evalDir, 'graders.ts'), DEFAULT_GRADERS);
 
-    await expect(loadEval(EVAL_CONFIG, tmpBase)).rejects.toThrow();
+    const err = await loadEval(EVAL_CONFIG, tmpBase).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(EvalConfigError);
+    expect((err as EvalConfigError).message).toContain('PROMPT.md not found');
+    expect((err as EvalConfigError).message).toContain(evalDir);
   });
 });
 
@@ -265,18 +269,24 @@ export function defineGraders() {
     expect(new Set(result.graders.map((g) => g.kind))).toEqual(new Set(['contains', 'matches']));
   });
 
-  it('throws when graders.ts is missing', async () => {
+  it('throws EvalConfigError with path when graders.ts is missing', async () => {
     const evalDir = join(tmpBase, 'my_eval');
     mkdirSync(evalDir, { recursive: true });
     writeFileSync(join(evalDir, 'PROMPT.md'), MINIMAL_PROMPT);
 
-    await expect(loadEval(EVAL_CONFIG, tmpBase)).rejects.toThrow();
+    const err = await loadEval(EVAL_CONFIG, tmpBase).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(EvalConfigError);
+    expect((err as EvalConfigError).message).toContain('graders file not found');
+    expect((err as EvalConfigError).message).toContain(evalDir);
   });
 
-  it('throws when defineGraders is missing from graders.ts', async () => {
-    makeEvalDir(tmpBase, MINIMAL_PROMPT, '// no defineGraders function here\n');
+  it('throws EvalConfigError with path when defineGraders is missing from graders.ts', async () => {
+    const evalDir = makeEvalDir(tmpBase, MINIMAL_PROMPT, '// no defineGraders function here\n');
 
-    await expect(loadEval(EVAL_CONFIG, tmpBase)).rejects.toThrow();
+    const err = await loadEval(EVAL_CONFIG, tmpBase).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(EvalConfigError);
+    expect((err as EvalConfigError).message).toContain('graders.ts missing defineGraders()');
+    expect((err as EvalConfigError).message).toContain(evalDir);
   });
 });
 
@@ -305,8 +315,10 @@ describe('loadEval - integration', () => {
     expect(result.skills).toEqual(['auth0-react']);
   });
 
-  it('throws when eval directory is missing', async () => {
+  it('throws EvalNotFoundError when eval directory is missing', async () => {
     const evalConfig = { id: 'nonexistent', name: 'None', category: 'x', path: 'nonexistent' };
-    await expect(loadEval(evalConfig, tmpBase)).rejects.toThrow();
+    const err = await loadEval(evalConfig, tmpBase).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(EvalNotFoundError);
+    expect((err as EvalNotFoundError).message).toContain('nonexistent');
   });
 });

@@ -11,6 +11,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { EvalConfig } from '../config/evaluations.js';
+import { EvalConfigError, EvalNotFoundError } from '../errors.js';
 
 export interface EvalDefinition {
   id: string;
@@ -38,7 +39,7 @@ export interface GraderDef {
 export async function loadEval(evalConfig: EvalConfig, frameworkRoot: string): Promise<EvalDefinition> {
   const evalPath = join(frameworkRoot, evalConfig.path);
   if (!existsSync(evalPath) || !statSync(evalPath).isDirectory()) {
-    throw new Error(`Eval directory not found: ${evalPath}`);
+    throw new EvalNotFoundError(evalConfig.id);
   }
 
   const { systemPrompt, userPrompt, agentSystemPrompt, meta } = parsePromptMd(join(evalPath, 'PROMPT.md'));
@@ -80,7 +81,7 @@ function parsePromptMd(promptPath: string): {
   meta: Record<string, string>;
 } {
   if (!existsSync(promptPath)) {
-    throw new Error(`PROMPT.md not found: ${promptPath}`);
+    throw new EvalConfigError('PROMPT.md not found', promptPath);
   }
 
   let text = readFileSync(promptPath, 'utf-8').replace(/\r\n/g, '\n');
@@ -115,12 +116,12 @@ function parsePromptMd(promptPath: string): {
 
 async function loadGraders(gradersPath: string): Promise<GraderDef[]> {
   if (!existsSync(gradersPath)) {
-    throw new Error(`graders file not found: ${gradersPath}`);
+    throw new EvalConfigError('graders file not found', gradersPath);
   }
 
   const mod = await import(pathToFileURL(gradersPath).href);
   if (typeof mod.defineGraders !== 'function') {
-    throw new Error(`graders.ts missing defineGraders(): ${gradersPath}`);
+    throw new EvalConfigError('graders.ts missing defineGraders()', gradersPath);
   }
 
   return mod.defineGraders();
