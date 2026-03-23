@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { writeFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { loadScores, renderHtml, groupByMode, computeDeltas } from '../src/report.js';
+import { loadScores, renderHtml, groupByVariant, computeDeltas, resultVariant } from '../src/report.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -145,26 +145,35 @@ describe('renderHtml CSS class integration', () => {
 // ── Mode toggle and summary panel tests ──────────────────────────────────────
 
 describe('renderHtml mode toggle', () => {
-  it('renders mode toggle buttons for each mode present', () => {
+  it('renders variant toggle buttons for each variant present', () => {
     const results = [
       makeResult('react_quickstart', 'gpt-5.2', 'baseline'),
       makeResult('react_quickstart', 'gpt-5.2', 'agent'),
-      makeResult('react_quickstart', 'gpt-5.2', 'agent+skills'),
     ];
     const html = renderHtml(results, '2024-01-01 00:00');
-    expect(html).toContain('class="mode-toggle-btn active" data-mode="baseline"');
-    expect(html).toContain('data-mode="agent"');
-    expect(html).toContain('data-mode="agent+skills"');
+    expect(html).toContain('class="mode-toggle-btn active" data-variant="baseline"');
+    expect(html).toContain('data-variant="agent"');
   });
 
-  it('renders one summary panel per mode', () => {
+  it('renders agent+Skills as a separate toggle button', () => {
+    const results = [
+      makeResult('react_quickstart', 'gpt-5.2', 'baseline'),
+      makeResult('react_quickstart', 'gpt-5.2', 'agent', { tools: ['Skills'] }),
+    ];
+    const html = renderHtml(results, '2024-01-01 00:00');
+    expect(html).toContain('data-variant="baseline"');
+    expect(html).toContain('data-variant="agent+Skills"');
+    expect(html).not.toContain('data-variant="agent"');
+  });
+
+  it('renders one summary panel per variant', () => {
     const results = [
       makeResult('react_quickstart', 'gpt-5.2', 'baseline'),
       makeResult('react_quickstart', 'gpt-5.2', 'agent'),
     ];
     const html = renderHtml(results, '2024-01-01 00:00');
-    expect(html).toContain('class="summary-panel active" data-mode="baseline"');
-    expect(html).toContain('class="summary-panel " data-mode="agent"');
+    expect(html).toContain('class="summary-panel active" data-variant="baseline"');
+    expect(html).toContain('class="summary-panel " data-variant="agent"');
   });
 
   it('summary table rows are models, columns are evals', () => {
@@ -242,17 +251,56 @@ describe('renderHtml detail section', () => {
   });
 });
 
-// ── groupByMode tests ─────────────────────────────────────────────────────────
+// ── resultVariant tests ───────────────────────────────────────────────────────
 
-describe('groupByMode', () => {
-  it('groups results by mode, eval_id, model', () => {
+describe('resultVariant', () => {
+  it('returns mode for baseline', () => {
+    expect(resultVariant(makeResult('r', 'm', 'baseline'))).toBe('baseline');
+  });
+
+  it('returns mode for agent with no tools', () => {
+    expect(resultVariant(makeResult('r', 'm', 'agent', { tools: [] }))).toBe('agent');
+  });
+
+  it('returns mode+tools for agent with tools', () => {
+    expect(resultVariant(makeResult('r', 'm', 'agent', { tools: ['Skills'] }))).toBe('agent+Skills');
+  });
+
+  it('handles missing tools field (backward compat)', () => {
+    const r = makeResult('r', 'm', 'agent');
+    delete r.tools;
+    expect(resultVariant(r)).toBe('agent');
+  });
+});
+
+// ── groupByVariant tests ──────────────────────────────────────────────────────
+
+describe('groupByVariant', () => {
+  it('groups results by variant, eval_id, model', () => {
     const results = [
       makeResult('react_quickstart', 'gpt-5.2', 'baseline'),
       makeResult('react_quickstart', 'gpt-5.2', 'agent'),
     ];
-    const grouped = groupByMode(results);
+    const grouped = groupByVariant(results);
     expect(grouped['baseline']['react_quickstart']['gpt-5.2']).toBeDefined();
     expect(grouped['agent']['react_quickstart']['gpt-5.2']).toBeDefined();
+  });
+
+  it('uses mode+tools as variant key for agent runs with tools', () => {
+    const results = [makeResult('react_quickstart', 'gpt-5.2', 'agent', { tools: ['Skills'] })];
+    const grouped = groupByVariant(results);
+    expect(grouped['agent+Skills']['react_quickstart']['gpt-5.2']).toBeDefined();
+    expect(grouped['agent']).toBeUndefined();
+  });
+
+  it('does not conflate agent runs with different tool configurations', () => {
+    const results = [
+      makeResult('react_quickstart', 'gpt-5.2', 'agent', { tools: [] }),
+      makeResult('react_quickstart', 'gpt-5.2', 'agent', { tools: ['Skills'] }),
+    ];
+    const grouped = groupByVariant(results);
+    expect(grouped['agent']['react_quickstart']['gpt-5.2']).toBeDefined();
+    expect(grouped['agent+Skills']['react_quickstart']['gpt-5.2']).toBeDefined();
   });
 });
 
@@ -260,26 +308,39 @@ describe('groupByMode', () => {
 
 describe('computeDeltas', () => {
   it('computes positive delta correctly', () => {
-    const modeGrouped = groupByMode([
+    const variantGrouped = groupByVariant([
       makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 0.5 }),
       makeResult('react_quickstart', 'gpt-5.2', 'agent', { grader_pass_rate: 0.75 }),
     ]);
-    const deltas = computeDeltas(modeGrouped);
+    const deltas = computeDeltas(variantGrouped);
     expect(deltas['agent']['react_quickstart']['gpt-5.2']).toBeCloseTo(0.25);
   });
 
   it('computes negative delta correctly', () => {
-    const modeGrouped = groupByMode([
+    const variantGrouped = groupByVariant([
       makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 1.0 }),
-      makeResult('react_quickstart', 'gpt-5.2', 'agent+skills', { grader_pass_rate: 0.75 }),
+      makeResult('react_quickstart', 'gpt-5.2', 'agent', { grader_pass_rate: 0.75 }),
     ]);
-    const deltas = computeDeltas(modeGrouped);
-    expect(deltas['agent+skills']['react_quickstart']['gpt-5.2']).toBeCloseTo(-0.25);
+    const deltas = computeDeltas(variantGrouped);
+    expect(deltas['agent']['react_quickstart']['gpt-5.2']).toBeCloseTo(-0.25);
   });
 
   it('returns null delta when baseline is missing', () => {
-    const modeGrouped = groupByMode([makeResult('react_quickstart', 'gpt-5.2', 'agent', { grader_pass_rate: 0.75 })]);
-    const deltas = computeDeltas(modeGrouped);
+    const variantGrouped = groupByVariant([
+      makeResult('react_quickstart', 'gpt-5.2', 'agent', { grader_pass_rate: 0.75 }),
+    ]);
+    const deltas = computeDeltas(variantGrouped);
     expect(deltas['agent']['react_quickstart']['gpt-5.2']).toBeNull();
+  });
+
+  it('computes delta for agent+Skills variant independently from agent', () => {
+    const variantGrouped = groupByVariant([
+      makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 0.5 }),
+      makeResult('react_quickstart', 'gpt-5.2', 'agent', { tools: [], grader_pass_rate: 0.6 }),
+      makeResult('react_quickstart', 'gpt-5.2', 'agent', { tools: ['Skills'], grader_pass_rate: 1.0 }),
+    ]);
+    const deltas = computeDeltas(variantGrouped);
+    expect(deltas['agent']['react_quickstart']['gpt-5.2']).toBeCloseTo(0.1);
+    expect(deltas['agent+Skills']['react_quickstart']['gpt-5.2']).toBeCloseTo(0.5);
   });
 });

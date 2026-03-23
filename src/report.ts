@@ -22,7 +22,16 @@ const __dirname = dirname(__filename);
 // When running from dist/ or src/, go up one level to reach the project root.
 const FRAMEWORK_ROOT = ['dist', 'src'].includes(basename(__dirname)) ? join(__dirname, '..') : __dirname;
 
-const MODES = ['baseline', 'agent', 'agent+skills'];
+const MODES = ['baseline', 'agent'];
+
+// Returns a stable string that identifies a result's mode+tools combination.
+// Baseline and no-tool agent runs are keyed by mode alone; agent runs with
+// tools append them: "agent+Skills" or "agent+Skills,MCP".
+export function resultVariant(r: Record<string, unknown>): string {
+  const mode = r.mode as string;
+  const tools = (r.tools as string[] | undefined) ?? [];
+  return tools.length > 0 ? `${mode}+${tools.join(',')}` : mode;
+}
 
 export function loadScores(paths: string[]): Record<string, unknown>[] {
   const results: Record<string, unknown>[] = [];
@@ -39,48 +48,51 @@ export function groupResults(
   const grouped: Record<string, Record<string, Record<string, unknown>>> = {};
   for (const r of results) {
     const eid = r.eval_id as string;
-    const key = `${r.model as string}|${r.mode as string}`;
+    const key = `${r.model as string}|${resultVariant(r)}`;
     if (!grouped[eid]) grouped[eid] = {};
     grouped[eid][key] = r;
   }
   return grouped;
 }
 
-// Group results by mode -> eval_id -> model -> result
-export function groupByMode(
+// Group results by variant (mode+tools) -> eval_id -> model -> result.
+// Each distinct tool configuration produces a separate top-level key, so
+// agent runs with different --tools values are never conflated.
+export function groupByVariant(
   results: Record<string, unknown>[],
 ): Record<string, Record<string, Record<string, Record<string, unknown>>>> {
-  const modeGrouped: Record<string, Record<string, Record<string, Record<string, unknown>>>> = {};
+  const variantGrouped: Record<string, Record<string, Record<string, Record<string, unknown>>>> = {};
   for (const r of results) {
-    const mode = r.mode as string;
+    const variant = resultVariant(r);
     const eid = r.eval_id as string;
     const model = r.model as string;
-    if (!modeGrouped[mode]) modeGrouped[mode] = {};
-    if (!modeGrouped[mode][eid]) modeGrouped[mode][eid] = {};
-    modeGrouped[mode][eid][model] = r;
+    if (!variantGrouped[variant]) variantGrouped[variant] = {};
+    if (!variantGrouped[variant][eid]) variantGrouped[variant][eid] = {};
+    variantGrouped[variant][eid][model] = r;
   }
-  return modeGrouped;
+  return variantGrouped;
 }
 
-// Compute grader_pass_rate delta vs baseline for agent modes
+// Compute grader_pass_rate delta vs baseline for every non-baseline variant.
 export function computeDeltas(
-  modeGrouped: Record<string, Record<string, Record<string, Record<string, unknown>>>>,
+  variantGrouped: Record<string, Record<string, Record<string, Record<string, unknown>>>>,
 ): Record<string, Record<string, Record<string, number | null>>> {
   const deltas: Record<string, Record<string, Record<string, number | null>>> = {};
-  const baseline = modeGrouped['baseline'] ?? {};
-  for (const mode of ['agent', 'agent+skills']) {
-    deltas[mode] = {};
-    const modeData = modeGrouped[mode] ?? {};
-    for (const [eid, models] of Object.entries(modeData)) {
-      deltas[mode][eid] = {};
+  const baseline = variantGrouped['baseline'] ?? {};
+  for (const variant of Object.keys(variantGrouped)) {
+    if (variant === 'baseline') continue;
+    deltas[variant] = {};
+    const variantData = variantGrouped[variant] ?? {};
+    for (const [eid, models] of Object.entries(variantData)) {
+      deltas[variant][eid] = {};
       for (const [model, result] of Object.entries(models)) {
         const baseResult = baseline[eid]?.[model];
         const rate = result.grader_pass_rate as number | undefined;
         const baseRate = baseResult?.grader_pass_rate as number | undefined;
         if (rate != null && baseRate != null) {
-          deltas[mode][eid][model] = rate - baseRate;
+          deltas[variant][eid][model] = rate - baseRate;
         } else {
-          deltas[mode][eid][model] = null;
+          deltas[variant][eid][model] = null;
         }
       }
     }
@@ -90,26 +102,30 @@ export function computeDeltas(
 
 export function renderHtml(results: Record<string, unknown>[], generatedAt: string): string {
   const grouped = groupResults(results);
-  const modeGrouped = groupByMode(results);
-  const deltas = computeDeltas(modeGrouped);
+  const variantGrouped = groupByVariant(results);
+  const deltas = computeDeltas(variantGrouped);
 
   const totalRuns = results.length;
   const totalCost = results.reduce((sum, r) => sum + Number(r.cost_usd ?? 0), 0);
   const modelsRun = [...new Set(results.map((r) => r.model as string))].sort();
-  const modesRun = [...new Set(results.map((r) => r.mode as string))].sort();
+  const variantsRun = [...new Set(results.map(resultVariant))];
   const evalsRun = [...new Set(results.map((r) => r.eval_id as string))].sort();
 
-  // Determine which modes are actually present
-  const modesPresent = MODES.filter((m) => modesRun.includes(m));
+  // Known base modes come first (in MODES order), then any extra variants alphabetically.
+  const variantsPresent = [
+    ...MODES.filter((m) => variantsRun.includes(m)),
+    ...variantsRun.filter((v) => !MODES.includes(v)).sort(),
+  ];
 
-  // Sort result keys for the detail section (original flat list, sorted by mode then model)
+  // Sort result keys for the detail section: baseline < agent < agent+* (then by model).
   function sortResultKeys(keys: string[]): string[] {
     return [...keys].sort((a, b) => {
-      const [aModel, aMode] = a.split('|');
-      const [bModel, bMode] = b.split('|');
-      const aModeIdx = MODES.indexOf(aMode) !== -1 ? MODES.indexOf(aMode) : 99;
-      const bModeIdx = MODES.indexOf(bMode) !== -1 ? MODES.indexOf(bMode) : 99;
+      const [aModel, aVariant] = a.split('|');
+      const [bModel, bVariant] = b.split('|');
+      const aModeIdx = MODES.indexOf(aVariant) !== -1 ? MODES.indexOf(aVariant) : 99;
+      const bModeIdx = MODES.indexOf(bVariant) !== -1 ? MODES.indexOf(bVariant) : 99;
       if (aModeIdx !== bModeIdx) return aModeIdx - bModeIdx;
+      if (aVariant !== bVariant) return aVariant.localeCompare(bVariant);
       return aModel.localeCompare(bModel);
     });
   }
@@ -146,13 +162,13 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
   return nunjucks.render('report.html.j2', {
     grouped,
     grouped_sorted_keys: groupedSortedKeys,
-    mode_grouped: modeGrouped,
+    variant_grouped: variantGrouped,
     deltas,
     total_runs: totalRuns,
     total_cost: totalCost,
     models_run: modelsRun,
-    modes_run: modesRun,
-    modes_present: modesPresent,
+    variants_run: variantsRun,
+    variants_present: variantsPresent,
     evals_run: evalsRun,
     generated_at: generatedAt,
     MODES,

@@ -12,8 +12,8 @@
  *   --eval      Eval ID to run (default: all). Can be repeated.
  *   --model     Model(s) to run (default: gpt-5.2). Can be repeated.
  *               Use 'all' to run all known working models.
- *   --mode      Execution mode: baseline | agent | agent+skills | all (default: baseline)
- *               Use 'all' to run all three modes.
+ *   --mode      Execution mode: baseline | agent | all (default: baseline)
+ *   --tools     Tools to inject for agent mode: Skills (default: none). Supports {Skills} and Skills,... syntax.
  *   --workers   Parallel workers (default: 4)
  *   --output    JSON output path (default: scores-<mode>.json)
  *   --keep-workspace   (agent mode) Keep temp workspace after run
@@ -42,7 +42,18 @@ export const KNOWN_WORKING_MODELS = ['gpt-5.2', 'claude-4-6-sonnet', 'claude-4-6
 
 export const DEFAULT_MODEL = 'gpt-5.2';
 
-export const ALL_MODES = ['baseline', 'agent', 'agent+skills'];
+export const ALL_MODES = ['baseline', 'agent'];
+
+export const KNOWN_TOOLS = ['Skills'];
+
+export function parseToolsArg(toolsArg: string): string[] {
+  if (!toolsArg) return [];
+  let normalized = toolsArg.trim();
+  if (normalized.startsWith('{') && normalized.endsWith('}')) {
+    normalized = normalized.slice(1, -1);
+  }
+  return [...new Set(normalized.split(',').map((t) => t.trim()).filter(Boolean))].sort();
+}
 
 // Models that don't support agent mode.
 const AGENT_INCOMPATIBLE_MODELS: string[] = [];
@@ -53,6 +64,7 @@ export async function runJob(
   evalConfig: EvalConfig,
   model: string,
   mode: string,
+  tools: string[],
   apiKey: string,
   keepWorkspace = false,
 ): Promise<Record<string, unknown>> {
@@ -66,11 +78,12 @@ export async function runJob(
       const graderResults = await gradeText(evalDef, result.responseText, apiKey);
       return serialiseSimple(evalDef, result, graderResults);
     } else if (mode === 'agent') {
-      return await runAgentJob(evalDef, model, mode, apiKey, keepWorkspace);
-    } else if (mode === 'agent+skills') {
-      const { augmentWithSkills } = await import('./runners/skills.js');
-      const augmented = await augmentWithSkills(evalDef);
-      return await runAgentJob(augmented, model, mode, apiKey, keepWorkspace);
+      let evalToRun = evalDef;
+      if (tools.some((t) => t.toLowerCase() === 'skills')) {
+        const { augmentWithSkills } = await import('./runners/skills.js');
+        evalToRun = await augmentWithSkills(evalDef);
+      }
+      return await runAgentJob(evalToRun, model, mode, tools, apiKey, keepWorkspace);
     } else {
       throw new UnknownModeError(mode);
     }
@@ -81,6 +94,7 @@ export async function runJob(
       eval_id: evalDef.id,
       model,
       mode,
+      tools,
       status: 'error',
       error: errorMsg,
       wall_time: 0,
@@ -121,6 +135,7 @@ async function runAgentJob(
   evalDef: EvalDefinition,
   model: string,
   mode: string,
+  tools: string[],
   apiKey: string,
   keepWorkspace: boolean,
 ): Promise<Record<string, unknown>> {
@@ -148,6 +163,7 @@ async function runAgentJob(
       eval_id: evalDef.id,
       model,
       mode,
+      tools,
       session_id: record.sessionId,
       status: record.status,
       overall_score: scored.overallScore,
@@ -224,7 +240,7 @@ function serialiseSimple(
 
 function printResult(r: Record<string, unknown>): void {
   const mode = r.mode ?? '?';
-  if (mode === 'agent' || mode === 'agent+skills') {
+  if (mode === 'agent') {
     const grade = r.overall_grade ?? '?';
     const sc = r.overall_score ?? 0;
     const rate = (r.grader_pass_rate as number) ?? 0;
@@ -273,7 +289,8 @@ async function main(): Promise<void> {
       (v, prev: string[]) => [...prev, v],
       [] as string[],
     )
-    .option('--mode <mode>', 'Execution mode: baseline | agent | agent+skills | all (default: baseline)', 'baseline')
+    .option('--mode <mode>', 'Execution mode: baseline | agent | all (default: baseline)', 'baseline')
+    .option('--tools <tools>', `Tools for agent mode: ${KNOWN_TOOLS.join(', ')}. Wrapping braces and comma-separation supported, e.g. {Skills}.`, '')
     .option('--workers <n>', 'Parallel workers (default: 4)', '4')
     .option('--output <path>', 'JSON output path')
     .option('--keep-workspace', '(agent mode) Keep temp workspace after run', false);
@@ -307,7 +324,11 @@ async function main(): Promise<void> {
     console.log(`Running all modes: ${modes.join(', ')}`);
   } else {
     if (!ALL_MODES.includes(modeArg)) {
-      console.error(`Invalid mode: ${modeArg}. Choose from: ${ALL_MODES.join(', ')} or 'all'`);
+      if (modeArg === 'agent+skills') {
+        console.error(`'agent+skills' mode has been replaced. Use: --mode agent --tools Skills`);
+      } else {
+        console.error(`Invalid mode: ${modeArg}. Choose from: ${ALL_MODES.join(', ')} or 'all'`);
+      }
       process.exit(1);
     }
     modes = [modeArg];
@@ -331,12 +352,18 @@ async function main(): Promise<void> {
   }
 
   // Build job list
-  const jobs: [EvalConfig, string, string][] = [];
+  const tools = parseToolsArg(opts.tools as string);
+  const unknownTools = tools.filter((t) => !KNOWN_TOOLS.some((k) => k.toLowerCase() === t.toLowerCase()));
+  if (unknownTools.length > 0) {
+    console.error(`Unknown tool(s): ${unknownTools.join(', ')}. Known tools: ${KNOWN_TOOLS.join(', ')}`);
+    process.exit(1);
+  }
+  const jobs: [EvalConfig, string, string, string[]][] = [];
   for (const evalCfg of registry) {
     for (const model of models) {
       for (const mode of modes) {
-        if ((mode === 'agent' || mode === 'agent+skills') && AGENT_INCOMPATIBLE_MODELS.includes(model)) continue;
-        jobs.push([evalCfg, model, mode]);
+        if (mode === 'agent' && AGENT_INCOMPATIBLE_MODELS.includes(model)) continue;
+        jobs.push([evalCfg, model, mode, mode === 'agent' ? tools : []]);
       }
     }
   }
@@ -353,15 +380,15 @@ async function main(): Promise<void> {
 
   const limit = pLimit(parseInt(opts.workers, 10) || 4);
   await Promise.all(
-    jobs.map(([evalCfg, model, mode]) =>
+    jobs.map(([evalCfg, model, mode, jobTools]) =>
       limit(async () => {
         try {
-          const result = await runJob(evalCfg, model, mode, apiKey, opts.keepWorkspace as boolean);
+          const result = await runJob(evalCfg, model, mode, jobTools, apiKey, opts.keepWorkspace as boolean);
           results.push(result);
           printResult(result);
         } catch (exc) {
           console.log(`  [ERROR] ${evalCfg.id}/${model}/${mode}: ${exc}`);
-          results.push({ eval_id: evalCfg.id, model, mode, status: 'error', error: String(exc) });
+          results.push({ eval_id: evalCfg.id, model, mode, tools: jobTools, status: 'error', error: String(exc) });
         }
       }),
     ),
@@ -378,8 +405,10 @@ async function main(): Promise<void> {
   outputPath = join(FRAMEWORK_ROOT, outputPath);
 
   // Deduplicate and merge with existing
-  const deduped = Object.values(Object.fromEntries(results.map((r) => [`${r.eval_id}|${r.model}|${r.mode}`, r])));
-  const newKeys = new Set(deduped.map((r) => `${r.eval_id}|${r.model}|${r.mode}`));
+  const key = (r: Record<string, unknown>) =>
+    `${r.eval_id}|${r.model}|${r.mode}|${((r.tools as string[]) ?? []).join(',')}`;
+  const deduped = Object.values(Object.fromEntries(results.map((r) => [key(r), r])));
+  const newKeys = new Set(deduped.map(key));
 
   let existing: Record<string, unknown>[] = [];
   if (existsSync(outputPath)) {
@@ -395,7 +424,7 @@ async function main(): Promise<void> {
     }
   }
 
-  const merged = [...existing.filter((r) => !newKeys.has(`${r.eval_id}|${r.model}|${r.mode}`)), ...deduped];
+  const merged = [...existing.filter((r) => !newKeys.has(key(r))), ...deduped];
 
   writeFileSync(outputPath, JSON.stringify(merged, null, 2), 'utf-8');
   console.log(`\n[Output] Results saved to: ${outputPath}`);

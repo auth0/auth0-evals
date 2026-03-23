@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { extractCodeBlocks, DEFAULT_MODEL } from '../src/run.js';
+import { extractCodeBlocks, DEFAULT_MODEL, parseToolsArg } from '../src/run.js';
 
 describe('DEFAULT_MODEL', () => {
   it('is gpt-5.2', () => {
@@ -85,5 +85,56 @@ describe('extractCodeBlocks', () => {
       'Make sure to call loginWithRedirect when the user clicks login.\n```jsx\nfunction App() { return <div />; }';
     const result = extractCodeBlocks(text);
     expect(result).not.toContain('loginWithRedirect');
+  });
+});
+
+describe('parseToolsArg', () => {
+  it('returns empty array for empty string', () => {
+    expect(parseToolsArg('')).toEqual([]);
+  });
+
+  it('returns empty array for whitespace-only string', () => {
+    expect(parseToolsArg('   ')).toEqual([]);
+  });
+
+  it('parses a single tool', () => {
+    expect(parseToolsArg('Skills')).toEqual(['Skills']);
+  });
+
+  it('strips surrounding braces', () => {
+    expect(parseToolsArg('{Skills}')).toEqual(['Skills']);
+  });
+
+  it('strips surrounding braces with multiple tools', () => {
+    expect(parseToolsArg('{Skills,Other}')).toEqual(['Other', 'Skills']);
+  });
+
+  it('parses comma-separated tools', () => {
+    expect(parseToolsArg('Skills,Other')).toEqual(['Other', 'Skills']);
+  });
+
+  it('trims whitespace around each tool', () => {
+    expect(parseToolsArg(' Skills , Other ')).toEqual(['Other', 'Skills']);
+  });
+
+  it('trims whitespace inside braces', () => {
+    expect(parseToolsArg('{ Skills }')).toEqual(['Skills']);
+  });
+
+  it('filters out empty segments from consecutive commas', () => {
+    expect(parseToolsArg('Skills,,Other')).toEqual(['Other', 'Skills']);
+  });
+
+  it('sorts tools alphabetically', () => {
+    expect(parseToolsArg('Other,Skills')).toEqual(['Other', 'Skills']);
+    expect(parseToolsArg('Skills,Other')).toEqual(['Other', 'Skills']);
+  });
+
+  it('deduplicates repeated tools', () => {
+    expect(parseToolsArg('Skills,Skills')).toEqual(['Skills']);
+  });
+
+  it('returns empty array for empty braces', () => {
+    expect(parseToolsArg('{}')).toEqual([]);
   });
 });
