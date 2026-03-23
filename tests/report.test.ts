@@ -205,9 +205,7 @@ describe('renderHtml delta badges', () => {
   });
 
   it('no delta shown on baseline tab', () => {
-    const results = [
-      makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 1.0 }),
-    ];
+    const results = [makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 1.0 })];
     const html = renderHtml(results, '2024-01-01 00:00');
     // Extract only the body content (after </style>) to avoid matching CSS class definitions
     const body = html.slice(html.indexOf('</style>'));
@@ -280,9 +278,7 @@ describe('computeDeltas', () => {
   });
 
   it('returns null delta when baseline is missing', () => {
-    const modeGrouped = groupByMode([
-      makeResult('react_quickstart', 'gpt-5.2', 'agent', { grader_pass_rate: 0.75 }),
-    ]);
+    const modeGrouped = groupByMode([makeResult('react_quickstart', 'gpt-5.2', 'agent', { grader_pass_rate: 0.75 })]);
     const deltas = computeDeltas(modeGrouped);
     expect(deltas['agent']['react_quickstart']['gpt-5.2']).toBeNull();
   });
