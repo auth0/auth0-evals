@@ -20,7 +20,7 @@
     "p-limit": "^7.3.0"
   },
   "devDependencies": {
-    "@types/node": "^25.5.0",
+    "@types/node": "^24.12.0",
     "@types/nunjucks": "^3.2.6",
     "@vitest/coverage-v8": "^4.1.0",
     "typescript": "^5.4.5",
