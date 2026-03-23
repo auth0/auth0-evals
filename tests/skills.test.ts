@@ -70,15 +70,15 @@ describe('augmentWithSkills - no skills', () => {
 });
 
 describe('augmentWithSkills - success path', () => {
-  it('prepends SDK Reference Material section to system prompt', async () => {
+  it('prepends SDK Reference Material section to agentSystemPrompt', async () => {
     mockFetch('# Auth0 React SDK\nUse Auth0Provider.');
     const augmentWithSkills = await importAugment();
     const evalDef = makeEvalDef({ skills: ['auth0-react'] });
 
     const result = await augmentWithSkills(evalDef);
 
-    expect(result.systemPrompt).toContain('## SDK Reference Material');
-    expect(result.systemPrompt).toContain('Auth0 React SDK');
+    expect(result.agentSystemPrompt).toContain('## SDK Reference Material');
+    expect(result.agentSystemPrompt).toContain('Auth0 React SDK');
   });
 
   it('includes the skill name as a heading', async () => {
@@ -88,45 +88,45 @@ describe('augmentWithSkills - success path', () => {
 
     const result = await augmentWithSkills(evalDef);
 
-    expect(result.systemPrompt).toContain('### auth0-react');
+    expect(result.agentSystemPrompt).toContain('### auth0-react');
   });
 
-  it('appends existing system prompt after a separator', async () => {
+  it('appends existing agentSystemPrompt after a separator', async () => {
     mockFetch('Skill content.');
     const augmentWithSkills = await importAugment();
-    const evalDef = makeEvalDef({ skills: ['auth0-react'], systemPrompt: 'You are an expert.' });
+    const evalDef = makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: 'You are an expert.' });
 
     const result = await augmentWithSkills(evalDef);
 
-    expect(result.systemPrompt).toContain('## SDK Reference Material');
-    expect(result.systemPrompt).toContain('---');
-    expect(result.systemPrompt).toContain('You are an expert.');
-    const skillIdx = result.systemPrompt.indexOf('## SDK Reference Material');
-    const separatorIdx = result.systemPrompt.indexOf('---');
-    const promptIdx = result.systemPrompt.indexOf('You are an expert.');
+    expect(result.agentSystemPrompt).toContain('## SDK Reference Material');
+    expect(result.agentSystemPrompt).toContain('---');
+    expect(result.agentSystemPrompt).toContain('You are an expert.');
+    const skillIdx = result.agentSystemPrompt.indexOf('## SDK Reference Material');
+    const separatorIdx = result.agentSystemPrompt.indexOf('---');
+    const promptIdx = result.agentSystemPrompt.indexOf('You are an expert.');
     expect(skillIdx).toBeLessThan(separatorIdx);
     expect(separatorIdx).toBeLessThan(promptIdx);
   });
 
-  it('does not add separator when there is no existing system prompt', async () => {
+  it('does not add separator when there is no existing agentSystemPrompt', async () => {
     mockFetch('Skill content.');
     const augmentWithSkills = await importAugment();
-    const evalDef = makeEvalDef({ skills: ['auth0-react'], systemPrompt: '' });
+    const evalDef = makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: '' });
 
     const result = await augmentWithSkills(evalDef);
 
-    expect(result.systemPrompt).not.toContain('---');
+    expect(result.agentSystemPrompt).not.toContain('---');
   });
 
   it('does not mutate the original evalDef', async () => {
     mockFetch('Skill content.');
     const augmentWithSkills = await importAugment();
-    const evalDef = makeEvalDef({ skills: ['auth0-react'], systemPrompt: 'Original.' });
-    const originalPrompt = evalDef.systemPrompt;
+    const evalDef = makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: 'Original.' });
+    const originalPrompt = evalDef.agentSystemPrompt;
 
     await augmentWithSkills(evalDef);
 
-    expect(evalDef.systemPrompt).toBe(originalPrompt);
+    expect(evalDef.agentSystemPrompt).toBe(originalPrompt);
   });
 
   it('joins multiple skills with a separator', async () => {
@@ -143,8 +143,8 @@ describe('augmentWithSkills - success path', () => {
 
     const result = await augmentWithSkills(evalDef);
 
-    expect(result.systemPrompt).toContain('### auth0-react');
-    expect(result.systemPrompt).toContain('### auth0-nextjs');
+    expect(result.agentSystemPrompt).toContain('### auth0-react');
+    expect(result.agentSystemPrompt).toContain('### auth0-nextjs');
   });
 });
 
@@ -212,7 +212,7 @@ describe('augmentWithSkills - failure paths', () => {
 
     const result = await augmentWithSkills(evalDef);
 
-    expect(result.systemPrompt).toContain('auth0-react');
-    expect(result.systemPrompt).not.toContain('bad-skill');
+    expect(result.agentSystemPrompt).toContain('auth0-react');
+    expect(result.agentSystemPrompt).not.toContain('bad-skill');
   });
 });
