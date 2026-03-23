@@ -24,7 +24,10 @@ export class UnknownModeError extends EvalFrameworkError {
 }
 
 export class LlmApiError extends EvalFrameworkError {
-  constructor(readonly status: number, body: string) {
+  constructor(
+    readonly status: number,
+    body: string,
+  ) {
     super(`LLM API error ${status}: ${body.slice(0, 400)}`, 'LLM_API_ERROR', { status, body: body.slice(0, 400) });
     this.name = 'LlmApiError';
   }

@@ -114,9 +114,9 @@ describe('score - Setup Friction', () => {
 
 describe('score - Setup Speed', () => {
   it.each([
-    [30.0,  100.0],  // below reference
-    [60.0,  100.0],  // at exact reference
-    [110.0,  80.0],  // 50s over: 100 - 50*0.4
+    [30.0, 100.0], // below reference
+    [60.0, 100.0], // at exact reference
+    [110.0, 80.0], // 50s over: 100 - 50*0.4
   ])('duration %fs → score %f', (duration, expectedScore) => {
     const dir = tmpDir();
     const record = makeRecord({ workspace: dir });
