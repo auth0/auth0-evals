@@ -12,6 +12,7 @@ import type { Dirent } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { estimateCost } from '../config/costs.js';
+import { isPathInside, resolveInside } from './path-utils.js';
 import { BedrockToolConfigError, LlmApiError } from '../errors.js';
 import { BASE_URL, BEDROCK_MODELS, GEMINI_MODELS, MAX_TURNS } from '../config/settings.js';
 
@@ -231,9 +232,10 @@ export class ToolExecutor {
   }
 
   private readFile(path: string): string {
-    const full = resolve(join(this.workspace, path));
-    const fullReal = (() => { try { return realpathSync(full); } catch { return full; } })();
-    if (!fullReal.startsWith(this.workspace)) {
+    let full: string;
+    try {
+      full = resolveInside(this.workspace, path);
+    } catch {
       return 'Access denied: path is outside workspace';
     }
     if (existsSync(full) && statSync(full).isDirectory()) {
@@ -258,9 +260,10 @@ export class ToolExecutor {
   }
 
   private listFiles(path: string): string {
-    const full = resolve(join(this.workspace, path));
-    const fullReal = (() => { try { return realpathSync(full); } catch { return full; } })();
-    if (!fullReal.startsWith(this.workspace)) {
+    let full: string;
+    try {
+      full = resolveInside(this.workspace, path);
+    } catch {
       return 'Access denied: path is outside workspace';
     }
     if (!existsSync(full)) {
@@ -276,7 +279,12 @@ export class ToolExecutor {
   }
 
   private writeFile(path: string, content: string): string {
-    const full = resolve(join(this.workspace, path));
+    let full: string;
+    try {
+      full = resolveInside(this.workspace, path);
+    } catch {
+      return 'Access denied: path is outside workspace';
+    }
     mkdirSync(join(full, '..'), { recursive: true });
     writeFileSync(full, content, 'utf-8');
     return `Written: ${path} (${content.length} chars)`;
@@ -602,7 +610,7 @@ export function collectFiles(root: string, relativeTo: string): string[] {
         // Only include symlinked files if they resolve within workspace
         try {
           const realPath = realpathSync(fullPath);
-          if (realPath.startsWith(workspaceRoot) && statSync(fullPath).isFile()) {
+          if (isPathInside(workspaceRoot, realPath) && statSync(fullPath).isFile()) {
             files.push(relative(relativeTo, fullPath).replace(/\\/g, '/'));
             if (files.length >= MAX_LISTED_FILES) {
               truncated = true;
@@ -621,7 +629,7 @@ export function collectFiles(root: string, relativeTo: string): string[] {
       } else if (entry.isFile()) {
         try {
           const realPath = realpathSync(fullPath);
-          if (realPath.startsWith(workspaceRoot)) {
+          if (isPathInside(workspaceRoot, realPath)) {
             files.push(relative(relativeTo, fullPath).replace(/\\/g, '/'));
             if (files.length >= MAX_LISTED_FILES) {
               truncated = true;
