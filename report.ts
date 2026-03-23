@@ -34,7 +34,9 @@ export function loadScores(paths: string[]): Record<string, unknown>[] {
   return results;
 }
 
-export function groupResults(results: Record<string, unknown>[]): Record<string, Record<string, Record<string, unknown>>> {
+export function groupResults(
+  results: Record<string, unknown>[],
+): Record<string, Record<string, Record<string, unknown>>> {
   const grouped: Record<string, Record<string, Record<string, unknown>>> = {};
   for (const r of results) {
     const eid = r.eval_id as string;
@@ -128,7 +130,7 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
     return obj;
   });
   env.addFilter('repeat_str', (str: string, n: number) => new nunjucks.runtime.SafeString(str.repeat(Math.max(0, n))));
-  env.addFilter('truncate_str', (str: string, n: number) => str ? str.slice(0, n) : '');
+  env.addFilter('truncate_str', (str: string, n: number) => (str ? str.slice(0, n) : ''));
   env.addFilter('format', (fmt: string, ...args: unknown[]) => {
     let i = 0;
     return fmt.replace(/%\.(\d+)f|%\.(\d+)d|%s|%d/g, (match, decF, decD) => {
@@ -168,7 +170,7 @@ async function main(): Promise<void> {
   program.parse(process.argv);
   const opts = program.opts();
 
-  let inputFiles: string[] = opts.input as string[] | undefined ?? [];
+  let inputFiles: string[] = (opts.input as string[] | undefined) ?? [];
   if (inputFiles.length === 0) {
     inputFiles = readdirSync(FRAMEWORK_ROOT)
       .filter((f) => /^scores-.*\.json$/.test(f))

@@ -71,12 +71,7 @@ export function scoreToGrade(score: number): string {
   return 'F';
 }
 
-function makeDim(
-  name: string,
-  weight: number,
-  rawScore: number,
-  notes: string,
-): DimensionScore {
+function makeDim(name: string, weight: number, rawScore: number, notes: string): DimensionScore {
   return {
     name,
     weight,
@@ -154,8 +149,12 @@ function scoreErrors(record: RunRecord): [number, string] {
 function scoreDocs(docFeatures: Record<string, boolean>): [number, string] {
   const presentCount = Object.values(docFeatures).filter(Boolean).length;
   const s = Math.min(100.0, presentCount * DOCS_FEATURE_POINTS);
-  const present = Object.entries(docFeatures).filter(([, v]) => v).map(([k]) => k);
-  const missing = Object.entries(docFeatures).filter(([, v]) => !v).map(([k]) => k);
+  const present = Object.entries(docFeatures)
+    .filter(([, v]) => v)
+    .map(([k]) => k);
+  const missing = Object.entries(docFeatures)
+    .filter(([, v]) => !v)
+    .map(([k]) => k);
   const notes =
     `${present.length}/${Object.keys(docFeatures).length} AI discoverability: ${present.join(', ') || 'none'}. ` +
     `Missing: ${missing.join(', ') || 'none'}.`;
@@ -177,7 +176,7 @@ function scoreHallucination(workspace: string): [number, string] {
   const fakePatterns: [RegExp, string][] = [
     [/from\s+auth0\s+import\s+Auth0Client/i, "Auth0Client doesn't exist in auth0 package"],
     [/import\s+@auth0\/auth0-sdk/i, "@auth0/auth0-sdk doesn't exist"],
-    [/Auth0\.configure\(/i, "Auth0.configure() not a real method"],
+    [/Auth0\.configure\(/i, 'Auth0.configure() not a real method'],
     [/auth0\.loginWithRedirect\(/i, 'Incorrect method name (should be loginWithPopup)'],
   ];
 
@@ -214,7 +213,11 @@ function scoreSecurity(workspace: string): [number, string] {
 
   const vulnPatterns: [RegExp, string, number][] = [
     [/client_secret\s*[=:]\s*['"][^'"]+['"]/i, 'Hardcoded client_secret', SECURITY_PENALTY_HARDCODED_SECRET],
-    [/localStorage\.setItem\(['"'].*token/i, 'Token in localStorage (use secure cookie)', SECURITY_PENALTY_INSECURE_STORAGE],
+    [
+      /localStorage\.setItem\(['"'].*token/i,
+      'Token in localStorage (use secure cookie)',
+      SECURITY_PENALTY_INSECURE_STORAGE,
+    ],
     [/api_key\s*[=:]\s*['"][^'"]+['"]/i, 'Hardcoded API key', SECURITY_PENALTY_HARDCODED_SECRET],
     [/password\s*[=:]\s*['"][^'"]+['"]/i, 'Hardcoded password', SECURITY_PENALTY_HARDCODED_SECRET],
     [/client_secret.*process\.env/i, 'client_secret exposed in frontend', SECURITY_PENALTY_EXPOSED_SECRET],
@@ -288,13 +291,13 @@ export function score(
 
   const dimensions: DimensionScore[] = [
     makeDim('Setup Friction', 0.15, frictionScore, frictionNotes),
-    makeDim('Setup Speed', 0.10, speedScore, speedNotes),
-    makeDim('Efficiency', 0.10, effScore, effNotes),
+    makeDim('Setup Speed', 0.1, speedScore, speedNotes),
+    makeDim('Efficiency', 0.1, effScore, effNotes),
     makeDim('Error Recovery', 0.05, errScore, errNotes),
-    makeDim('Docs Quality', 0.10, docScore, docNotes),
+    makeDim('Docs Quality', 0.1, docScore, docNotes),
     makeDim('Correctness', 0.25, correctnessScore, correctnessNotes),
     makeDim('Hallucination', 0.15, hallucinationScore, hallucinationNotes),
-    makeDim('Security', 0.10, securityScore, securityNotes),
+    makeDim('Security', 0.1, securityScore, securityNotes),
   ];
 
   const overall = Math.round(dimensions.reduce((sum, d) => sum + d.weighted, 0) * 10) / 10;

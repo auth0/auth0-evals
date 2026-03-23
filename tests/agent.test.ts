@@ -420,9 +420,7 @@ describe('runAgent - system prompt', () => {
     const dir = tmpDir();
     await runAgent('key', 'gpt-4o', makeTask('Use tools only.'), dir);
 
-    const systemMsgs = capturedMessages.filter(
-      (m) => (m as Record<string, unknown>).role === 'system',
-    );
+    const systemMsgs = capturedMessages.filter((m) => (m as Record<string, unknown>).role === 'system');
     expect(systemMsgs.length).toBeGreaterThanOrEqual(1);
     expect((systemMsgs[0] as Record<string, unknown>).content).toContain('Use tools only');
   });
@@ -441,9 +439,7 @@ describe('runAgent - system prompt', () => {
     const dir = tmpDir();
     await runAgent('key', 'gpt-4o', makeTask(''), dir);
 
-    const systemMsgs = capturedMessages.filter(
-      (m) => (m as Record<string, unknown>).role === 'system',
-    );
+    const systemMsgs = capturedMessages.filter((m) => (m as Record<string, unknown>).role === 'system');
     expect(systemMsgs.length).toBe(0);
   });
 });
@@ -618,9 +614,7 @@ describe('runAgent - Gemini', () => {
     await runAgent('key', 'gemini-3-pro-preview', makeTask(), dir);
 
     const allMessages = capturedMessages.flat();
-    const functionMsgs = allMessages.filter(
-      (m) => (m as Record<string, unknown>).role === 'function',
-    );
+    const functionMsgs = allMessages.filter((m) => (m as Record<string, unknown>).role === 'function');
     expect(functionMsgs.length).toBe(1);
     expect((functionMsgs[0] as Record<string, unknown>).name).toBe('read_file');
   });

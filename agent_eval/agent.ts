@@ -7,7 +7,17 @@
  */
 
 import { execFileSync, execSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import type { Dirent } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -104,8 +114,7 @@ export const TOOL_DEFINITIONS = [
           path: {
             type: 'string',
             description:
-              'Relative path to a directory within the workspace, ' +
-              'or an empty string for the workspace root.',
+              'Relative path to a directory within the workspace, ' + 'or an empty string for the workspace root.',
           },
         },
         required: ['path'],
@@ -328,16 +337,11 @@ export class ToolExecutor {
 
   private askUser(question: string): string {
     const lowerQ = question.toLowerCase();
-    if (
-      (lowerQ.includes('domain') || lowerQ.includes('tenant')) &&
-      'domain' in this.credentials
-    ) {
+    if ((lowerQ.includes('domain') || lowerQ.includes('tenant')) && 'domain' in this.credentials) {
       return this.credentials.domain;
     }
     if (
-      (lowerQ.includes('client id') ||
-        lowerQ.includes('clientid') ||
-        lowerQ.includes('client_id')) &&
+      (lowerQ.includes('client id') || lowerQ.includes('clientid') || lowerQ.includes('client_id')) &&
       'client_id' in this.credentials
     ) {
       return this.credentials.client_id;
@@ -578,7 +582,14 @@ interface ToolCallEntry {
 }
 
 export const EXCLUDED_DIRS = new Set([
-  'node_modules', '.git', 'dist', '.next', '.nuxt', '__pycache__', '.venv', 'venv',
+  'node_modules',
+  '.git',
+  'dist',
+  '.next',
+  '.nuxt',
+  '__pycache__',
+  '.venv',
+  'venv',
 ]);
 
 export function collectFiles(root: string, relativeTo: string): string[] {
@@ -658,10 +669,7 @@ export function extractTokens(usage: Record<string, number>): [number, number] {
   return [inputTokens, outputTokens];
 }
 
-export function normalizeToolArgs(
-  name: string,
-  args: Record<string, unknown>,
-): Record<string, unknown> {
+export function normalizeToolArgs(name: string, args: Record<string, unknown>): Record<string, unknown> {
   if (['read_file', 'list_files', 'write_file'].includes(name) && !('path' in args)) {
     for (const alias of ['filename', 'file_path', 'filepath', 'file']) {
       if (alias in args) {

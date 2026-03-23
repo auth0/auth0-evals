@@ -50,7 +50,10 @@ export async function loadEval(evalConfig: EvalConfig, frameworkRoot: string): P
   const scaffold = loadScaffold(join(evalPath, 'scaffold'));
 
   const skillsRaw = meta.skills ?? '';
-  const skills = skillsRaw.split(',').map((s: string) => s.trim()).filter(Boolean);
+  const skills = skillsRaw
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean);
 
   return {
     id: evalConfig.id,

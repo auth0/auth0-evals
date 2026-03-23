@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { mkdirSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { writeFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { RunRecord, ToolCallRecord } from '../agent_eval/agent.js';

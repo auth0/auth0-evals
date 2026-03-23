@@ -1,0 +1,39 @@
+name: Setup npm
+description: Sets up Node.js, JFrog CLI, and configures the Artifactory registry
+
+inputs:
+  node-version:
+    description: Node.js version to use
+    default: '24'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+
+    # Retrieve artifactory credentials
+    - name: 🔐 Setup JFrog CLI
+      id: setup-jfrog-cli
+      uses: jfrog/setup-jfrog-cli@f0a84f35b0e0bd21838c5fb3e6788072d6540d13 # v4 at 2025-01-02
+      env:
+        JF_URL: https://a0us.jfrog.io
+      with:
+        oidc-provider-name: atko-cic
+
+    # Update npm settings (~/.npmrc) with artifactory registry and credentials
+    # https://oktawiki.atlassian.net/wiki/spaces/DPLATF/pages/2545881962/Artifactory+-+Getting+Started#artifactory-vs-a0us
+    - name: 🔐 Configure Artifactory
+      env:
+        ARTIFACTORY_USER: ${{ steps.setup-jfrog-cli.outputs.oidc-user }}
+        ARTIFACTORY_API_TOKEN: ${{ steps.setup-jfrog-cli.outputs.oidc-token }}
+      shell: bash
+      run: |
+        # Fetch and remove extra 'always-auth' setting to avoid npm warnings
+        curl -u $ARTIFACTORY_USER:$ARTIFACTORY_API_TOKEN https://a0us.jfrog.io/a0us/api/npm/npm/auth/a0 | grep -v ':always-auth' >> ~/.npmrc
+        echo "" >> ~/.npmrc # Add newline for separation
+        curl -u $ARTIFACTORY_USER:$ARTIFACTORY_API_TOKEN https://a0us.jfrog.io/artifactory/api/npm/npm/auth/a0 | grep -v ':always-auth' >> ~/.npmrc
+        echo "registry=https://a0us.jfrog.io/artifactory/api/npm/npm/" >> ~/.npmrc

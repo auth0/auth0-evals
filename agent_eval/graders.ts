@@ -32,10 +32,7 @@ function resolveProjectRoot(): string {
 const JUDGE_PROMPTS_DIR = join(resolveProjectRoot(), 'prompts', 'judge');
 
 function loadFrameworkPrompt(framework?: string): string {
-  const name =
-    framework && existsSync(join(JUDGE_PROMPTS_DIR, `${framework}.md`))
-      ? framework
-      : 'default';
+  const name = framework && existsSync(join(JUDGE_PROMPTS_DIR, `${framework}.md`)) ? framework : 'default';
   return readFileSync(join(JUDGE_PROMPTS_DIR, `${name}.md`), 'utf-8').trim();
 }
 
@@ -61,7 +58,15 @@ export function collectFiles(workspace: string): Record<string, string> {
 }
 
 const EXCLUDED_DIRS = new Set([
-  'node_modules', '.git', 'dist', '.next', '.nuxt', '__pycache__', '.venv', 'venv', '.build',
+  'node_modules',
+  '.git',
+  'dist',
+  '.next',
+  '.nuxt',
+  '__pycache__',
+  '.venv',
+  'venv',
+  '.build',
 ]);
 
 function walkDir(dir: string, root: string, files: Record<string, string>): void {
@@ -177,13 +182,7 @@ export async function runGraders(
       }
       results.push({ name, kind, passed, detail });
     } else if (kind === 'judge') {
-      const { passed, detail } = await llmJudge(
-        g.question!,
-        combinedText,
-        apiKey,
-        judgeModel,
-        g.framework,
-      );
+      const { passed, detail } = await llmJudge(g.question!, combinedText, apiKey, judgeModel, g.framework);
       results.push({ name, kind, passed, detail });
     } else {
       results.push({ name, kind, passed: false, detail: `Unknown grader kind: ${kind}` });
@@ -204,9 +203,7 @@ export async function llmJudge(
   const system =
     `${base} Reply with 'yes' or 'no' on the first line, ` +
     'then a brief explanation of your reasoning on the following lines.';
-  const user = loadUserTemplate()
-    .replace('{question}', question)
-    .replace('{code}', code.slice(0, 6000));
+  const user = loadUserTemplate().replace('{question}', question).replace('{code}', code.slice(0, 6000));
 
   const payload = JSON.stringify({
     model,
@@ -244,7 +241,10 @@ export async function llmJudge(
     const firstLine = answer.split('\n')[0].toLowerCase();
     const m = /^(yes|no)\b/.exec(firstLine);
     if (!m) {
-      return { passed: false, detail: `Judge (${model}) error: unexpected verdict ${JSON.stringify(firstLine)}: ${answer}` };
+      return {
+        passed: false,
+        detail: `Judge (${model}) error: unexpected verdict ${JSON.stringify(firstLine)}: ${answer}`,
+      };
     }
     return { passed: m[1] === 'yes', detail: `Judge (${model}): ${answer}` };
   } catch (e) {
@@ -258,4 +258,3 @@ export function passRate(results: GraderResult[]): number {
   if (!results.length) return 1.0;
   return results.filter((r) => r.passed).length / results.length;
 }
-
