@@ -299,6 +299,35 @@ describe('collectFiles', () => {
   });
 });
 
+// ── ToolExecutor.write_file tests ─────────────────────────────────────────────
+
+describe('ToolExecutor.write_file', () => {
+  it('writes a file within the workspace', () => {
+    const dir = tmpDir();
+    const executor = new ToolExecutor(dir);
+    const [result] = executor.execute('write_file', { path: 'output.txt', content: 'hello' });
+    expect(result).toContain('Written');
+    expect(result).toContain('output.txt');
+  });
+
+  it('rejects path traversal', () => {
+    const dir = tmpDir();
+    const executor = new ToolExecutor(dir);
+    const [result] = executor.execute('write_file', { path: '../../evil.txt', content: 'bad' });
+    expect(result).toContain('Access denied');
+  });
+
+  it('rejects symlink pointing outside workspace', () => {
+    const outside = mkdtempSync(join(tmpdir(), 'outside_'));
+    writeFileSync(join(outside, 'target.txt'), 'original');
+    const dir = tmpDir();
+    symlinkSync(join(outside, 'target.txt'), join(dir, 'link.txt'));
+    const executor = new ToolExecutor(dir);
+    const [result] = executor.execute('write_file', { path: 'link.txt', content: 'overwrite' });
+    expect(result).toContain('Access denied');
+  });
+});
+
 // ── ToolExecutor._read_file safety tests ─────────────────────────────────────
 
 describe('ToolExecutor.read_file', () => {
