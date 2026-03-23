@@ -76,7 +76,10 @@ export interface TurnMetric {
    * A higher number may indicate more complex reasoning or more attempts to gather information through tools.
    */
   toolCallCount: number;
-  costUsd: number; // estimated cost for this turn
+  /**
+   * Estimated cost for this turn
+   */
+  costUsd: number;
 }
 
 export interface ToolCallRecord {
@@ -826,8 +829,6 @@ export function primaryArg(name: string, args: Record<string, unknown>): string 
   }
   return JSON.stringify(args).slice(0, 80);
 }
-
-/** Returns true if the most recent prior call with the same tool and primary arg failed. */
 
 /**
  * Detect if the current tool call is a retry of a previous call that caused an error.
