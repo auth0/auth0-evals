@@ -36,6 +36,21 @@ export function isGeminiModel(model: string): boolean {
 
 // ── Data model ────────────────────────────────────────────────────────────────
 
+export type FinishReason = 'tool_calls' | 'stop' | 'max_tokens' | 'length' | 'error' | 'unknown';
+export type ErrorCategory = 'not_found' | 'timeout' | 'syntax' | 'auth' | 'network' | 'permission' | 'unknown';
+export type ActionType = 'Implementation' | 'Discovery' | 'Error' | 'Interruption' | 'unknown';
+
+/** Per-LLM-call metrics captured during the agent loop. */
+export interface TurnMetric {
+  turn: number;           // 1-based turn number
+  inputTokens: number;    // prompt tokens consumed this turn
+  outputTokens: number;   // completion tokens generated this turn
+  llmLatency: number;     // wall-clock seconds waiting for the LLM response
+  finishReason: FinishReason;
+  toolCallCount: number;  // number of tool calls the LLM requested in this turn
+  costUsd: number;        // estimated cost for this turn
+}
+
 export interface ToolCallRecord {
   name: string;
   args: Record<string, unknown>;
@@ -45,6 +60,10 @@ export interface ToolCallRecord {
   isDocLookup: boolean;
   isInterruption: boolean;
   causedError: boolean;
+  actionType: ActionType;           // Implementation | Discovery | Error | Interruption
+  isRetry: boolean;             // true if a prior call with same tool+target failed
+  recoveredFromError: boolean;  // true if isRetry and this call succeeded
+  errorCategory?: ErrorCategory;        // not_found | timeout | syntax | auth | network | permission | unknown
 }
 
 export interface RunRecord {
@@ -54,6 +73,7 @@ export interface RunRecord {
   startTime: number;
   endTime: number;
   toolCalls: ToolCallRecord[];
+  turnMetrics: TurnMetric[];
   providerErrors: string[];
   inputTokens: number;
   outputTokens: number;
@@ -71,6 +91,7 @@ function makeRunRecord(taskName: string, model: string, workspace: string): RunR
     startTime: 0,
     endTime: 0,
     toolCalls: [],
+    turnMetrics: [],
     providerErrors: [],
     inputTokens: 0,
     outputTokens: 0,
@@ -462,7 +483,9 @@ export async function runAgent(
 
   let taskFinishedOuter = false;
   for (let turn = 0; turn < MAX_TURNS; turn++) {
+    const tLlmStart = Date.now() / 1000;
     const response = await llmCall(apiKey, model, messages, TOOL_DEFINITIONS);
+    const llmLatency = Date.now() / 1000 - tLlmStart;
 
     const usage = (response.usage as Record<string, number>) ?? {};
     const [turnInput, turnOutput] = extractTokens(usage);
@@ -499,6 +522,16 @@ export async function runAgent(
       }
     }
 
+    record.turnMetrics.push({
+      turn: turn + 1,
+      inputTokens: turnInput,
+      outputTokens: turnOutput,
+      llmLatency: llmLatency,
+      finishReason: (choice?.finish_reason as FinishReason) ?? 'unknown',
+      toolCallCount: toolCalls.length,
+      costUsd: Math.round(estimateCost(model, turnInput, turnOutput) * 10_000) / 10_000,
+    });
+
     if (!toolCalls.length) {
       record.finalSummary = (message?.content as string) ?? '';
       record.status = 'success';
@@ -530,7 +563,10 @@ export async function runAgent(
         record.providerErrors.push(`${toolName}: ${result}`);
       }
 
-      record.toolCalls.push({
+      const isRetry = detectRetry(record.toolCalls, toolName, toolArgs);
+      const recovered = isRetry && !isError;
+
+      const toolCall: ToolCallRecord = {
         name: toolName,
         args: toolArgs,
         result,
@@ -539,7 +575,17 @@ export async function runAgent(
         isDocLookup: isDoc,
         isInterruption: isInterrupt,
         causedError: isError,
-      });
+        actionType: classifyActionType(toolName, isError),
+        isRetry,
+        recoveredFromError: recovered,
+      };
+
+      // Only when there is an error do we classify the error category; for successful calls, errorCategory is undefined.
+      if (isError) {
+        toolCall.errorCategory = classifyErrorCategory(result);
+      }
+      
+      record.toolCalls.push(toolCall);
 
       if (isBedrockModel(model)) {
         messages.push({ role: 'user', content: `[Result of ${toolName}]:\n${result}` });
@@ -685,6 +731,105 @@ export function normalizeToolArgs(name: string, args: Record<string, unknown>): 
     }
   }
   return args;
+}
+
+const TOOL_ACTION_TYPES: Record<string, ActionType> = {
+  'ask_user': 'Interruption',
+  'fetch_url': 'Discovery',
+  'read_file': 'Discovery',
+  'list_files': 'Discovery',
+  'write_file': 'Implementation',
+  'run_command': 'Implementation',
+  'finish_task': 'Implementation',
+};
+/**
+ * Classify the type of action represented by a tool call based on its name and whether it caused an error.
+ * 
+ * @param name The name of the tool being called.
+ * @param causedError A boolean indicating whether the tool call resulted in an error.
+ * @returns The classified ActionType for the tool call.
+ */
+export function classifyActionType(name: string, causedError: boolean): ActionType {
+  if (causedError) {
+    return 'Error';
+  }
+
+  return TOOL_ACTION_TYPES[name] ?? 'unknown';
+}
+
+/**
+ * Extract the primary identifying argument from a tool call's name and arguments, which is used for retry detection.
+ * The primary argument is determined based on the tool type:
+ * - For file-related tools (read_file, list_files, write_file), it's the 'path' argument.
+ * - For run_command, it's the 'command' argument (truncated to 80 chars).
+ * - For fetch_url, it's the 'url' argument.
+ * - For ask_user, it's the 'question' argument (truncated to 80 chars).
+ * - For other tools, it defaults to a JSON string of all arguments (truncated to 80 chars).
+ * @param name The name of the tool being called.
+ * @param args The arguments for the tool call.
+ * @returns The primary identifying argument for the tool call.
+ */
+export function primaryArg(name: string, args: Record<string, unknown>): string {
+  if (name === 'read_file' || name === 'list_files' || name === 'write_file') {
+    return ((args.path ?? args.filename ?? args.file_path ?? '') as string);
+  }
+  if (name === 'run_command') {
+    return ((args.command as string) ?? '').slice(0, 80);
+  }
+  if (name === 'fetch_url') {
+    return (args.url as string) ?? '';
+  }
+  if (name === 'ask_user') {
+    return ((args.question as string) ?? '').slice(0, 80);
+  }
+  return JSON.stringify(args).slice(0, 80);
+}
+
+/** Returns true if the most recent prior call with the same tool and primary arg failed. */
+
+
+/**
+ * Detect if the current tool call is a retry of a previous call that caused an error. 
+ * 
+ * @param toolCalls The history of tool calls to check against.
+ * @param toolName The name of the tool being called.
+ * @param toolArgs The arguments for the current tool call.
+ * @returns True if the current call is a retry of a previous call that caused an error, otherwise false.
+ * 
+ * @remarks Retry is determined by checking the history of tool calls for any prior call with the same tool name and primary argument that resulted in an error. 
+ * The primary argument is extracted based on the tool type (e.g., 'path' for file operations, 'command' for run_command, etc.) to identify retries of the same logical operation,
+ * even if other arguments differ.
+ */
+export function detectRetry(
+  toolCalls: ToolCallRecord[],
+  toolName: string,
+  toolArgs: Record<string, unknown>,
+): boolean {
+  const thisPrimary = primaryArg(toolName, toolArgs);
+  const lastSame = toolCalls.findLast(
+    (prev) => prev.name === toolName && primaryArg(prev.name, prev.args) === thisPrimary,
+  );
+  return lastSame?.causedError === true;
+}
+
+/**
+ * Classify an error result string into a category.
+ * 
+ * @param result  The error message string to classify.
+ * @returns The category of the error.
+ * 
+ * @remarks The error classification looks for key phrases in the error message to determine the category of error that occurred. 
+ * This is used for better analysis and understanding of the types of errors the agent encounters during tool execution.
+ */
+export function classifyErrorCategory(result: string): ErrorCategory {
+  const r = result.toLowerCase();
+  if (['not found', 'no such file', 'does not exist', 'file not found'].some((p) => r.includes(p))) return 'not_found';
+  if (['timed out', 'timeout', 'deadline'].some((p) => r.includes(p))) return 'timeout';
+  if (['permission denied', 'access denied', 'forbidden', '403'].some((p) => r.includes(p))) return 'permission';
+  if (['401', 'unauthorized', 'unauthenticated'].some((p) => r.includes(p))) return 'auth';
+  if (['connection', 'network', 'could not fetch', 'urlopen error', 'name or service'].some((p) => r.includes(p))) return 'network';
+  if (['syntaxerror', 'syntax error', 'unexpected token', 'json', 'parse error', 'decode'].some((p) => r.includes(p))) return 'syntax';
+  return 'unknown';
 }
 
 export function parseXmlToolCalls(content: string): ToolCallEntry[] {

@@ -20,6 +20,7 @@ function makeRecord(overrides: Partial<RunRecord> = {}): RunRecord {
     startTime: 0,
     endTime: 0,
     toolCalls: [],
+    turnMetrics: [],
     providerErrors: [],
     inputTokens: 0,
     outputTokens: 0,
@@ -41,6 +42,9 @@ function makeToolCall(name = 'read_file', duration = 1.0, overrides: Partial<Too
     isDocLookup: false,
     isInterruption: false,
     causedError: false,
+    actionType: 'Implementation',
+    isRetry: false,
+    recoveredFromError: false,
     ...overrides,
   };
 }

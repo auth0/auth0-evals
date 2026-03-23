@@ -15,8 +15,10 @@ import {
   isGeminiModel,
   llmCall,
   runAgent,
+  detectRetry,
   MAX_LISTED_FILES,
   EXCLUDED_DIRS,
+  type ToolCallRecord,
 } from '../agent_eval/agent.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -617,5 +619,74 @@ describe('runAgent - Gemini', () => {
     const functionMsgs = allMessages.filter((m) => (m as Record<string, unknown>).role === 'function');
     expect(functionMsgs.length).toBe(1);
     expect((functionMsgs[0] as Record<string, unknown>).name).toBe('read_file');
+  });
+});
+
+// ── detectRetry tests ──────────────────────────────────────────────────────────
+
+function makeRecord(overrides: Partial<ToolCallRecord> = {}): ToolCallRecord {
+  return {
+    name: 'run_command',
+    args: { command: 'npm test' },
+    result: '',
+    startTime: 0,
+    endTime: 1,
+    isDocLookup: false,
+    isInterruption: false,
+    causedError: false,
+    actionType: 'Implementation',
+    isRetry: false,
+    recoveredFromError: false,
+    ...overrides,
+  };
+}
+
+describe('detectRetry', () => {
+  it('returns false when there are no prior calls', () => {
+    expect(detectRetry([], 'run_command', { command: 'npm test' })).toBe(false);
+  });
+
+  it('returns true when the last matching call failed', () => {
+    const history = [makeRecord({ causedError: true })];
+    expect(detectRetry(history, 'run_command', { command: 'npm test' })).toBe(true);
+  });
+
+  it('returns false when the last matching call succeeded', () => {
+    const history = [makeRecord({ causedError: false })];
+    expect(detectRetry(history, 'run_command', { command: 'npm test' })).toBe(false);
+  });
+
+  it('returns false when prior call failed but a later matching call succeeded', () => {
+    const history = [
+      makeRecord({ causedError: true }),
+      makeRecord({ causedError: false }),
+    ];
+    expect(detectRetry(history, 'run_command', { command: 'npm test' })).toBe(false);
+  });
+
+  it('returns true when prior call failed and only unrelated calls followed', () => {
+    const history = [
+      makeRecord({ causedError: true }),
+      makeRecord({ name: 'read_file', args: { path: 'src/index.ts' }, causedError: false }),
+      makeRecord({ name: 'read_file', args: { path: 'src/app.ts' }, causedError: false }),
+    ];
+    expect(detectRetry(history, 'run_command', { command: 'npm test' })).toBe(true);
+  });
+
+  it('returns false when a different primary arg failed', () => {
+    const history = [makeRecord({ causedError: true, args: { command: 'npm install' } })];
+    expect(detectRetry(history, 'run_command', { command: 'npm test' })).toBe(false);
+  });
+
+  it('returns false when a different tool failed with the same-looking args', () => {
+    const history = [makeRecord({ name: 'write_file', causedError: true, args: { path: 'npm test' } })];
+    expect(detectRetry(history, 'run_command', { command: 'npm test' })).toBe(false);
+  });
+
+  it('works for write_file using path as the primary arg', () => {
+    const history = [
+      makeRecord({ name: 'write_file', args: { path: 'src/index.ts', content: 'x' }, causedError: true }),
+    ];
+    expect(detectRetry(history, 'write_file', { path: 'src/index.ts', content: 'y' })).toBe(true);
   });
 });
