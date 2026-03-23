@@ -657,10 +657,7 @@ describe('detectRetry', () => {
   });
 
   it('returns false when prior call failed but a later matching call succeeded', () => {
-    const history = [
-      makeRecord({ causedError: true }),
-      makeRecord({ causedError: false }),
-    ];
+    const history = [makeRecord({ causedError: true }), makeRecord({ causedError: false })];
     expect(detectRetry(history, 'run_command', { command: 'npm test' })).toBe(false);
   });
 
