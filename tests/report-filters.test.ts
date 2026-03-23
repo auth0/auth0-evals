@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { rateCssClass, gradeCssClass } from '../report-filters.js';
+import { rateCssClass, gradeCssClass } from '../src/report-filters.js';
 
 // ── rateCssClass ──────────────────────────────────────────────────────────────
 

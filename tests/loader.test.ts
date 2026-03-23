@@ -7,13 +7,13 @@ import { mkdirSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { loadEval } from '../runners/loader.js';
-import { EvalConfigError, EvalNotFoundError } from '../errors.js';
+import { loadEval } from '../src/runners/loader.js';
+import { EvalConfigError, EvalNotFoundError } from '../src/errors.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 // Absolute path to graders module so dynamically-created graders.ts in tmpdir can import it
-const GRADERS_ABS_PATH = resolve(__dirname, '../agent_eval/graders.js');
+const GRADERS_ABS_PATH = resolve(__dirname, '../src/agent_eval/graders.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

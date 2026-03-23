@@ -19,9 +19,8 @@ import { ALL_FILTERS } from './report-filters.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-// When running from dist/, go up one level to the project root.
-// When running from source (Vitest), __dirname is already the project root.
-const FRAMEWORK_ROOT = basename(__dirname) === 'dist' ? join(__dirname, '..') : __dirname;
+// When running from dist/ or src/, go up one level to reach the project root.
+const FRAMEWORK_ROOT = ['dist', 'src'].includes(basename(__dirname)) ? join(__dirname, '..') : __dirname;
 
 const MODES = ['baseline', 'agent', 'agent+skills'];
 
@@ -116,7 +115,7 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
   }
   const groupedSortedKeys = Object.keys(grouped).sort();
 
-  const env = nunjucks.configure(join(FRAMEWORK_ROOT, 'templates'), {
+  const env = nunjucks.configure(join(FRAMEWORK_ROOT, 'src', 'templates'), {
     autoescape: true,
     noCache: true,
   });

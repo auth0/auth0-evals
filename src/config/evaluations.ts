@@ -10,18 +10,18 @@ export const EVALUATIONS: EvalConfig[] = [
     id: 'react_quickstart',
     name: 'React Quickstart',
     category: 'quickstarts',
-    path: 'evals/quickstarts/react',
+    path: 'src/evals/quickstarts/react',
   },
   {
     id: 'nextjs_quickstart',
     name: 'Next.js App Router Quickstart',
     category: 'quickstarts',
-    path: 'evals/quickstarts/nextjs',
+    path: 'src/evals/quickstarts/nextjs',
   },
   {
     id: 'swift_quickstart',
     name: 'Swift iOS Quickstart',
     category: 'quickstarts',
-    path: 'evals/quickstarts/swift',
+    path: 'src/evals/quickstarts/swift',
   },
 ];

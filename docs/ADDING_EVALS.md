@@ -6,10 +6,10 @@ This guide walks through adding a new evaluation to `auth0-evals`.
 
 ## 1. Create the Folder Structure
 
-Pick a descriptive slug and create a directory under `evals/<category>/<eval-id>/`. The category groups related evals (e.g., `quickstarts`, `api`, `mfa`).
+Pick a descriptive slug and create a directory under `src/evals/<category>/<eval-id>/`. The category groups related evals (e.g., `quickstarts`, `api`, `mfa`).
 
 ```
-evals/
+src/evals/
 └── quickstarts/
     └── my-new-eval/
         ├── PROMPT.md      # required
@@ -120,7 +120,7 @@ scaffold/
 
 ## 4. Register the Evaluation
 
-Add an entry to `config/evaluations.ts`:
+Add an entry to `src/config/evaluations.ts`:
 
 ```typescript
 export const EVALUATIONS: EvalConfig[] = [
@@ -129,7 +129,7 @@ export const EVALUATIONS: EvalConfig[] = [
     id: 'my_new_eval',                           // unique snake_case identifier
     name: 'My New Eval',                         // human-readable display name
     category: 'quickstarts',                     // matches the directory category
-    path: 'evals/quickstarts/my-new-eval',
+    path: 'src/evals/quickstarts/my-new-eval',
   },
 ];
 ```
@@ -147,7 +147,7 @@ Add a line to the `entry` object:
 ```typescript
 entry: {
   // existing entries …
-  'evals/quickstarts/my-new-eval/graders': resolve(__dirname, 'evals/quickstarts/my-new-eval/graders.ts'),
+  'src/evals/quickstarts/my-new-eval/graders': resolve(__dirname, 'src/evals/quickstarts/my-new-eval/graders.ts'),
 },
 ```
 

@@ -6,7 +6,7 @@
  */
 
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import type { EvalDefinition } from '../runners/loader.js';
+import type { EvalDefinition } from '../src/runners/loader.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -37,7 +37,7 @@ function mockFetchError(error = new Error('network failure')) {
 
 // Fresh module import per test to reset the module-level skillCache
 async function importAugment() {
-  const mod = await import('../runners/skills.js');
+  const mod = await import('../src/runners/skills.js');
   return mod.augmentWithSkills;
 }
 

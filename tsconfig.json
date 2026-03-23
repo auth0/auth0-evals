@@ -16,6 +16,6 @@
     "sourceMap": true,
     "types": ["node", "nunjucks"]
   },
-  "include": ["*.ts", "config/**/*", "runners/**/*", "agent_eval/**/*", "tests/**/*", "evals/**/*.ts"],
+  "include": ["src/**/*.ts", "tests/**/*.ts", "vite.config.ts"],
   "exclude": ["node_modules", "dist"]
 }

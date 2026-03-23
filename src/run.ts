@@ -33,7 +33,7 @@ import { tmpdir } from 'node:os';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const FRAMEWORK_ROOT = basename(__dirname) === 'dist' ? join(__dirname, '..') : __dirname;
+const FRAMEWORK_ROOT = ['dist', 'src'].includes(basename(__dirname)) ? join(__dirname, '..') : __dirname;
 
 // Load .env
 loadDotenv({ path: join(FRAMEWORK_ROOT, '.env') });

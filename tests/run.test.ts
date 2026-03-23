@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { extractCodeBlocks, DEFAULT_MODEL } from '../run.js';
+import { extractCodeBlocks, DEFAULT_MODEL } from '../src/run.js';
 
 describe('DEFAULT_MODEL', () => {
   it('is gpt-5.2', () => {
