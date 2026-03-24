@@ -3,14 +3,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { makeTmpDir } from './tmp.js';
 import { isPathInside, resolveInside } from '../src/agent_eval/path-utils.js';
 
-function tmpDir(): string {
-  return mkdtempSync(join(tmpdir(), 'path_utils_test_'));
-}
+const tmpDir = makeTmpDir('path_utils_test_');
 
 // ── isPathInside tests ────────────────────────────────────────────────────────
 
@@ -45,27 +43,27 @@ describe('isPathInside', () => {
 
 describe('resolveInside', () => {
   it('resolves an existing file to its canonical path', () => {
-    const dir = realpathSync(tmpDir());
+    const dir = tmpDir();
     writeFileSync(join(dir, 'file.txt'), 'hello');
     const result = resolveInside(dir, 'file.txt');
     expect(result).toBe(join(dir, 'file.txt'));
   });
 
   it('throws on directory traversal', () => {
-    const dir = realpathSync(tmpDir());
+    const dir = tmpDir();
     expect(() => resolveInside(dir, '../../etc/passwd')).toThrow('path escapes directory');
   });
 
   it('resolves a non-existent file to a path within the directory', () => {
-    const dir = realpathSync(tmpDir());
+    const dir = tmpDir();
     const result = resolveInside(dir, 'new-file.ts');
     expect(isPathInside(dir, result)).toBe(true);
   });
 
   it('throws when a symlink escapes the directory', () => {
-    const outside = realpathSync(mkdtempSync(join(tmpdir(), 'outside_')));
+    const outside = tmpDir();
     writeFileSync(join(outside, 'secret.txt'), 'secret');
-    const dir = realpathSync(tmpDir());
+    const dir = tmpDir();
     symlinkSync(join(outside, 'secret.txt'), join(dir, 'link.txt'));
     expect(() => resolveInside(dir, 'link.txt')).toThrow('path escapes directory');
   });

@@ -3,9 +3,9 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { mkdirSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
-import { tmpdir } from 'node:os';
+import { makeTmpDir } from './tmp.js';
 import { fileURLToPath } from 'node:url';
 import { loadEval } from '../src/runners/loader.js';
 import { EvalConfigError, EvalNotFoundError } from '../src/errors.js';
@@ -54,10 +54,11 @@ function makeEvalDir(
   return evalDir;
 }
 
+const tmpDir = makeTmpDir('loader_test_');
 let tmpBase: string;
 
 beforeEach(() => {
-  tmpBase = mkdtempSync(join(tmpdir(), 'loader_test_'));
+  tmpBase = tmpDir();
 });
 
 // ── PROMPT.md parsing tests ───────────────────────────────────────────────────

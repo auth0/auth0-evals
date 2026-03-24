@@ -3,9 +3,9 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { makeTmpDir } from './tmp.js';
 import {
   contains,
   notContains,
@@ -17,9 +17,7 @@ import {
 } from '../src/agent_eval/graders.js';
 import { JUDGE_MAX_TOKENS } from '../src/config/settings.js';
 
-function tmpDir(): string {
-  return mkdtempSync(join(tmpdir(), 'graders_test_'));
-}
+const tmpDir = makeTmpDir('graders_test_');
 
 // ── runGraders — contains ────────────────────────────────────────────────────
 

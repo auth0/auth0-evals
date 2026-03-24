@@ -3,10 +3,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { writeFileSync, mkdtempSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { loadScores, renderHtml, groupByVariant, computeDeltas, resultVariant } from '../src/report.js';
+import { makeTmpDir } from './tmp.js';
+
+const tmpDir = makeTmpDir('report_test_');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -74,7 +76,7 @@ describe('renderHtml', () => {
 
 describe('renderHtml from score files', () => {
   it('produces expected output from disk', () => {
-    const tmpPath = mkdtempSync(join(tmpdir(), 'report_test_'));
+    const tmpPath = tmpDir();
     const scoresFile = join(tmpPath, 'scores-baseline.json');
     writeFileSync(scoresFile, JSON.stringify([makeResult('react_quickstart', 'gpt-5.2')]));
 
