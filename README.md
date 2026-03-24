@@ -171,7 +171,20 @@ src/
     baseline.ts                 # pure LLM, no tools
     skills.ts                   # fetches + injects SKILL.md into eval prompts (agent+skills mode)
   agent_eval/
-    agent.ts                    # ReAct agent runner with tool execution
+    agent.ts                    # ReAct agent loop (LLM calls, turn tracking)
+    tools/
+      base.ts                   # Tool interface, ToolContext, ToolResult types
+      index.ts                  # Tool definitions (sent to LLM) + ALL_TOOLS registry
+      ask-user.ts               # ask_user tool
+      fetch-url.ts              # fetch_url tool
+      finish-task.ts            # finish_task tool
+      list-files.ts             # list_files tool
+      read-file.ts              # read_file tool
+      run-command.ts            # run_command tool
+      write-file.ts             # write_file tool
+      utils.ts                  # Shared file-traversal helpers
+    tools-executor/
+      index.ts                  # ToolExecutor — dispatches tool calls by name
     graders.ts                  # contains() / matches() / judge() primitives
     scorer.ts                   # 8-dimension scoring
   evals/

@@ -17,3 +17,16 @@ export const CLAUDE_EFFORT_MODELS = new Set(['claude-4-6-opus', 'claude-4-6-sonn
 // Model name prefixes that use the older functions/function_call API
 // instead of tools/tool_choice.
 export const GEMINI_MODELS = ['gemini-'];
+
+export const MAX_LISTED_FILES = 200;
+export const EXCLUDED_DIRS = new Set([
+  'node_modules',
+  '.git',
+  'dist',
+  '.next',
+  '.nuxt',
+  '__pycache__',
+  '.venv',
+  'venv',
+  '.build',
+]);
