@@ -133,29 +133,20 @@ describe('loadEval - PROMPT.md parsing', () => {
 // ── Agent System prompt tests ─────────────────────────────────────────────────
 
 describe('loadEval - Agent System prompt', () => {
-  it('parses agent system section', async () => {
-    makeEvalDir(
-      tmpBase,
-      '---\nskills: auth0-react\n---\n\n## Agent System\nUse tools to write code.\n\n## Task\nAdd Auth0 authentication.\n',
-    );
+  it('loads agentSystemPrompt from system_default.md', async () => {
+    makeEvalDir(tmpBase);
+
+    // Write a system_default.md into the fake framework root
+    const promptsDir = join(tmpBase, 'src', 'prompts');
+    mkdirSync(promptsDir, { recursive: true });
+    writeFileSync(join(promptsDir, 'system_default.md'), 'You are an expert developer.\n');
 
     const result = await loadEval(EVAL_CONFIG, tmpBase);
 
-    expect(result.agentSystemPrompt).toContain('Use tools to write code');
-    expect(result.systemPrompt).toBe('');
+    expect(result.agentSystemPrompt).toContain('You are an expert developer.');
   });
 
-  it('captures all lines of a multi-line agent system section', async () => {
-    makeEvalDir(tmpBase, '## Agent System\nFirst line.\nSecond line.\nThird line.\n\n## Task\nDo the task.\n');
-
-    const result = await loadEval(EVAL_CONFIG, tmpBase);
-
-    expect(result.agentSystemPrompt).toContain('First line.');
-    expect(result.agentSystemPrompt).toContain('Second line.');
-    expect(result.agentSystemPrompt).toContain('Third line.');
-  });
-
-  it('defaults agent system prompt to empty string', async () => {
+  it('returns empty agentSystemPrompt when system_default.md is missing', async () => {
     makeEvalDir(tmpBase);
 
     const result = await loadEval(EVAL_CONFIG, tmpBase);
@@ -163,25 +154,27 @@ describe('loadEval - Agent System prompt', () => {
     expect(result.agentSystemPrompt).toBe('');
   });
 
-  it('handles both system and agent system sections', async () => {
+  it('does not use ## Agent System from PROMPT.md', async () => {
     makeEvalDir(
       tmpBase,
-      '## System\nGeneric system prompt.\n\n## Agent System\nAgent-specific prompt.\n\n## Task\nDo the task.\n',
+      '## Agent System\nOld per-eval override.\n\n## Task\nDo the task.\n',
+    );
+
+    // No system_default.md present — result should be empty, not the old Agent System content
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.agentSystemPrompt).not.toContain('Old per-eval override');
+  });
+
+  it('systemPrompt is still parsed from ## System section', async () => {
+    makeEvalDir(
+      tmpBase,
+      '## System\nGeneric system prompt.\n\n## Task\nDo the task.\n',
     );
 
     const result = await loadEval(EVAL_CONFIG, tmpBase);
 
     expect(result.systemPrompt).toContain('Generic system prompt');
-    expect(result.agentSystemPrompt).toContain('Agent-specific prompt');
-  });
-
-  it('agent system content does not bleed into system prompt', async () => {
-    makeEvalDir(tmpBase, '## Agent System\nCall finish_task when done.\n\n## Task\nDo the task.\n');
-
-    const result = await loadEval(EVAL_CONFIG, tmpBase);
-
-    expect(result.systemPrompt).not.toContain('finish_task');
-    expect(result.agentSystemPrompt).toContain('finish_task');
   });
 });
 
