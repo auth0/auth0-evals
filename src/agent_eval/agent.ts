@@ -307,6 +307,9 @@ export class ToolExecutor {
   }
 
   private readFile(path: string): string {
+    if (!path || path.trim() === '') {
+      throw new Error('read_file requires a file path. To list workspace files use list_files with an empty string.');
+    }
     let full: string;
     try {
       full = resolveInside(this.workspace, path);
@@ -518,7 +521,9 @@ export async function runAgent(
 
   const messages: unknown[] = [];
   if (task.agentSystemPrompt) {
-    messages.push({ role: 'system', content: task.agentSystemPrompt });
+    // Layer 1 (stable rules) + Layer 2 (dynamic workspace context) combined in system message
+    const workspaceContext = buildWorkspaceContext(workspace);
+    messages.push({ role: 'system', content: `${task.agentSystemPrompt}\n\n${workspaceContext}` });
   }
   messages.push({ role: 'user', content: task.userPrompt });
 
@@ -598,14 +603,20 @@ export async function runAgent(
 
       toolArgs = normalizeToolArgs(toolName, toolArgs);
 
-      console.log(`  [${turn + 1}] ${toolName}(${summariseArgs(toolName, toolArgs)})`);
+      process.stdout.write(`  [${turn + 1}] ${toolName}(${summariseArgs(toolName, toolArgs)}) … `);
 
       const tStart = Date.now() / 1000;
       const [result, isDoc, isInterrupt, isError] = executor.execute(toolName, toolArgs);
       const tEnd = Date.now() / 1000;
 
+      const elapsed = ((tEnd - tStart) * 1000).toFixed(0);
       if (isError) {
+        const preview = result.slice(0, 120).replace(/\n/g, ' ');
+        console.log(`✗ (${elapsed}ms) ${preview}`);
         record.providerErrors.push(`${toolName}: ${result}`);
+      } else {
+        const preview = result.slice(0, 80).replace(/\n/g, ' ');
+        console.log(`✓ (${elapsed}ms)${preview ? ` → ${preview}` : ''}`);
       }
 
       const isRetry = detectRetry(record.toolCalls, toolName, toolArgs);
@@ -920,6 +931,25 @@ export function summariseArgs(toolName: string, args: Record<string, unknown>): 
     return `"${((args.summary as string) ?? '').slice(0, 60)}"`;
   }
   return JSON.stringify(args).slice(0, 80);
+}
+
+// ── Workspace context builder (Layer 2) ──────────────────────────────────────
+
+/**
+ * Builds a structured XML block describing the current workspace state.
+ * Injected into the system message alongside the agent's stable instructions,
+ * following Copilot's Layer 2 pattern: dynamic environment context that is
+ * specific to this session without polluting the stable rule set.
+ */
+export function buildWorkspaceContext(workspace: string): string {
+  const files = collectFiles(workspace, workspace);
+  const fileList = files.length > 0 ? files.map((f) => `  ${f}`).join('\n') : '  (empty workspace)';
+  return `<workspace>
+The project workspace contains the following files:
+${fileList}
+
+All file paths in tool calls must be relative to this workspace root.
+</workspace>`;
 }
 
 export function setupWorkspace(scaffold: Record<string, string>): string {

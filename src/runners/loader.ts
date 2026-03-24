@@ -42,7 +42,16 @@ export async function loadEval(evalConfig: EvalConfig, frameworkRoot: string): P
     throw new EvalNotFoundError(evalConfig.id);
   }
 
-  const { systemPrompt, userPrompt, agentSystemPrompt, meta } = parsePromptMd(join(evalPath, 'PROMPT.md'));
+  const { systemPrompt, userPrompt, meta } = parsePromptMd(join(evalPath, 'PROMPT.md'));
+
+  // system_default.md is always the agent system prompt — it contains the universal
+  // identity, 8-step workflow, tool guidance, and behavior rules. Individual evals
+  // do not override this; framework-specific hints belong in the ## Task section.
+  const srcDefaultPath = join(frameworkRoot, 'src', 'prompts', 'system_default.md');
+  const distDefaultPath = join(frameworkRoot, 'prompts', 'system_default.md');
+  const defaultPath = existsSync(srcDefaultPath) ? srcDefaultPath : distDefaultPath;
+  const agentSystemPrompt = existsSync(defaultPath) ? readFileSync(defaultPath, 'utf-8').trim() : '';
+
   const distGradersPath = join(frameworkRoot, 'dist', evalConfig.path, 'graders.js');
   const srcGradersPath = join(evalPath, 'graders.ts');
   const gradersPath = existsSync(distGradersPath) ? distGradersPath : srcGradersPath;
