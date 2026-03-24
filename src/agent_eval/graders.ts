@@ -15,7 +15,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BASE_URL, JUDGE_MAX_TOKENS, JUDGE_MODEL } from '../config/settings.js';
+import { BASE_URL, EXCLUDED_DIRS, JUDGE_MAX_TOKENS, JUDGE_MODEL } from '../config/settings.js';
 import { LlmApiError } from '../errors.js';
 
 function resolveProjectRoot(): string {
@@ -56,18 +56,6 @@ export function collectFiles(workspace: string): Record<string, string> {
   walkDir(workspace, workspace, files);
   return files;
 }
-
-const EXCLUDED_DIRS = new Set([
-  'node_modules',
-  '.git',
-  'dist',
-  '.next',
-  '.nuxt',
-  '__pycache__',
-  '.venv',
-  'venv',
-  '.build',
-]);
 
 function walkDir(dir: string, root: string, files: Record<string, string>): void {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -238,7 +226,7 @@ export async function llmJudge(
     if (!answer) {
       return { passed: false, detail: `Judge (${model}) error: empty response` };
     }
-    const firstLine = answer.split('\n')[0].toLowerCase();
+    const firstLine = answer.split('\n')[0]!.toLowerCase();
     const m = /^(yes|no)\b/.exec(firstLine);
     if (!m) {
       return {

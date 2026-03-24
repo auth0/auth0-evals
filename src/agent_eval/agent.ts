@@ -6,25 +6,16 @@
  * in a RunRecord for downstream scoring and report generation.
  */
 
-import { execFileSync, execSync } from 'node:child_process';
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
-import type { Dirent } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { estimateCost } from '../config/costs.js';
-import { isPathInside, resolveInside } from './path-utils.js';
 import { BedrockToolConfigError, LlmApiError } from '../errors.js';
 import { BASE_URL, BEDROCK_MODELS, CLAUDE_EFFORT_MODELS, GEMINI_MODELS, MAX_TURNS } from '../config/settings.js';
+import { TOOL_DEFINITIONS } from './tools/index.js';
+import { collectFiles } from './tools/utils.js';
+import { ToolExecutor } from './tools-executor/index.js';
+import { ToolName } from './tools/base.js';
 
 export function isBedrockModel(model: string): boolean {
   return BEDROCK_MODELS.some((prefix) => model.includes(prefix));
@@ -147,279 +138,9 @@ function makeRunRecord(taskName: string, model: string, workspace: string): RunR
   };
 }
 
-// Maximum number of files to include in a directory listing.
-export const MAX_LISTED_FILES = 200;
-
 // ── Tool definitions sent to the LLM ─────────────────────────────────────────
 
-export const TOOL_DEFINITIONS = [
-  {
-    type: 'function',
-    function: {
-      name: 'read_file',
-      description: 'Read the contents of a file in the project workspace.',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: { type: 'string', description: 'Relative path to a file within the workspace' },
-        },
-        required: ['path'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'list_files',
-      description:
-        'List all files under a directory in the project workspace. ' +
-        'Pass an empty string to list the entire workspace.',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: {
-            type: 'string',
-            description:
-              'Relative path to a directory within the workspace, ' + 'or an empty string for the workspace root.',
-          },
-        },
-        required: ['path'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'write_file',
-      description: 'Write or overwrite a file in the project workspace.',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: { type: 'string' },
-          content: { type: 'string' },
-        },
-        required: ['path', 'content'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'run_command',
-      description: 'Run a shell command inside the project workspace directory.',
-      parameters: {
-        type: 'object',
-        properties: {
-          command: { type: 'string' },
-        },
-        required: ['command'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'fetch_url',
-      description: 'Fetch the contents of a documentation URL.',
-      parameters: {
-        type: 'object',
-        properties: {
-          url: { type: 'string' },
-        },
-        required: ['url'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'ask_user',
-      description:
-        'Ask the user for information you cannot determine yourself ' +
-        '(e.g. credentials, tenant domain, client IDs, dashboard URLs). ' +
-        'Only use this when you truly cannot proceed without human input.',
-      parameters: {
-        type: 'object',
-        properties: {
-          question: { type: 'string' },
-        },
-        required: ['question'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'finish_task',
-      description:
-        'Signal that the task is complete. Call this when all required ' +
-        'files have been written and no further changes are needed.',
-      parameters: {
-        type: 'object',
-        properties: {
-          summary: { type: 'string', description: 'Brief summary of what was done' },
-        },
-        required: ['summary'],
-      },
-    },
-  },
-];
-
 // ── Tool executor ─────────────────────────────────────────────────────────────
-
-export class ToolExecutor {
-  private workspace: string;
-  private credentials: Record<string, string>;
-
-  constructor(workspace: string, credentials: Record<string, string> = {}) {
-    try {
-      this.workspace = realpathSync(workspace);
-    } catch {
-      this.workspace = resolve(workspace);
-    }
-    this.credentials = credentials;
-  }
-
-  execute(name: string, args: Record<string, unknown>): [string, boolean, boolean, boolean] {
-    const normArgs = normalizeToolArgs(name, args);
-    try {
-      switch (name) {
-        case 'read_file':
-          return [this.readFile(normArgs.path as string), false, false, false];
-        case 'list_files':
-          return [this.listFiles(normArgs.path as string), false, false, false];
-        case 'write_file':
-          return [this.writeFile(normArgs.path as string, normArgs.content as string), false, false, false];
-        case 'run_command':
-          return [this.runCommand(normArgs.command as string), false, false, false];
-        case 'fetch_url':
-          return [this.fetchUrl(normArgs.url as string), true, false, false];
-        case 'ask_user':
-          return [this.askUser(normArgs.question as string), false, true, false];
-        case 'finish_task':
-          return [(normArgs.summary as string) ?? 'Task complete.', false, false, false];
-        default:
-          return [`Unknown tool: ${name}`, false, false, true];
-      }
-    } catch (e) {
-      return [`Error executing ${name}: ${e}`, false, false, true];
-    }
-  }
-
-  private readFile(path: string): string {
-    if (!path || path.trim() === '') {
-      throw new Error('read_file requires a file path. To list workspace files use list_files with an empty string.');
-    }
-    let full: string;
-    try {
-      full = resolveInside(this.workspace, path);
-    } catch {
-      return 'Access denied: path is outside workspace';
-    }
-    if (existsSync(full) && statSync(full).isDirectory()) {
-      return `Path is a directory: '${path}'. Use list_files to list its contents.`;
-    }
-    if (!existsSync(full)) {
-      const parent = join(full, '..');
-      if (existsSync(parent)) {
-        const lines = collectFiles(parent, this.workspace);
-        const listing = lines.length > 0 ? lines.join('\n') : '(empty directory)';
-        let label: string;
-        try {
-          label = relative(this.workspace, parent) || '(workspace root)';
-        } catch {
-          label = '(workspace root)';
-        }
-        return `File not found: ${path}\nNearby files in ${label}:\n${listing}`;
-      }
-      return `File not found: ${path}`;
-    }
-    return readFileSync(full, 'utf-8');
-  }
-
-  private listFiles(path: string): string {
-    let full: string;
-    try {
-      full = resolveInside(this.workspace, path);
-    } catch {
-      return 'Access denied: path is outside workspace';
-    }
-    if (!existsSync(full)) {
-      return `Directory not found: '${path}'`;
-    }
-    if (!statSync(full).isDirectory()) {
-      return `Path is a file: '${path}'. Use read_file to read its contents.`;
-    }
-    const lines = collectFiles(full, this.workspace);
-    const listing = lines.length > 0 ? lines.join('\n') : '(empty directory)';
-    const label = path || '(workspace root)';
-    return `Directory listing for ${label}:\n${listing}`;
-  }
-
-  private writeFile(path: string, content: string): string {
-    let full: string;
-    try {
-      full = resolveInside(this.workspace, path);
-    } catch {
-      return 'Access denied: path is outside workspace';
-    }
-    mkdirSync(join(full, '..'), { recursive: true });
-    writeFileSync(full, content, 'utf-8');
-    return `Written: ${path} (${content.length} chars)`;
-  }
-
-  private runCommand(command: string): string {
-    try {
-      const stdout = execSync(command, {
-        cwd: this.workspace,
-        timeout: 60_000,
-        encoding: 'utf-8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-      return (stdout as string).slice(-2000) || '(no output)';
-    } catch (e: unknown) {
-      const err = e as { stdout?: string; stderr?: string; message?: string };
-      const out = (err.stdout ?? '').slice(-2000);
-      const errText = (err.stderr ?? err.message ?? '').slice(-1000);
-      return (out + (errText ? '\n' + errText : '')).trim() || '(no output)';
-    }
-  }
-
-  private fetchUrl(url: string): string {
-    // Use execFileSync (no shell) with the URL embedded via JSON.stringify so
-    // special characters in the URL cannot break out of the script string.
-    try {
-      const script = `
-        fetch(${JSON.stringify(url)}, {headers: {'User-Agent': 'auth0-eval-agent/1.0'}, signal: AbortSignal.timeout(15000)})
-          .then(r => r.text())
-          .then(t => process.stdout.write(t.slice(0, 8000)))
-          .catch(e => process.stdout.write('Error: ' + e.message));
-      `;
-      const result = execFileSync('node', ['-e', script], { encoding: 'utf-8', timeout: 20_000 });
-      // Strip HTML tags
-      const text = (result as string).replace(/<[^>]+>/g, ' ').replace(/\s{3,}/g, '\n');
-      return text.slice(0, 3000).trim();
-    } catch (e) {
-      return `Could not fetch ${url}: ${e}`;
-    }
-  }
-
-  private askUser(question: string): string {
-    const lowerQ = question.toLowerCase();
-    if ((lowerQ.includes('domain') || lowerQ.includes('tenant')) && 'domain' in this.credentials) {
-      return this.credentials.domain;
-    }
-    if (
-      (lowerQ.includes('client id') || lowerQ.includes('clientid') || lowerQ.includes('client_id')) &&
-      'client_id' in this.credentials
-    ) {
-      return this.credentials.client_id;
-    }
-    console.log(`\n[AGENT ASKING]: ${question}`);
-    // In automated mode, return placeholder
-    return '(no answer provided)';
-  }
-}
 
 // ── LLM client ───────────────────────────────────────────────────────────────
 
@@ -609,7 +330,7 @@ export async function runAgent(
       process.stdout.write(`  [${turn + 1}] ${toolName}(${summariseArgs(toolName, toolArgs)}) … `);
 
       const tStart = Date.now() / 1000;
-      const [result, isDoc, isInterrupt, isError] = executor.execute(toolName, toolArgs);
+      const [result, isDoc, isInterrupt, isError] = executor.execute(toolName as ToolName, toolArgs);
       const tEnd = Date.now() / 1000;
 
       const elapsed = ((tEnd - tStart) * 1000).toFixed(0);
@@ -684,86 +405,6 @@ interface ToolCallEntry {
   id: string;
   type: string;
   function: { name: string; arguments: string };
-}
-
-export const EXCLUDED_DIRS = new Set([
-  'node_modules',
-  '.git',
-  'dist',
-  '.next',
-  '.nuxt',
-  '__pycache__',
-  '.venv',
-  'venv',
-]);
-
-export function collectFiles(root: string, relativeTo: string): string[] {
-  // Use realpathSync to resolve symlinks in the workspace root itself (e.g. /var -> /private/var on macOS)
-  let workspaceRoot: string;
-  try {
-    workspaceRoot = realpathSync(relativeTo);
-  } catch {
-    workspaceRoot = resolve(relativeTo);
-  }
-
-  const files: string[] = [];
-  let truncated = false;
-
-  function walk(dir: string): void {
-    if (truncated) return;
-    let entries: Dirent<string>[];
-    try {
-      entries = readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (truncated) break;
-      const fullPath = join(dir, entry.name);
-
-      // Skip symlinked directories (followlinks=False equivalent)
-      if (entry.isSymbolicLink()) {
-        // Only include symlinked files if they resolve within workspace
-        try {
-          const realPath = realpathSync(fullPath);
-          if (isPathInside(workspaceRoot, realPath) && statSync(fullPath).isFile()) {
-            files.push(relative(relativeTo, fullPath).replace(/\\/g, '/'));
-            if (files.length >= MAX_LISTED_FILES) {
-              truncated = true;
-            }
-          }
-        } catch {
-          // skip broken symlinks or files resolving outside workspace
-        }
-        continue;
-      }
-
-      if (entry.isDirectory()) {
-        if (!EXCLUDED_DIRS.has(entry.name)) {
-          walk(fullPath);
-        }
-      } else if (entry.isFile()) {
-        try {
-          const realPath = realpathSync(fullPath);
-          if (isPathInside(workspaceRoot, realPath)) {
-            files.push(relative(relativeTo, fullPath).replace(/\\/g, '/'));
-            if (files.length >= MAX_LISTED_FILES) {
-              truncated = true;
-            }
-          }
-        } catch {
-          // skip
-        }
-      }
-    }
-  }
-
-  walk(root);
-  files.sort();
-  if (truncated) {
-    files.push(`… (truncated at ${MAX_LISTED_FILES} files)`);
-  }
-  return files;
 }
 
 export function extractTokens(usage: Record<string, number>): [number, number] {

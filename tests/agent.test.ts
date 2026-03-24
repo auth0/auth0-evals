@@ -7,19 +7,19 @@ import { mkdirSync, writeFileSync, mkdtempSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
-  TOOL_DEFINITIONS,
-  ToolExecutor,
   extractTokens,
-  collectFiles,
   summariseArgs,
   isGeminiModel,
   llmCall,
   runAgent,
   detectRetry,
-  MAX_LISTED_FILES,
-  EXCLUDED_DIRS,
   type ToolCallRecord,
 } from '../src/agent_eval/agent.js';
+import { TOOL_DEFINITIONS } from '../src/agent_eval/tools/index.js';
+import { collectFiles } from '../src/agent_eval/tools/utils.js';
+
+import { ToolExecutor } from '../src/agent_eval/tools-executor/index.js';
+import { EXCLUDED_DIRS, MAX_LISTED_FILES } from '../src/config/settings.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
