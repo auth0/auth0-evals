@@ -155,10 +155,7 @@ describe('loadEval - Agent System prompt', () => {
   });
 
   it('does not use ## Agent System from PROMPT.md', async () => {
-    makeEvalDir(
-      tmpBase,
-      '## Agent System\nOld per-eval override.\n\n## Task\nDo the task.\n',
-    );
+    makeEvalDir(tmpBase, '## Agent System\nOld per-eval override.\n\n## Task\nDo the task.\n');
 
     // No system_default.md present — result should be empty, not the old Agent System content
     const result = await loadEval(EVAL_CONFIG, tmpBase);
@@ -167,10 +164,7 @@ describe('loadEval - Agent System prompt', () => {
   });
 
   it('systemPrompt is still parsed from ## System section', async () => {
-    makeEvalDir(
-      tmpBase,
-      '## System\nGeneric system prompt.\n\n## Task\nDo the task.\n',
-    );
+    makeEvalDir(tmpBase, '## System\nGeneric system prompt.\n\n## Task\nDo the task.\n');
 
     const result = await loadEval(EVAL_CONFIG, tmpBase);
 

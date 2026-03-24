@@ -52,7 +52,14 @@ export function parseToolsArg(toolsArg: string): string[] {
   if (normalized.startsWith('{') && normalized.endsWith('}')) {
     normalized = normalized.slice(1, -1);
   }
-  return [...new Set(normalized.split(',').map((t) => t.trim()).filter(Boolean))].sort();
+  return [
+    ...new Set(
+      normalized
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean),
+    ),
+  ].sort();
 }
 
 // Models that don't support agent mode.
@@ -290,7 +297,11 @@ async function main(): Promise<void> {
       [] as string[],
     )
     .option('--mode <mode>', 'Execution mode: baseline | agent | all (default: baseline)', 'baseline')
-    .option('--tools <tools>', `Tools for agent mode: ${KNOWN_TOOLS.join(', ')}. Wrapping braces and comma-separation supported, e.g. {Skills}.`, '')
+    .option(
+      '--tools <tools>',
+      `Tools for agent mode: ${KNOWN_TOOLS.join(', ')}. Wrapping braces and comma-separation supported, e.g. {Skills}.`,
+      '',
+    )
     .option('--workers <n>', 'Parallel workers (default: 4)', '4')
     .option('--output <path>', 'JSON output path')
     .option('--keep-workspace', '(agent mode) Keep temp workspace after run', false);
