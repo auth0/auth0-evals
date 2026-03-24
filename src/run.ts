@@ -17,6 +17,7 @@
  *   --workers   Parallel workers (default: 4)
  *   --output    JSON output path (default: scores-<mode>.json)
  *   --keep-workspace   (agent mode) Keep temp workspace after run
+ *   --braintrust       Log results to Braintrust experiment (requires BRAINTRUST_API_KEY)
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
@@ -83,7 +84,7 @@ export async function runJob(
       const { runBaseline } = await import('./runners/baseline.js');
       const result = await runBaseline(apiKey, model, evalDef);
       const graderResults = await gradeText(evalDef, result.responseText, apiKey);
-      return serialiseSimple(evalDef, result, graderResults);
+      return serialiseSimple(evalDef, result, graderResults, result.responseText);
     } else if (mode === 'agent') {
       let evalToRun = evalDef;
       if (tools.some((t) => t.toLowerCase() === 'skills')) {
@@ -102,6 +103,7 @@ export async function runJob(
       model,
       mode,
       tools,
+      category: evalDef.category,
       status: 'error',
       error: errorMsg,
       wall_time: 0,
@@ -168,6 +170,9 @@ async function runAgentJob(
 
     return {
       eval_id: evalDef.id,
+      category: evalDef.category,
+      prompt: evalDef.userPrompt,
+      response_text: record.finalSummary ?? '',
       model,
       mode,
       tools,
@@ -217,12 +222,16 @@ function serialiseSimple(
     error?: string;
   },
   graderResults: { name: string; kind: string; passed: boolean; detail: string }[],
+  responseText?: string,
 ): Record<string, unknown> {
   const passed = graderResults.filter((r) => r.passed).length;
   const total = graderResults.length;
   const rate = total > 0 ? passed / total : 1.0;
   return {
     eval_id: evalDef.id,
+    category: evalDef.category,
+    prompt: evalDef.userPrompt,
+    response_text: responseText ?? '',
     model: result.model,
     mode: result.mode,
     session_id: result.sessionId,
@@ -304,7 +313,8 @@ async function main(): Promise<void> {
     )
     .option('--workers <n>', 'Parallel workers (default: 4)', '4')
     .option('--output <path>', 'JSON output path')
-    .option('--keep-workspace', '(agent mode) Keep temp workspace after run', false);
+    .option('--keep-workspace', '(agent mode) Keep temp workspace after run', false)
+    .option('--braintrust', 'Log results to Braintrust experiment', false);
 
   program.parse(process.argv);
   const opts = program.opts();
@@ -386,6 +396,13 @@ async function main(): Promise<void> {
   console.log(`Models: ${JSON.stringify(models)}`);
   console.log(`Modes : ${JSON.stringify(modes)}\n`);
 
+  // Braintrust experiment tracking (opt-in via --braintrust flag)
+  let btReporter: Awaited<ReturnType<typeof import('./reporters/braintrust.js').createBraintrustReporter>> = null;
+  if (opts.braintrust) {
+    const { createBraintrustReporter } = await import('./reporters/braintrust.js');
+    btReporter = await createBraintrustReporter(modeArg, tools);
+  }
+
   const results: Record<string, unknown>[] = [];
   const tStart = Date.now();
 
@@ -397,9 +414,12 @@ async function main(): Promise<void> {
           const result = await runJob(evalCfg, model, mode, jobTools, apiKey, opts.keepWorkspace as boolean);
           results.push(result);
           printResult(result);
+          btReporter?.log(result);
         } catch (exc) {
           console.log(`  [ERROR] ${evalCfg.id}/${model}/${mode}: ${exc}`);
-          results.push({ eval_id: evalCfg.id, model, mode, tools: jobTools, status: 'error', error: String(exc) });
+          const errResult = { eval_id: evalCfg.id, model, mode, tools: jobTools, status: 'error', error: String(exc) };
+          results.push(errResult);
+          btReporter?.log(errResult);
         }
       }),
     ),
@@ -407,6 +427,10 @@ async function main(): Promise<void> {
 
   const elapsed = (Date.now() - tStart) / 1000;
   printSummary(results, elapsed);
+
+  if (btReporter) {
+    await btReporter.summarize();
+  }
 
   // Determine output path
   let outputPath = opts.output as string | undefined;
