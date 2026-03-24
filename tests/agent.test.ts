@@ -3,9 +3,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mkdirSync, writeFileSync, mkdtempSync, symlinkSync } from 'node:fs';
+import { mkdirSync, writeFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { makeTmpDir } from './tmp.js';
 import {
   extractTokens,
   summariseArgs,
@@ -57,9 +57,7 @@ function makeTextResponse(content = 'All done.') {
   };
 }
 
-function tmpDir(): string {
-  return mkdtempSync(join(tmpdir(), 'agent_test_'));
-}
+const tmpDir = makeTmpDir('agent_test_');
 
 // ── TOOL_DEFINITIONS tests ─────────────────────────────────────────────────────
 
@@ -264,7 +262,7 @@ describe('collectFiles', () => {
   });
 
   it('skips symlinked file pointing outside workspace', () => {
-    const outside = mkdtempSync(join(tmpdir(), 'outside_'));
+    const outside = tmpDir();
     const secretPath = join(outside, 'secret.txt');
     writeFileSync(secretPath, 'secret');
 
@@ -277,7 +275,7 @@ describe('collectFiles', () => {
   });
 
   it('does not follow symlinked directory', () => {
-    const outsideDir = mkdtempSync(join(tmpdir(), 'outside_dir_'));
+    const outsideDir = tmpDir();
     writeFileSync(join(outsideDir, 'secret.txt'), 'secret');
 
     const workspace = tmpDir();
@@ -320,7 +318,7 @@ describe('ToolExecutor.write_file', () => {
   });
 
   it('rejects symlink pointing outside workspace', () => {
-    const outside = mkdtempSync(join(tmpdir(), 'outside_'));
+    const outside = tmpDir();
     writeFileSync(join(outside, 'target.txt'), 'original');
     const dir = tmpDir();
     symlinkSync(join(outside, 'target.txt'), join(dir, 'link.txt'));
