@@ -17,6 +17,11 @@ export class WriteFileTool implements Tool {
 
   run(context: ToolContext, args: Record<string, unknown>): ToolResult {
     const path = args.path as string;
+
+    if (!path?.trim()) {
+      throw new Error('write_file requires a file path.');
+    }
+
     const content = args.content as string;
 
     let full: string;

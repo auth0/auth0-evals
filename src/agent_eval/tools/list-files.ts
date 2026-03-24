@@ -16,7 +16,7 @@ export class ListFilesTool implements Tool {
   name: ToolName = 'list_files';
 
   run(context: ToolContext, args: Record<string, unknown>): ToolResult {
-    const path = args.path as string;
+    const path = (args.path as string) ?? '';
     let full: string;
     try {
       full = resolveInside(context.workspace, path);
