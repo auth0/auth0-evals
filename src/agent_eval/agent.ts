@@ -538,13 +538,21 @@ export function parseXmlToolCalls(content: string): ToolCallEntry[] {
 
   while ((match = pattern.exec(text)) !== null) {
     try {
-      const body = JSON.parse(match[1]) as { name?: string; arguments?: Record<string, unknown> };
+      // Claude (Bedrock) uses "input"; some variants use "parameters".
+      // Fall through all known keys before defaulting to {}.
+      const body = JSON.parse(match[1]) as {
+        name?: string;
+        arguments?: Record<string, unknown>;
+        input?: Record<string, unknown>;
+        parameters?: Record<string, unknown>;
+      };
+      const args = body.arguments ?? body.input ?? body.parameters ?? {};
       calls.push({
         id: `xml_call_${i}`,
         type: 'function',
         function: {
           name: body.name ?? '',
-          arguments: JSON.stringify(body.arguments ?? {}),
+          arguments: JSON.stringify(args),
         },
       });
       i++;
