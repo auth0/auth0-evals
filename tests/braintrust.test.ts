@@ -2,7 +2,7 @@
  * Tests for src/reporters/braintrust.ts
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { experimentName, mapResult } from '../src/reporters/braintrust.js';
 
 // ── experimentName ───────────────────────────────────────────────────────────
@@ -40,7 +40,7 @@ describe('mapResult', () => {
       grader_pass_rate: 0.75,
       graders_passed: 6,
       graders_total: 8,
-      wall_time: 3200,
+      wall_time: 3.2,
       tokens: 1500,
       cost_usd: 0.015,
       error: '',
@@ -65,8 +65,8 @@ describe('mapResult', () => {
       overall_score: 82,
       overall_grade: 'B',
       grader_pass_rate: 0.9,
-      wall_time: 15000,
-      active_time: 8000,
+      wall_time: 15,
+      active_time: 8,
       tool_calls: 12,
       interruptions: 1,
       tokens: 5000,
@@ -197,9 +197,17 @@ describe('mapResult', () => {
 // ── createBraintrustReporter ─────────────────────────────────────────────────
 
 describe('createBraintrustReporter', () => {
+  let savedKey: string | undefined;
+
   beforeEach(() => {
+    savedKey = process.env.BRAINTRUST_API_KEY;
     vi.restoreAllMocks();
     vi.resetModules();
+  });
+
+  afterEach(() => {
+    if (savedKey !== undefined) process.env.BRAINTRUST_API_KEY = savedKey;
+    else delete process.env.BRAINTRUST_API_KEY;
   });
 
   it('returns null when BRAINTRUST_API_KEY is not set', async () => {
@@ -211,16 +219,38 @@ describe('createBraintrustReporter', () => {
 
   it('creates a reporter when API key is set', async () => {
     process.env.BRAINTRUST_API_KEY = 'test-key';
+    const tracedSpy = vi.fn((cb: (span: { log: typeof vi.fn }) => void) => cb({ log: vi.fn() }));
     vi.doMock('braintrust', () => ({
       init: vi.fn().mockReturnValue({
-        log: vi.fn(),
+        traced: tracedSpy,
         summarize: vi.fn().mockResolvedValue({ experimentUrl: 'https://example.com' }),
       }),
     }));
     const { createBraintrustReporter } = await import('../src/reporters/braintrust.js');
     const reporter = await createBraintrustReporter('baseline', []);
     expect(reporter).not.toBeNull();
-    delete process.env.BRAINTRUST_API_KEY;
+  });
+
+  it('log() calls experiment.traced() with span name and type', async () => {
+    process.env.BRAINTRUST_API_KEY = 'test-key';
+    const spanLog = vi.fn();
+    const tracedSpy = vi.fn((cb: (span: { log: typeof vi.fn }) => void) => cb({ log: spanLog }));
+    vi.doMock('braintrust', () => ({
+      init: vi.fn().mockReturnValue({
+        traced: tracedSpy,
+        summarize: vi.fn().mockResolvedValue({ experimentUrl: 'https://example.com' }),
+      }),
+    }));
+    const { createBraintrustReporter } = await import('../src/reporters/braintrust.js');
+    const reporter = await createBraintrustReporter('baseline', []);
+    reporter!.log({ eval_id: 'test', model: 'gpt-5.2', mode: 'baseline', status: 'success' });
+    expect(tracedSpy).toHaveBeenCalledWith(expect.any(Function), {
+      name: 'test / gpt-5.2',
+      type: 'eval',
+    });
+    expect(spanLog).toHaveBeenCalledWith(
+      expect.objectContaining({ input: '', output: '', scores: {}, tags: ['baseline'] }),
+    );
   });
 
   it('returns null when init throws', async () => {
@@ -233,6 +263,5 @@ describe('createBraintrustReporter', () => {
     const { createBraintrustReporter } = await import('../src/reporters/braintrust.js');
     const reporter = await createBraintrustReporter('baseline', []);
     expect(reporter).toBeNull();
-    delete process.env.BRAINTRUST_API_KEY;
   });
 });
