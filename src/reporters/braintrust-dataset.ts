@@ -1,0 +1,83 @@
+/**
+ * Braintrust dataset sync.
+ *
+ * Pushes evaluation definitions to a Braintrust dataset so experiments
+ * link back to the exact inputs that produced their scores.
+ */
+
+import { initDataset } from 'braintrust';
+
+const PROJECT_ID = '38395851-dd41-46ec-a971-a30402db6921';
+const DATASET_NAME = 'auth0-evals';
+
+interface EvalSummary {
+  id: string;
+  category: string;
+  prompt: string;
+  scaffoldFiles: string[];
+  graderCount: number;
+  skills: string[];
+}
+
+/**
+ * Sync evaluation definitions to a Braintrust dataset.
+ * Creates the dataset if it doesn't exist. Inserts one record per evaluation.
+ * Returns true on success, null on failure.
+ */
+export async function syncDataset(summaries: EvalSummary[]): Promise<boolean | null> {
+  const apiKey = process.env.BRAINTRUST_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const dataset = initDataset(PROJECT_ID, { dataset: DATASET_NAME, apiKey });
+
+    for (const ev of summaries) {
+      dataset.insert({
+        id: ev.id,
+        input: {
+          eval_id: ev.id,
+          prompt: ev.prompt,
+          category: ev.category,
+          scaffold_files: ev.scaffoldFiles,
+        },
+        metadata: {
+          grader_count: ev.graderCount,
+          skills: ev.skills,
+        },
+      });
+    }
+
+    await dataset.flush();
+    await dataset.close();
+    console.log(`[Braintrust] Dataset synced: ${summaries.length} evaluation(s) to ${DATASET_NAME}`);
+    return true;
+  } catch (e) {
+    console.error(`[Braintrust] Dataset sync failed: ${e}`);
+    return null;
+  }
+}
+
+/**
+ * Build EvalSummary objects from loaded evaluation definitions.
+ */
+export function toEvalSummaries(
+  defs: {
+    id: string;
+    category: string;
+    userPrompt: string;
+    scaffold: Record<string, string>;
+    graders: unknown[];
+    skills: string[];
+  }[],
+): EvalSummary[] {
+  return defs.map((e) => ({
+    id: e.id,
+    category: e.category,
+    prompt: e.userPrompt,
+    scaffoldFiles: Object.keys(e.scaffold).sort(),
+    graderCount: e.graders.length,
+    skills: e.skills,
+  }));
+}
+
+export type { EvalSummary };
