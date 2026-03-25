@@ -33,6 +33,8 @@ skills: auth0-react
 
 `skills` references entries in the [auth0/agent-skills](https://github.com/auth0/agent-skills) repository. The matching `SKILL.md` is fetched at runtime and prepended to the agent system prompt (`## Agent System`) when running in `agent+skills` mode.
 
+To test a skill before it is pushed to the remote repo, see [TESTING_SKILLS.md](TESTING_SKILLS.md).
+
 ### Sections
 
 | Section | Used in | Purpose |
