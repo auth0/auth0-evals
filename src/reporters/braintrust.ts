@@ -59,8 +59,8 @@ function mapResult(result: Record<string, unknown>): {
 
   // Metrics: numeric perf data Braintrust can chart natively
   const metrics: Record<string, number> = {};
-  if (typeof result.wall_time === 'number') metrics['duration_ms'] = result.wall_time as number;
-  if (typeof result.active_time === 'number') metrics['active_time_ms'] = result.active_time as number;
+  if (typeof result.wall_time === 'number') metrics['duration_ms'] = (result.wall_time as number) * 1000;
+  if (typeof result.active_time === 'number') metrics['active_time_ms'] = (result.active_time as number) * 1000;
   if (typeof result.tokens === 'number') metrics['total_tokens'] = result.tokens as number;
   if (typeof result.cost_usd === 'number') metrics['cost_usd'] = result.cost_usd as number;
   if (typeof result.tool_calls === 'number') metrics['tool_calls'] = result.tool_calls as number;
@@ -135,15 +135,14 @@ export async function createBraintrustReporter(mode: string, tools: string[]): P
   return {
     log(result: Record<string, unknown>): void {
       const { input, output, scores, metrics, metadata, tags, spanAttributes } = mapResult(result);
-      experiment.log({
-        input,
-        output,
-        scores,
-        metrics,
-        metadata,
-        tags,
-        span_attributes: spanAttributes,
-      });
+      // Use traced() instead of log() to work within autoevals' span context.
+      // traced() creates a child span that logs correctly regardless of global state.
+      void experiment.traced(
+        (span) => {
+          span.log({ input, output, scores, metrics, metadata, tags });
+        },
+        { name: spanAttributes.name, type: spanAttributes.type as 'eval' },
+      );
     },
 
     async summarize(): Promise<void> {
