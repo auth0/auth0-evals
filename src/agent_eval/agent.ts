@@ -166,7 +166,7 @@ export async function llmCall(
     // output_config.effort: medium is only supported by specific Claude models (Opus 4.6, Sonnet 4.6, Opus 4.5).
     // For other Claude/Bedrock models, omit it to avoid unexpected behaviour.
     const outputConfig = CLAUDE_EFFORT_MODELS.has(model) ? { output_config: { effort: 'medium' } } : {};
-    body = { model, messages, temperature: 0.0, ...outputConfig };
+    body = { model, messages, tools, tool_choice: 'auto', temperature: 0.0, ...outputConfig };
   } else if (isGeminiModel(model)) {
     const functions = (tools as { function: unknown }[]).map((t) => t.function);
     body = { model, messages, functions, function_call: 'auto', temperature: 0.0 };
