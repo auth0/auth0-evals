@@ -111,10 +111,7 @@ function mapResult(result: Record<string, unknown>): {
  * Create a Braintrust reporter bound to a single experiment.
  * Returns null if BRAINTRUST_API_KEY is not set.
  */
-export async function createBraintrustReporter(
-  mode: string,
-  tools: string[],
-): Promise<BraintrustReporter | null> {
+export async function createBraintrustReporter(mode: string, tools: string[]): Promise<BraintrustReporter | null> {
   const apiKey = process.env.BRAINTRUST_API_KEY;
   if (!apiKey) {
     console.log('[Braintrust] BRAINTRUST_API_KEY not set — skipping.');

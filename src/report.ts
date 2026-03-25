@@ -144,6 +144,11 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
     if (obj && typeof obj === 'object') return Object.keys(obj as object).sort();
     return obj;
   });
+  env.addFilter('selectattr', (arr: unknown[], attr: string, test?: string, val?: unknown) => {
+    if (!Array.isArray(arr)) return [];
+    if (test === 'equalto') return arr.filter((item) => (item as Record<string, unknown>)[attr] === val);
+    return arr.filter((item) => !!(item as Record<string, unknown>)[attr]);
+  });
   env.addFilter('repeat_str', (str: string, n: number) => new nunjucks.runtime.SafeString(str.repeat(Math.max(0, n))));
   env.addFilter('truncate_str', (str: string, n: number) => (str ? str.slice(0, n) : ''));
   env.addFilter('format', (fmt: string, ...args: unknown[]) => {

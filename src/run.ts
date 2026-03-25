@@ -30,6 +30,7 @@ import { EVALUATIONS, type EvalConfig } from './config/evaluations.js';
 import { UnknownModeError } from './errors.js';
 import { loadEval, type EvalDefinition } from './runners/loader.js';
 import { runGraders } from './agent_eval/graders.js';
+import { serialiseTrace, serialiseTurnMetrics } from './agent_eval/traces.js';
 import { tmpdir } from 'node:os';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -168,7 +169,7 @@ async function runAgentJob(
 
     const scored = score(record, undefined, graderResults);
 
-    return {
+    const result = {
       eval_id: evalDef.id,
       category: evalDef.category,
       prompt: evalDef.userPrompt,
@@ -198,8 +199,13 @@ async function runAgentJob(
         name: gr.name,
         kind: gr.kind,
         passed: gr.passed,
+        detail: gr.detail,
       })),
+      session_trace: serialiseTrace(record),
+      turn_metrics: serialiseTurnMetrics(record),
     };
+
+    return result;
   } finally {
     if (!keepWorkspace) {
       cleanupWorkspace(workspace);

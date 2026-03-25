@@ -23,6 +23,22 @@
   --grade-on:        #0f172a;
 
   --error-border: #7f1d1d;
+
+  /* ── semantic colour aliases ── */
+  --clr-green:  #22c55e;
+  --clr-lime:   #84cc16;
+  --clr-amber:  #f59e0b;
+  --clr-red:    #ef4444;
+  --clr-blue:   #60a5fa;
+  --clr-orange: #f97316;
+
+  /* ── tinted backgrounds ── */
+  --clr-green-bg:  #22c55e22;
+  --clr-amber-bg:  #f59e0b22;
+  --clr-red-bg:    #ef444422;
+  --clr-blue-bg:   #60a5fa22;
+  --clr-orange-bg: #f9731622;
+  --clr-dim-bg:    #94a3b822;
 }
 
 /* ── Reset ──────────────────────────────────────────────────────────────── */
@@ -382,3 +398,155 @@ a { color: var(--link); }
   font-size: 12px;
   color: var(--text-quat);
 }
+
+/* ── Pass-rate colour classes ───────────────────────────────────────────── */
+.clr-a { color: var(--clr-green); }
+.clr-b { color: var(--clr-lime); }
+.clr-c { color: var(--clr-amber); }
+.clr-f { color: var(--clr-red); }
+
+/* ── Letter-grade badges ────────────────────────────────────────────────── */
+.grade-badge { color: var(--surface-1); padding: 2px 8px; border-radius: 4px;
+               font-size: 11px; font-weight: 700; display: inline-block; }
+.grade-a { background: var(--clr-green); }
+.grade-b { background: var(--clr-lime); }
+.grade-c { background: var(--clr-amber); }
+.grade-d, .grade-f { background: var(--clr-red); }
+
+/* ── Grader pass / fail ─────────────────────────────────────────────────── */
+.grader-pass { color: var(--clr-green); }
+.grader-fail { color: var(--clr-red); }
+
+/* ── Finish-reason pills ────────────────────────────────────────────────── */
+.finish-pill { padding: 1px 6px; border-radius: 4px;
+               font-size: 10px; font-weight: 600; display: inline-block; }
+.finish-tool-calls  { background: var(--clr-blue-bg);  color: var(--clr-blue); }
+.finish-stop        { background: var(--clr-green-bg); color: var(--clr-green); }
+.finish-max-tokens,
+.finish-length      { background: var(--clr-red-bg);   color: var(--clr-red); }
+.finish-unknown     { background: var(--clr-dim-bg);   color: var(--text-sec); }
+
+/* ── LLM latency ────────────────────────────────────────────────────────── */
+.lat-fast   { color: var(--clr-green); }
+.lat-medium { color: var(--clr-amber); }
+.lat-slow   { color: var(--clr-red); }
+
+/* ── Session-trace action pills ─────────────────────────────────────────── */
+.action-pill           { padding: 1px 6px; border-radius: 4px; font-size: 10px;
+                         font-weight: 600; letter-spacing: .03em; display: inline-block; }
+.action-implementation { background: var(--clr-green-bg); color: var(--clr-green); }
+.action-discovery      { background: var(--clr-blue-bg);  color: var(--clr-blue); }
+.action-error          { background: var(--clr-red-bg);   color: var(--clr-red); }
+.action-interruption   { background: var(--clr-amber-bg); color: var(--clr-amber); }
+.action-unknown        { background: var(--clr-dim-bg);   color: var(--text-sec); }
+
+/* ── Session-trace step badges ──────────────────────────────────────────── */
+.step-badge      { padding: 1px 5px; border-radius: 3px; font-size: 10px;
+                   font-weight: 600; margin-left: 6px; display: inline-block; }
+.size-moderate   { background: var(--clr-dim-bg);    color: var(--text-sec); }
+.size-large      { background: var(--clr-amber-bg);  color: var(--clr-amber); }
+.size-xlarge     { background: var(--clr-orange-bg); color: var(--clr-orange); }
+.badge-retry     { background: var(--clr-amber-bg);  color: var(--clr-amber); }
+.badge-recovered { background: var(--clr-green-bg);  color: var(--clr-green); }
+.badge-error-cat { background: var(--clr-red-bg);    color: var(--clr-red); }
+
+/* ── Metrics body ────────────────────────────────────────────────────────── */
+.metrics-body { overflow-x: auto; }
+
+/* ── Card tabs ───────────────────────────────────────────────────────────── */
+.card-tabs > input[type=radio] { display: none; }
+.tab-bar { display: flex; border-bottom: 1px solid var(--border-2); margin: 12px 0; }
+.tab-label { padding: 6px 14px; cursor: pointer; user-select: none;
+             color: var(--text-ter); font-size: 12px; font-weight: 500;
+             border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab-label:hover { color: var(--text-sec); }
+.tab-label--hidden { display: none; }
+.tab-panel { display: none; }
+
+/* Active panel */
+.card-tabs > input:nth-of-type(1):checked ~ div:nth-of-type(2),
+.card-tabs > input:nth-of-type(2):checked ~ div:nth-of-type(3),
+.card-tabs > input:nth-of-type(3):checked ~ div:nth-of-type(4),
+.card-tabs > input:nth-of-type(4):checked ~ div:nth-of-type(5) { display: block; }
+
+/* Active label */
+.card-tabs > input:nth-of-type(1):checked ~ div:nth-of-type(1) > .tab-label:nth-child(1),
+.card-tabs > input:nth-of-type(2):checked ~ div:nth-of-type(1) > .tab-label:nth-child(2),
+.card-tabs > input:nth-of-type(3):checked ~ div:nth-of-type(1) > .tab-label:nth-child(3),
+.card-tabs > input:nth-of-type(4):checked ~ div:nth-of-type(1) > .tab-label:nth-child(4) {
+  color: var(--text-primary); border-bottom-color: var(--link);
+}
+
+/* Empty state */
+.tab-panel-empty { padding: 8px; color: var(--text-quat); font-size: 12px; font-style: italic; }
+
+/* ── Metrics compact table (turn metrics / session trace) ────────────────── */
+.metrics-table       { width: 100%; border-collapse: collapse; font-size: 12px; }
+.metrics-thead       { background: var(--surface-2); }
+.metrics-th          { padding: 4px 8px; text-align: left; color: var(--text-sec);
+                       font-size: 11px; font-weight: 600; }
+.metrics-th--r       { text-align: right; }
+.metrics-th--c       { text-align: center; }
+.metrics-row         { border-top: 1px solid var(--border); }
+.metrics-td          { padding: 4px 8px; font-family: monospace; font-size: 11px;
+                       color: var(--text-quat); }
+.metrics-td--r       { text-align: right; color: var(--text-sec); }
+.metrics-td--c       { text-align: center; }
+.metrics-td--bright  { color: var(--text-medium); }
+.metrics-total-row   { border-top: 2px solid var(--border-2); }
+.metrics-total-label { padding: 4px 8px; color: var(--text-ter); font-size: 11px; }
+.metrics-total-val   { padding: 4px 8px; text-align: right; color: var(--text-medium);
+                       font-family: monospace; font-size: 11px; }
+
+/* ── Session-trace specific cells ────────────────────────────────────────── */
+.trace-step      { white-space: nowrap; }
+.trace-action    { padding: 4px 8px; white-space: nowrap; }
+.trace-narrative { padding: 4px 8px; font-size: 12px; }
+.trace-call      { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; }
+.trace-tool      { font-family: monospace; font-size: 11px; font-weight: 600;
+                   color: var(--text-bright); }
+.trace-arg       { font-family: monospace; font-size: 11px; color: var(--text-sec); }
+.trace-arg-key   { color: var(--text-ter); }
+.trace-arg-val   { color: var(--text-medium); }
+.trace-dur       { font-family: monospace; font-size: 11px; color: var(--text-ter);
+                   margin-left: 2px; }
+.trace-block-arg { margin-top: 4px; }
+.trace-block-arg .trace-arg-key { display: block; margin-bottom: 2px; }
+.trace-arg-pre   { margin: 0; padding: 6px 8px; background: var(--surface-2);
+                   border-radius: 4px; font-size: 10px; font-family: monospace;
+                   color: var(--text-sec); white-space: pre-wrap; overflow-x: auto;
+                   max-height: 160px; overflow-y: auto; }
+
+/* ── Judge tab ───────────────────────────────────────────────────────────── */
+.judge-list                { padding: 4px 0; }
+.judge-entry               { padding: 14px 0; border-top: 1px solid var(--border); }
+.judge-entry:first-child   { border-top: none; padding-top: 4px; }
+.judge-verdict             { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.judge-verdict-badge       { flex-shrink: 0; font-size: 11px; font-weight: 700;
+                             letter-spacing: .04em; text-transform: uppercase;
+                             padding: 2px 10px; border-radius: 20px; }
+.judge-pass                { background: var(--clr-green-bg); color: var(--clr-green); }
+.judge-fail                { background: var(--clr-red-bg);   color: var(--clr-red); }
+.judge-question            { color: var(--text-light); font-size: 13px; font-weight: 500;
+                             line-height: 1.4; }
+/* ── Judge markdown body ─────────────────────────────────────────────────── */
+.judge-reasoning-body p      { margin: 4px 0; line-height: 1.6; color: #94a3b8; font-size: 12px; }
+.judge-reasoning-body ul,
+.judge-reasoning-body ol     { margin: 4px 0; padding-left: 20px; }
+.judge-reasoning-body li     { margin-bottom: 4px; line-height: 1.6; color: #94a3b8; }
+.judge-reasoning-body h1     { color: #f1f5f9; font-weight: 700; font-size: 15px; margin: 10px 0 6px; }
+.judge-reasoning-body h2     { color: #e2e8f0; font-weight: 700; font-size: 14px; margin: 10px 0 4px; }
+.judge-reasoning-body h3     { color: #e2e8f0; font-weight: 600; font-size: 13px; margin: 10px 0 4px; }
+.judge-reasoning-body code   { background: #1e293b; color: #93c5fd;
+             padding: 1px 5px; border-radius: 3px; font-size: 12px; font-family: monospace; }
+.judge-reasoning-body strong { color: #e2e8f0; }
+.no-reasoning { color: #475569; font-size: 12px; font-style: italic; margin: 0; }
+
+.judge-reasoning-block     { background: var(--surface-2); border-radius: 6px;
+                             border: 1px solid var(--border); padding: 10px 14px; }
+.judge-model-badge         { font-family: monospace; font-size: 10px; color: var(--text-ter);
+                             letter-spacing: .04em; margin-bottom: 8px; }
+.judge-reasoning-body      { font-size: 12px; line-height: 1.6; }
+
+/* ── Grade badge size modifier ───────────────────────────────────────────── */
+.grade-badge--lg { padding: 3px 12px; font-size: 14px; }

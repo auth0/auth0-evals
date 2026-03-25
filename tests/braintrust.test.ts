@@ -75,9 +75,7 @@ describe('mapResult', () => {
         { name: 'Correctness', score: 90, weight: 0.25 },
         { name: 'Hallucination', score: 70, weight: 0.15 },
       ],
-      graders: [
-        { name: 'contains_nextjs_auth0', kind: 'contains', passed: true },
-      ],
+      graders: [{ name: 'contains_nextjs_auth0', kind: 'contains', passed: true }],
     };
   }
 
