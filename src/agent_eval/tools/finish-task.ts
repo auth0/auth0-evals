@@ -11,7 +11,7 @@ function wrapResult(message: string): ToolResult {
 export class FinishTaskTool implements Tool {
   name: ToolName = 'finish_task';
 
-  run(_context: ToolContext, args: Record<string, unknown>): ToolResult {
+  async run(_context: ToolContext, args: Record<string, unknown>): Promise<ToolResult> {
     return wrapResult((args.summary as string) ?? 'Task complete.');
   }
 }

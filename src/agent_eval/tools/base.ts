@@ -43,5 +43,5 @@ export interface Tool {
    * @param args - a record of arguments specific to the tool's functionality.
    * @returns a ToolResult tuple containing the result string and flags for documentation, interruption, and error status.
    */
-  run(context: ToolContext, args: Record<string, unknown>): ToolResult;
+  run(context: ToolContext, args: Record<string, unknown>): Promise<ToolResult>;
 }

@@ -11,7 +11,7 @@ function wrapResult(message: string): ToolResult {
 export class AskUserTool implements Tool {
   name: ToolName = 'ask_user';
 
-  run(context: ToolContext, args: Record<string, unknown>): ToolResult {
+  async run(context: ToolContext, args: Record<string, unknown>): Promise<ToolResult> {
     const question = args.question as string;
     const lowerQ = question.toLowerCase();
     if ((lowerQ.includes('domain') || lowerQ.includes('tenant')) && 'domain' in context.credentials) {

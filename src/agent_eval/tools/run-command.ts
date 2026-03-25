@@ -14,7 +14,7 @@ function wrapResult(message: string): ToolResult {
 export class RunCommandTool implements Tool {
   name: ToolName = 'run_command';
 
-  run(context: ToolContext, args: Record<string, unknown>): ToolResult {
+  async run(context: ToolContext, args: Record<string, unknown>): Promise<ToolResult> {
     const command = args.command as string;
     try {
       const stdout = execSync(command, {

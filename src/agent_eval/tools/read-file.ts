@@ -16,7 +16,7 @@ function wrapResult(message: string): ToolResult {
 export class ReadFileTool implements Tool {
   name: ToolName = 'read_file';
 
-  run(context: ToolContext, args: Record<string, unknown>): ToolResult {
+  async run(context: ToolContext, args: Record<string, unknown>): Promise<ToolResult> {
     const path = args.path as string;
     if (!path?.trim()) {
       throw new Error('read_file requires a file path. To list workspace files use list_files with an empty string.');
