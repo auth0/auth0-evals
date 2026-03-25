@@ -17,6 +17,7 @@ import { join, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BASE_URL, EXCLUDED_DIRS, JUDGE_MAX_TOKENS, JUDGE_MODEL } from '../config/settings.js';
 import { LlmApiError } from '../errors.js';
+import { withRetry } from '../utils/retry.js';
 
 function resolveProjectRoot(): string {
   let dir = dirname(fileURLToPath(import.meta.url));
@@ -233,22 +234,24 @@ export async function llmJudge(
   });
 
   try {
-    const resp = await fetch(`${BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: payload,
-      signal: AbortSignal.timeout(30_000),
+    const data = await withRetry(async () => {
+      const resp = await fetch(`${BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: payload,
+        signal: AbortSignal.timeout(30_000),
+      });
+
+      if (!resp.ok) {
+        const body = await resp.text();
+        throw new LlmApiError(resp.status, body);
+      }
+
+      return (await resp.json()) as Record<string, unknown>;
     });
-
-    if (!resp.ok) {
-      const body = await resp.text();
-      throw new LlmApiError(resp.status, body);
-    }
-
-    const data = (await resp.json()) as Record<string, unknown>;
     const choices = data.choices as Record<string, unknown>[] | undefined;
     const message = choices?.[0]?.message as Record<string, unknown> | undefined;
     const answer = ((message?.content as string | undefined) ?? '').trim();

@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { estimateCost } from '../config/costs.js';
 import { BedrockToolConfigError, LlmApiError } from '../errors.js';
+import { withRetry } from '../utils/retry.js';
 import { BASE_URL, BEDROCK_MODELS, CLAUDE_EFFORT_MODELS, GEMINI_MODELS, MAX_TURNS } from '../config/settings.js';
 import { TOOL_DEFINITIONS } from './tools/index.js';
 import { collectFiles } from './tools/utils.js';
@@ -173,29 +174,33 @@ export async function llmCall(
     body = { model, messages, tools, tool_choice: 'required', temperature: 0.0 };
   }
 
-  const resp = await fetch(`${BASE_URL}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(300_000),
+  const responseData = await withRetry(async () => {
+    const attemptStart = Date.now();
+    const resp = await fetch(`${BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(300_000),
+    });
+
+    if (!resp.ok) {
+      const bodyText = await resp.text();
+      const attemptDuration = (Date.now() - attemptStart) / 1000;
+      console.log(`[LLM API] ❌ API error ${resp.status} after ${attemptDuration.toFixed(2)}s`);
+      console.log(`[LLM API] 💥 Error: ${bodyText.slice(0, 200)}`);
+
+      if (bodyText.includes('toolConfig') && bodyText.includes('BedrockException')) {
+        throw new BedrockToolConfigError(model);
+      }
+      throw new LlmApiError(resp.status, bodyText);
+    }
+
+    return (await resp.json()) as Record<string, unknown>;
   });
 
-  if (!resp.ok) {
-    const bodyText = await resp.text();
-    const callDuration = (Date.now() - callStart) / 1000;
-    console.log(`[LLM API] ❌ API error ${resp.status} after ${callDuration.toFixed(2)}s`);
-    console.log(`[LLM API] 💥 Error: ${bodyText.slice(0, 200)}`);
-
-    if (bodyText.includes('toolConfig') && bodyText.includes('BedrockException')) {
-      throw new BedrockToolConfigError(model);
-    }
-    throw new LlmApiError(resp.status, bodyText);
-  }
-
-  const responseData = (await resp.json()) as Record<string, unknown>;
   const callDuration = (Date.now() - callStart) / 1000;
   const usage = (responseData.usage as Record<string, number>) ?? {};
   const [inputTokens, outputTokens] = extractTokens(usage);
