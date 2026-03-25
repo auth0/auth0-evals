@@ -335,7 +335,7 @@ export async function runAgent(
       process.stdout.write(`  [${turn + 1}] ${toolName}(${summariseArgs(toolName, toolArgs)}) … `);
 
       const tStart = Date.now() / 1000;
-      const [result, isDoc, isInterrupt, isError] = executor.execute(toolName as ToolName, toolArgs);
+      const [result, isDoc, isInterrupt, isError] = await executor.execute(toolName as ToolName, toolArgs);
       const tEnd = Date.now() / 1000;
 
       const elapsed = ((tEnd - tStart) * 1000).toFixed(0);

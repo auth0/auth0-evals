@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mkdirSync, writeFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmpDir } from './tmp.js';
+
 import {
   extractTokens,
   summariseArgs,
@@ -142,20 +143,20 @@ describe('llmCall', () => {
 // ── ToolExecutor tests ────────────────────────────────────────────────────────
 
 describe('ToolExecutor.finish_task', () => {
-  it('returns summary', () => {
+  it('returns summary', async () => {
     const dir = tmpDir();
     const executor = new ToolExecutor(dir);
-    const [result, isDoc, isInterrupt, isError] = executor.execute('finish_task', { summary: 'Done.' });
+    const [result, isDoc, isInterrupt, isError] = await executor.execute('finish_task', { summary: 'Done.' });
     expect(result).toBe('Done.');
     expect(isDoc).toBe(false);
     expect(isInterrupt).toBe(false);
     expect(isError).toBe(false);
   });
 
-  it('returns default when no summary', () => {
+  it('returns default when no summary', async () => {
     const dir = tmpDir();
     const executor = new ToolExecutor(dir);
-    const [result] = executor.execute('finish_task', {});
+    const [result] = await executor.execute('finish_task', {});
     expect(result).toBe('Task complete.');
   });
 });
@@ -302,28 +303,28 @@ describe('collectFiles', () => {
 // ── ToolExecutor.write_file tests ─────────────────────────────────────────────
 
 describe('ToolExecutor.write_file', () => {
-  it('writes a file within the workspace', () => {
+  it('writes a file within the workspace', async () => {
     const dir = tmpDir();
     const executor = new ToolExecutor(dir);
-    const [result] = executor.execute('write_file', { path: 'output.txt', content: 'hello' });
+    const [result] = await executor.execute('write_file', { path: 'output.txt', content: 'hello' });
     expect(result).toContain('Written');
     expect(result).toContain('output.txt');
   });
 
-  it('rejects path traversal', () => {
+  it('rejects path traversal', async () => {
     const dir = tmpDir();
     const executor = new ToolExecutor(dir);
-    const [result] = executor.execute('write_file', { path: '../../evil.txt', content: 'bad' });
+    const [result] = await executor.execute('write_file', { path: '../../evil.txt', content: 'bad' });
     expect(result).toContain('Access denied');
   });
 
-  it('rejects symlink pointing outside workspace', () => {
+  it('rejects symlink pointing outside workspace', async () => {
     const outside = tmpDir();
     writeFileSync(join(outside, 'target.txt'), 'original');
     const dir = tmpDir();
     symlinkSync(join(outside, 'target.txt'), join(dir, 'link.txt'));
     const executor = new ToolExecutor(dir);
-    const [result] = executor.execute('write_file', { path: 'link.txt', content: 'overwrite' });
+    const [result] = await executor.execute('write_file', { path: 'link.txt', content: 'overwrite' });
     expect(result).toContain('Access denied');
   });
 });
@@ -331,25 +332,25 @@ describe('ToolExecutor.write_file', () => {
 // ── ToolExecutor._read_file safety tests ─────────────────────────────────────
 
 describe('ToolExecutor.read_file', () => {
-  it('rejects path traversal', () => {
+  it('rejects path traversal', async () => {
     const dir = tmpDir();
     const executor = new ToolExecutor(dir);
-    const [result] = executor.execute('read_file', { path: '../../etc/passwd' });
+    const [result] = await executor.execute('read_file', { path: '../../etc/passwd' });
     expect(result).toContain('Access denied');
   });
 
-  it('returns error for directory', () => {
+  it('returns error for directory', async () => {
     const dir = tmpDir();
     mkdirSync(join(dir, 'src'));
     const executor = new ToolExecutor(dir);
-    const [result] = executor.execute('read_file', { path: 'src' });
+    const [result] = await executor.execute('read_file', { path: 'src' });
     expect(result).toContain('list_files');
   });
 
-  it('returns error for workspace root', () => {
+  it('returns error for workspace root', async () => {
     const dir = tmpDir();
     const executor = new ToolExecutor(dir);
-    const [result] = executor.execute('read_file', { path: '' });
+    const [result] = await executor.execute('read_file', { path: '' });
     expect(result).toContain('list_files');
   });
 });
@@ -357,44 +358,44 @@ describe('ToolExecutor.read_file', () => {
 // ── ToolExecutor.list_files tests ─────────────────────────────────────────────
 
 describe('ToolExecutor.list_files', () => {
-  it('rejects path traversal', () => {
+  it('rejects path traversal', async () => {
     const dir = tmpDir();
     const executor = new ToolExecutor(dir);
-    const [result] = executor.execute('list_files', { path: '../../etc' });
+    const [result] = await executor.execute('list_files', { path: '../../etc' });
     expect(result).toContain('Access denied');
   });
 
-  it('returns directory listing for subdir', () => {
+  it('returns directory listing for subdir', async () => {
     const dir = tmpDir();
     mkdirSync(join(dir, 'src'));
     writeFileSync(join(dir, 'src', 'index.ts'), 'export {}');
     const executor = new ToolExecutor(dir);
-    const [result] = executor.execute('list_files', { path: 'src' });
+    const [result] = await executor.execute('list_files', { path: 'src' });
     expect(result).toContain('Directory listing');
     expect(result).toContain('src/index.ts');
   });
 
-  it('returns listing for workspace root', () => {
+  it('returns listing for workspace root', async () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'README.md'), '# hello');
     const executor = new ToolExecutor(dir);
-    const [result] = executor.execute('list_files', { path: '' });
+    const [result] = await executor.execute('list_files', { path: '' });
     expect(result).toContain('Directory listing');
     expect(result).toContain('README.md');
   });
 
-  it('returns error for file path', () => {
+  it('returns error for file path', async () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'main.py'), "print('hi')");
     const executor = new ToolExecutor(dir);
-    const [result] = executor.execute('list_files', { path: 'main.py' });
+    const [result] = await executor.execute('list_files', { path: 'main.py' });
     expect(result).toContain('read_file');
   });
 
-  it('returns error for missing directory', () => {
+  it('returns error for missing directory', async () => {
     const dir = tmpDir();
     const executor = new ToolExecutor(dir);
-    const [result] = executor.execute('list_files', { path: 'nonexistent' });
+    const [result] = await executor.execute('list_files', { path: 'nonexistent' });
     expect(result.toLowerCase()).toContain('not found');
   });
 });

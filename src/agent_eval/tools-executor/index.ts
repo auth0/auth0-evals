@@ -27,13 +27,13 @@ export class ToolExecutor {
    * @param args The arguments to pass to the tool during execution.
    * @returns A tuple containing the tool's output, a boolean indicating isDoc, a boolean indicating if there was an interruption, and a boolean indicating if there was an error.
    */
-  execute(name: ToolName, args: Record<string, unknown>): ToolResult {
+  async execute(name: ToolName, args: Record<string, unknown>): Promise<ToolResult> {
     try {
       const tool = this.#tools.find((t) => t.name === name);
 
       if (tool) {
         const toolContext = { workspace: this.#workspace, credentials: this.#credentials };
-        return tool.run(toolContext, args);
+        return await tool.run(toolContext, args);
       }
 
       return [`Unknown tool: ${name}`, false, false, true];

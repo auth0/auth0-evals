@@ -15,7 +15,7 @@ function wrapResult(message: string): ToolResult {
 export class WriteFileTool implements Tool {
   name: ToolName = 'write_file';
 
-  run(context: ToolContext, args: Record<string, unknown>): ToolResult {
+  async run(context: ToolContext, args: Record<string, unknown>): Promise<ToolResult> {
     const path = args.path as string;
 
     if (!path?.trim()) {
