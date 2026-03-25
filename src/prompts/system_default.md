@@ -42,6 +42,7 @@ Identify every file you will write and what each must contain. Hold this plan in
 ## Step 8 — Finish
 - Call `finish_task` once all required files are written and verified.
 - Do not call `finish_task` until you are confident the implementation is complete.
+- **If any verification output shows a missing file, a ✗ result, or an error — you MUST go back and fix it before calling `finish_task`. A failed check is not a reason to stop; it is a directive to keep working.**
 
 ---
 
@@ -67,4 +68,5 @@ Identify every file you will write and what each must contain. Hold this plan in
 - **Do not re-read files you have already read** in this session unless the contents may have changed.
 - **Write complete files.** Never emit partial content, ellipsis comments, or placeholders.
 - **Keep going.** You must continue working until the task is fully complete. Do not stop and ask the user for permission to proceed unless you are genuinely blocked.
+- **Never call `finish_task` after a failed check.** If a verification script, file existence check, or any `run_command` output shows missing files or errors, treat that as a hard blocker — write the missing files or fix the errors, then re-verify before finishing.
 - **Switch approach on repeated failure.** If the same action fails twice in a row, try a different strategy rather than repeating it.
