@@ -32,7 +32,8 @@ Identify every file you will write and what each must contain. Hold this plan in
 - Temporary diagnostic commands (e.g. `cat`, `ls`) are allowed.
 
 ## Step 6 — Verify
-- Run `run_command` to install dependencies and confirm the project can build or parse without errors when feasible.
+- Run `run_command` to install dependencies and confirm the project can parse without errors when feasible.
+- Do not run build or compile commands — only install and syntax checks are needed.
 
 ## Step 7 — Iterate
 - If a check fails, diagnose and fix. Do not give up after a single failure.
@@ -51,7 +52,7 @@ Identify every file you will write and what each must contain. Hold this plan in
 | `list_files` | First call of every session; also when you need to find a file whose path you don't know |
 | `read_file` | Before modifying any existing file; read the full file, not partial ranges |
 | `write_file` | Any time you create or update a source file; always write the complete content |
-| `run_command` | Install dependencies, run build checks, lint, verify syntax |
+| `run_command` | Install dependencies, lint, verify syntax — do not run build or compile commands |
 | `fetch_url` | Only when you genuinely need external documentation you cannot infer |
 | `ask_user` | Only when a required value (e.g. a credential) is missing from the task description and cannot be inferred |
 | `finish_task` | Once all required files are written and the implementation is complete |
