@@ -407,6 +407,12 @@ async function main(): Promise<void> {
   if (opts.braintrust) {
     const { createBraintrustReporter } = await import('./reporters/braintrust.js');
     btReporter = await createBraintrustReporter(modeArg, tools);
+
+    // Sync eval definitions to Braintrust dataset (fire-and-forget, non-blocking)
+    const { syncDataset, toEvalSummaries } = await import('./reporters/braintrust-dataset.js');
+    Promise.all(registry.map((cfg) => loadEval(cfg, FRAMEWORK_ROOT)))
+      .then((evalDefs) => syncDataset(toEvalSummaries(evalDefs)))
+      .catch((e) => console.error(`[Braintrust] Dataset sync error: ${e}`));
   }
 
   const results: Record<string, unknown>[] = [];
