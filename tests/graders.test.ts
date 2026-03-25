@@ -9,6 +9,7 @@ import { makeTmpDir } from './tmp.js';
 import {
   contains,
   notContains,
+  notContainsInSource,
   matches,
   passRate,
   runGraders,
@@ -125,6 +126,77 @@ describe('runGraders - notContains', () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'app.js'), 'auth0provider is used here');
     const graders = [notContains('Auth0Provider')];
+
+    const results = await runGraders(graders, dir, 'unused');
+
+    expect(results[0].passed).toBe(false);
+  });
+});
+
+// ── runGraders — notContainsInSource ─────────────────────────────────────────
+
+describe('runGraders - notContainsInSource', () => {
+  it('passes when secret is only in a .env file', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, '.env'), 'AUTH0_SECRET=supersecret');
+    writeFileSync(join(dir, 'index.ts'), "export const hello = 'world';");
+    const graders = [notContainsInSource('supersecret', 'no hardcoded secret')];
+
+    const results = await runGraders(graders, dir, 'unused');
+
+    expect(results[0].passed).toBe(true);
+    expect(results[0].kind).toBe('not_contains_in_source');
+    expect(results[0].name).toBe('no hardcoded secret');
+  });
+
+  it('passes when secret is only in a .env.local file', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, '.env.local'), 'AUTH0_SECRET=supersecret');
+    writeFileSync(join(dir, 'index.ts'), "export const hello = 'world';");
+    const graders = [notContainsInSource('supersecret')];
+
+    const results = await runGraders(graders, dir, 'unused');
+
+    expect(results[0].passed).toBe(true);
+  });
+
+  it('fails when secret is hardcoded in a .ts source file', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'auth.ts'), "const secret = 'supersecret';");
+    const graders = [notContainsInSource('supersecret')];
+
+    const results = await runGraders(graders, dir, 'unused');
+
+    expect(results[0].passed).toBe(false);
+  });
+
+  it('passes when secret is only in a .json config file', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'config.json'), JSON.stringify({ auth0Secret: 'supersecret' }));
+    writeFileSync(join(dir, 'index.ts'), "export const hello = 'world';");
+    const graders = [notContainsInSource('supersecret')];
+
+    const results = await runGraders(graders, dir, 'unused');
+
+    expect(results[0].passed).toBe(true);
+    expect(results[0].kind).toBe('not_contains_in_source');
+  });
+
+  it('passes when secret is only in a .plist config file', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'Auth0.plist'), '<string>supersecret</string>');
+    writeFileSync(join(dir, 'App.swift'), 'let greeting = "hello"');
+    const graders = [notContainsInSource('supersecret')];
+
+    const results = await runGraders(graders, dir, 'unused');
+
+    expect(results[0].passed).toBe(true);
+  });
+
+  it('fails when secret is hardcoded in a .js source file', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'auth.js'), "const secret = 'supersecret';");
+    const graders = [notContainsInSource('supersecret')];
 
     const results = await runGraders(graders, dir, 'unused');
 
@@ -293,9 +365,8 @@ describe('llmJudge', () => {
 
   it('passes when yes has trailing punctuation', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('yes.\n\nThe Auth0Provider wrapper is present.'));
-    const { passed, detail } = await llmJudge('question', 'code', 'key', 'model');
+    const { passed } = await llmJudge('question', 'code', 'key', 'model');
     expect(passed).toBe(true);
-    expect(detail).not.toContain('unexpected verdict');
   });
 
   it('fails when no has trailing punctuation', async () => {

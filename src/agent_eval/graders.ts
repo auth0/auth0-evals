@@ -105,6 +105,14 @@ export function matches(pattern: string, description?: string): GraderDef {
   };
 }
 
+export function notContainsInSource(needle: string, description?: string): GraderDef {
+  return {
+    kind: 'not_contains_in_source',
+    needle,
+    name: description ?? `not_contains_in_source '${needle}'`,
+  };
+}
+
 export function judge(question: string, framework?: string): GraderDef {
   return {
     kind: 'judge',
@@ -156,6 +164,27 @@ export async function runGraders(
         kind,
         passed,
         detail: `'${needle}' ${passed ? 'NOT found (good)' : 'FOUND (bad)'} in written files`,
+      });
+    } else if (kind === 'not_contains_in_source') {
+      const needle = g.needle!;
+      const needleLower = needle.toLowerCase();
+      // Only check source files — exclude .env*, .json, .plist, config-only files
+      const NON_SOURCE_EXTS = /\.(env|json|plist|xml|yaml|yml|toml|ini|cfg|conf)$/i;
+      const NON_SOURCE_PREFIXES = /^\.env/;
+      let found = false;
+      for (const [filePath, content] of Object.entries(files)) {
+        const base = filePath.split('/').pop() ?? filePath;
+        if (NON_SOURCE_EXTS.test(base) || NON_SOURCE_PREFIXES.test(base)) continue;
+        if (content.toLowerCase().includes(needleLower)) {
+          found = true;
+          break;
+        }
+      }
+      results.push({
+        name,
+        kind,
+        passed: !found,
+        detail: `'${needle}' ${!found ? 'NOT found in source files (good)' : 'FOUND in source files (bad)'}`,
       });
     } else if (kind === 'matches') {
       const pattern = g.pattern!;
