@@ -68,7 +68,7 @@ export interface TurnMetric {
    */
   toolCallCount: number;
   /**
-   * Estimated cost for this turn
+   * Estimated cost for this turn.
    */
   costUsd: number;
 }

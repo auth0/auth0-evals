@@ -95,7 +95,7 @@ describe('renderHtml CSS class integration', () => {
       [makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 1.0 })],
       '2024-01-01 00:00',
     );
-    expect(html).toContain('class="card-score-value rate-excellent"');
+    expect(html).toContain('class="rate-excellent card-score-value"');
   });
 
   it('50% pass rate (lower boundary of fair tier) applies rate-fair, not rate-poor', () => {
@@ -103,8 +103,9 @@ describe('renderHtml CSS class integration', () => {
       [makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 0.5 })],
       '2024-01-01 00:00',
     );
-    expect(html).toContain('class="card-score-value rate-fair"');
-    expect(html).not.toContain('class="card-score-value rate-poor"');
+    expect(html).toContain('class="rate-fair card-score-value"');
+    const body = html.slice(html.indexOf('</style>'));
+    expect(body).not.toContain('rate-poor');
   });
 
   it('0% pass rate applies rate-poor to card-score-value', () => {
@@ -112,7 +113,7 @@ describe('renderHtml CSS class integration', () => {
       [makeResult('react_quickstart', 'gpt-5.2', 'baseline', { grader_pass_rate: 0.0 })],
       '2024-01-01 00:00',
     );
-    expect(html).toContain('class="card-score-value rate-poor"');
+    expect(html).toContain('class="rate-poor card-score-value"');
   });
 
   it('overall grade A produces badge-a class on weighted-total badge', () => {
@@ -126,7 +127,7 @@ describe('renderHtml CSS class integration', () => {
       ],
       '2024-01-01 00:00',
     );
-    expect(html).toContain('class="badge badge-lg badge-a"');
+    expect(html).toContain('class="grade-badge grade-badge--lg badge-a"');
   });
 
   it('overall grade F produces badge-df class (shared with D) on weighted-total badge', () => {
@@ -140,7 +141,7 @@ describe('renderHtml CSS class integration', () => {
       ],
       '2024-01-01 00:00',
     );
-    expect(html).toContain('class="badge badge-lg badge-df"');
+    expect(html).toContain('class="grade-badge grade-badge--lg badge-df"');
   });
 });
 

@@ -78,14 +78,35 @@
 <table class="graders-table">
   {% for g in graders %}
   <tr>
-    <td class="grader-icon {{ 'grader-icon--pass' if g.passed else 'grader-icon--fail' }}">{{ "✓" if g.passed else "✗" }}</td>
+    <td class="grader-icon {{ 'grader-pass' if g.passed else 'grader-fail' }}">{{ "✓" if g.passed else "✗" }}</td>
     <td class="grader-name">
-      <span class="grader-kind">{{ g.kind }}</span>{{ g.name }}
+      <span class="grader-kind">{{ g.kind }}</span>
+      {{ g.name }}
     </td>
-    <td class="grader-detail">{{ g.detail if g.detail else "" }}</td>
+    <td class="grader-detail">{% if g.kind == "judge" %}{{ "yes" if g.passed else "no" }}{% else %}{{ g.detail if g.detail else "" }}{% endif %}</td>
   </tr>
   {% endfor %}
 </table>
+{% endmacro %}
+
+{# ── judge tab ─────────────────────────────────────────────────────────────── #}
+
+{% macro render_judge(judge_graders) %}
+{% if not judge_graders %}
+<div class="tab-panel-empty">No judge graders recorded.</div>
+{% else %}
+<div class="judge-list">
+  {% for g in judge_graders %}
+  <div class="judge-entry">
+    <div class="judge-verdict">
+      <span class="judge-verdict-badge {{ 'judge-pass' if g.passed else 'judge-fail' }}">{{ "Pass" if g.passed else "Fail" }}</span>
+      <span class="judge-question">{{ g.name }}</span>
+    </div>
+    {{ g.detail | judge_html | safe }}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 {% endmacro %}
 
 {# ── score breakdown ──────────────────────────────────────────────────────── #}
@@ -103,7 +124,7 @@
   <td class="dimension-weighted">= {{ "%.2f" | format(weighted) }}</td>
   <td class="dimension-grade">
     {% set grade = dim.grade if dim.grade else "" %}
-    <span class="badge badge-sm {{ grade | grade_css_class }}">{{ grade }}</span>
+    <span class="grade-badge {{ grade | grade_css_class }}">{{ grade }}</span>
   </td>
 </tr>
 {% endfor %}
@@ -124,7 +145,7 @@
       <td class="weighted-total-label">Weighted Total</td>
       <td colspan="3" class="weighted-total-score">{{ "%.1f" | format(overall_score) }} / 100</td>
       <td class="weighted-total-grade">
-        <span class="badge badge-lg {{ overall_grade | grade_css_class }}">{{ overall_grade }}</span>
+        <span class="grade-badge grade-badge--lg {{ overall_grade | grade_css_class }}">{{ overall_grade }}</span>
       </td>
     </tr>
   </table>
@@ -135,9 +156,104 @@
 </div>
 {% endmacro %}
 
+{# ── turn metrics ─────────────────────────────────────────────────────────── #}
+
+{% macro render_turn_metrics(metrics) %}
+{% if not metrics or metrics | length == 0 %}
+<div class="tab-panel-empty">No LLM turns recorded.</div>
+{% else %}
+{% set total_in = 0 %}
+{% set total_out = 0 %}
+{% set total_lat = 0 %}
+{% set total_cost = 0 %}
+{% for m in metrics %}
+  {% set total_in   = total_in   + (m.input_tokens  if m.input_tokens  else 0) %}
+  {% set total_out  = total_out  + (m.output_tokens if m.output_tokens else 0) %}
+  {% set total_lat  = total_lat  + (m.llm_latency   if m.llm_latency   else 0) %}
+  {% set total_cost = total_cost + (m.cost_usd      if m.cost_usd      else 0) %}
+{% endfor %}
+<div class="metrics-body">
+  <table class="metrics-table">
+    <tr class="metrics-thead">
+      <th class="metrics-th">Turn</th>
+      <th class="metrics-th metrics-th--r">In tokens</th>
+      <th class="metrics-th metrics-th--r">Out tokens</th>
+      <th class="metrics-th metrics-th--r">LLM latency</th>
+      <th class="metrics-th metrics-th--r">Cost</th>
+      <th class="metrics-th metrics-th--c">Finish</th>
+      <th class="metrics-th metrics-th--c">Tools</th>
+    </tr>
+    {% for m in metrics %}
+    {% set fr  = m.finish_reason if m.finish_reason else "unknown" %}
+    {% set lat = m.llm_latency if m.llm_latency else 0 %}
+    {% set cost = m.cost_usd if m.cost_usd else 0 %}
+    <tr class="metrics-row">
+      <td class="metrics-td">{{ m.turn }}</td>
+      <td class="metrics-td metrics-td--r">{{ m.input_tokens if m.input_tokens else 0 }}</td>
+      <td class="metrics-td metrics-td--r">{{ m.output_tokens if m.output_tokens else 0 }}</td>
+      <td class="metrics-td metrics-td--r {{ lat | latency_css_class }}">{{ "%.1f" | format(lat) }}s</td>
+      <td class="metrics-td metrics-td--r">${{ "%.4f" | format(cost) }}</td>
+      <td class="metrics-td metrics-td--c"><span class="finish-pill {{ fr | finish_css_class }}">{{ fr }}</span></td>
+      <td class="metrics-td metrics-td--c metrics-td--bright">{{ m.tool_call_count if m.tool_call_count else 0 }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="metrics-total-row">
+      <td class="metrics-total-label">Total</td>
+      <td class="metrics-total-val">{{ total_in }}</td>
+      <td class="metrics-total-val">{{ total_out }}</td>
+      <td class="metrics-total-val">{{ "%.1f" | format(total_lat) }}s</td>
+      <td class="metrics-total-val">${{ "%.4f" | format(total_cost) }}</td>
+      <td colspan="2"></td>
+    </tr>
+  </table>
+</div>
+{% endif %}
+{% endmacro %}
+
+{# ── session trace ─────────────────────────────────────────────────────────── #}
+
+{% macro render_session_trace(trace) %}
+{% if not trace or trace | length == 0 %}
+<div class="tab-panel-empty">Agent completed without using any tools.</div>
+{% else %}
+<div class="metrics-body">
+  <table class="metrics-table">
+    {% for step in trace %}
+    {% set action     = step.actionType if step.actionType else "" %}
+    {% set size_bytes = step.resultSizeBytes if step.resultSizeBytes else 0 %}
+    <tr class="metrics-row">
+      <td class="metrics-td trace-step">{{ step.step }}</td>
+      <td class="trace-action"><span class="action-pill {{ action | action_css_class }}">{{ action }}</span></td>
+      <td class="trace-narrative">
+        <span class="trace-call">
+          <code class="trace-tool">{{ step.tool if step.tool else "" }}</code>
+          {%- for key, val in step.args -%}
+            {%- if val | length <= 60 -%}
+            <span class="trace-arg"><span class="trace-arg-key">{{ key }}</span>=<span class="trace-arg-val">{{ val }}</span></span>
+            {%- endif -%}
+          {%- endfor -%}
+          <span class="trace-dur">{{ "%.1f" | format(step.duration if step.duration else 0) }}s</span>
+          {%- if size_bytes >= 1024 %}<span class="step-badge {{ size_bytes | size_css_class }}">{{ "%.1f" | format(size_bytes / 1024) }} KB</span>{%- endif %}
+          {%- if step.isRetry %}<span class="step-badge badge-retry">&#8635; retry</span>{%- endif %}
+          {%- if step.recoveredFromError %}<span class="step-badge badge-recovered">&#10003; recovered</span>{%- endif %}
+          {%- if step.errorCategory %}<span class="step-badge badge-error-cat">{{ step.errorCategory }}</span>{%- endif %}
+        </span>
+        {%- for key, val in step.args -%}
+          {%- if val | length > 60 -%}
+          <div class="trace-block-arg"><span class="trace-arg-key">{{ key }}</span><pre class="trace-arg-pre">{{ val }}</pre></div>
+          {%- endif -%}
+        {%- endfor -%}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endmacro %}
+
 {# ── detail card ──────────────────────────────────────────────────────────── #}
 
-{% macro render_detail_card(model, variant, result) %}
+{% macro render_detail_card(model, variant, result, card_id) %}
 {% set graders_list  = result.graders if result.graders else [] %}
 {% set passed        = result.graders_passed if result.graders_passed is defined else (graders_list | selectattr("passed") | list | length) %}
 {% set total         = result.graders_total if result.graders_total is defined else (graders_list | length) %}
@@ -172,15 +288,39 @@
       <span class="card-model">{{ model }}</span>
     </div>
     <div class="card-score">
-      <span class="card-score-value {{ rate_cls }}">{{ passed }}/{{ total }}</span>
+      <span class="{{ rate_cls }} card-score-value">{{ passed }}/{{ total }}</span>
       <span class="card-score-label">graders</span>
     </div>
   </div>
-  <div class="progress-bar"><span class="mono {{ rate_cls }}">{{ bar_filled }}{{ bar_empty }}</span> {{ (rate * 100) | round | int }}%</div>
+  <div class="progress-bar"><span class="{{ rate_cls }} mono">{{ bar_filled }}{{ bar_empty }}</span> {{ (rate * 100) | round | int }}%</div>
   {% if dimensions | length > 0 and overall_score is not none %}
   {{ render_score_breakdown(dimensions, overall_score, overall_grade) }}
   {% endif %}
+  {% set judge_graders = graders_list | selectattr("kind", "equalto", "judge") | list %}
+  {% set has_metrics = result.turn_metrics and result.turn_metrics | length > 0 %}
+  {% set has_trace   = result.session_trace and result.session_trace | length > 0 %}
+  {% set has_judge   = judge_graders | length > 0 %}
+  {% set show_tabs   = has_metrics or has_trace or has_judge %}
+  {% if show_tabs %}
+  <div class="card-tabs">
+    <input type="radio" name="tab-{{ card_id }}" id="tab-g-{{ card_id }}" checked>
+    <input type="radio" name="tab-{{ card_id }}" id="tab-j-{{ card_id }}">
+    <input type="radio" name="tab-{{ card_id }}" id="tab-m-{{ card_id }}">
+    <input type="radio" name="tab-{{ card_id }}" id="tab-t-{{ card_id }}">
+    <div class="tab-bar">
+      <label class="tab-label" for="tab-g-{{ card_id }}">Graders</label>
+      <label class="tab-label{% if not has_judge %} tab-label--hidden{% endif %}" for="tab-j-{{ card_id }}">Judge</label>
+      <label class="tab-label{% if not has_metrics %} tab-label--hidden{% endif %}" for="tab-m-{{ card_id }}">Metrics</label>
+      <label class="tab-label{% if not has_trace %} tab-label--hidden{% endif %}" for="tab-t-{{ card_id }}">Trace</label>
+    </div>
+    <div class="tab-panel">{{ render_graders(graders_list) }}</div>
+    <div class="tab-panel">{{ render_judge(judge_graders) }}</div>
+    <div class="tab-panel">{{ render_turn_metrics(result.turn_metrics) }}</div>
+    <div class="tab-panel">{{ render_session_trace(result.session_trace) }}</div>
+  </div>
+  {% else %}
   {{ render_graders(graders_list) }}
+  {% endif %}
   <div class="card-footer">
     <span>⏱ {{ "%.1f" | format(wall) }}s</span>
     <span>🔤 {{ tokens }} tokens</span>
@@ -201,7 +341,7 @@
   {% set model   = parts[0] %}
   {% set variant = parts[1] %}
   {% set result = results_for_eval[key] %}
-  {{ render_detail_card(model, variant, result) }}
+  {{ render_detail_card(model, variant, result, card_id=eval_id ~ "_" ~ loop.index) }}
   {% endfor %}
 </div>
 {% endmacro %}
