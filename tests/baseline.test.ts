@@ -28,17 +28,17 @@ function makeLlmResponse(content = 'Here is the code.', inputTokens = 100, outpu
 describe('estimateCost', () => {
   it('uses correct input price for known model', () => {
     const cost = estimateCost('gpt-5.2', 1_000_000, 0);
-    expect(cost).toBe(10.0);
+    expect(cost).toBe(1.75);
   });
 
   it('uses correct output price for known model', () => {
     const cost = estimateCost('gpt-5.2', 0, 1_000_000);
-    expect(cost).toBe(30.0);
+    expect(cost).toBe(14.0);
   });
 
   it('sums input and output costs', () => {
     const cost = estimateCost('gpt-5.2', 1_000_000, 1_000_000);
-    expect(cost).toBe(40.0);
+    expect(cost).toBe(15.75);
   });
 
   it('uses default price for unknown model', () => {
@@ -119,7 +119,7 @@ describe('runBaseline', () => {
     } as unknown as Response);
 
     const result = await runBaseline('key', 'gpt-5.2', makeEvalDef());
-    expect(result.costUsd).toBe(10.0);
+    expect(result.costUsd).toBe(1.75);
   });
 
   it('status is success on happy path', async () => {
