@@ -1,11 +1,4 @@
-import {
-  contains,
-  notContains,
-  notContainsInSource,
-  matches,
-  judge,
-  GraderLevel,
-} from '../../../agent_eval/graders.js';
+import { contains, notContains, matches, judge, GraderLevel } from '../../../agent_eval/graders.js';
 
 export function defineGraders() {
   return [
@@ -15,6 +8,8 @@ export function defineGraders() {
     contains('useAuth0', 'Uses useAuth0 hook', GraderLevel.L1),
     contains('loginWithRedirect', 'Implements loginWithRedirect', GraderLevel.L1),
     contains('logout', 'Implements logout', GraderLevel.L1),
+    contains('isAuthenticated', 'Checks isAuthenticated for conditional rendering', GraderLevel.L1),
+    contains('user.name', 'Displays user profile name', GraderLevel.L1),
 
     // ── L2: Negative / anti-pattern detection ─────────────────────────────────
     notContains('@auth0/react', 'No hallucinated @auth0/react package (must be @auth0/auth0-react)', GraderLevel.L2),
@@ -24,10 +19,10 @@ export function defineGraders() {
     // ── L3: Security checks ──────────────────────────────────────────────────
     notContains('localStorage.setItem', 'No tokens stored in localStorage', GraderLevel.L3),
     notContains('sessionStorage.setItem', 'No tokens stored in sessionStorage', GraderLevel.L3),
-    notContainsInSource('barkbook_client_abc123xyz', 'No hardcoded client ID in source files', GraderLevel.L3),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
     matches(String.raw`<Auth0Provider[\s\S]*?domain`, 'Auth0Provider configured with domain prop', GraderLevel.L4),
+    contains('getAccessTokenSilently', 'Uses getAccessTokenSilently to retrieve access token', GraderLevel.L4),
     judge(
       'Does the code handle the loading state (isLoading) before checking isAuthenticated? ' +
         'A correct implementation should not render auth-dependent UI while isLoading is true.',
@@ -37,6 +32,11 @@ export function defineGraders() {
 
     // ── L5: Version-specific API correctness ──────────────────────────────────
     contains('authorizationParams', 'Uses authorizationParams (not audience directly on provider)', GraderLevel.L5),
+    matches(
+      String.raw`audience.*api\.barkbook\.com`,
+      "authorizationParams contains audience 'https://api.barkbook.com'",
+      GraderLevel.L5,
+    ),
     judge(
       'Does the code use the current @auth0/auth0-react SDK patterns? ' +
         'Specifically: does it use isLoading (not the deprecated "loading" property), ' +
@@ -48,7 +48,8 @@ export function defineGraders() {
     // ── Holistic judge ───────────────────────────────────────────────────────
     judge(
       'Does the solution correctly integrate Auth0 into a React SPA with Auth0Provider, ' +
-        'useAuth0 hook, login, logout, and user profile display?',
+        'useAuth0 hook, login, logout, user profile display, and getAccessTokenSilently ' +
+        'to make authenticated API calls?',
       'react',
     ),
   ];
