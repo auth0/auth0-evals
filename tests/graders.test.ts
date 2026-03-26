@@ -14,6 +14,7 @@ import {
   passRate,
   runGraders,
   llmJudge,
+  GraderLevel,
   type GraderResult,
 } from '../src/agent_eval/graders.js';
 import { JUDGE_MAX_TOKENS } from '../src/config/settings.js';
@@ -382,5 +383,88 @@ describe('llmJudge', () => {
     expect(passed).toBe(false);
     expect(detail).toContain('unexpected verdict');
     expect(detail).toContain('maybe');
+  });
+});
+
+// ── allowedLevels filtering ───────────────────────────────────────────────────
+
+describe('runGraders - allowedLevels', () => {
+  it('runs all graders when allowedLevels is not provided', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'App.js'), "import Auth0 from '@auth0/auth0-react';");
+    const graders = [
+      contains('@auth0/auth0-react', 'L1 check', GraderLevel.L1),
+      contains('useAuth0', 'L4 check', GraderLevel.L4),
+      contains('Auth0', 'untagged holistic check'),
+    ];
+
+    const results = await runGraders(graders, dir, 'unused');
+
+    expect(results.length).toBe(3);
+  });
+
+  it('runs only graders whose level is in the set when allowedLevels is provided', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'App.js'), "import Auth0 from '@auth0/auth0-react';");
+    const graders = [
+      contains('@auth0/auth0-react', 'L1 check', GraderLevel.L1),
+      contains('useAuth0', 'L4 check', GraderLevel.L4),
+    ];
+    const allowed = new Set([GraderLevel.L1, GraderLevel.L2, GraderLevel.L3]);
+
+    const results = await runGraders(graders, dir, 'unused', undefined, allowed);
+
+    expect(results.length).toBe(1);
+    expect(results[0].name).toBe('L1 check');
+  });
+
+  it('excludes untagged graders when allowedLevels is provided', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'App.js'), "import Auth0 from '@auth0/auth0-react';");
+    const graders = [
+      contains('@auth0/auth0-react', 'L1 check', GraderLevel.L1),
+      contains('Auth0', 'holistic check'), // no level
+    ];
+    const allowed = new Set([GraderLevel.L1, GraderLevel.L2, GraderLevel.L3]);
+
+    const results = await runGraders(graders, dir, 'unused', undefined, allowed);
+
+    expect(results.length).toBe(1);
+    expect(results[0].name).toBe('L1 check');
+  });
+
+  it('includes untagged graders when allowedLevels is undefined (agent mode)', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'App.js'), "import Auth0 from '@auth0/auth0-react';");
+    const graders = [
+      contains('@auth0/auth0-react', 'L1 check', GraderLevel.L1),
+      contains('Auth0', 'holistic check'), // no level
+    ];
+
+    const results = await runGraders(graders, dir, 'unused');
+
+    expect(results.length).toBe(2);
+  });
+
+  it('preserves level on GraderResult', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'App.js'), "import Auth0 from '@auth0/auth0-react';");
+    const graders = [contains('@auth0/auth0-react', 'L1 check', GraderLevel.L1), contains('Auth0', 'holistic check')];
+
+    const results = await runGraders(graders, dir, 'unused');
+
+    expect(results[0].level).toBe(GraderLevel.L1);
+    expect(results[1].level).toBeUndefined();
+  });
+
+  it('returns empty results when no grader matches allowed levels', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'App.js'), 'some code');
+    const graders = [contains('token', 'L4 check', GraderLevel.L4), contains('token', 'holistic check')];
+    const allowed = new Set([GraderLevel.L1, GraderLevel.L2, GraderLevel.L3]);
+
+    const results = await runGraders(graders, dir, 'unused', undefined, allowed);
+
+    expect(results.length).toBe(0);
   });
 });
