@@ -29,7 +29,7 @@ import { config as loadDotenv } from 'dotenv';
 import { EVALUATIONS, type EvalConfig } from './config/evaluations.js';
 import { UnknownModeError } from './errors.js';
 import { loadEval, type EvalDefinition } from './runners/loader.js';
-import { runGraders } from './agent_eval/graders.js';
+import { runGraders, GraderLevel } from './agent_eval/graders.js';
 import { serialiseTrace, serialiseTurnMetrics } from './agent_eval/traces.js';
 import { tmpdir } from 'node:os';
 
@@ -47,6 +47,8 @@ export const DEFAULT_MODEL = 'gpt-5.2';
 export const ALL_MODES = ['baseline', 'agent'];
 
 export const KNOWN_TOOLS = ['Skills'];
+
+const BASELINE_LEVELS = new Set([GraderLevel.L1, GraderLevel.L2, GraderLevel.L3]);
 
 export function parseToolsArg(toolsArg: string): string[] {
   if (!toolsArg) return [];
@@ -84,7 +86,7 @@ export async function runJob(
     if (mode === 'baseline') {
       const { runBaseline } = await import('./runners/baseline.js');
       const result = await runBaseline(apiKey, model, evalDef);
-      const graderResults = await gradeText(evalDef, result.responseText, apiKey);
+      const graderResults = await gradeText(evalDef, result.responseText, apiKey, BASELINE_LEVELS);
       return serialiseSimple(evalDef, result, graderResults, result.responseText);
     } else if (mode === 'agent') {
       let evalToRun = evalDef;
@@ -130,12 +132,13 @@ async function gradeText(
   evalDef: EvalDefinition,
   text: string,
   apiKey: string,
+  allowedLevels?: Set<GraderLevel>,
 ): Promise<Awaited<ReturnType<typeof runGraders>>> {
   const code = extractCodeBlocks(text);
   const tmp = mkdtempSync(join(tmpdir(), 'auth0_eval_grade_'));
   try {
     writeFileSync(join(tmp, 'llm_response.txt'), code, 'utf-8');
-    return await runGraders(evalDef.graders, tmp, apiKey);
+    return await runGraders(evalDef.graders, tmp, apiKey, undefined, allowedLevels);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -200,6 +203,7 @@ async function runAgentJob(
         kind: gr.kind,
         passed: gr.passed,
         detail: gr.detail,
+        level: gr.level,
       })),
       session_trace: serialiseTrace(record),
       turn_metrics: serialiseTurnMetrics(record),
@@ -227,7 +231,7 @@ function serialiseSimple(
     costUsd: number;
     error?: string;
   },
-  graderResults: { name: string; kind: string; passed: boolean; detail: string }[],
+  graderResults: { name: string; kind: string; passed: boolean; detail: string; level?: GraderLevel }[],
   responseText?: string,
 ): Record<string, unknown> {
   const passed = graderResults.filter((r) => r.passed).length;
@@ -254,6 +258,7 @@ function serialiseSimple(
       kind: gr.kind,
       passed: gr.passed,
       detail: gr.detail,
+      level: gr.level,
     })),
   };
 }

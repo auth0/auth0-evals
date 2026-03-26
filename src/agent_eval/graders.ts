@@ -41,6 +41,16 @@ function loadUserTemplate(): string {
   return readFileSync(join(JUDGE_PROMPTS_DIR, 'user_template.md'), 'utf-8').trim();
 }
 
+// ── Level enum ────────────────────────────────────────────────────────────────
+
+export enum GraderLevel {
+  L1 = 'positive_presence',
+  L2 = 'hallucination',
+  L3 = 'security',
+  L4 = 'structural',
+  L5 = 'version_correctness',
+}
+
 // ── Result type ───────────────────────────────────────────────────────────────
 
 export interface GraderResult {
@@ -48,6 +58,7 @@ export interface GraderResult {
   kind: string;
   passed: boolean;
   detail: string;
+  level?: GraderLevel;
 }
 
 // ── Workspace helpers ─────────────────────────────────────────────────────────
@@ -82,44 +93,49 @@ function combined(files: Record<string, string>): string {
 
 // ── Grader factories ──────────────────────────────────────────────────────────
 
-export function contains(needle: string, description?: string): GraderDef {
+export function contains(needle: string, description?: string, level?: GraderLevel): GraderDef {
   return {
     kind: 'contains',
     needle,
     name: description ?? `contains '${needle}'`,
+    level,
   };
 }
 
-export function notContains(needle: string, description?: string): GraderDef {
+export function notContains(needle: string, description?: string, level?: GraderLevel): GraderDef {
   return {
     kind: 'not_contains',
     needle,
     name: description ?? `not_contains '${needle}'`,
+    level,
   };
 }
 
-export function matches(pattern: string, description?: string): GraderDef {
+export function matches(pattern: string, description?: string, level?: GraderLevel): GraderDef {
   return {
     kind: 'matches',
     pattern,
     name: description ?? `matches /${pattern}/`,
+    level,
   };
 }
 
-export function notContainsInSource(needle: string, description?: string): GraderDef {
+export function notContainsInSource(needle: string, description?: string, level?: GraderLevel): GraderDef {
   return {
     kind: 'not_contains_in_source',
     needle,
     name: description ?? `not_contains_in_source '${needle}'`,
+    level,
   };
 }
 
-export function judge(question: string, framework?: string): GraderDef {
+export function judge(question: string, framework?: string, level?: GraderLevel): GraderDef {
   return {
     kind: 'judge',
     question,
     framework,
     name: question.slice(0, 80),
+    level,
   };
 }
 
@@ -130,6 +146,7 @@ export interface GraderDef {
   pattern?: string;
   question?: string;
   framework?: string;
+  level?: GraderLevel;
 }
 
 // ── Runner ────────────────────────────────────────────────────────────────────
@@ -139,13 +156,18 @@ export async function runGraders(
   workspace: string,
   apiKey: string,
   judgeModel: string = JUDGE_MODEL,
+  allowedLevels?: Set<GraderLevel>,
 ): Promise<GraderResult[]> {
+  const active = allowedLevels
+    ? graderDefs.filter((g) => g.level !== undefined && allowedLevels.has(g.level))
+    : graderDefs;
+
   const files = collectFiles(workspace);
   const combinedText = combined(files);
   const combinedLower = combinedText.toLowerCase();
   const results: GraderResult[] = [];
 
-  for (const g of graderDefs) {
+  for (const g of active) {
     const { kind, name } = g;
 
     if (kind === 'contains') {
@@ -156,6 +178,7 @@ export async function runGraders(
         kind,
         passed,
         detail: `'${needle}' ${passed ? 'found' : 'NOT found'} in written files`,
+        level: g.level,
       });
     } else if (kind === 'not_contains') {
       const needle = g.needle!;
@@ -165,6 +188,7 @@ export async function runGraders(
         kind,
         passed,
         detail: `'${needle}' ${passed ? 'NOT found (good)' : 'FOUND (bad)'} in written files`,
+        level: g.level,
       });
     } else if (kind === 'not_contains_in_source') {
       const needle = g.needle!;
@@ -186,6 +210,7 @@ export async function runGraders(
         kind,
         passed: !found,
         detail: `'${needle}' ${!found ? 'NOT found in source files (good)' : 'FOUND in source files (bad)'}`,
+        level: g.level,
       });
     } else if (kind === 'matches') {
       const pattern = g.pattern!;
@@ -198,12 +223,12 @@ export async function runGraders(
         passed = false;
         detail = `/(invalid regex: ${e})/ NOT matched`;
       }
-      results.push({ name, kind, passed, detail });
+      results.push({ name, kind, passed, detail, level: g.level });
     } else if (kind === 'judge') {
       const { passed, detail } = await llmJudge(g.question!, combinedText, apiKey, judgeModel, g.framework);
-      results.push({ name, kind, passed, detail });
+      results.push({ name, kind, passed, detail, level: g.level });
     } else {
-      results.push({ name, kind, passed: false, detail: `Unknown grader kind: ${kind}` });
+      results.push({ name, kind, passed: false, detail: `Unknown grader kind: ${kind}`, level: g.level });
     }
   }
 
