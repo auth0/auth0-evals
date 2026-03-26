@@ -202,41 +202,16 @@ tests/                          # Vitest test suite
 
 ## Adding an Eval
 
-1. Create `src/evals/<category>/<eval-id>/PROMPT.md`
-2. Create `src/evals/<category>/<eval-id>/graders.ts` with a `defineGraders()` function
-3. Optionally declare a skill in `PROMPT.md` frontmatter (`skills: auth0-react`)
-4. Optionally add starter files in `src/evals/<category>/<eval-id>/scaffold/`
-5. Register it in `src/config/evaluations.ts`
-6. Add it as a Vite entry in `vite.config.ts`
+> **Full guide:** [docs/ADDING_EVALS.md](docs/ADDING_EVALS.md)
+>
+> Covers folder structure, `PROMPT.md` authoring, the L1–L5 grader strategy, scaffold files, registration steps, and a submission checklist.
 
-```typescript
-// src/config/evaluations.ts
-export const EVALUATIONS: EvalConfig[] = [
-  {
-    id: 'your_eval_id',
-    name: 'Your Eval Name',
-    category: 'your-category',
-    path: 'src/evals/<category>/your_eval_id',
-  },
-];
-```
+Quick summary:
 
-```typescript
-// src/evals/<category>/your_eval_id/graders.ts
-import { contains, judge } from '../../../agent_eval/graders.js';
-
-export function defineGraders() {
-  return [
-    contains('SomeImport'),
-    judge('Does the solution correctly integrate X?', 'framework'),
-  ];
-}
-```
-
-```typescript
-// vite.config.ts — add to the entry object
-'src/evals/<category>/your_eval_id/graders': resolve(__dirname, 'src/evals/<category>/your_eval_id/graders.ts'),
-```
+1. Create `src/evals/<category>/<eval-id>/PROMPT.md` and `graders.ts`
+2. Assign every grader a `GraderLevel` (L1–L5) and include a holistic `judge` at the end — see [the grader levels guide](docs/ADDING_EVALS.md#grader-levels-l1l5) for what each level tests
+3. Optionally add starter files in `scaffold/` and declare skills in frontmatter
+4. Register the eval in `src/config/evaluations.ts` and `vite.config.ts`
 
 Then rebuild: `npm run build`
 
