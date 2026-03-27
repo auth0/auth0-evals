@@ -13,7 +13,7 @@
  *   --model     Model(s) to run (default: gpt-5.2). Can be repeated.
  *               Use 'all' to run all known working models.
  *   --mode      Execution mode: baseline | agent | all (default: baseline)
- *   --tools     Tools to inject for agent mode: Skills (default: none). Supports {Skills} and Skills,... syntax.
+ *   --tools     Tools to inject for agent mode: skills, mcp (default: none). Case-insensitive. Supports {skills} and skills,mcp,... syntax.
  *   --workers   Parallel workers (default: 4)
  *   --output    JSON output path (default: scores-<mode>.json)
  *   --keep-workspace   (agent mode) Keep temp workspace after run
@@ -46,7 +46,7 @@ export const DEFAULT_MODEL = 'gpt-5.2';
 
 export const ALL_MODES = ['baseline', 'agent'];
 
-export const KNOWN_TOOLS = ['Skills'];
+export const KNOWN_TOOLS = ['skills', 'mcp'];
 
 const BASELINE_LEVELS = new Set([GraderLevel.L1, GraderLevel.L2, GraderLevel.L3]);
 
@@ -60,7 +60,7 @@ export function parseToolsArg(toolsArg: string): string[] {
     ...new Set(
       normalized
         .split(',')
-        .map((t) => t.trim())
+        .map((t) => t.trim().toLowerCase())
         .filter(Boolean),
     ),
   ].sort();
@@ -163,7 +163,7 @@ async function runAgentJob(
       userPrompt: evalDef.userPrompt,
     };
 
-    const record = await runAgent(apiKey, model, taskAdapter, workspace);
+    const record = await runAgent(apiKey, model, taskAdapter, workspace, undefined, tools);
 
     let graderResults: Awaited<ReturnType<typeof runGraders>> = [];
     if (evalDef.graders.length > 0) {
@@ -319,7 +319,7 @@ async function main(): Promise<void> {
     .option('--mode <mode>', 'Execution mode: baseline | agent | all (default: baseline)', 'baseline')
     .option(
       '--tools <tools>',
-      `Tools for agent mode: ${KNOWN_TOOLS.join(', ')}. Wrapping braces and comma-separation supported, e.g. {Skills}.`,
+      `Tools for agent mode: ${KNOWN_TOOLS.join(', ')} (case-insensitive). Wrapping braces and comma-separation supported, e.g. {skills} or skills,mcp.`,
       '',
     )
     .option('--workers <n>', 'Parallel workers (default: 4)', '4')
@@ -357,7 +357,7 @@ async function main(): Promise<void> {
   } else {
     if (!ALL_MODES.includes(modeArg)) {
       if (modeArg === 'agent+skills') {
-        console.error(`'agent+skills' mode has been replaced. Use: --mode agent --tools Skills`);
+        console.error(`'agent+skills' mode has been replaced. Use: --mode agent --tools skills`);
       } else {
         console.error(`Invalid mode: ${modeArg}. Choose from: ${ALL_MODES.join(', ')} or 'all'`);
       }

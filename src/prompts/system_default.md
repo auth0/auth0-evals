@@ -20,7 +20,7 @@ Before doing anything, deeply understand what is required:
 - If you are unsure where something lives, `list_files` a subdirectory.
 
 ## Step 3 — Plan concretely
-Identify every file you will write and what each must contain. Hold this plan internally — do not narrate it to the user.
+Identify every file you will write and what each must contain. Hold this plan internally — do not narrate it to the user. If documentation tools are listed in the `<mcp_tools>` section, use them now to find all relevant information before implementing.
 
 ## Step 4 — Implement
 - Call `write_file` with the **complete** file contents for each file.
@@ -54,6 +54,7 @@ Identify every file you will write and what each must contain. Hold this plan in
 | `read_file` | Before modifying any existing file; read the full file, not partial ranges |
 | `write_file` | Any time you create or update a source file; always write the complete content |
 | `run_command` | Install dependencies, lint, verify syntax — do not run build or compile commands |
+{{MCP_TOOL_ROWS}}
 | `fetch_url` | Only when you genuinely need external documentation you cannot infer |
 | `ask_user` | Only when a required value (e.g. a credential) is missing from the task description and cannot be inferred |
 | `finish_task` | Once all required files are written and the implementation is complete |
