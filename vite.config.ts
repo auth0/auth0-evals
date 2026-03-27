@@ -33,6 +33,7 @@ export default defineConfig({
         'dotenv',
         'nunjucks',
         'p-limit',
+        /^@modelcontextprotocol\//,
         'braintrust',
       ],
     },

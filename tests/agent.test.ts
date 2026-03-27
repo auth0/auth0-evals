@@ -7,6 +7,23 @@ import { mkdirSync, writeFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmpDir } from './tmp.js';
 
+const mockClient = vi.hoisted(() => ({
+  connect: vi.fn().mockResolvedValue(undefined),
+  callTool: vi.fn(),
+  listTools: vi.fn(),
+  close: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
+  Client: vi.fn(function () {
+    return mockClient;
+  }),
+}));
+
+vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
+  StreamableHTTPClientTransport: vi.fn(function () {}),
+}));
+
 import {
   extractTokens,
   summariseArgs,
@@ -14,12 +31,14 @@ import {
   llmCall,
   runAgent,
   detectRetry,
+  buildMcpContext,
   type ToolCallRecord,
 } from '../src/agent_eval/agent.js';
-import { TOOL_DEFINITIONS } from '../src/agent_eval/tools/index.js';
+import { TOOL_DEFINITIONS, buildToolDefinitions } from '../src/agent_eval/tools/index.js';
 import { collectFiles } from '../src/agent_eval/tools/utils.js';
 
 import { ToolExecutor } from '../src/agent_eval/tools-executor/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { EXCLUDED_DIRS, MAX_LISTED_FILES } from '../src/config/settings.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -73,6 +92,24 @@ describe('TOOL_DEFINITIONS', () => {
     expect(names).toEqual(
       new Set(['read_file', 'list_files', 'write_file', 'run_command', 'fetch_url', 'ask_user', 'finish_task']),
     );
+  });
+
+  it('does not include search_auth0_docs by default', () => {
+    const names = TOOL_DEFINITIONS.map((t) => t.function.name);
+    expect(names).not.toContain('search_auth0_docs');
+  });
+
+  it('buildToolDefinitions without mcp excludes search_auth0_docs', () => {
+    const defs = buildToolDefinitions([]);
+    const names = (defs as { function: { name: string } }[]).map((t) => t.function.name);
+    expect(names).not.toContain('search_auth0_docs');
+  });
+
+  it('buildToolDefinitions with mcp includes dynamically provided MCP tools', () => {
+    const mcpDefs = [{ type: 'function', function: { name: 'search_auth0_docs' } }];
+    const defs = buildToolDefinitions(['mcp'], mcpDefs);
+    const names = (defs as { function: { name: string } }[]).map((t) => t.function.name);
+    expect(names).toContain('search_auth0_docs');
   });
 });
 
@@ -400,6 +437,27 @@ describe('ToolExecutor.list_files', () => {
   });
 });
 
+// ── buildMcpContext tests ──────────────────────────────────────────────────────
+
+describe('buildMcpContext', () => {
+  it('mentions having access to tools from registered MCP servers', () => {
+    expect(buildMcpContext(['search_auth0_docs'])).toContain(
+      'You have direct access to the following tools from the registered MCP server(s):',
+    );
+  });
+
+  it('is wrapped in mcp_tools tags', () => {
+    const ctx = buildMcpContext(['search_auth0_docs']);
+    expect(ctx).toContain('<mcp_tools>');
+    expect(ctx).toContain('</mcp_tools>');
+  });
+
+  it('returns empty string when no tools are provided', () => {
+    expect(buildMcpContext()).toBe('');
+    expect(buildMcpContext([])).toBe('');
+  });
+});
+
 // ── run_agent system prompt tests ─────────────────────────────────────────────
 
 describe('runAgent - system prompt', () => {
@@ -424,6 +482,52 @@ describe('runAgent - system prompt', () => {
     const systemMsgs = capturedMessages.filter((m) => (m as Record<string, unknown>).role === 'system');
     expect(systemMsgs.length).toBeGreaterThanOrEqual(1);
     expect((systemMsgs[0] as Record<string, unknown>).content).toContain('Use tools only');
+  });
+
+  it('includes mcp_tools context when tools includes mcp', async () => {
+    const capturedMessages: unknown[] = [];
+    mockClient.listTools.mockResolvedValue({
+      tools: [{ name: 'search_auth0_docs', description: 'Search Auth0 docs', inputSchema: {} }],
+    });
+    vi.spyOn(global, 'fetch').mockImplementation(async (_url, init) => {
+      const body = JSON.parse((init?.body as string) ?? '{}') as { messages: unknown[] };
+      capturedMessages.push(...body.messages);
+      return {
+        ok: true,
+        json: async () => makeFinishResponse(),
+      } as unknown as Response;
+    });
+
+    const dir = tmpDir();
+    await runAgent('key', 'gpt-4o', makeTask('Use tools only.'), dir, {}, ['mcp']);
+
+    const systemMsg = capturedMessages.find((m) => (m as Record<string, unknown>).role === 'system') as
+      | Record<string, unknown>
+      | undefined;
+    expect(systemMsg?.content).toContain(
+      'You have direct access to the following tools from the registered MCP server(s):',
+    );
+    expect(systemMsg?.content).toContain('<mcp_tools>');
+  });
+
+  it('omits mcp_tools context when tools does not include mcp', async () => {
+    const capturedMessages: unknown[] = [];
+    vi.spyOn(global, 'fetch').mockImplementation(async (_url, init) => {
+      const body = JSON.parse((init?.body as string) ?? '{}') as { messages: unknown[] };
+      capturedMessages.push(...body.messages);
+      return {
+        ok: true,
+        json: async () => makeFinishResponse(),
+      } as unknown as Response;
+    });
+
+    const dir = tmpDir();
+    await runAgent('key', 'gpt-4o', makeTask('Use tools only.'), dir);
+
+    const systemMsg = capturedMessages.find((m) => (m as Record<string, unknown>).role === 'system') as
+      | Record<string, unknown>
+      | undefined;
+    expect(systemMsg?.content).not.toContain('<mcp_tools>');
   });
 
   it('omits system message when no agent system prompt', async () => {
@@ -684,5 +788,109 @@ describe('detectRetry', () => {
       makeRecord({ name: 'write_file', args: { path: 'src/index.ts', content: 'x' }, causedError: true }),
     ];
     expect(detectRetry(history, 'write_file', { path: 'src/index.ts', content: 'y' })).toBe(true);
+  });
+});
+
+// ── ToolExecutor.search_auth0_docs tests ──────────────────────────────────────
+
+describe('ToolExecutor.search_auth0_docs', () => {
+  beforeEach(() => {
+    mockClient.callTool.mockReset();
+    mockClient.listTools.mockResolvedValue({
+      tools: [{ name: 'search_auth0_docs', description: '', inputSchema: {} }],
+    });
+  });
+
+  it('returns Unknown tool when initMcp has not been called', async () => {
+    const executor = new ToolExecutor(tmpDir());
+    const [result, , , isError] = await executor.execute('search_auth0_docs', { query: 'login' });
+    expect(result).toContain('Unknown tool');
+    expect(isError).toBe(true);
+  });
+
+  it('returns Unknown tool when tool name is not in the MCP tools list', async () => {
+    mockClient.listTools.mockResolvedValue({
+      tools: [{ name: 'other_tool', description: '', inputSchema: {} }],
+    });
+    const executor = new ToolExecutor(tmpDir());
+    await executor.initMcp({ url: 'http://mcp', name: 'test', version: '1.0.0' });
+    const [result, , , isError] = await executor.execute('search_auth0_docs', { query: 'login' });
+    expect(result).toContain('Unknown tool');
+    expect(isError).toBe(true);
+  });
+
+  it('returns result and marks as doc lookup', async () => {
+    mockClient.callTool.mockResolvedValue({
+      isError: false,
+      content: [{ type: 'text', text: 'Auth0 login documentation' }],
+    });
+    const executor = new ToolExecutor(tmpDir());
+    await executor.initMcp({ url: 'http://mcp', name: 'test', version: '1.0.0' });
+    const [result, isDoc, isInterrupt, isError] = await executor.execute('search_auth0_docs', { query: 'login' });
+    expect(result).toBe('Auth0 login documentation');
+    expect(isDoc).toBe(true);
+    expect(isInterrupt).toBe(false);
+    expect(isError).toBe(false);
+  });
+
+  it('passes query to callTool', async () => {
+    mockClient.callTool.mockResolvedValue({ isError: false, content: [{ type: 'text', text: 'result' }] });
+    const executor = new ToolExecutor(tmpDir());
+    await executor.initMcp({ url: 'http://mcp', name: 'test', version: '1.0.0' });
+    await executor.execute('search_auth0_docs', { query: 'quickstart react' });
+    expect(mockClient.callTool).toHaveBeenCalledWith({
+      name: 'search_auth0_docs',
+      arguments: { query: 'quickstart react' },
+    });
+  });
+
+  it('returns error string when callTool throws', async () => {
+    mockClient.callTool.mockRejectedValue(new Error('network timeout'));
+    const executor = new ToolExecutor(tmpDir());
+    await executor.initMcp({ url: 'http://mcp', name: 'test', version: '1.0.0' });
+    const [result, , , isError] = await executor.execute('search_auth0_docs', { query: 'anything' });
+    expect(result).toContain('Error executing search_auth0_docs');
+    expect(isError).toBe(true);
+  });
+
+  it('truncates results to 3000 chars', async () => {
+    mockClient.callTool.mockResolvedValue({
+      isError: false,
+      content: [{ type: 'text', text: 'x'.repeat(5000) }],
+    });
+    const executor = new ToolExecutor(tmpDir());
+    await executor.initMcp({ url: 'http://mcp', name: 'test', version: '1.0.0' });
+    const [result] = await executor.execute('search_auth0_docs', { query: 'anything' });
+    expect(result.length).toBeLessThanOrEqual(3000);
+  });
+
+  it('returns (no results) when response is empty', async () => {
+    mockClient.callTool.mockResolvedValue({ isError: false, content: [{ type: 'text', text: '   ' }] });
+    const executor = new ToolExecutor(tmpDir());
+    await executor.initMcp({ url: 'http://mcp', name: 'test', version: '1.0.0' });
+    const [result] = await executor.execute('search_auth0_docs', { query: 'anything' });
+    expect(result).toBe('(no results)');
+  });
+});
+
+// ── runAgent MCP transport tests ──────────────────────────────────────────────
+
+describe('runAgent - mcp transport', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    mockClient.listTools.mockResolvedValue({ tools: [] });
+    mockClient.callTool.mockReset();
+  });
+
+  it('passes a 30s AbortSignal timeout to the MCP transport', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => makeFinishResponse(),
+    } as unknown as Response);
+
+    const dir = tmpDir();
+    await runAgent('key', 'gpt-4o', makeTask(), dir, {}, ['mcp']);
+    const [, opts] = vi.mocked(StreamableHTTPClientTransport).mock.calls.at(-1)!;
+    expect(opts?.requestInit?.signal).toBeInstanceOf(AbortSignal);
   });
 });

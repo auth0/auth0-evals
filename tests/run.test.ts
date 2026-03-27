@@ -98,40 +98,49 @@ describe('parseToolsArg', () => {
   });
 
   it('parses a single tool', () => {
-    expect(parseToolsArg('Skills')).toEqual(['Skills']);
+    expect(parseToolsArg('Skills')).toEqual(['skills']);
+  });
+
+  it('normalizes tool names to lowercase', () => {
+    expect(parseToolsArg('MCP')).toEqual(['mcp']);
+    expect(parseToolsArg('SKILLS')).toEqual(['skills']);
   });
 
   it('strips surrounding braces', () => {
-    expect(parseToolsArg('{Skills}')).toEqual(['Skills']);
+    expect(parseToolsArg('{Skills}')).toEqual(['skills']);
   });
 
   it('strips surrounding braces with multiple tools', () => {
-    expect(parseToolsArg('{Skills,Other}')).toEqual(['Other', 'Skills']);
+    expect(parseToolsArg('{Skills,Other}')).toEqual(['other', 'skills']);
   });
 
   it('parses comma-separated tools', () => {
-    expect(parseToolsArg('Skills,Other')).toEqual(['Other', 'Skills']);
+    expect(parseToolsArg('Skills,Other')).toEqual(['other', 'skills']);
   });
 
   it('trims whitespace around each tool', () => {
-    expect(parseToolsArg(' Skills , Other ')).toEqual(['Other', 'Skills']);
+    expect(parseToolsArg(' Skills , Other ')).toEqual(['other', 'skills']);
   });
 
   it('trims whitespace inside braces', () => {
-    expect(parseToolsArg('{ Skills }')).toEqual(['Skills']);
+    expect(parseToolsArg('{ Skills }')).toEqual(['skills']);
   });
 
   it('filters out empty segments from consecutive commas', () => {
-    expect(parseToolsArg('Skills,,Other')).toEqual(['Other', 'Skills']);
+    expect(parseToolsArg('Skills,,Other')).toEqual(['other', 'skills']);
   });
 
   it('sorts tools alphabetically', () => {
-    expect(parseToolsArg('Other,Skills')).toEqual(['Other', 'Skills']);
-    expect(parseToolsArg('Skills,Other')).toEqual(['Other', 'Skills']);
+    expect(parseToolsArg('Other,Skills')).toEqual(['other', 'skills']);
+    expect(parseToolsArg('Skills,Other')).toEqual(['other', 'skills']);
   });
 
   it('deduplicates repeated tools', () => {
-    expect(parseToolsArg('Skills,Skills')).toEqual(['Skills']);
+    expect(parseToolsArg('Skills,Skills')).toEqual(['skills']);
+  });
+
+  it('deduplicates case variants', () => {
+    expect(parseToolsArg('Skills,SKILLS')).toEqual(['skills']);
   });
 
   it('returns empty array for empty braces', () => {

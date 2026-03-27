@@ -12,11 +12,12 @@
  *   judge(question, framework) — LLM-as-judge yes/no question about the code
  */
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join, relative, dirname } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BASE_URL, EXCLUDED_DIRS, JUDGE_MAX_TOKENS, JUDGE_MODEL } from '../config/settings.js';
+import { BASE_URL, JUDGE_MAX_TOKENS, JUDGE_MODEL } from '../config/settings.js';
 import { LlmApiError } from '../errors.js';
+import { collectFiles as collectFilePaths } from './tools/utils.js';
 import { withRetry } from '../utils/retry.js';
 
 function resolveProjectRoot(): string {
@@ -65,24 +66,16 @@ export interface GraderResult {
 
 export function collectFiles(workspace: string): Record<string, string> {
   const files: Record<string, string> = {};
-  walkDir(workspace, workspace, files);
-  return files;
-}
-
-function walkDir(dir: string, root: string, files: Record<string, string>): void {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.isDirectory() && EXCLUDED_DIRS.has(entry.name)) continue;
-    const fullPath = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      walkDir(fullPath, root, files);
-    } else if (entry.isFile()) {
-      try {
-        files[relative(root, fullPath)] = readFileSync(fullPath, 'utf-8');
-      } catch {
-        // skip
-      }
+  for (const relPath of collectFilePaths(workspace, workspace)) {
+    if (relPath.startsWith('…')) continue; // skip truncation notice
+    if (relPath === 'package-lock.json') continue;
+    try {
+      files[relPath] = readFileSync(join(workspace, relPath), 'utf-8');
+    } catch {
+      // skip unreadable files
     }
   }
+  return files;
 }
 
 function combined(files: Record<string, string>): string {

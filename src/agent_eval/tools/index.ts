@@ -120,7 +120,15 @@ export const TOOL_DEFINITIONS = [
   },
 ];
 
-export const ALL_TOOLS: Tool[] = [
+export function buildToolDefinitions(tools: string[], mcpToolDefs: unknown[] = []): unknown[] {
+  const defs: unknown[] = [...TOOL_DEFINITIONS];
+  if (tools.includes('mcp')) {
+    defs.push(...mcpToolDefs);
+  }
+  return defs;
+}
+
+export const ALL_BASE_TOOLS: Tool[] = [
   new ReadFileTool(),
   new WriteFileTool(),
   new ListFilesTool(),

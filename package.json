@@ -17,6 +17,7 @@
     "report": "node dist/report.js"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "braintrust": "^3.6.0",
     "commander": "^14.0.3",
     "dotenv": "^17.3.1",
