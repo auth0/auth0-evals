@@ -8,7 +8,9 @@ export type ToolName =
   | 'run_command'
   | 'ask_user'
   | 'fetch_url'
-  | 'finish_task';
+  | 'finish_task'
+  | 'list_skill_files'
+  | 'read_skill_file';
 
 /**
  * Defines the base types and interfaces for tools used in the agent evaluation framework.

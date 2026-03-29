@@ -1,12 +1,20 @@
 /**
  * Tests for runners/skills.ts — augmentWithSkills()
  *
- * vi.resetModules() is called before each test so the module-level skillCache
- * starts empty, giving each test a clean slate.
+ * vi.resetModules() is called before each test so the module-level cloneReady
+ * promise starts fresh, giving each test a clean slate.
  */
 
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { EvalDefinition } from '../src/runners/loader.js';
+
+// Top-level mocks — hoisted by Vitest before any imports
+vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
+vi.mock('node:fs', () => ({
+  existsSync: vi.fn().mockReturnValue(true),
+  mkdirSync: vi.fn(),
+  rmSync: vi.fn(),
+}));
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -27,26 +35,24 @@ function makeEvalDef(overrides: Partial<EvalDefinition> = {}): EvalDefinition {
   };
 }
 
-function mockFetch(text: string, ok = true, status = 200) {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok, status, text: async () => text }));
-}
-
-function mockFetchError(error = new Error('network failure')) {
-  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(error));
-}
-
-// Fresh module import per test to reset the module-level skillCache
+// Fresh module import per test to reset the module-level cloneReady promise
 async function importAugment() {
   const mod = await import('../src/runners/skills.js');
   return mod.augmentWithSkills;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.resetModules();
   vi.unstubAllGlobals();
+  // Reset mocked fs functions to defaults (existsSync=true simulates a cloned repo)
+  const fs = vi.mocked(await import('node:fs'));
+  fs.existsSync.mockReturnValue(true);
+  const cp = vi.mocked(await import('node:child_process'));
+  vi.mocked(cp.execFileSync as (...args: unknown[]) => unknown).mockReset();
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -56,49 +62,52 @@ describe('augmentWithSkills - no skills', () => {
   it('returns original evalDef unchanged when skills list is empty', async () => {
     const augmentWithSkills = await importAugment();
     const evalDef = makeEvalDef({ skills: [] });
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
 
     const result = await augmentWithSkills(evalDef);
 
     expect(result).toBe(evalDef);
-    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
-describe('augmentWithSkills - success path', () => {
-  it('prepends SDK Reference Material section to agentSystemPrompt', async () => {
-    mockFetch('# Auth0 React SDK\nUse Auth0Provider.');
+describe('augmentWithSkills - notice injection', () => {
+  it('prepends Available Skills section to agentSystemPrompt', async () => {
     const augmentWithSkills = await importAugment();
     const evalDef = makeEvalDef({ skills: ['auth0-react'] });
 
     const result = await augmentWithSkills(evalDef);
 
-    expect(result.agentSystemPrompt).toContain('## SDK Reference Material');
-    expect(result.agentSystemPrompt).toContain('Auth0 React SDK');
+    expect(result.agentSystemPrompt).toContain('## Available Skills');
+    expect(result.agentSystemPrompt).toContain('auth0-react');
   });
 
-  it('includes the skill name as a heading', async () => {
-    mockFetch('Skill content here.');
+  it('mentions the list_skill_files tool', async () => {
     const augmentWithSkills = await importAugment();
     const evalDef = makeEvalDef({ skills: ['auth0-react'] });
 
     const result = await augmentWithSkills(evalDef);
 
-    expect(result.agentSystemPrompt).toContain('### auth0-react');
+    expect(result.agentSystemPrompt).toContain('list_skill_files');
+  });
+
+  it('mentions the read_skill_file tool', async () => {
+    const augmentWithSkills = await importAugment();
+    const evalDef = makeEvalDef({ skills: ['auth0-react'] });
+
+    const result = await augmentWithSkills(evalDef);
+
+    expect(result.agentSystemPrompt).toContain('read_skill_file');
   });
 
   it('appends existing agentSystemPrompt after a separator', async () => {
-    mockFetch('Skill content.');
     const augmentWithSkills = await importAugment();
     const evalDef = makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: 'You are an expert.' });
 
     const result = await augmentWithSkills(evalDef);
 
-    expect(result.agentSystemPrompt).toContain('## SDK Reference Material');
+    expect(result.agentSystemPrompt).toContain('## Available Skills');
     expect(result.agentSystemPrompt).toContain('---');
     expect(result.agentSystemPrompt).toContain('You are an expert.');
-    const skillIdx = result.agentSystemPrompt.indexOf('## SDK Reference Material');
+    const skillIdx = result.agentSystemPrompt.indexOf('## Available Skills');
     const separatorIdx = result.agentSystemPrompt.indexOf('---');
     const promptIdx = result.agentSystemPrompt.indexOf('You are an expert.');
     expect(skillIdx).toBeLessThan(separatorIdx);
@@ -106,7 +115,6 @@ describe('augmentWithSkills - success path', () => {
   });
 
   it('does not add separator when there is no existing agentSystemPrompt', async () => {
-    mockFetch('Skill content.');
     const augmentWithSkills = await importAugment();
     const evalDef = makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: '' });
 
@@ -116,7 +124,6 @@ describe('augmentWithSkills - success path', () => {
   });
 
   it('does not mutate the original evalDef', async () => {
-    mockFetch('Skill content.');
     const augmentWithSkills = await importAugment();
     const evalDef = makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: 'Original.' });
     const originalPrompt = evalDef.agentSystemPrompt;
@@ -126,90 +133,73 @@ describe('augmentWithSkills - success path', () => {
     expect(evalDef.agentSystemPrompt).toBe(originalPrompt);
   });
 
-  it('joins multiple skills with a separator', async () => {
-    let callCount = 0;
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation(async () => {
-        callCount++;
-        return { ok: true, status: 200, text: async () => `Content for skill ${callCount}` };
-      }),
-    );
+  it('lists all skill names in the notice', async () => {
     const augmentWithSkills = await importAugment();
     const evalDef = makeEvalDef({ skills: ['auth0-react', 'auth0-nextjs'] });
 
     const result = await augmentWithSkills(evalDef);
 
-    expect(result.agentSystemPrompt).toContain('### auth0-react');
-    expect(result.agentSystemPrompt).toContain('### auth0-nextjs');
-  });
-});
-
-describe('augmentWithSkills - cache hit', () => {
-  it('fetches a skill only once across multiple augmentWithSkills calls', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () => 'Cached skill content.',
-    });
-    vi.stubGlobal('fetch', fetchMock);
-    const augmentWithSkills = await importAugment();
-    const evalDef = makeEvalDef({ skills: ['auth0-react'] });
-
-    await augmentWithSkills(evalDef);
-    await augmentWithSkills(evalDef);
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('augmentWithSkills - failure paths', () => {
-  it('returns original evalDef when fetch returns a non-ok response', async () => {
-    mockFetch('Not Found', false, 404);
-    const augmentWithSkills = await importAugment();
-    const evalDef = makeEvalDef({ skills: ['auth0-react'] });
-
-    const result = await augmentWithSkills(evalDef);
-
-    expect(result).toBe(evalDef);
-  });
-
-  it('returns original evalDef when fetch throws a network error', async () => {
-    mockFetchError();
-    const augmentWithSkills = await importAugment();
-    const evalDef = makeEvalDef({ skills: ['auth0-react'] });
-
-    const result = await augmentWithSkills(evalDef);
-
-    expect(result).toBe(evalDef);
-  });
-
-  it('returns original evalDef when fetch throws a timeout error', async () => {
-    mockFetchError(new DOMException('The operation was aborted.', 'TimeoutError'));
-    const augmentWithSkills = await importAugment();
-    const evalDef = makeEvalDef({ skills: ['auth0-react'] });
-
-    const result = await augmentWithSkills(evalDef);
-
-    expect(result).toBe(evalDef);
-  });
-
-  it('includes successful skills even when one skill fetch fails', async () => {
-    let callCount = 0;
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation(async () => {
-        callCount++;
-        if (callCount === 1) throw new Error('network failure');
-        return { ok: true, status: 200, text: async () => 'Good content.' };
-      }),
-    );
-    const augmentWithSkills = await importAugment();
-    const evalDef = makeEvalDef({ skills: ['bad-skill', 'auth0-react'] });
-
-    const result = await augmentWithSkills(evalDef);
-
     expect(result.agentSystemPrompt).toContain('auth0-react');
-    expect(result.agentSystemPrompt).not.toContain('bad-skill');
+    expect(result.agentSystemPrompt).toContain('auth0-nextjs');
+  });
+});
+
+describe('augmentWithSkills - clone failure', () => {
+  it('still injects notice even when git clone/pull fails', async () => {
+    const cp = vi.mocked(await import('node:child_process'));
+    vi.mocked(cp.execFileSync as (...args: unknown[]) => unknown).mockImplementation(() => {
+      throw new Error('git not found');
+    });
+    const fs = vi.mocked(await import('node:fs'));
+    fs.existsSync.mockReturnValue(false);
+
+    const augmentWithSkills = await importAugment();
+    const evalDef = makeEvalDef({ skills: ['auth0-react'] });
+
+    const result = await augmentWithSkills(evalDef);
+
+    // Notice is still injected so the agent knows skills are expected
+    expect(result.agentSystemPrompt).toContain('auth0-react');
+    expect(result).not.toBe(evalDef);
+  });
+
+  it('resets cloneReady after failure so subsequent calls can retry', async () => {
+    const cp = vi.mocked(await import('node:child_process'));
+    const execFileSyncMock = vi.mocked(cp.execFileSync as (...args: unknown[]) => unknown);
+    execFileSyncMock
+      .mockImplementationOnce(() => {
+        throw new Error('transient network error');
+      })
+      .mockImplementation(() => {}); // succeeds on retry
+    const fs = vi.mocked(await import('node:fs'));
+    fs.existsSync.mockReturnValue(false);
+
+    const augmentWithSkills = await importAugment();
+    const evalDef = makeEvalDef({ skills: ['auth0-react'] });
+
+    await augmentWithSkills(evalDef); // first call — clone fails
+    await augmentWithSkills(evalDef); // second call — should retry
+
+    expect(execFileSyncMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('removes corrupt directory and clones fresh when SKILLS_CLONE_DIR exists without .git', async () => {
+    const fs = vi.mocked(await import('node:fs'));
+    // existsSync(join(SKILLS_CLONE_DIR, '.git')) → false, existsSync(SKILLS_CLONE_DIR) → true
+    fs.existsSync.mockImplementation(
+      (p: unknown) => typeof p === 'string' && !p.endsWith('.git') && p.includes('auth0-skills'),
+    );
+
+    const augmentWithSkills = await importAugment();
+    const evalDef = makeEvalDef({ skills: ['auth0-react'] });
+
+    await augmentWithSkills(evalDef);
+
+    expect(fs.rmSync).toHaveBeenCalledWith(expect.stringContaining('auth0-skills'), {
+      recursive: true,
+      force: true,
+    });
+    const cp = vi.mocked(await import('node:child_process'));
+    expect(cp.execFileSync).toHaveBeenCalledWith('git', expect.arrayContaining(['clone']), expect.anything());
   });
 });
