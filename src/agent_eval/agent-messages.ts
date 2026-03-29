@@ -6,7 +6,7 @@
  */
 
 import { collectFiles } from './tools/utils.js';
-import { isBedrockModel, isGeminiModel } from './agent-model.js';
+import { isGeminiModel } from './agent-model.js';
 import type { TaskDefinition } from './agent.js';
 
 /**
@@ -79,15 +79,29 @@ export function buildInitialMessages(
 }
 
 /**
- * Builds the correctly-shaped tool result message to push onto the history,
- * branching on Bedrock / Gemini / standard model.
+ * Builds the correctly-shaped tool result message to push onto the history.
+ *
+ * When usedXmlFallback is true the model returned raw XML tool calls embedded in
+ * its content (no tool_call_id to reference), so we use a plain user message.
+ * For all other paths — including Bedrock models that return native tool_calls
+ * via litellm — we use role:"tool" with the tool_call_id so litellm can map it
+ * to a Bedrock tool_result block correctly.
  */
-export function buildToolResultMessage(model: string, tcId: string, toolName: string, result: string): unknown {
-  if (isBedrockModel(model)) {
+export function buildToolResultMessage(
+  model: string,
+  tcId: string,
+  toolName: string,
+  result: string,
+  usedXmlFallback: boolean = false,
+): unknown {
+  if (usedXmlFallback) {
+    // XML-fallback path: no tool_call_id exists, results must be plain user messages.
     return { role: 'user', content: `[Result of ${toolName}]:\n${result}` };
   } else if (isGeminiModel(model)) {
     return { role: 'function', name: toolName, content: result };
   } else {
+    // Standard path (including Bedrock via litellm): role:"tool" lets litellm
+    // convert this to a Bedrock tool_result block.
     return { role: 'tool', tool_call_id: tcId, content: result };
   }
 }

@@ -285,7 +285,7 @@ export async function runAgent(
       record.inputTokens += turnInput;
       record.outputTokens += turnOutput;
 
-      const toolCalls = normalizeTurnToolCalls(model, message);
+      const { toolCalls, usedXmlFallback } = normalizeTurnToolCalls(model, message);
       record.turnMetrics.push(
         buildTurnMetric(turn, model, turnInput, turnOutput, llmLatency, choice, toolCalls.length),
       );
@@ -297,7 +297,7 @@ export async function runAgent(
         break;
       }
 
-      finished = await executeToolCalls(toolCalls, turn, model, executor, messages, record);
+      finished = await executeToolCalls(toolCalls, turn, model, executor, messages, record, usedXmlFallback);
     }
 
     if (!finished && record.status === 'running') {

@@ -214,8 +214,15 @@ export interface ToolCallEntry {
 /**
  * Normalizes tool calls from a model's message into a uniform ToolCallEntry array.
  * Handles standard tool_calls, Gemini function_call normalization, and Bedrock XML fallback.
+ *
+ * Returns both the tool calls and a flag indicating whether the XML fallback was used.
+ * The XML fallback flag must be threaded through to result-message construction so that
+ * Bedrock models receiving native tool_calls via litellm still get proper role:"tool" results.
  */
-export function normalizeTurnToolCalls(model: string, message: Record<string, unknown>): ToolCallEntry[] {
+export function normalizeTurnToolCalls(
+  model: string,
+  message: Record<string, unknown>,
+): { toolCalls: ToolCallEntry[]; usedXmlFallback: boolean } {
   let toolCalls = (message?.tool_calls as ToolCallEntry[]) || [];
 
   // Gemini: normalise function_call into tool_calls format
@@ -233,15 +240,20 @@ export function normalizeTurnToolCalls(model: string, message: Record<string, un
     ];
   }
 
-  // XML fallback for Bedrock models only — other models use standard JSON tool_calls
+  // XML fallback for Bedrock models only — other models use standard JSON tool_calls.
+  // Only set usedXmlFallback when XML calls are actually found; if the model returned
+  // standard tool_calls (even for Bedrock via litellm) we must use role:"tool" results
+  // so litellm can map them to Bedrock tool_result blocks.
+  let usedXmlFallback = false;
   if (!toolCalls.length && isBedrockModel(model)) {
     const xmlCalls = parseXmlToolCalls((message?.content as string) ?? '');
     if (xmlCalls.length) {
       toolCalls = xmlCalls;
+      usedXmlFallback = true;
     }
   }
 
-  return toolCalls;
+  return { toolCalls, usedXmlFallback };
 }
 
 /**
@@ -280,6 +292,7 @@ export async function executeToolCalls(
   executor: ToolExecutor,
   messages: unknown[],
   record: RunRecord,
+  usedXmlFallback: boolean = false,
 ): Promise<boolean> {
   for (const tc of toolCalls) {
     const fn = tc.function;
@@ -333,7 +346,7 @@ export async function executeToolCalls(
 
     record.toolCalls.push(toolCall);
 
-    messages.push(buildToolResultMessage(model, tc.id, toolName, result));
+    messages.push(buildToolResultMessage(model, tc.id, toolName, result, usedXmlFallback));
 
     if (toolName === 'finish_task') {
       record.finalSummary = (toolArgs.summary as string) ?? result;
