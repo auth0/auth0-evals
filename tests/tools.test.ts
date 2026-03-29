@@ -425,6 +425,176 @@ describe('FinishTaskTool', () => {
   });
 });
 
+// ── ListSkillFilesTool tests ──────────────────────────────────────────────────
+
+describe('ListSkillFilesTool', () => {
+  let skillsBaseDir: string;
+
+  async function importTool() {
+    vi.resetModules();
+    const { ListSkillFilesTool } = await import('../src/agent_eval/tools/list-skill-files.js');
+    return ListSkillFilesTool;
+  }
+
+  beforeEach(() => {
+    const remoteDir = tmpDir();
+    skillsBaseDir = join(remoteDir, 'auth0-skills', 'plugins', 'auth0-sdks', 'skills');
+    mkdirSync(skillsBaseDir, { recursive: true });
+    vi.stubEnv('SKILLS_REMOTE_DIR', remoteDir);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('throws when skill argument is missing', async () => {
+    const Tool = await importTool();
+    await expect(new Tool().run(makeContext(''), {})).rejects.toThrow('list_skill_files requires a skill name');
+  });
+
+  it('throws when skill argument is empty string', async () => {
+    const Tool = await importTool();
+    await expect(new Tool().run(makeContext(''), { skill: '' })).rejects.toThrow(
+      'list_skill_files requires a skill name',
+    );
+  });
+
+  it('throws when skill argument is whitespace only', async () => {
+    const Tool = await importTool();
+    await expect(new Tool().run(makeContext(''), { skill: '   ' })).rejects.toThrow(
+      'list_skill_files requires a skill name',
+    );
+  });
+
+  it('returns access-denied message (isError=false) for path traversal', async () => {
+    const Tool = await importTool();
+    const [result, , , isError] = await new Tool().run(makeContext(''), { skill: '../../etc' });
+    expect(result).toContain('Access denied');
+    expect(isError).toBe(false);
+  });
+
+  it('returns skill-not-found message (isError=false) when skill does not exist', async () => {
+    const Tool = await importTool();
+    const [result, , , isError] = await new Tool().run(makeContext(''), { skill: 'nonexistent' });
+    expect(result).toContain("Skill 'nonexistent' not found");
+    expect(isError).toBe(false);
+  });
+
+  it('returns empty-directory message (isError=false) when skill directory is empty', async () => {
+    mkdirSync(join(skillsBaseDir, 'myskill'), { recursive: true });
+    const Tool = await importTool();
+    const [result, , , isError] = await new Tool().run(makeContext(''), { skill: 'myskill' });
+    expect(result).toContain('directory is empty');
+    expect(isError).toBe(false);
+  });
+
+  it('returns file listing with isDoc=true and other flags false on success', async () => {
+    const skillDir = join(skillsBaseDir, 'myskill');
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(join(skillDir, 'SKILL.md'), 'skill content');
+    const Tool = await importTool();
+    const [result, isDoc, isInterrupt, isError] = await new Tool().run(makeContext(''), { skill: 'myskill' });
+    expect(result).toContain('SKILL.md');
+    expect(isDoc).toBe(true);
+    expect(isInterrupt).toBe(false);
+    expect(isError).toBe(false);
+  });
+});
+
+// ── ReadSkillFileTool tests ───────────────────────────────────────────────────
+
+describe('ReadSkillFileTool', () => {
+  let skillsBaseDir: string;
+
+  async function importTool() {
+    vi.resetModules();
+    const { ReadSkillFileTool } = await import('../src/agent_eval/tools/read-skill-file.js');
+    return ReadSkillFileTool;
+  }
+
+  beforeEach(() => {
+    const remoteDir = tmpDir();
+    skillsBaseDir = join(remoteDir, 'auth0-skills', 'plugins', 'auth0-sdks', 'skills');
+    mkdirSync(skillsBaseDir, { recursive: true });
+    vi.stubEnv('SKILLS_REMOTE_DIR', remoteDir);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('throws when skill argument is missing', async () => {
+    const Tool = await importTool();
+    await expect(new Tool().run(makeContext(''), { path: 'SKILL.md' })).rejects.toThrow(
+      'read_skill_file requires a skill name',
+    );
+  });
+
+  it('throws when skill argument is whitespace only', async () => {
+    const Tool = await importTool();
+    await expect(new Tool().run(makeContext(''), { skill: '  ', path: 'SKILL.md' })).rejects.toThrow(
+      'read_skill_file requires a skill name',
+    );
+  });
+
+  it('throws when path argument is missing', async () => {
+    mkdirSync(join(skillsBaseDir, 'myskill'), { recursive: true });
+    const Tool = await importTool();
+    await expect(new Tool().run(makeContext(''), { skill: 'myskill' })).rejects.toThrow(
+      'read_skill_file requires a path',
+    );
+  });
+
+  it('throws when path argument is whitespace only', async () => {
+    mkdirSync(join(skillsBaseDir, 'myskill'), { recursive: true });
+    const Tool = await importTool();
+    await expect(new Tool().run(makeContext(''), { skill: 'myskill', path: '  ' })).rejects.toThrow(
+      'read_skill_file requires a path',
+    );
+  });
+
+  it('returns access-denied (isError=false) for skill path traversal', async () => {
+    const Tool = await importTool();
+    const [result, , , isError] = await new Tool().run(makeContext(''), { skill: '../../etc', path: 'passwd' });
+    expect(result).toContain('Access denied');
+    expect(isError).toBe(false);
+  });
+
+  it('returns access-denied (isError=false) for path traversal within skill', async () => {
+    mkdirSync(join(skillsBaseDir, 'myskill'), { recursive: true });
+    const Tool = await importTool();
+    const [result, , , isError] = await new Tool().run(makeContext(''), {
+      skill: 'myskill',
+      path: '../../other/file.md',
+    });
+    expect(result).toContain('Access denied');
+    expect(isError).toBe(false);
+  });
+
+  it('returns file-not-found (isError=false) when file does not exist', async () => {
+    mkdirSync(join(skillsBaseDir, 'myskill'), { recursive: true });
+    const Tool = await importTool();
+    const [result, , , isError] = await new Tool().run(makeContext(''), { skill: 'myskill', path: 'missing.md' });
+    expect(result).toContain('File not found: missing.md');
+    expect(isError).toBe(false);
+  });
+
+  it('returns file content with isDoc=true and all other flags false on success', async () => {
+    const skillDir = join(skillsBaseDir, 'myskill');
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(join(skillDir, 'SKILL.md'), 'skill content here');
+    const Tool = await importTool();
+    const [result, isDoc, isInterrupt, isError] = await new Tool().run(makeContext(''), {
+      skill: 'myskill',
+      path: 'SKILL.md',
+    });
+    expect(result).toBe('skill content here');
+    expect(isDoc).toBe(true);
+    expect(isInterrupt).toBe(false);
+    expect(isError).toBe(false);
+  });
+});
+
 // ── collectFiles tests ────────────────────────────────────────────────────────
 
 describe('collectFiles', () => {

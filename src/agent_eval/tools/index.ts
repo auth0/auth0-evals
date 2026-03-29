@@ -3,7 +3,9 @@ import { AskUserTool } from './ask-user.js';
 import { FetchUrlTool } from './fetch-url.js';
 import { FinishTaskTool } from './finish-task.js';
 import { ListFilesTool } from './list-files.js';
+import { ListSkillFilesTool } from './list-skill-files.js';
 import { ReadFileTool } from './read-file.js';
+import { ReadSkillFileTool } from './read-skill-file.js';
 import { RunCommandTool } from './run-command.js';
 import { WriteFileTool } from './write-file.js';
 
@@ -120,10 +122,45 @@ export const TOOL_DEFINITIONS = [
   },
 ];
 
+export const SKILL_TOOL_DEFINITIONS = [
+  {
+    type: 'function',
+    function: {
+      name: 'list_skill_files',
+      description: 'List all files available in an Auth0 SDK skill directory.',
+      parameters: {
+        type: 'object',
+        properties: {
+          skill: { type: 'string', description: 'The skill name (e.g. auth0-express, auth0-react)' },
+        },
+        required: ['skill'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'read_skill_file',
+      description: 'Read a specific file from an Auth0 SDK skill directory.',
+      parameters: {
+        type: 'object',
+        properties: {
+          skill: { type: 'string', description: 'The skill name (e.g. auth0-express, auth0-react)' },
+          path: { type: 'string', description: 'Relative path to the file within the skill directory' },
+        },
+        required: ['skill', 'path'],
+      },
+    },
+  },
+];
+
 export function buildToolDefinitions(tools: string[], mcpToolDefs: unknown[] = []): unknown[] {
   const defs: unknown[] = [...TOOL_DEFINITIONS];
   if (tools.includes('mcp')) {
     defs.push(...mcpToolDefs);
+  }
+  if (tools.includes('skills')) {
+    defs.push(...SKILL_TOOL_DEFINITIONS);
   }
   return defs;
 }
@@ -136,4 +173,6 @@ export const ALL_BASE_TOOLS: Tool[] = [
   new FetchUrlTool(),
   new AskUserTool(),
   new FinishTaskTool(),
+  new ListSkillFilesTool(),
+  new ReadSkillFileTool(),
 ];

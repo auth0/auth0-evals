@@ -873,6 +873,149 @@ describe('ToolExecutor.search_auth0_docs', () => {
   });
 });
 
+// ── ToolExecutor.list_skill_files tests ───────────────────────────────────────
+
+describe('ToolExecutor.list_skill_files', () => {
+  let skillsBaseDir: string;
+
+  async function importExecutor() {
+    vi.resetModules();
+    const { ToolExecutor } = await import('../src/agent_eval/tools-executor/index.js');
+    return ToolExecutor;
+  }
+
+  beforeEach(() => {
+    const remoteDir = tmpDir();
+    skillsBaseDir = join(remoteDir, 'auth0-skills', 'plugins', 'auth0-sdks', 'skills');
+    mkdirSync(skillsBaseDir, { recursive: true });
+    vi.stubEnv('SKILLS_REMOTE_DIR', remoteDir);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('returns execution error (isError=true) when skill argument is missing', async () => {
+    const Executor = await importExecutor();
+    const [result, , , isError] = await new Executor(tmpDir()).execute('list_skill_files', {});
+    expect(result).toContain('Error executing list_skill_files');
+    expect(isError).toBe(true);
+  });
+
+  it('returns access-denied (isError=false) for path traversal', async () => {
+    const Executor = await importExecutor();
+    const [result, , , isError] = await new Executor(tmpDir()).execute('list_skill_files', { skill: '../../etc' });
+    expect(result).toContain('Access denied');
+    expect(isError).toBe(false);
+  });
+
+  it('returns skill-not-found (isError=false) for unknown skill', async () => {
+    const Executor = await importExecutor();
+    const [result, , , isError] = await new Executor(tmpDir()).execute('list_skill_files', { skill: 'nonexistent' });
+    expect(result).toContain('not found');
+    expect(isError).toBe(false);
+  });
+
+  it('returns file listing with isDoc=true and isError=false on success', async () => {
+    const skillDir = join(skillsBaseDir, 'myskill');
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(join(skillDir, 'SKILL.md'), 'skill content');
+    const Executor = await importExecutor();
+    const [result, isDoc, isInterrupt, isError] = await new Executor(tmpDir()).execute('list_skill_files', {
+      skill: 'myskill',
+    });
+    expect(result).toContain('SKILL.md');
+    expect(isDoc).toBe(true);
+    expect(isInterrupt).toBe(false);
+    expect(isError).toBe(false);
+  });
+});
+
+// ── ToolExecutor.read_skill_file tests ────────────────────────────────────────
+
+describe('ToolExecutor.read_skill_file', () => {
+  let skillsBaseDir: string;
+
+  async function importExecutor() {
+    vi.resetModules();
+    const { ToolExecutor } = await import('../src/agent_eval/tools-executor/index.js');
+    return ToolExecutor;
+  }
+
+  beforeEach(() => {
+    const remoteDir = tmpDir();
+    skillsBaseDir = join(remoteDir, 'auth0-skills', 'plugins', 'auth0-sdks', 'skills');
+    mkdirSync(skillsBaseDir, { recursive: true });
+    vi.stubEnv('SKILLS_REMOTE_DIR', remoteDir);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('returns execution error (isError=true) when skill argument is missing', async () => {
+    const Executor = await importExecutor();
+    const [result, , , isError] = await new Executor(tmpDir()).execute('read_skill_file', { path: 'SKILL.md' });
+    expect(result).toContain('Error executing read_skill_file');
+    expect(isError).toBe(true);
+  });
+
+  it('returns execution error (isError=true) when path argument is missing', async () => {
+    mkdirSync(join(skillsBaseDir, 'myskill'), { recursive: true });
+    const Executor = await importExecutor();
+    const [result, , , isError] = await new Executor(tmpDir()).execute('read_skill_file', { skill: 'myskill' });
+    expect(result).toContain('Error executing read_skill_file');
+    expect(isError).toBe(true);
+  });
+
+  it('returns access-denied (isError=false) for skill path traversal', async () => {
+    const Executor = await importExecutor();
+    const [result, , , isError] = await new Executor(tmpDir()).execute('read_skill_file', {
+      skill: '../../etc',
+      path: 'passwd',
+    });
+    expect(result).toContain('Access denied');
+    expect(isError).toBe(false);
+  });
+
+  it('returns access-denied (isError=false) for path traversal within skill', async () => {
+    mkdirSync(join(skillsBaseDir, 'myskill'), { recursive: true });
+    const Executor = await importExecutor();
+    const [result, , , isError] = await new Executor(tmpDir()).execute('read_skill_file', {
+      skill: 'myskill',
+      path: '../../other/file.md',
+    });
+    expect(result).toContain('Access denied');
+    expect(isError).toBe(false);
+  });
+
+  it('returns file-not-found (isError=false) for missing file', async () => {
+    mkdirSync(join(skillsBaseDir, 'myskill'), { recursive: true });
+    const Executor = await importExecutor();
+    const [result, , , isError] = await new Executor(tmpDir()).execute('read_skill_file', {
+      skill: 'myskill',
+      path: 'missing.md',
+    });
+    expect(result).toContain('File not found: missing.md');
+    expect(isError).toBe(false);
+  });
+
+  it('returns file content with isDoc=true and isError=false on success', async () => {
+    const skillDir = join(skillsBaseDir, 'myskill');
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(join(skillDir, 'SKILL.md'), 'skill content here');
+    const Executor = await importExecutor();
+    const [result, isDoc, isInterrupt, isError] = await new Executor(tmpDir()).execute('read_skill_file', {
+      skill: 'myskill',
+      path: 'SKILL.md',
+    });
+    expect(result).toBe('skill content here');
+    expect(isDoc).toBe(true);
+    expect(isInterrupt).toBe(false);
+    expect(isError).toBe(false);
+  });
+});
+
 // ── runAgent MCP transport tests ──────────────────────────────────────────────
 
 describe('runAgent - mcp transport', () => {
