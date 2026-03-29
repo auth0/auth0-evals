@@ -31,7 +31,6 @@ import {
   llmCall,
   runAgent,
   detectRetry,
-  buildMcpContext,
   type ToolCallRecord,
 } from '../src/agent_eval/agent.js';
 import { TOOL_DEFINITIONS, buildToolDefinitions } from '../src/agent_eval/tools/index.js';
@@ -40,6 +39,7 @@ import { collectFiles } from '../src/agent_eval/tools/utils.js';
 import { ToolExecutor } from '../src/agent_eval/tools-executor/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { EXCLUDED_DIRS, MAX_LISTED_FILES } from '../src/config/settings.js';
+import { buildMcpContext } from '../src/agent_eval/agent-messages.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

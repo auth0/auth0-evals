@@ -12,18 +12,23 @@ import { tmpdir } from 'node:os';
 import { estimateCost } from '../config/costs.js';
 import { BedrockToolConfigError, LlmApiError } from '../errors.js';
 import { withRetry } from '../utils/retry.js';
-import { BASE_URL, BEDROCK_MODELS, CLAUDE_EFFORT_MODELS, GEMINI_MODELS, MAX_TURNS } from '../config/settings.js';
+import { BASE_URL, CLAUDE_EFFORT_MODELS, MAX_TURNS } from '../config/settings.js';
 import { buildToolDefinitions } from './tools/index.js';
-import { collectFiles } from './tools/utils.js';
 import { McpConfig, ToolExecutor } from './tools-executor/index.js';
+import { buildInitialMessages } from './agent-messages.js';
+import { isBedrockModel, isGeminiModel } from './agent-model.js';
+import { normalizeTurnToolCalls, buildTurnMetric, executeToolCalls } from './agent-turn.js';
 
-export function isBedrockModel(model: string): boolean {
-  return BEDROCK_MODELS.some((prefix) => model.includes(prefix));
-}
-
-export function isGeminiModel(model: string): boolean {
-  return GEMINI_MODELS.some((prefix) => model.startsWith(prefix));
-}
+export { isBedrockModel, isGeminiModel } from './agent-model.js';
+export {
+  parseXmlToolCalls,
+  normalizeToolArgs,
+  summariseArgs,
+  primaryArg,
+  classifyActionType,
+  classifyErrorCategory,
+  detectRetry,
+} from './agent-turn.js';
 
 // ── Data model ────────────────────────────────────────────────────────────────
 
@@ -144,10 +149,6 @@ function makeRunRecord(taskName: string, model: string, workspace: string): RunR
   };
 }
 
-// ── Tool definitions sent to the LLM ─────────────────────────────────────────
-
-// ── Tool executor ─────────────────────────────────────────────────────────────
-
 // ── LLM client ───────────────────────────────────────────────────────────────
 
 export async function llmCall(
@@ -252,8 +253,8 @@ export async function runAgent(
   }
 
   const record = makeRunRecord(task.name, model, workspace);
-
   const executor = new ToolExecutor(workspace, credentials);
+
   try {
     let mcpToolDefs: unknown[] = [];
     if (tools.includes('mcp')) {
@@ -264,163 +265,42 @@ export async function runAgent(
       }
     }
 
-    const messages: unknown[] = [];
-    if (task.agentSystemPrompt) {
-      // Layer 1 (stable rules) + Layer 2 (dynamic workspace context) combined in system message
-      const mcpTableRows = mcpToolDefs
-        .map((t) => {
-          const def = t as { function: { name: string; description: string } };
-          return `| \`${def.function.name}\` | ${def.function.description} |`;
-        })
-        .join('\n');
-      const systemPrompt = task.agentSystemPrompt.replace('{{MCP_TOOL_ROWS}}', mcpTableRows);
-      const workspaceContext = buildWorkspaceContext(workspace);
-      const mcpToolNames = mcpToolDefs.map((t) => (t as { function: { name: string } }).function.name);
-      const mcpContextBody = tools.includes('mcp') ? buildMcpContext(mcpToolNames) : '';
-      const mcpContext = mcpContextBody ? `\n\n${mcpContextBody}` : '';
-      messages.push({ role: 'system', content: `${systemPrompt}\n\n${workspaceContext}${mcpContext}` });
-    }
-    messages.push({ role: 'user', content: task.userPrompt });
+    const messages = buildInitialMessages(task, tools, mcpToolDefs, workspace);
 
     record.startTime = Date.now() / 1000;
     console.log(`\n[Agent] Starting task: ${task.name}`);
     console.log(`[Agent] Model: ${model} | Workspace: ${workspace}\n`);
 
-    let taskFinishedOuter = false;
-    for (let turn = 0; turn < MAX_TURNS; turn++) {
+    let finished = false;
+    for (let turn = 0; turn < MAX_TURNS && !finished; turn++) {
       const tLlmStart = Date.now() / 1000;
       const response = await llmCall(apiKey, model, messages, buildToolDefinitions(tools, mcpToolDefs));
       const llmLatency = Date.now() / 1000 - tLlmStart;
 
-      const usage = (response.usage as Record<string, number>) ?? {};
-      const [turnInput, turnOutput] = extractTokens(usage);
+      const choice = (response.choices as Record<string, unknown>[])?.[0];
+      const message = choice?.message as Record<string, unknown>;
+      messages.push(message);
+
+      const [turnInput, turnOutput] = extractTokens((response.usage as Record<string, number>) ?? {});
       record.inputTokens += turnInput;
       record.outputTokens += turnOutput;
 
-      const choice = (response.choices as Record<string, unknown>[])?.[0];
-      const message = choice?.message as Record<string, unknown>;
-
-      messages.push(message);
-
-      let toolCalls = (message?.tool_calls as ToolCallEntry[]) || [];
-
-      // Gemini: normalise function_call into tool_calls format
-      if (!toolCalls.length && message?.function_call) {
-        const fc = message.function_call as Record<string, unknown>;
-        toolCalls = [
-          {
-            id: 'fc_0',
-            type: 'function',
-            function: {
-              name: fc.name as string,
-              arguments: (fc.arguments as string) ?? '{}',
-            },
-          },
-        ];
-      }
-
-      // XML fallback for Bedrock models only — other models use standard JSON tool_calls
-      if (!toolCalls.length && isBedrockModel(model)) {
-        const xmlCalls = parseXmlToolCalls((message?.content as string) ?? '');
-        if (xmlCalls.length) {
-          toolCalls = xmlCalls;
-        }
-      }
-
-      record.turnMetrics.push({
-        turn: turn + 1,
-        inputTokens: turnInput,
-        outputTokens: turnOutput,
-        llmLatency: llmLatency,
-        finishReason: (choice?.finish_reason as FinishReason) ?? 'unknown',
-        toolCallCount: toolCalls.length,
-        costUsd: Math.round(estimateCost(model, turnInput, turnOutput) * 10_000) / 10_000,
-      });
+      const toolCalls = normalizeTurnToolCalls(model, message);
+      record.turnMetrics.push(
+        buildTurnMetric(turn, model, turnInput, turnOutput, llmLatency, choice, toolCalls.length),
+      );
 
       if (!toolCalls.length) {
         record.finalSummary = (message?.content as string) ?? '';
         record.status = 'success';
         console.log(`\n[Agent] Done. Final message: ${record.finalSummary.slice(0, 200)}`);
-        taskFinishedOuter = true;
         break;
       }
 
-      let taskFinished = false;
-      for (const tc of toolCalls) {
-        const fn = tc.function;
-        const toolName = fn.name;
-        let toolArgs: Record<string, unknown>;
-        try {
-          toolArgs = JSON.parse(fn.arguments);
-        } catch {
-          toolArgs = {};
-        }
-
-        toolArgs = normalizeToolArgs(toolName, toolArgs);
-
-        process.stdout.write(`  [${turn + 1}] ${toolName}(${summariseArgs(toolName, toolArgs)}) … `);
-
-        const tStart = Date.now() / 1000;
-        const [result, isDoc, isInterrupt, isError] = await executor.execute(toolName, toolArgs);
-        const tEnd = Date.now() / 1000;
-
-        const elapsed = ((tEnd - tStart) * 1000).toFixed(0);
-        if (isError) {
-          const preview = result.slice(0, 120).replace(/\n/g, ' ');
-          console.log(`✗ (${elapsed}ms) ${preview}`);
-          record.providerErrors.push(`${toolName}: ${result}`);
-        } else {
-          const preview = result.slice(0, 80).replace(/\n/g, ' ');
-          console.log(`✓ (${elapsed}ms)${preview ? ` → ${preview}` : ''}`);
-        }
-
-        const isRetry = detectRetry(record.toolCalls, toolName, toolArgs);
-        const recovered = isRetry && !isError;
-
-        const toolCall: ToolCallRecord = {
-          name: toolName,
-          args: toolArgs,
-          result,
-          startTime: tStart,
-          endTime: tEnd,
-          isDocLookup: isDoc,
-          isInterruption: isInterrupt,
-          causedError: isError,
-          actionType: classifyActionType(toolName, isError),
-          isRetry,
-          recoveredFromError: recovered,
-        };
-
-        // Only when there is an error do we classify the error category; for successful calls, errorCategory is undefined.
-        if (isError) {
-          toolCall.errorCategory = classifyErrorCategory(result);
-        }
-
-        record.toolCalls.push(toolCall);
-
-        if (isBedrockModel(model)) {
-          messages.push({ role: 'user', content: `[Result of ${toolName}]:\n${result}` });
-        } else if (isGeminiModel(model)) {
-          messages.push({ role: 'function', name: toolName, content: result });
-        } else {
-          messages.push({ role: 'tool', tool_call_id: tc.id, content: result });
-        }
-
-        if (toolName === 'finish_task') {
-          record.finalSummary = (toolArgs.summary as string) ?? result;
-          record.status = 'success';
-          taskFinished = true;
-          console.log(`\n[Agent] Done. Summary: ${record.finalSummary.slice(0, 200)}`);
-        }
-      }
-
-      if (taskFinished) {
-        taskFinishedOuter = true;
-        break;
-      }
+      finished = await executeToolCalls(toolCalls, turn, model, executor, messages, record);
     }
 
-    if (!taskFinishedOuter && record.status === 'running') {
+    if (!finished && record.status === 'running') {
       record.status = 'failure';
       console.log('[Agent] Max turns reached without completion.');
     }
@@ -436,228 +316,12 @@ export async function runAgent(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-interface ToolCallEntry {
-  id: string;
-  type: string;
-  function: { name: string; arguments: string };
-}
-
 export function extractTokens(usage: Record<string, number>): [number, number] {
   let inputTokens = usage.prompt_tokens;
   if (inputTokens === undefined) inputTokens = usage.input_tokens ?? 0;
   let outputTokens = usage.completion_tokens;
   if (outputTokens === undefined) outputTokens = usage.output_tokens ?? 0;
   return [inputTokens, outputTokens];
-}
-
-export function normalizeToolArgs(name: string, args: Record<string, unknown>): Record<string, unknown> {
-  if (['read_file', 'list_files', 'write_file'].includes(name) && !('path' in args)) {
-    for (const alias of ['filename', 'file_path', 'filepath', 'file']) {
-      if (alias in args) {
-        return { ...args, path: args[alias] };
-      }
-    }
-  }
-  if (name === 'run_command' && !('command' in args)) {
-    for (const alias of ['cmd', 'shell_command', 'bash_command']) {
-      if (alias in args) {
-        return { ...args, command: args[alias] };
-      }
-    }
-  }
-  return args;
-}
-
-const TOOL_ACTION_TYPES: Record<string, ActionType> = {
-  ask_user: 'Interruption',
-  fetch_url: 'Discovery',
-  read_file: 'Discovery',
-  list_files: 'Discovery',
-  write_file: 'Implementation',
-  run_command: 'Implementation',
-  finish_task: 'Implementation',
-  search_auth0_docs: 'Discovery',
-};
-/**
- * Classify the type of action represented by a tool call based on its name and whether it caused an error.
- *
- * @param name The name of the tool being called.
- * @param causedError A boolean indicating whether the tool call resulted in an error.
- * @returns The classified ActionType for the tool call.
- */
-export function classifyActionType(name: string, causedError: boolean): ActionType {
-  if (causedError) {
-    return 'Error';
-  }
-
-  return TOOL_ACTION_TYPES[name] ?? 'unknown';
-}
-
-/**
- * Extract the primary identifying argument from a tool call's name and arguments, which is used for retry detection.
- * The primary argument is determined based on the tool type:
- * - For file-related tools (read_file, list_files, write_file), it's the 'path' argument.
- * - For run_command, it's the 'command' argument (truncated to 80 chars).
- * - For fetch_url, it's the 'url' argument.
- * - For ask_user, it's the 'question' argument (truncated to 80 chars).
- * - For other tools, it defaults to a JSON string of all arguments (truncated to 80 chars).
- * @param name The name of the tool being called.
- * @param args The arguments for the tool call.
- * @returns The primary identifying argument for the tool call.
- */
-export function primaryArg(name: string, args: Record<string, unknown>): string {
-  if (name === 'read_file' || name === 'list_files' || name === 'write_file') {
-    return (args.path ?? args.filename ?? args.file_path ?? '') as string;
-  }
-  if (name === 'run_command') {
-    return ((args.command as string) ?? '').slice(0, 80);
-  }
-  if (name === 'fetch_url') {
-    return (args.url as string) ?? '';
-  }
-  if (name === 'ask_user') {
-    return ((args.question as string) ?? '').slice(0, 80);
-  }
-  return JSON.stringify(args).slice(0, 80);
-}
-
-/**
- * Detect if the current tool call is a retry of a previous call that caused an error.
- *
- * @param toolCalls The history of tool calls to check against.
- * @param toolName The name of the tool being called.
- * @param toolArgs The arguments for the current tool call.
- * @returns True if the current call is a retry of a previous call that caused an error, otherwise false.
- *
- * @remarks Retry is determined by checking the history of tool calls for any prior call with the same tool name and primary argument that resulted in an error.
- * The primary argument is extracted based on the tool type (e.g., 'path' for file operations, 'command' for run_command, etc.) to identify retries of the same logical operation,
- * even if other arguments differ.
- */
-export function detectRetry(toolCalls: ToolCallRecord[], toolName: string, toolArgs: Record<string, unknown>): boolean {
-  const thisPrimary = primaryArg(toolName, toolArgs);
-  const lastSame = toolCalls.findLast(
-    (prev) => prev.name === toolName && primaryArg(prev.name, prev.args) === thisPrimary,
-  );
-  return lastSame?.causedError === true;
-}
-
-/**
- * Classify an error result string into a category.
- *
- * @param result  The error message string to classify.
- * @returns The category of the error.
- *
- * @remarks The error classification looks for key phrases in the error message to determine the category of error that occurred.
- * This is used for better analysis and understanding of the types of errors the agent encounters during tool execution.
- */
-export function classifyErrorCategory(result: string): ErrorCategory {
-  const r = result.toLowerCase();
-  if (['not found', 'no such file', 'does not exist', 'file not found'].some((p) => r.includes(p))) return 'not_found';
-  if (['timed out', 'timeout', 'deadline'].some((p) => r.includes(p))) return 'timeout';
-  if (['permission denied', 'access denied', 'forbidden', '403'].some((p) => r.includes(p))) return 'permission';
-  if (['401', 'unauthorized', 'unauthenticated'].some((p) => r.includes(p))) return 'auth';
-  if (['connection', 'network', 'could not fetch', 'urlopen error', 'name or service'].some((p) => r.includes(p)))
-    return 'network';
-  if (['syntaxerror', 'syntax error', 'unexpected token', 'json', 'parse error', 'decode'].some((p) => r.includes(p)))
-    return 'syntax';
-  return 'unknown';
-}
-
-export function parseXmlToolCalls(content: string): ToolCallEntry[] {
-  const cutoff = content.indexOf('<tool_result>');
-  const text = cutoff !== -1 ? content.slice(0, cutoff) : content;
-
-  const pattern = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/g;
-  const calls: ToolCallEntry[] = [];
-  let i = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = pattern.exec(text)) !== null) {
-    try {
-      // Claude (Bedrock) uses "input"; some variants use "parameters".
-      // Fall through all known keys before defaulting to {}.
-      const body = JSON.parse(match[1]) as {
-        name?: string;
-        arguments?: Record<string, unknown>;
-        input?: Record<string, unknown>;
-        parameters?: Record<string, unknown>;
-      };
-      const args = body.arguments ?? body.input ?? body.parameters ?? {};
-      calls.push({
-        id: `xml_call_${i}`,
-        type: 'function',
-        function: {
-          name: body.name ?? '',
-          arguments: JSON.stringify(args),
-        },
-      });
-      i++;
-    } catch {
-      // skip malformed blocks
-    }
-  }
-
-  return calls;
-}
-
-export function summariseArgs(toolName: string, args: Record<string, unknown>): string {
-  if (['read_file', 'list_files', 'write_file'].includes(toolName)) {
-    const path = (args.path as string) ?? '';
-    const suffix = 'content' in args ? `, ${((args.content as string) ?? '').length} chars` : '';
-    return `"${path}"${suffix}`;
-  }
-  if (toolName === 'run_command') {
-    return `"${((args.command as string) ?? '').slice(0, 60)}"`;
-  }
-  if (toolName === 'fetch_url') {
-    return `"${((args.url as string) ?? '').slice(0, 60)}"`;
-  }
-  if (toolName === 'search_auth0_docs') {
-    return `"${((args.query as string) ?? '').slice(0, 60)}"`;
-  }
-  if (toolName === 'ask_user') {
-    return `"${((args.question as string) ?? '').slice(0, 60)}"`;
-  }
-  if (toolName === 'finish_task') {
-    return `"${((args.summary as string) ?? '').slice(0, 60)}"`;
-  }
-  return JSON.stringify(args).slice(0, 80);
-}
-
-// ── Workspace context builder (Layer 2) ──────────────────────────────────────
-
-/**
- * Builds a structured XML block describing the current workspace state.
- * Injected into the system message alongside the agent's stable instructions,
- * following Copilot's Layer 2 pattern: dynamic environment context that is
- * specific to this session without polluting the stable rule set.
- */
-export function buildWorkspaceContext(workspace: string): string {
-  const files = collectFiles(workspace, workspace);
-  const fileList = files.length > 0 ? files.map((f) => `  ${f}`).join('\n') : '  (empty workspace)';
-  return `<workspace>
-The project workspace contains the following files:
-${fileList}
-
-All file paths in tool calls must be relative to this workspace root.
-</workspace>`;
-}
-
-export function buildMcpContext(toolNames: string[] = []): string {
-  const list = toolNames.map((n) => `- ${n}`).join('\n');
-
-  // When there are no tools, omit the context altogether.
-  if (list.length === 0) {
-    return '';
-  }
-
-  return `<mcp_tools>
-You have direct access to the following tools from the registered MCP server(s):
-${list}
-
-Always call these tools first when you need documentation, API details, or SDK usage examples.
-Prefer them over fetch_url.
-</mcp_tools>`;
 }
 
 export function setupWorkspace(scaffold: Record<string, string>): string {
