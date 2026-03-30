@@ -24,7 +24,6 @@ updates:
       prefix: chore
       include: scope
     labels:
-      - "dependabot"
-      - "dependency"
+      - "dependencies"
     registries:
       - npm-registry-a0us-jfrog-io-a0us-api-npm-npm
