@@ -42,4 +42,10 @@ export const EVALUATIONS: EvalConfig[] = [
     category: 'quickstarts',
     path: 'src/evals/quickstarts/fastapi',
   },
+  {
+    id: 'fastify_api_quickstart',
+    name: 'Fastify API Quickstart',
+    category: 'quickstarts',
+    path: 'src/evals/quickstarts/fastify-api',
+  },
 ];
