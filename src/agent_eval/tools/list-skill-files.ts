@@ -1,6 +1,4 @@
-import { existsSync } from 'node:fs';
-import { SKILLS_BASE_DIR } from '../skills-config.js';
-import { resolveInside } from '../path-utils.js';
+import { resolveSkillDir } from '../skills-config.js';
 import { collectFiles } from './utils.js';
 import { Tool, ToolContext, ToolName, ToolResult } from './base.js';
 
@@ -21,13 +19,13 @@ export class ListSkillFilesTool implements Tool {
         'list_skill_files requires a skill name. Use list_skill_files with a skill name to list its files.',
       );
     }
-    let skillDir: string;
+    let skillDir: string | null;
     try {
-      skillDir = resolveInside(SKILLS_BASE_DIR, skill);
+      skillDir = resolveSkillDir(skill);
     } catch {
       return wrapResult('Access denied: skill path is outside skills directory');
     }
-    if (!existsSync(skillDir)) {
+    if (!skillDir) {
       return wrapResult(`Skill '${skill}' not found`);
     }
     const files = collectFiles(skillDir, skillDir);

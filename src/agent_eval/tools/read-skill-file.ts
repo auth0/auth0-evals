@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-import { SKILLS_BASE_DIR } from '../skills-config.js';
+import { resolveSkillDir } from '../skills-config.js';
 import { resolveInside } from '../path-utils.js';
 import { Tool, ToolContext, ToolName, ToolResult } from './base.js';
 
@@ -29,11 +29,14 @@ export class ReadSkillFileTool implements Tool {
       );
     }
 
-    let skillDir: string;
+    let skillDir: string | null;
     try {
-      skillDir = resolveInside(SKILLS_BASE_DIR, skill);
+      skillDir = resolveSkillDir(skill);
     } catch {
       return wrapResult('Access denied: skill path is outside skills directory');
+    }
+    if (!skillDir) {
+      return wrapResult(`Skill '${skill}' not found`);
     }
 
     let filePath: string;
