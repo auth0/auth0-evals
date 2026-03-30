@@ -31,7 +31,7 @@ jobs:
       matrix: ${{ steps.build.outputs.matrix }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Build matrix JSON
         id: build
@@ -50,7 +50,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/eval-build
 
   # ── N parallel eval jobs (one per eval × mode × model) ────────────────────
@@ -70,7 +70,7 @@ jobs:
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Node.js and npm (Artifactory)
         uses: ./.github/actions/setup-npm
@@ -123,5 +123,5 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/eval-report
