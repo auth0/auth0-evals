@@ -12,7 +12,6 @@ let package = Package(
             targets: ["BarkbookApp"]),
     ],
     dependencies: [
-        // TODO: Add Auth0.swift dependency
     ],
     targets: [
         .target(
