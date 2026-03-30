@@ -30,4 +30,10 @@ export const EVALUATIONS: EvalConfig[] = [
     category: 'quickstarts',
     path: 'src/evals/quickstarts/express',
   },
+  {
+    id: 'express_api_quickstart',
+    name: 'Express API Quickstart',
+    category: 'quickstarts',
+    path: 'src/evals/quickstarts/express-api',
+  },
 ];
