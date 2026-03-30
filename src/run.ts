@@ -20,18 +20,20 @@
  *   --braintrust       Log results to Braintrust experiment (requires BRAINTRUST_API_KEY)
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Command } from 'commander';
+import { tmpdir } from 'node:os';
 import pLimit from 'p-limit';
 import { config as loadDotenv } from 'dotenv';
 import { EVALUATIONS, type EvalConfig } from './config/evaluations.js';
 import { UnknownModeError } from './errors.js';
 import { loadEval, type EvalDefinition } from './runners/loader.js';
 import { runGraders, GraderLevel } from './agent_eval/graders.js';
-import { serialiseTrace, serialiseTurnMetrics } from './agent_eval/traces.js';
-import { tmpdir } from 'node:os';
+import { serialiseBaseline, serialiseAgent, serialiseError } from './runners/serializers.js';
+import { mergeResults, loadResults, saveResults, resolveOutputPath } from './persistence/results.js';
+import { parseRunConfig } from './cli/config.js';
+import type { JobResult } from './types/results.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -40,45 +42,28 @@ const FRAMEWORK_ROOT = ['dist', 'src'].includes(basename(__dirname)) ? join(__di
 // Load .env
 loadDotenv({ path: join(FRAMEWORK_ROOT, '.env') });
 
-export const KNOWN_WORKING_MODELS = ['gpt-5.2', 'claude-4-6-sonnet', 'claude-4-6-opus', 'gemini-3-pro-preview'];
-
-export const DEFAULT_MODEL = 'gpt-5.2';
-
-export const ALL_MODES = ['baseline', 'agent'];
-
-export const KNOWN_TOOLS = ['skills', 'mcp'];
+export {
+  ALL_MODES,
+  DEFAULT_MODEL,
+  KNOWN_TOOLS,
+  KNOWN_WORKING_MODELS,
+  parseToolsArg,
+  type Mode,
+} from './cli/constants.js';
+import type { Mode } from './cli/constants.js';
 
 const BASELINE_LEVELS = new Set([GraderLevel.L1, GraderLevel.L2, GraderLevel.L3]);
-
-export function parseToolsArg(toolsArg: string): string[] {
-  if (!toolsArg) return [];
-  let normalized = toolsArg.trim();
-  if (normalized.startsWith('{') && normalized.endsWith('}')) {
-    normalized = normalized.slice(1, -1);
-  }
-  return [
-    ...new Set(
-      normalized
-        .split(',')
-        .map((t) => t.trim().toLowerCase())
-        .filter(Boolean),
-    ),
-  ].sort();
-}
-
-// Models that don't support agent mode.
-const AGENT_INCOMPATIBLE_MODELS: string[] = [];
 
 // ── Per-job execution ─────────────────────────────────────────────────────────
 
 export async function runJob(
   evalConfig: EvalConfig,
   model: string,
-  mode: string,
+  mode: Mode,
   tools: string[],
   apiKey: string,
   keepWorkspace = false,
-): Promise<Record<string, unknown>> {
+): Promise<JobResult> {
   const evalDef = await loadEval(evalConfig, FRAMEWORK_ROOT);
   console.log(`  [${mode}] ${evalDef.id} / ${model}`);
 
@@ -87,7 +72,7 @@ export async function runJob(
       const { runBaseline } = await import('./runners/baseline.js');
       const result = await runBaseline(apiKey, model, evalDef);
       const graderResults = await gradeText(evalDef, result.responseText, apiKey, BASELINE_LEVELS);
-      return serialiseSimple(evalDef, result, graderResults, result.responseText);
+      return serialiseBaseline(evalDef, result, graderResults, result.responseText);
     } else if (mode === 'agent') {
       let evalToRun = evalDef;
       if (tools.some((t) => t.toLowerCase() === 'skills')) {
@@ -101,18 +86,7 @@ export async function runJob(
   } catch (e) {
     const errorMsg = String(e);
     console.log(`  ✗ [${evalDef.id}] ${model} - ERROR: ${errorMsg.slice(0, 100)}`);
-    return {
-      eval_id: evalDef.id,
-      model,
-      mode,
-      tools,
-      category: evalDef.category,
-      status: 'error',
-      error: errorMsg,
-      wall_time: 0,
-      tokens: 0,
-      cost_usd: 0,
-    };
+    return serialiseError(evalDef.id, evalDef.category, model, mode, tools, errorMsg);
   }
 }
 
@@ -147,11 +121,11 @@ async function gradeText(
 async function runAgentJob(
   evalDef: EvalDefinition,
   model: string,
-  mode: string,
+  mode: 'agent',
   tools: string[],
   apiKey: string,
   keepWorkspace: boolean,
-): Promise<Record<string, unknown>> {
+): Promise<JobResult> {
   const { runAgent, setupWorkspace, cleanupWorkspace } = await import('./agent_eval/agent.js');
   const { score } = await import('./agent_eval/scorer.js');
 
@@ -171,45 +145,7 @@ async function runAgentJob(
     }
 
     const scored = score(record, undefined, graderResults);
-
-    const result = {
-      eval_id: evalDef.id,
-      category: evalDef.category,
-      prompt: evalDef.userPrompt,
-      response_text: record.finalSummary ?? '',
-      model,
-      mode,
-      tools,
-      session_id: record.sessionId,
-      status: record.status,
-      overall_score: scored.overallScore,
-      overall_grade: scored.overallGrade,
-      grader_pass_rate: scored.graderPassRate,
-      wall_time: record.endTime - record.startTime,
-      active_time: record.toolCalls.reduce((sum, tc) => sum + (tc.endTime - tc.startTime), 0),
-      tool_calls: record.toolCalls.length,
-      interruptions: record.toolCalls.filter((tc) => tc.isInterruption).length,
-      tokens: record.inputTokens + record.outputTokens,
-      cost_usd: record.costUsd,
-      dimensions: scored.dimensions.map((d) => ({
-        name: d.name,
-        score: d.rawScore,
-        grade: d.grade,
-        weight: d.weight,
-        weighted: d.weighted,
-      })),
-      graders: graderResults.map((gr) => ({
-        name: gr.name,
-        kind: gr.kind,
-        passed: gr.passed,
-        detail: gr.detail,
-        level: gr.level,
-      })),
-      session_trace: serialiseTrace(record),
-      turn_metrics: serialiseTurnMetrics(record),
-    };
-
-    return result;
+    return serialiseAgent(evalDef, record, scored, graderResults, model, mode, tools);
   } finally {
     if (!keepWorkspace) {
       cleanupWorkspace(workspace);
@@ -217,76 +153,24 @@ async function runAgentJob(
   }
 }
 
-function serialiseSimple(
-  evalDef: EvalDefinition,
-  result: {
-    evalId: string;
-    model: string;
-    mode: string;
-    sessionId: string;
-    status: string;
-    wallTime: number;
-    inputTokens: number;
-    outputTokens: number;
-    costUsd: number;
-    error?: string;
-  },
-  graderResults: { name: string; kind: string; passed: boolean; detail: string; level?: GraderLevel }[],
-  responseText?: string,
-): Record<string, unknown> {
-  const passed = graderResults.filter((r) => r.passed).length;
-  const total = graderResults.length;
-  const rate = total > 0 ? passed / total : 1.0;
-  return {
-    eval_id: evalDef.id,
-    category: evalDef.category,
-    prompt: evalDef.userPrompt,
-    response_text: responseText ?? '',
-    model: result.model,
-    mode: result.mode,
-    session_id: result.sessionId,
-    status: result.status,
-    grader_pass_rate: rate,
-    graders_passed: passed,
-    graders_total: total,
-    wall_time: result.wallTime,
-    tokens: result.inputTokens + result.outputTokens,
-    cost_usd: result.costUsd,
-    error: result.error ?? '',
-    graders: graderResults.map((gr) => ({
-      name: gr.name,
-      kind: gr.kind,
-      passed: gr.passed,
-      detail: gr.detail,
-      level: gr.level,
-    })),
-  };
-}
-
 // ── CLI ───────────────────────────────────────────────────────────────────────
 
-function printResult(r: Record<string, unknown>): void {
-  const mode = r.mode ?? '?';
-  if (mode === 'agent') {
-    const grade = r.overall_grade ?? '?';
-    const sc = r.overall_score ?? 0;
-    const rate = (r.grader_pass_rate as number) ?? 0;
+function printResult(r: JobResult): void {
+  if (r.status === 'error') return; // already reported in runJob's catch block
+  if (r.mode === 'agent') {
     console.log(
-      `  ✓ [${r.eval_id}] ${r.model}  grade=${grade} (${Number(sc).toFixed(0)})  ` +
-        `graders=${(rate * 100).toFixed(0)}%  $${Number(r.cost_usd ?? 0).toFixed(4)}`,
+      `  ✓ [${r.eval_id}] ${r.model}  grade=${r.overall_grade} (${r.overall_score.toFixed(0)})  ` +
+        `graders=${(r.grader_pass_rate * 100).toFixed(0)}%  $${r.cost_usd.toFixed(4)}`,
     );
   } else {
-    const passed = r.graders_passed ?? '?';
-    const total = r.graders_total ?? '?';
-    const rate = (r.grader_pass_rate as number) ?? 0;
     console.log(
-      `  ✓ [${r.eval_id}] ${r.model}  graders=${passed}/${total} ` +
-        `(${(rate * 100).toFixed(0)}%)  $${Number(r.cost_usd ?? 0).toFixed(4)}`,
+      `  ✓ [${r.eval_id}] ${r.model}  graders=${r.graders_passed}/${r.graders_total} ` +
+        `(${(r.grader_pass_rate * 100).toFixed(0)}%)  $${r.cost_usd.toFixed(4)}`,
     );
   }
 }
 
-function printSummary(results: Record<string, unknown>[], elapsed: number): void {
+function printSummary(results: JobResult[], elapsed: number): void {
   console.log('\n' + '='.repeat(60));
   console.log(`  Summary — ${results.length} run(s)  (${elapsed.toFixed(1)}s total)`);
   console.log('='.repeat(60));
@@ -299,117 +183,52 @@ function printSummary(results: Record<string, unknown>[], elapsed: number): void
   if (failed.length > 0) {
     console.log('\n  Failures:');
     for (const r of failed) {
-      console.log(`    ${r.eval_id}/${r.model}: ${r.error ?? ''}`);
+      const error = 'error' in r && typeof r.error === 'string' ? r.error : '';
+      console.log(`    ${r.eval_id}/${r.model}: ${error}`);
     }
   }
   console.log('='.repeat(60));
 }
 
 async function main(): Promise<void> {
-  const program = new Command();
-  program
-    .description('Auth0 SDK Eval Runner')
-    .option('--eval <id>', 'Eval ID(s) to run (default: all)', (v, prev: string[]) => [...prev, v], [] as string[])
-    .option(
-      '--model <model>',
-      `Model(s) to run (default: ${DEFAULT_MODEL})`,
-      (v, prev: string[]) => [...prev, v],
-      [] as string[],
-    )
-    .option('--mode <mode>', 'Execution mode: baseline | agent | all (default: baseline)', 'baseline')
-    .option(
-      '--tools <tools>',
-      `Tools for agent mode: ${KNOWN_TOOLS.join(', ')} (case-insensitive). Wrapping braces and comma-separation supported, e.g. {skills} or skills,mcp.`,
-      '',
-    )
-    .option('--workers <n>', 'Parallel workers (default: 4)', '4')
-    .option('--output <path>', 'JSON output path')
-    .option('--keep-workspace', '(agent mode) Keep temp workspace after run', false)
-    .option('--braintrust', 'Log results to Braintrust experiment', false);
+  const config = parseRunConfig(process.argv);
+  const {
+    models,
+    modes,
+    tools,
+    evalIds,
+    workers,
+    outputPath: outputOverride,
+    keepWorkspace,
+    braintrust,
+    apiKey,
+    modeArg,
+  } = config;
 
-  program.parse(process.argv);
-  const opts = program.opts();
-
-  const apiKey = process.env.ATKO_API_KEY;
-  if (!apiKey) {
-    console.error('Error: ATKO_API_KEY environment variable not set.');
-    process.exit(1);
-  }
-
-  // Handle model selection
-  const rawModels = opts.model as string[];
-  let models: string[];
-  if (rawModels.length > 0 && rawModels.includes('all')) {
-    models = KNOWN_WORKING_MODELS;
-    console.log(`Using all known working models: ${models.join(', ')}`);
-  } else if (rawModels.length > 0) {
-    models = rawModels;
-  } else {
-    models = [DEFAULT_MODEL];
-  }
-
-  // Handle mode selection
-  const modeArg = opts.mode as string;
-  let modes: string[];
-  if (modeArg === 'all') {
-    modes = ALL_MODES;
-    console.log(`Running all modes: ${modes.join(', ')}`);
-  } else {
-    if (!ALL_MODES.includes(modeArg)) {
-      if (modeArg === 'agent+skills') {
-        console.error(`'agent+skills' mode has been replaced. Use: --mode agent --tools skills`);
-      } else {
-        console.error(`Invalid mode: ${modeArg}. Choose from: ${ALL_MODES.join(', ')} or 'all'`);
-      }
-      process.exit(1);
-    }
-    modes = [modeArg];
-  }
-
-  // Filter evals
-  const evalIds = opts.eval as string[];
-  let registry = EVALUATIONS;
-  if (evalIds.length > 0) {
-    registry = EVALUATIONS.filter((e) => evalIds.includes(e.id));
-    const unknown = evalIds.filter((id) => !EVALUATIONS.some((e) => e.id === id));
-    if (unknown.length > 0) {
-      console.error(`Unknown eval(s): ${unknown.join(', ')}`);
-      process.exit(1);
-    }
-  }
+  const registry = evalIds.length > 0 ? EVALUATIONS.filter((e) => evalIds.includes(e.id)) : EVALUATIONS;
 
   if (registry.length === 0) {
     console.error('No evals to run. Check your --eval flag.');
     process.exit(1);
   }
 
-  // Build job list
-  const tools = parseToolsArg(opts.tools as string);
-  const unknownTools = tools.filter((t) => !KNOWN_TOOLS.some((k) => k.toLowerCase() === t.toLowerCase()));
-  if (unknownTools.length > 0) {
-    console.error(`Unknown tool(s): ${unknownTools.join(', ')}. Known tools: ${KNOWN_TOOLS.join(', ')}`);
-    process.exit(1);
-  }
-  const jobs: [EvalConfig, string, string, string[]][] = [];
+  const jobs: [EvalConfig, string, Mode, string[]][] = [];
   for (const evalCfg of registry) {
     for (const model of models) {
       for (const mode of modes) {
-        if (mode === 'agent' && AGENT_INCOMPATIBLE_MODELS.includes(model)) continue;
         jobs.push([evalCfg, model, mode, mode === 'agent' ? tools : []]);
       }
     }
   }
 
-  const skipped = registry.length * models.length * modes.length - jobs.length;
-  console.log(`\nRunning ${jobs.length} job(s)  modes=${JSON.stringify(modes)}  workers=${opts.workers}`);
-  if (skipped > 0) console.log(`Skipped ${skipped} job(s) (agent-incompatible models)`);
+  console.log(`\nRunning ${jobs.length} job(s)  modes=${JSON.stringify(modes)}  workers=${workers}`);
   console.log(`Evals : ${JSON.stringify(registry.map((e) => e.id))}`);
   console.log(`Models: ${JSON.stringify(models)}`);
   console.log(`Modes : ${JSON.stringify(modes)}\n`);
 
   // Braintrust experiment tracking (opt-in via --braintrust flag)
   let btReporter: Awaited<ReturnType<typeof import('./reporters/braintrust.js').createBraintrustReporter>> = null;
-  if (opts.braintrust) {
+  if (braintrust) {
     const { createBraintrustReporter } = await import('./reporters/braintrust.js');
     btReporter = await createBraintrustReporter(modeArg, tools);
 
@@ -420,21 +239,21 @@ async function main(): Promise<void> {
       .catch((e) => console.error(`[Braintrust] Dataset sync error: ${e}`));
   }
 
-  const results: Record<string, unknown>[] = [];
+  const results: JobResult[] = [];
   const tStart = Date.now();
 
-  const limit = pLimit(parseInt(opts.workers, 10) || 4);
+  const limit = pLimit(workers);
   await Promise.all(
     jobs.map(([evalCfg, model, mode, jobTools]) =>
       limit(async () => {
         try {
-          const result = await runJob(evalCfg, model, mode, jobTools, apiKey, opts.keepWorkspace as boolean);
+          const result = await runJob(evalCfg, model, mode, jobTools, apiKey, keepWorkspace);
           results.push(result);
           printResult(result);
           btReporter?.log(result);
         } catch (exc) {
           console.log(`  [ERROR] ${evalCfg.id}/${model}/${mode}: ${exc}`);
-          const errResult = { eval_id: evalCfg.id, model, mode, tools: jobTools, status: 'error', error: String(exc) };
+          const errResult = serialiseError(evalCfg.id, evalCfg.category, model, mode, jobTools, String(exc));
           results.push(errResult);
           btReporter?.log(errResult);
         }
@@ -449,36 +268,10 @@ async function main(): Promise<void> {
     await btReporter.summarize();
   }
 
-  // Determine output path
-  let outputPath = opts.output as string | undefined;
-  if (!outputPath) {
-    outputPath = modes.length > 1 ? 'scores-all-modes.json' : `scores-${modes[0]}.json`;
-  }
-  outputPath = join(FRAMEWORK_ROOT, outputPath);
-
-  // Deduplicate and merge with existing
-  const key = (r: Record<string, unknown>) =>
-    `${r.eval_id}|${r.model}|${r.mode}|${((r.tools as string[]) ?? []).join(',')}`;
-  const deduped = Object.values(Object.fromEntries(results.map((r) => [key(r), r])));
-  const newKeys = new Set(deduped.map(key));
-
-  let existing: Record<string, unknown>[] = [];
-  if (existsSync(outputPath)) {
-    try {
-      const loaded = JSON.parse(readFileSync(outputPath, 'utf-8')) as unknown;
-      if (Array.isArray(loaded)) {
-        existing = (loaded as Record<string, unknown>[]).filter(
-          (r) => typeof r === 'object' && r !== null && 'eval_id' in r && 'model' in r,
-        );
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  const merged = [...existing.filter((r) => !newKeys.has(key(r))), ...deduped];
-
-  writeFileSync(outputPath, JSON.stringify(merged, null, 2), 'utf-8');
+  const outputPath = resolveOutputPath(FRAMEWORK_ROOT, modes, outputOverride);
+  const existing = loadResults(outputPath);
+  const merged = mergeResults(existing, results);
+  saveResults(outputPath, merged);
   console.log(`\n[Output] Results saved to: ${outputPath}`);
 }
 

@@ -125,7 +125,7 @@ export interface RunRecord {
   inputTokens: number;
   outputTokens: number;
   costUsd: number;
-  status: string;
+  status: 'running' | 'success' | 'failure';
   finalSummary: string;
   workspace: string;
 }

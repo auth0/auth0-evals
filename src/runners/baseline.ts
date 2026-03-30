@@ -22,7 +22,7 @@ export interface BaselineResult {
   outputTokens: number;
   costUsd: number;
   wallTime: number;
-  status: string;
+  status: 'success' | 'failure';
   error: string;
 }
 

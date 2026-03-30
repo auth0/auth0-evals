@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { experimentName, mapResult } from '../src/reporters/braintrust.js';
+import type { AgentJobResult, BaselineJobResult, ErrorJobResult } from '../src/types/results.js';
 
 // ── experimentName ───────────────────────────────────────────────────────────
 
@@ -27,7 +28,7 @@ describe('experimentName', () => {
 // ── mapResult ────────────────────────────────────────────────────────────────
 
 describe('mapResult', () => {
-  function makeBaselineResult(): Record<string, unknown> {
+  function makeBaselineResult(): BaselineJobResult {
     return {
       eval_id: 'react_quickstart',
       category: 'quickstarts',
@@ -45,13 +46,13 @@ describe('mapResult', () => {
       cost_usd: 0.015,
       error: '',
       graders: [
-        { name: 'contains_auth0_react', kind: 'contains', passed: true },
-        { name: 'no_deprecated_loading', kind: 'notContains', passed: false },
+        { name: 'contains_auth0_react', kind: 'contains', passed: true, detail: '' },
+        { name: 'no_deprecated_loading', kind: 'notContains', passed: false, detail: '' },
       ],
     };
   }
 
-  function makeAgentResult(): Record<string, unknown> {
+  function makeAgentResult(): AgentJobResult {
     return {
       eval_id: 'nextjs_quickstart',
       category: 'quickstarts',
@@ -72,10 +73,28 @@ describe('mapResult', () => {
       tokens: 5000,
       cost_usd: 0.05,
       dimensions: [
-        { name: 'Correctness', score: 90, weight: 0.25 },
-        { name: 'Hallucination', score: 70, weight: 0.15 },
+        { name: 'Correctness', score: 90, grade: 'A', weight: 0.25, weighted: 22.5 },
+        { name: 'Hallucination', score: 70, grade: 'C', weight: 0.15, weighted: 10.5 },
       ],
-      graders: [{ name: 'contains_nextjs_auth0', kind: 'contains', passed: true }],
+      graders: [{ name: 'contains_nextjs_auth0', kind: 'contains', passed: true, detail: '' }],
+      session_trace: [],
+      turn_metrics: [],
+    };
+  }
+
+  function makeErrorResult(overrides: Partial<ErrorJobResult> = {}): ErrorJobResult {
+    return {
+      eval_id: 'test',
+      model: 'gpt-5.2',
+      mode: 'baseline',
+      tools: [],
+      category: '',
+      status: 'error',
+      error: '',
+      wall_time: 0,
+      tokens: 0,
+      cost_usd: 0,
+      ...overrides,
     };
   }
 
@@ -97,8 +116,8 @@ describe('mapResult', () => {
     expect(mapResult(makeBaselineResult()).output).toBe('Here is the code with Auth0...');
   });
 
-  it('defaults to empty strings when missing', () => {
-    const r = mapResult({ eval_id: 'x', model: 'm', mode: 'baseline' });
+  it('defaults to empty strings for error results (no prompt/response_text)', () => {
+    const r = mapResult(makeErrorResult({ eval_id: 'x', model: 'm' }));
     expect(r.input).toBe('');
     expect(r.output).toBe('');
   });
@@ -125,8 +144,8 @@ describe('mapResult', () => {
     expect(dimKeys).toHaveLength(0);
   });
 
-  it('handles missing scores gracefully', () => {
-    const { scores } = mapResult({ eval_id: 'test', model: 'm', mode: 'baseline', status: 'error' });
+  it('produces no scores for error results (no grader_pass_rate or overall_score)', () => {
+    const { scores } = mapResult(makeErrorResult({ model: 'm' }));
     expect(Object.keys(scores)).toHaveLength(0);
   });
 
@@ -243,7 +262,19 @@ describe('createBraintrustReporter', () => {
     }));
     const { createBraintrustReporter } = await import('../src/reporters/braintrust.js');
     const reporter = await createBraintrustReporter('baseline', []);
-    reporter!.log({ eval_id: 'test', model: 'gpt-5.2', mode: 'baseline', status: 'success' });
+    const errResult: ErrorJobResult = {
+      eval_id: 'test',
+      model: 'gpt-5.2',
+      mode: 'baseline',
+      tools: [],
+      category: '',
+      status: 'error',
+      error: '',
+      wall_time: 0,
+      tokens: 0,
+      cost_usd: 0,
+    };
+    reporter!.log(errResult);
     expect(tracedSpy).toHaveBeenCalledWith(expect.any(Function), {
       name: 'test / gpt-5.2',
       type: 'eval',
