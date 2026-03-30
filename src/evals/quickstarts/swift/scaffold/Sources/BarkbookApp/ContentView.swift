@@ -1,7 +1,5 @@
 import SwiftUI
 
-// TODO: Import Auth0
-
 @main
 struct BarkbookApp: App {
     var body: some Scene {
@@ -24,15 +22,11 @@ struct ContentView: View {
                 Text("Welcome!")
                 Text(userProfile)
                     .font(.caption)
-                
-                // TODO: Add logout button
+
                 Button("Logout") {
-                    // TODO: Implement logout
                 }
             } else {
-                // TODO: Add login button
                 Button("Login") {
-                    // TODO: Implement login with Auth0
                 }
             }
         }
