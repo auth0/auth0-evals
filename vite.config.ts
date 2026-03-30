@@ -12,6 +12,7 @@ export default defineConfig({
         'src/evals/quickstarts/swift/graders': resolve(__dirname, 'src/evals/quickstarts/swift/graders.ts'),
         'src/evals/quickstarts/express/graders': resolve(__dirname, 'src/evals/quickstarts/express/graders.ts'),
         'src/evals/quickstarts/express-api/graders': resolve(__dirname, 'src/evals/quickstarts/express-api/graders.ts'),
+        'src/evals/quickstarts/fastapi/graders': resolve(__dirname, 'src/evals/quickstarts/fastapi/graders.ts'),
       },
       formats: ['es'],
     },
