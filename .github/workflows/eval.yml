@@ -1,0 +1,127 @@
+name: Eval
+
+on:
+  workflow_dispatch:
+    inputs:
+      evals:
+        description: 'Evals to run: "all" or comma-separated IDs (e.g. swift_quickstart,react_quickstart)'
+        default: 'all'
+        type: string
+      modes:
+        description: 'Modes to run: "all" | "baseline" | "agent" | comma-separated labels (e.g. baseline,agent-mcp)'
+        default: 'all'
+        type: string
+      models:
+        description: 'Models to run: "all" or comma-separated (e.g. gpt-5.2,claude-4-6-sonnet)'
+        default: 'all'
+        type: string
+
+concurrency:
+  group: eval-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Compute the matrix from inputs ────────────────────────────────────────
+  setup:
+    name: Setup matrix
+    runs-on:
+      labels: ubuntu-22.04-2cpu-8ram-75ssd
+
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build matrix JSON
+        id: build
+        env:
+          EVALS_INPUT:  ${{ inputs.evals   || 'all' }}
+          MODES_INPUT:  ${{ inputs.modes   || 'all' }}
+          MODELS_INPUT: ${{ inputs.models  || 'all' }}
+        run: node scripts/build-matrix.js
+
+  # ── Install deps and compile — runs once, in parallel with setup ──────────
+  build:
+    name: Install & Build
+    runs-on:
+      labels: ubuntu-22.04-2cpu-8ram-75ssd
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/eval-build
+
+  # ── N parallel eval jobs (one per eval × mode × model) ────────────────────
+  run-evals:
+    name: ${{ matrix.eval }} / ${{ matrix.mode.label }} / ${{ matrix.model }}
+    needs: [setup, build]
+
+    runs-on:
+      labels: ubuntu-22.04-2cpu-8ram-75ssd
+
+    permissions:
+      contents: read
+      id-token: write
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js and npm (Artifactory)
+        uses: ./.github/actions/setup-npm
+
+      - name: Restore node_modules cache
+        id: node-cache
+        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies (cache miss fallback)
+        if: steps.node-cache.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Download dist
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: build-dist
+          path: dist/
+
+      - name: Run eval
+        env:
+          ATKO_API_KEY: ${{ secrets.ATKO_API_KEY }}
+        run: |
+          ARGS="--eval ${{ matrix.eval }} \
+                --mode ${{ matrix.mode.mode }} \
+                --model ${{ matrix.model }} \
+                --output scores-${{ matrix.eval }}-${{ matrix.mode.label }}-${{ matrix.model }}.json"
+          if [ -n "${{ matrix.mode.tools }}" ]; then
+            ARGS="$ARGS --tools ${{ matrix.mode.tools }}"
+          fi
+          node dist/run.js $ARGS
+
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: result-${{ matrix.eval }}-${{ matrix.mode.label }}-${{ matrix.model }}
+          path: scores-${{ matrix.eval }}-${{ matrix.mode.label }}-${{ matrix.model }}.json
+
+  # ── Collect results and generate report ───────────────────────────────────
+  report:
+    name: Report
+    needs: run-evals
+    if: always()
+    runs-on:
+      labels: ubuntu-22.04-2cpu-8ram-75ssd
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/eval-report
