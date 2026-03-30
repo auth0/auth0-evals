@@ -8,11 +8,12 @@
  */
 
 import { init as btInit, type Experiment } from 'braintrust';
+import type { JobResult } from '../types/results.js';
 
 const PROJECT_ID = '38395851-dd41-46ec-a971-a30402db6921';
 
 export interface BraintrustReporter {
-  log(result: Record<string, unknown>): void;
+  log(result: JobResult): void;
   summarize(): Promise<void>;
 }
 
@@ -36,7 +37,7 @@ function experimentName(mode: string, tools: string[]): string {
  * - `span_attributes.name` sets the row label in the UI.
  * - `input`/`output` are strings so they render readably (not collapsed JSON).
  */
-function mapResult(result: Record<string, unknown>): {
+function mapResult(result: JobResult): {
   input: string;
   output: string;
   scores: Record<string, number>;
@@ -45,57 +46,49 @@ function mapResult(result: Record<string, unknown>): {
   tags: string[];
   spanAttributes: { name: string; type: string };
 } {
-  const graders = (result.graders as { name: string; kind: string; passed: boolean }[]) ?? [];
-  const dimensions = (result.dimensions as { name: string; score: number; weight: number }[]) ?? [];
+  const graders = 'graders' in result ? result.graders : [];
+  const dimensions = 'dimensions' in result ? result.dimensions : [];
 
   // Scores: only universal metrics that every row has — clean columns, no sparsity
   const scores: Record<string, number> = {};
-  if (typeof result.grader_pass_rate === 'number') {
-    scores['grader_pass_rate'] = result.grader_pass_rate;
-  }
-  if (typeof result.overall_score === 'number') {
-    scores['overall_score'] = (result.overall_score as number) / 100;
-  }
+  if ('grader_pass_rate' in result) scores['grader_pass_rate'] = result.grader_pass_rate;
+  if ('overall_score' in result) scores['overall_score'] = result.overall_score / 100;
 
   // Metrics: numeric perf data Braintrust can chart natively
-  const metrics: Record<string, number> = {};
-  if (typeof result.wall_time === 'number') metrics['duration_ms'] = (result.wall_time as number) * 1000;
-  if (typeof result.active_time === 'number') metrics['active_time_ms'] = (result.active_time as number) * 1000;
-  if (typeof result.tokens === 'number') metrics['total_tokens'] = result.tokens as number;
-  if (typeof result.cost_usd === 'number') metrics['cost_usd'] = result.cost_usd as number;
-  if (typeof result.tool_calls === 'number') metrics['tool_calls'] = result.tool_calls as number;
-  if (typeof result.interruptions === 'number') metrics['interruptions'] = result.interruptions as number;
+  const metrics: Record<string, number> = {
+    duration_ms: result.wall_time * 1000,
+    total_tokens: result.tokens,
+    cost_usd: result.cost_usd,
+  };
+  if ('active_time' in result) metrics['active_time_ms'] = result.active_time * 1000;
+  if ('tool_calls' in result) metrics['tool_calls'] = result.tool_calls;
+  if ('interruptions' in result) metrics['interruptions'] = result.interruptions;
 
   // Tags: one-click filter chips in the Braintrust UI
-  const tags: string[] = [];
-  if (result.mode) tags.push(result.mode as string);
-  if (result.category) tags.push(result.category as string);
-  const tools = (result.tools as string[]) ?? [];
+  const tags: string[] = [result.mode];
+  if (result.category) tags.push(result.category);
+  const tools = 'tools' in result ? result.tools : [];
   if (tools.length > 0) tags.push(...tools);
 
   // Per-grader and per-dimension detail — available on row drill-down, not as columns
   const graderDetail = graders.map((g) => ({ name: g.name, kind: g.kind, passed: g.passed }));
-  const dimensionDetail = dimensions.map((d) => ({
-    name: d.name,
-    score: d.score,
-    weight: d.weight,
-  }));
+  const dimensionDetail = dimensions.map((d) => ({ name: d.name, score: d.score, weight: d.weight }));
 
   return {
-    input: (result.prompt as string) ?? '',
-    output: (result.response_text as string) ?? '',
+    input: 'prompt' in result ? result.prompt : '',
+    output: 'response_text' in result ? result.response_text : '',
     scores,
     metrics,
     metadata: {
-      model: result.model as string,
-      mode: result.mode as string,
-      eval_id: result.eval_id as string,
-      category: (result.category as string) ?? '',
+      model: result.model,
+      mode: result.mode,
+      eval_id: result.eval_id,
+      category: result.category,
       tools,
-      session_id: result.session_id,
-      status: result.status as string,
-      overall_grade: result.overall_grade,
-      error: result.error,
+      session_id: 'session_id' in result ? result.session_id : undefined,
+      status: result.status,
+      overall_grade: 'overall_grade' in result ? result.overall_grade : undefined,
+      error: 'error' in result ? result.error : undefined,
       graders: graderDetail,
       dimensions: dimensionDetail,
     },
@@ -133,7 +126,7 @@ export async function createBraintrustReporter(mode: string, tools: string[]): P
   console.log(`[Braintrust] Experiment initialized: ${name}`);
 
   return {
-    log(result: Record<string, unknown>): void {
+    log(result: JobResult): void {
       const { input, output, scores, metrics, metadata, tags, spanAttributes } = mapResult(result);
       // Use traced() instead of log() to work within autoevals' span context.
       // traced() creates a child span that logs correctly regardless of global state.

@@ -1,0 +1,44 @@
+/**
+ * Shared CLI constants and argument helpers.
+ *
+ * Imported by both `src/run.ts` (which re-exports them as its public API)
+ * and `src/cli/config.ts` (which uses them for validation). Keeping a single
+ * source of truth prevents the two files from drifting out of sync.
+ */
+
+/** Models known to work reliably across all eval modes. Used when `--model all` is passed. */
+export const KNOWN_WORKING_MODELS = ['gpt-5.2', 'claude-4-6-sonnet', 'claude-4-6-opus', 'gemini-3-pro-preview'];
+
+/** Model used when no `--model` flag is provided. */
+export const DEFAULT_MODEL = 'gpt-5.2';
+
+/** The two concrete execution modes. `"all"` is a CLI meta-value that expands to this union. */
+export type Mode = 'baseline' | 'agent';
+
+/** Supported execution modes. `"all"` is a meta-value that expands to this list. */
+export const ALL_MODES: Mode[] = ['baseline', 'agent'];
+
+/** Tool names accepted by the `--tools` flag (case-insensitive). */
+export const KNOWN_TOOLS = ['skills', 'mcp'];
+
+/**
+ * Parses the `--tools` flag value into a sorted, deduplicated, lowercase array.
+ *
+ * Supports both bare comma-separated values (`skills,mcp`) and the brace-wrapped
+ * form used by some skill injectors (`{skills}`).
+ */
+export function parseToolsArg(toolsArg: string): string[] {
+  if (!toolsArg) return [];
+  let normalized = toolsArg.trim();
+  if (normalized.startsWith('{') && normalized.endsWith('}')) {
+    normalized = normalized.slice(1, -1);
+  }
+  return [
+    ...new Set(
+      normalized
+        .split(',')
+        .map((t) => t.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ].sort();
+}
