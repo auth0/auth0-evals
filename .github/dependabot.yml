@@ -1,0 +1,30 @@
+version: 2
+registries:
+  npm-registry-a0us-jfrog-io-a0us-api-npm-npm:
+    type: npm-registry
+    url: https://a0us.jfrog.io/artifactory/api/npm/npm/
+    token: ${{secrets.JFROG_AUTH_TOKEN}}
+    replaces-base: true
+
+updates:
+  # Maintain dependencies for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 15
+    rebase-strategy: auto
+    versioning-strategy: auto
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - "dependabot"
+      - "dependency"
+    registries:
+      - npm-registry-a0us-jfrog-io-a0us-api-npm-npm
