@@ -1,0 +1,50 @@
+name: 'Eval Report'
+description: 'Download results, generate HTML report, write job summary, and upload report artifact'
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js and npm (Artifactory)
+      uses: ./.github/actions/setup-npm
+
+    - name: Restore node_modules cache
+      id: node-cache
+      uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      with:
+        path: node_modules
+        key: node-modules-${{ hashFiles('package-lock.json') }}
+
+    - name: Install dependencies (cache miss fallback)
+      if: steps.node-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: npm ci
+
+    - name: Download dist
+      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      with:
+        name: build-dist
+        path: dist/
+
+    - name: Download all results
+      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      with:
+        pattern: result-*
+        merge-multiple: true
+        path: .
+
+    - name: Generate HTML report
+      shell: bash
+      run: node dist/report.js
+
+    - name: Write step summary
+      shell: bash
+      run: node scripts/write-summary.js
+
+    - name: Upload report
+      if: always()
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      with:
+        name: eval-report-${{ github.run_id }}
+        path: |
+          scores-*.json
+          report.html
