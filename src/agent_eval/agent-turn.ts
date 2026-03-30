@@ -12,24 +12,41 @@ import { buildToolResultMessage } from './agent-messages.js';
 import type { RunRecord, ToolCallRecord, TurnMetric, FinishReason, ActionType, ErrorCategory } from './agent.js';
 
 /**
- * Parses XML tool calls from the message content, specifically for Bedrock models that may use this format instead of structured JSON tool_calls.
- * It looks for <tool_call>...</tool_call> blocks, extracts the JSON content, and builds ToolCallEntry objects.
- * @param content The message content string to parse for XML tool calls.
- * @returns An array of ToolCallEntry objects extracted from the XML content. If no valid tool calls are found, returns an empty array.
+ * Parses XML tool calls from Bedrock model responses.
+ *
+ * Two XML dialects are in use depending on the proxy/model configuration:
+ *
+ * Format 1 — JSON body wrapped in <tool_call>:
+ *   <tool_call>{"name":"read_file","input":{"path":"foo.ts"}}</tool_call>
+ *
+ * Format 2 — Anthropic <invoke> / <parameter> tags (used by claude-4-6-sonnet via litellm):
+ *   <function_calls>
+ *     <invoke name="read_file">
+ *       <parameter name="path">foo.ts</parameter>
+ *     </invoke>
+ *   </function_calls>
+ *
+ * Format 1 is tried first; Format 2 is the fallback.
+ *
+ * @param content Raw message content from the LLM response.
+ * @returns Normalised ToolCallEntry array, or [] if no tool calls are found.
  */
 export function parseXmlToolCalls(content: string): ToolCallEntry[] {
+  // Strip any prior tool results so their XML does not confuse the patterns.
   const cutoff = content.indexOf('<tool_result>');
   const text = cutoff !== -1 ? content.slice(0, cutoff) : content;
 
-  const pattern = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/g;
+  return parseToolCallBlocks(text) ?? parseInvokeBlocks(text);
+}
+
+/** Format 1: <tool_call>{ "name": "...", "input": {...} }</tool_call> */
+function parseToolCallBlocks(text: string): ToolCallEntry[] | null {
   const calls: ToolCallEntry[] = [];
-  let i = 0;
+  const pattern = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/g;
   let match: RegExpExecArray | null;
 
   while ((match = pattern.exec(text)) !== null) {
     try {
-      // Claude (Bedrock) uses "input"; some variants use "parameters".
-      // Fall through all known keys before defaulting to {}.
       const body = JSON.parse(match[1]!) as {
         name?: string;
         arguments?: Record<string, unknown>;
@@ -37,21 +54,42 @@ export function parseXmlToolCalls(content: string): ToolCallEntry[] {
         parameters?: Record<string, unknown>;
       };
       const args = body.arguments ?? body.input ?? body.parameters ?? {};
-      calls.push({
-        id: `xml_call_${i}`,
-        type: 'function',
-        function: {
-          name: body.name ?? '',
-          arguments: JSON.stringify(args),
-        },
-      });
-      i++;
+      calls.push(makeToolCallEntry(body.name ?? '', args, calls.length));
     } catch {
       // skip malformed blocks
     }
   }
 
+  return calls.length > 0 ? calls : null;
+}
+
+/** Format 2: <invoke name="..."><parameter name="...">value</parameter></invoke> */
+function parseInvokeBlocks(text: string): ToolCallEntry[] {
+  const calls: ToolCallEntry[] = [];
+  const invokePattern = /<invoke\s+name="([^"]+)">([\s\S]*?)<\/invoke>/g;
+  const paramPattern = /<parameter\s+name="([^"]+)">([\s\S]*?)<\/parameter>/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = invokePattern.exec(text)) !== null) {
+    const name = match[1]!;
+    const args: Record<string, unknown> = {};
+    let p: RegExpExecArray | null;
+    paramPattern.lastIndex = 0;
+    while ((p = paramPattern.exec(match[2]!)) !== null) {
+      args[p[1]!] = p[2]!.trim();
+    }
+    calls.push(makeToolCallEntry(name, args, calls.length));
+  }
+
   return calls;
+}
+
+function makeToolCallEntry(name: string, args: Record<string, unknown>, index: number): ToolCallEntry {
+  return {
+    id: `xml_call_${index}`,
+    type: 'function',
+    function: { name, arguments: JSON.stringify(args) },
+  };
 }
 
 /**
