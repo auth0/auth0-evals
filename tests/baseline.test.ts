@@ -101,6 +101,34 @@ describe('runBaseline', () => {
     expect(result.outputTokens).toBe(250);
   });
 
+  it('falls back to input_tokens/output_tokens when prompt_tokens fields are absent', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: 'ok' } }],
+        usage: { input_tokens: 300, output_tokens: 150 },
+      }),
+    } as unknown as Response);
+
+    const result = await runBaseline('key', 'gpt-5.2', makeEvalDef());
+    expect(result.inputTokens).toBe(300);
+    expect(result.outputTokens).toBe(150);
+  });
+
+  it('prefers prompt_tokens over input_tokens when both are present', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: 'ok' } }],
+        usage: { prompt_tokens: 400, completion_tokens: 200, input_tokens: 1, output_tokens: 1 },
+      }),
+    } as unknown as Response);
+
+    const result = await runBaseline('key', 'gpt-5.2', makeEvalDef());
+    expect(result.inputTokens).toBe(400);
+    expect(result.outputTokens).toBe(200);
+  });
+
   it('defaults token counts to zero when usage is missing', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,

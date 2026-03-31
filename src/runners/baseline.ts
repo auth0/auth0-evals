@@ -60,8 +60,8 @@ export async function runBaseline(
   try {
     const response = await llmCall(apiKey, model, messages);
     const usage = (response.usage as Record<string, number>) ?? {};
-    result.inputTokens = usage.prompt_tokens ?? 0;
-    result.outputTokens = usage.completion_tokens ?? 0;
+    result.inputTokens = usage.prompt_tokens ?? usage.input_tokens ?? 0;
+    result.outputTokens = usage.completion_tokens ?? usage.output_tokens ?? 0;
     result.responseText = response.choices?.[0]?.message?.content ?? '';
     result.costUsd = estimateCost(model, result.inputTokens, result.outputTokens);
   } catch (e) {
