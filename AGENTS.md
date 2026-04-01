@@ -12,7 +12,7 @@
 
 The delta between modes shows where Auth0's investment in skills and documentation produces measurable value.
 
-Each eval lives in `src/evals/<category>/<eval-id>/` and consists of a `PROMPT.md` (task description) and a `graders.ts` (acceptance criteria). The framework runs the eval, grades the agent's output, and scores it across 8 dimensions into a JSON results file.
+Each eval lives in `src/evals/<category>/<eval-dir>/` and consists of a `PROMPT.md` (task description) and a `graders.ts` (acceptance criteria). The framework runs the eval, grades the agent's output, and scores it across 8 dimensions into a JSON results file. Each eval also has a snake_case config ID (e.g. `react_quickstart`) registered in `src/config/evaluations.ts` — this ID is used with `--eval` and is separate from the on-disk directory name (e.g. `src/evals/quickstarts/react`).
 
 Full guide for adding evals: [docs/ADDING_EVALS.md](docs/ADDING_EVALS.md)
 
@@ -87,9 +87,9 @@ The project uses ESLint and Prettier. Run `npm run lint` and `npm run format` be
 
 ## Adding an eval — checklist
 
-1. `src/evals/<category>/<eval-id>/PROMPT.md` + `graders.ts`
-2. Register in `src/config/evaluations.ts`
-3. Add grader entry to `vite.config.ts`
+1. `src/evals/<category>/<eval-dir>/PROMPT.md` + `graders.ts`
+2. Register in `src/config/evaluations.ts` — `id` is the snake_case config ID (e.g. `vue_quickstart`), `path` points to the directory (e.g. `src/evals/quickstarts/vue`); these are **not** the same
+3. Add grader entry to `vite.config.ts` using the directory path, not the config ID
 4. All imports use `.js` extensions; `import type` for type-only
 5. All graders have `GraderLevel`; one final holistic `judge` with no level
 6. No `readFileSync` for JSON in graders — use static `import`
