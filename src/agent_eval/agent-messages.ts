@@ -7,7 +7,7 @@
 
 import { collectFiles } from './tools/utils.js';
 import { isGeminiModel } from './agent-model.js';
-import type { TaskDefinition } from './react-agent.js';
+import type { TaskDefinition } from './runners/react/agent.js';
 
 /**
  * Builds a structured XML block describing the current workspace state.

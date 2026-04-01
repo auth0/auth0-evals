@@ -8,42 +8,38 @@
  * The agent system prompt is written to CLAUDE.md in the workspace so Claude Code picks it
  * up as persistent context. The user prompt is passed directly via `--print`.
  *
- * Tool name mapping (Claude Code → our taxonomy):
- *   Bash / MultiEdit / Edit / Write  →  run_command / write_file / write_file / write_file
- *   Read                             →  read_file
- *   Glob / Grep / LS                 →  list_files
- *   WebFetch / WebSearch             →  fetch_url
- *   AskUserQuestion                  →  ask_user
+ * Tool names are mapped via ClaudeCodeTranslator (see tool-translator.ts).
  */
 
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { RunRecord, ToolCallRecord, TurnMetric, FinishReason } from './agent-types.js';
-import { classifyActionType, classifyErrorCategory, detectRetry } from './agent-types.js';
-import type { EvalDefinition } from '../runners/loader.js';
-import { BASE_URL } from '../config/settings.js';
+import type { RunRecord, ToolCallRecord, TurnMetric, FinishReason } from '../../agent-types.js';
+import { classifyActionType, classifyErrorCategory, detectRetry } from '../../agent-types.js';
+import type { EvalDefinition } from '../../../runners/loader.js';
+import { BASE_URL, CLAUDE_CODE_TASK_TIMEOUT_MS } from '../../../config/settings.js';
+import { ClaudeCodeTranslator } from '../../tool-translator.js';
+import type {
+  CcEvent,
+  CcSystemEvent,
+  CcContentText,
+  CcAssistantEvent,
+  CcUserEvent,
+  CcResultEvent,
+} from './stream-types.js';
+export type {
+  CcSystemEvent,
+  CcContentText,
+  CcAssistantEvent,
+  CcUserEvent,
+  CcResultEvent,
+  CcEvent,
+  CcContentToolUse,
+  CcToolResultContent,
+} from './stream-types.js';
 
-// ── Tool name mapping ─────────────────────────────────────────────────────────
-
-/** Maps Claude Code tool names to our internal taxonomy used by the scorer. */
-const CC_TOOL_MAP: Record<string, string> = {
-  Bash: 'run_command',
-  Read: 'read_file',
-  Write: 'write_file',
-  Edit: 'write_file',
-  MultiEdit: 'write_file',
-  Glob: 'list_files',
-  Grep: 'list_files',
-  LS: 'list_files',
-  WebFetch: 'fetch_url',
-  WebSearch: 'fetch_url',
-  AskUserQuestion: 'ask_user',
-  TodoRead: 'read_file',
-};
-
-const DOC_LOOKUP_TOOLS = new Set(['WebFetch', 'WebSearch']);
-const INTERRUPTION_TOOLS = new Set(['AskUserQuestion']);
+// Module-level translator instance — all event processing uses this.
+const translator = new ClaudeCodeTranslator();
 
 // ── Model alias mapping ───────────────────────────────────────────────────────
 
@@ -62,74 +58,6 @@ const ATKO_MODEL_ALIAS_MAP: Record<string, string> = {
   'claude-4-5-opus': 'global.anthropic.claude-opus-4-5',
   'claude-4-5-haiku': 'global.anthropic.claude-haiku-4-5',
 };
-
-export function mapToolName(ccName: string): string {
-  return CC_TOOL_MAP[ccName] ?? ccName.toLowerCase();
-}
-
-// ── Claude Code stream-json event shapes ─────────────────────────────────────
-
-export interface CcSystemEvent {
-  type: 'system';
-  subtype: string;
-  session_id: string;
-  model: string;
-  cwd: string;
-}
-
-export interface CcContentText {
-  type: 'text';
-  text: string;
-}
-
-export interface CcContentToolUse {
-  type: 'tool_use';
-  id: string;
-  name: string;
-  input: Record<string, unknown>;
-}
-
-export interface CcAssistantEvent {
-  type: 'assistant';
-  message: {
-    id: string;
-    role: 'assistant';
-    content: (CcContentText | CcContentToolUse)[];
-    model: string;
-    stop_reason: string | null;
-    usage: { input_tokens: number; output_tokens: number };
-  };
-}
-
-export interface CcToolResultContent {
-  type: 'tool_result';
-  tool_use_id: string;
-  content: string | { type: string; text: string }[];
-  is_error?: boolean;
-}
-
-// Tool results arrive as user-turn events (matches the Anthropic Messages API shape)
-export interface CcUserEvent {
-  type: 'user';
-  message: {
-    role: 'user';
-    content: CcToolResultContent[];
-  };
-}
-
-export interface CcResultEvent {
-  type: 'result';
-  subtype: 'success' | 'error_max_turns' | 'error_during_execution';
-  is_error: boolean;
-  result: string;
-  session_id: string;
-  total_cost_usd: number;
-  duration_ms: number;
-  num_turns: number;
-  usage: { input_tokens: number; output_tokens: number };
-}
-
-export type CcEvent = CcSystemEvent | CcAssistantEvent | CcUserEvent | CcResultEvent | { type: string };
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
@@ -156,21 +84,6 @@ const ANTHROPIC_PROXY_URL = BASE_URL.replace(/\/v1\/?$/, '/anthropic');
 const DEFAULT_ALLOWED_TOOLS = ['Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'LS', 'WebFetch'].join(
   ',',
 );
-
-/**
- * Claude Code internal tools that appear in the stream but should not be counted
- * toward efficiency/friction scoring — they are Claude Code's own bookkeeping, not
- * agent actions on the task.
- */
-const INTERNAL_TOOLS = new Set([
-  'TodoWrite',
-  'TodoRead',
-  'Task',
-  'TaskOutput',
-  'KillShell',
-  'EnterPlanMode',
-  'ExitPlanMode',
-]);
 
 export interface ClaudeCodeRunOptions {
   /** Path to the `claude` binary. Defaults to `claude` (resolved via PATH). */
@@ -309,13 +222,12 @@ export async function runClaudeCodeAgent(
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
-    const TASK_TIMEOUT_MS = 50 * 300_000;
     const taskTimeout = setTimeout(() => {
-      record.providerErrors.push(`task timeout: killed after ${TASK_TIMEOUT_MS / 1000}s`);
+      record.providerErrors.push(`task timeout: killed after ${CLAUDE_CODE_TASK_TIMEOUT_MS / 1000}s`);
       record.status = 'failure';
-      console.log(`[ClaudeCode] ✗ Task timeout after ${TASK_TIMEOUT_MS / 1000}s — killing subprocess`);
+      console.log(`[ClaudeCode] ✗ Task timeout after ${CLAUDE_CODE_TASK_TIMEOUT_MS / 1000}s — killing subprocess`);
       child.kill('SIGTERM');
-    }, TASK_TIMEOUT_MS);
+    }, CLAUDE_CODE_TASK_TIMEOUT_MS);
 
     let stdoutBuf = '';
     let stderrBuf = '';
@@ -326,12 +238,15 @@ export async function runClaudeCodeAgent(
     // Mutable turn state threaded through the stream processor
     const streamState: StreamState = { turnNum: 0, prevTurnEndTime: record.startTime, parseFailures: 0 };
 
+    // Create processing context that groups record, pending, and state
+    const ctx: ProcessingContext = { record, pending, state: streamState };
+
     child.stderr.on('data', (chunk: Buffer) => {
       stderrBuf += chunk.toString();
     });
 
     child.stdout.on('data', (chunk: Buffer) => {
-      stdoutBuf = processStreamChunk(stdoutBuf, chunk.toString(), record, pending, streamState);
+      stdoutBuf = processStreamChunk(stdoutBuf, chunk.toString(), ctx);
     });
 
     child.on('error', (err) => {
@@ -350,17 +265,17 @@ export async function runClaudeCodeAgent(
       // without a trailing newline, leaving it stranded in stdoutBuf. Appending '\n' forces
       // processStreamChunk to treat it as a complete line.
       if (stdoutBuf.trim()) {
-        processStreamChunk(stdoutBuf, '\n', record, pending, streamState);
+        processStreamChunk(stdoutBuf, '\n', ctx);
         stdoutBuf = '';
       }
 
-      if (streamState.parseFailures > 0 && streamState.turnNum === 0) {
+      if (ctx.state.parseFailures > 0 && ctx.state.turnNum === 0) {
         record.status = 'failure';
         record.providerErrors.push(
-          `stream parse error: ${streamState.parseFailures} line(s) failed to parse and no events were processed — stream format may have changed`,
+          `stream parse error: ${ctx.state.parseFailures} line(s) failed to parse and no events were processed — stream format may have changed`,
         );
         console.log(
-          `[ClaudeCode] ✗ Stream parse failure: ${streamState.parseFailures} unparseable line(s), 0 turns recorded`,
+          `[ClaudeCode] ✗ Stream parse failure: ${ctx.state.parseFailures} unparseable line(s), 0 turns recorded`,
         );
       }
 
@@ -369,24 +284,29 @@ export async function runClaudeCodeAgent(
       // Create a synthetic ToolCallRecord for each so the scorer sees the incomplete work.
       const now = Date.now() / 1000;
       for (const [id, pend] of pending) {
-        if (!INTERNAL_TOOLS.has(pend.name)) {
-          const mappedName = mapToolName(pend.name);
-          const normArgs = normaliseToolArgs(pend.name, pend.input);
+        if (!translator.isInternalTool(pend.name)) {
+          const mappedName = translator.mapName(pend.name);
+          const normArgs = translator.normalizeArgs(pend.name, pend.input);
+          const ctx_str = pend.input.path
+            ? ` — path="${String(pend.input.path)}"`
+            : pend.input.command
+              ? ` — command="${String(pend.input.command).slice(0, 60)}"`
+              : '';
           record.toolCalls.push({
             name: mappedName,
             args: normArgs,
             result: '<orphaned: result event never received>',
             startTime: pend.startTime,
             endTime: now,
-            isDocLookup: DOC_LOOKUP_TOOLS.has(pend.name),
-            isInterruption: INTERRUPTION_TOOLS.has(pend.name),
+            isDocLookup: translator.isDocLookup(pend.name),
+            isInterruption: translator.isInterruption(pend.name),
             causedError: true,
             actionType: classifyActionType(mappedName, true),
             isRetry: detectRetry(record.toolCalls, mappedName, normArgs),
             recoveredFromError: false,
             errorCategory: 'unknown',
           });
-          record.providerErrors.push(`orphaned tool_use: ${pend.name} (id=${id}) never received a result`);
+          record.providerErrors.push(`orphaned tool_use: ${pend.name} (id=${id}) never received a result${ctx_str}`);
           console.log(`[ClaudeCode] ⚠ Orphaned tool_use: ${pend.name} (id=${id})`);
         }
       }
@@ -402,7 +322,7 @@ export async function runClaudeCodeAgent(
         }
       }
       console.log(
-        `[ClaudeCode] Done — status=${record.status} turns=${streamState.turnNum} ` +
+        `[ClaudeCode] Done — status=${record.status} turns=${ctx.state.turnNum} ` +
           `tools=${record.toolCalls.length} cost=$${record.costUsd.toFixed(4)}`,
       );
       resolve(record);
@@ -503,7 +423,7 @@ export function handleEvent(
       if (!pend) continue; // orphaned result — skip
       pending.delete(block.tool_use_id);
 
-      const mappedName = mapToolName(pend.name);
+      const mappedName = translator.mapName(pend.name);
       const rawContent = block.content;
       const resultStr =
         typeof rawContent === 'string'
@@ -520,15 +440,15 @@ export function handleEvent(
 
       // Internal Claude Code tools (TodoWrite, Task, etc.) are bookkeeping, not task actions.
       // Log them for visibility but don't add to toolCalls so they don't distort scoring.
-      if (INTERNAL_TOOLS.has(pend.name)) {
+      if (translator.isInternalTool(pend.name)) {
         console.log(`  [ClaudeCode] ${pend.name} (internal, skipped) (${elapsed}ms)`);
         continue;
       }
 
       const isError = block.is_error === true;
-      const isDoc = DOC_LOOKUP_TOOLS.has(pend.name) || pend.name.startsWith('mcp__');
-      const isInterrupt = INTERRUPTION_TOOLS.has(pend.name);
-      const toolArgs = normaliseToolArgs(pend.name, pend.input);
+      const isDoc = translator.isDocLookup(pend.name);
+      const isInterrupt = translator.isInterruption(pend.name);
+      const toolArgs = translator.normalizeArgs(pend.name, pend.input);
 
       const isRetry = detectRetry(record.toolCalls, mappedName, toolArgs);
       const recovered = isRetry && !isError;
@@ -606,6 +526,13 @@ export interface StreamState {
   parseFailures: number;
 }
 
+/** Groups the mutable state threaded through stream processing into a single context object. */
+export interface ProcessingContext {
+  record: RunRecord;
+  pending: Map<string, { name: string; input: Record<string, unknown>; startTime: number }>;
+  state: StreamState;
+}
+
 /**
  * Processes a chunk of stdout bytes against the accumulated line buffer.
  *
@@ -616,13 +543,7 @@ export interface StreamState {
  * Extracted from the subprocess stdout handler so it can be unit-tested
  * without a live child process.
  */
-export function processStreamChunk(
-  buf: string,
-  chunk: string,
-  record: RunRecord,
-  pending: Map<string, { name: string; input: Record<string, unknown>; startTime: number }>,
-  state: StreamState,
-): string {
+export function processStreamChunk(buf: string, chunk: string, ctx: ProcessingContext): string {
   const lines = (buf + chunk).split('\n');
   const remaining = lines.pop() ?? '';
 
@@ -634,17 +555,17 @@ export function processStreamChunk(
     try {
       ev = JSON.parse(line) as CcEvent;
     } catch (e) {
-      state.parseFailures++;
+      ctx.state.parseFailures++;
       const preview = raw.slice(0, 120);
-      console.error(`[ClaudeCode] ✗ Stream parse error (failure #${state.parseFailures}): ${preview} — ${e}`);
-      record.providerErrors.push(`stream_parse_error: ${preview.slice(0, 80)}`);
+      console.error(`[ClaudeCode] ✗ Stream parse error (failure #${ctx.state.parseFailures}): ${preview} — ${e}`);
+      ctx.record.providerErrors.push(`stream_parse_error: ${preview.slice(0, 80)}`);
       continue;
     }
 
-    const update = handleEvent(ev, record, pending, state.turnNum, state.prevTurnEndTime);
+    const update = handleEvent(ev, ctx.record, ctx.pending, ctx.state.turnNum, ctx.state.prevTurnEndTime);
     if (update) {
-      state.turnNum = update.turnNum;
-      state.prevTurnEndTime = update.prevTurnEndTime;
+      ctx.state.turnNum = update.turnNum;
+      ctx.state.prevTurnEndTime = update.prevTurnEndTime;
     }
   }
 
@@ -676,40 +597,5 @@ export function normaliseStopReason(reason: string): FinishReason {
       return 'stop';
     default:
       return 'unknown';
-  }
-}
-
-// ── Tool arg normalisers ──────────────────────────────────────────────────────
-
-/**
- * Remaps Claude Code's tool input shapes to the arg schema our scorer and trace
- * serialiser expect (e.g. `path` for file operations, `command` for shell, `url` for fetch).
- */
-export function normaliseToolArgs(ccName: string, input: Record<string, unknown>): Record<string, unknown> {
-  switch (ccName) {
-    case 'Bash':
-      return { command: input.command ?? input.cmd ?? '' };
-    case 'Read':
-      return { path: input.file_path ?? input.path ?? '' };
-    case 'Write':
-      return { path: input.file_path ?? input.path ?? '', content: input.content ?? '' };
-    case 'Edit':
-      return { path: input.file_path ?? input.path ?? '', content: input.new_string ?? input.content ?? '' };
-    case 'MultiEdit':
-      return { path: input.file_path ?? input.path ?? '' };
-    case 'Glob':
-      return { path: input.pattern ?? input.path ?? '' };
-    case 'Grep':
-      return { path: input.path ?? '.', command: `grep "${String(input.pattern ?? '')}"` };
-    case 'LS':
-      return { path: input.path ?? '.' };
-    case 'WebFetch':
-      return { url: input.url ?? '' };
-    case 'WebSearch':
-      return { url: input.query ?? '' };
-    case 'AskUserQuestion':
-      return { question: input.question ?? '' };
-    default:
-      return input;
   }
 }

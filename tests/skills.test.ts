@@ -1,5 +1,5 @@
 /**
- * Tests for runners/skills.ts — augmentWithSkills()
+ * Tests for agent_eval/skills/strategy.ts — augmentWithSkills() and copySkillsToWorkspace()
  *
  * vi.resetModules() is called before each test so the module-level cloneReady
  * promise starts fresh, giving each test a clean slate.
@@ -16,7 +16,7 @@ vi.mock('node:fs', () => ({
   rmSync: vi.fn(),
   copyFileSync: vi.fn(),
 }));
-vi.mock('../src/agent_eval/skills-config.js', () => ({
+vi.mock('../src/agent_eval/skills/config.js', () => ({
   SKILLS_REMOTE_DIR: '/tmp/skills-remote',
   SKILLS_CLONE_DIR: '/tmp/skills-remote/auth0-skills',
   resolveSkillDir: vi.fn(),
@@ -46,12 +46,12 @@ function makeEvalDef(overrides: Partial<EvalDefinition> = {}): EvalDefinition {
 
 // Fresh module import per test to reset the module-level cloneReady promise
 async function importAugment() {
-  const mod = await import('../src/runners/skills.js');
+  const mod = await import('../src/agent_eval/skills/strategy.js');
   return mod.augmentWithSkills;
 }
 
 async function importCopySkills() {
-  const mod = await import('../src/runners/skills.js');
+  const mod = await import('../src/agent_eval/skills/strategy.js');
   return mod.copySkillsToWorkspace;
 }
 
@@ -66,7 +66,7 @@ beforeEach(async () => {
   const cp = vi.mocked(await import('node:child_process'));
   vi.mocked(cp.execFileSync as (...args: unknown[]) => unknown).mockReset();
   // Default: resolveSkillDir returns a valid path, collectFiles returns two files
-  const skillsConfig = vi.mocked(await import('../src/agent_eval/skills-config.js'));
+  const skillsConfig = vi.mocked(await import('../src/agent_eval/skills/config.js'));
   vi.mocked(skillsConfig.resolveSkillDir).mockReturnValue('/tmp/skills-remote/auth0-skills/auth0-react');
   const utils = vi.mocked(await import('../src/agent_eval/tools/utils.js'));
   vi.mocked(utils.collectFiles).mockReturnValue(['README.md', 'SKILL.md']);
@@ -273,7 +273,7 @@ describe('copySkillsToWorkspace - file copying', () => {
   it('copies files from multiple skills', async () => {
     const copySkillsToWorkspace = await importCopySkills();
     const fs = vi.mocked(await import('node:fs'));
-    const skillsConfig = vi.mocked(await import('../src/agent_eval/skills-config.js'));
+    const skillsConfig = vi.mocked(await import('../src/agent_eval/skills/config.js'));
     vi.mocked(skillsConfig.resolveSkillDir)
       .mockReturnValueOnce('/tmp/skills/auth0-react')
       .mockReturnValueOnce('/tmp/skills/auth0-nextjs');
@@ -355,7 +355,7 @@ describe('copySkillsToWorkspace - prompt injection', () => {
 describe('copySkillsToWorkspace - skill not found', () => {
   it('throws when resolveSkillDir returns null for a skill', async () => {
     const copySkillsToWorkspace = await importCopySkills();
-    const skillsConfig = vi.mocked(await import('../src/agent_eval/skills-config.js'));
+    const skillsConfig = vi.mocked(await import('../src/agent_eval/skills/config.js'));
     vi.mocked(skillsConfig.resolveSkillDir).mockReturnValue(null);
     const evalDef = makeEvalDef({ skills: ['unknown-skill'] });
 

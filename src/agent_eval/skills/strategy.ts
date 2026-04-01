@@ -1,16 +1,26 @@
 /**
- * Skills runner — clones auth0/agent-skills and injects a notice into the
- * agent system prompt so the agent can browse skills on demand using the
- * `list_skill_files` and `read_skill_file` tools.
+ * Skills delivery for agent runs.
+ *
+ * Contains the full skills pipeline: cloning the agent-skills repo, augmenting
+ * or copying skill content into the agent context, and the SkillsStrategy
+ * interface + implementations that select the right delivery method per agent.
+ *
+ *   - InjectSkillsStrategy  (ReAct-style agents)
+ *       Augments the system prompt with skill names and tool hints. The agent
+ *       accesses skill files via `list_skill_files` / `read_skill_file` tools.
+ *
+ *   - CopySkillsStrategy  (filesystem-native agents: Claude Code, Codex, etc.)
+ *       Copies skill files into the workspace under `.auth0-skills/<skill>/`
+ *       and updates the prompt with filesystem paths.
  */
 
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
-import { SKILLS_REMOTE_DIR, SKILLS_CLONE_DIR, resolveSkillDir } from '../agent_eval/skills-config.js';
-import { collectFiles } from '../agent_eval/tools/utils.js';
-import type { EvalDefinition } from './loader.js';
+import { SKILLS_REMOTE_DIR, SKILLS_CLONE_DIR, resolveSkillDir } from './config.js';
+import { collectFiles } from '../tools/utils.js';
+import type { EvalDefinition } from '../../runners/loader.js';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -20,7 +30,7 @@ const REMOTE_REPO_URL = 'https://github.com/auth0/agent-skills.git';
 
 let cloneReady: Promise<boolean> | undefined;
 
-export function ensureCloned(): Promise<boolean> {
+function ensureCloned(): Promise<boolean> {
   if (!cloneReady) {
     cloneReady = doEnsureCloned().then((result) => {
       if (!result) cloneReady = undefined; // reset on failure so next call retries
@@ -49,7 +59,7 @@ async function doEnsureCloned(): Promise<boolean> {
   }
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
+// ── Public functions ──────────────────────────────────────────────────────────
 
 /**
  * Copies skill files into the workspace under `.auth0-skills/<skill>/` and rewrites
@@ -114,4 +124,69 @@ export async function augmentWithSkills(evalDef: EvalDefinition): Promise<EvalDe
   const parts = [notice];
   if (evalDef.agentSystemPrompt) parts.push(evalDef.agentSystemPrompt);
   return { ...evalDef, agentSystemPrompt: parts.join('\n\n---\n\n') };
+}
+
+// ── SkillsStrategy Interface ──────────────────────────────────────────────────
+
+/**
+ * SkillsStrategy interface and implementations.
+ *
+ * Skills can be delivered to an agent in different ways depending on how that
+ * agent accesses external context:
+ *
+ *   - InjectSkillsStrategy  (ReAct-style agents)
+ *       Prepends a skills notice and tool hints to evalDef.agentSystemPrompt.
+ *       The agent accesses skills via the `list_skill_files` / `read_skill_file`
+ *       custom tools.
+ *
+ *   - CopySkillsStrategy  (filesystem-native agents such as Claude Code)
+ *       Copies skill files into the workspace under `.auth0-skills/<skill>/`
+ *       and updates the prompt to point there. The agent reads them with its
+ *       own native file tools (Read, Glob, etc.).
+ *
+ * When adding a new agent, pick the strategy that matches how it reads context
+ * — no need to re-implement the injection logic.
+ */
+
+export interface SkillsStrategy {
+  /**
+   * Prepare skills for an agent run.
+   *
+   * Receives the current EvalDefinition and the workspace path, and returns a
+   * (possibly new) EvalDefinition with skills made available in the way this
+   * strategy expects.
+   *
+   * `workspace` is provided for filesystem-native strategies that write skill
+   * files into the agent's working directory. Prompt-based strategies (e.g.
+   * InjectSkillsStrategy) do not use the workspace and may ignore it.
+   *
+   * Only called when `tools` contains `'skills'`.
+   */
+  apply(evalDef: EvalDefinition, workspace: string): Promise<EvalDefinition>;
+}
+
+// ── InjectSkillsStrategy ──────────────────────────────────────────────────────
+
+/**
+ * Delivers skills by injecting a notice into the agent system prompt.
+ * Used by the ReAct agent, which accesses skills via `list_skill_files` and
+ * `read_skill_file` tool calls.
+ */
+export class InjectSkillsStrategy implements SkillsStrategy {
+  async apply(evalDef: EvalDefinition, _workspace: string): Promise<EvalDefinition> {
+    return augmentWithSkills(evalDef);
+  }
+}
+
+// ── CopySkillsStrategy ────────────────────────────────────────────────────────
+
+/**
+ * Delivers skills by copying files into the workspace and updating the prompt
+ * with filesystem paths. Used by agents that read context with native file
+ * tools (Claude Code, Codex, Gemini CLI, etc.).
+ */
+export class CopySkillsStrategy implements SkillsStrategy {
+  async apply(evalDef: EvalDefinition, workspace: string): Promise<EvalDefinition> {
+    return copySkillsToWorkspace(evalDef, workspace);
+  }
 }

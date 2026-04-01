@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-import { resolveInside } from './path-utils.js';
+import { resolveInside } from '../path-utils.js';
 
 export const SKILLS_REMOTE_DIR = resolve(process.env.SKILLS_REMOTE_DIR ?? 'skills-remote');
 export const SKILLS_CLONE_DIR = join(SKILLS_REMOTE_DIR, 'auth0-skills');
