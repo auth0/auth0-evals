@@ -1,0 +1,84 @@
+/**
+ * Unit tests for InjectSkillsStrategy and CopySkillsStrategy.
+ *
+ * Tests observable output of strategy.apply() by mocking at the
+ * filesystem / config level (same approach as skills.test.ts).
+ */
+
+import { vi, describe, it, expect, beforeEach } from 'vitest';
+import type { EvalDefinition } from '../src/runners/loader.js';
+
+vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
+vi.mock('node:fs', () => ({
+  existsSync: vi.fn().mockReturnValue(true),
+  mkdirSync: vi.fn(),
+  rmSync: vi.fn(),
+  copyFileSync: vi.fn(),
+}));
+vi.mock('../src/agent_eval/skills/config.js', () => ({
+  SKILLS_REMOTE_DIR: '/tmp/skills-remote',
+  SKILLS_CLONE_DIR: '/tmp/skills-remote/auth0-skills',
+  resolveSkillDir: vi.fn().mockReturnValue('/tmp/skills-remote/auth0-skills/plugins/auth0-sdks/skills/auth0-react'),
+}));
+vi.mock('../src/agent_eval/tools/utils.js', () => ({
+  collectFiles: vi.fn().mockReturnValue(['SKILL.md']),
+}));
+
+// Import after mocks are set up
+const { InjectSkillsStrategy, CopySkillsStrategy } = await import('../src/agent_eval/skills/strategy.js');
+
+function makeEvalDef(overrides: Partial<EvalDefinition> = {}): EvalDefinition {
+  return {
+    id: 'test',
+    name: 'Test Eval',
+    category: 'quickstarts',
+    path: '/tmp/test',
+    systemPrompt: '',
+    userPrompt: 'Add authentication.',
+    agentSystemPrompt: 'Original prompt.',
+    graders: [],
+    scaffold: {},
+    skills: ['auth0-react'],
+    metadata: {},
+    ...overrides,
+  };
+}
+
+beforeEach(() => vi.clearAllMocks());
+
+describe('InjectSkillsStrategy', () => {
+  it('injects skills notice into agentSystemPrompt', async () => {
+    const strategy = new InjectSkillsStrategy();
+    const result = await strategy.apply(makeEvalDef(), '/tmp/workspace');
+    expect(result.agentSystemPrompt).toContain('auth0-react');
+    expect(result.agentSystemPrompt).toContain('list_skill_files');
+  });
+
+  it('preserves the original system prompt', async () => {
+    const strategy = new InjectSkillsStrategy();
+    const result = await strategy.apply(makeEvalDef({ agentSystemPrompt: 'Original.' }), '/tmp/workspace');
+    expect(result.agentSystemPrompt).toContain('Original.');
+  });
+
+  it('returns evalDef unchanged when no skills are defined', async () => {
+    const evalDef = makeEvalDef({ skills: [] });
+    const strategy = new InjectSkillsStrategy();
+    const result = await strategy.apply(evalDef, '/tmp/workspace');
+    expect(result).toBe(evalDef);
+  });
+});
+
+describe('CopySkillsStrategy', () => {
+  it('injects workspace-path skill notice into agentSystemPrompt', async () => {
+    const strategy = new CopySkillsStrategy();
+    const result = await strategy.apply(makeEvalDef(), '/tmp/workspace');
+    expect(result.agentSystemPrompt).toContain('.auth0-skills');
+    expect(result.agentSystemPrompt).toContain('auth0-react');
+  });
+
+  it('preserves the original system prompt', async () => {
+    const strategy = new CopySkillsStrategy();
+    const result = await strategy.apply(makeEvalDef({ agentSystemPrompt: 'Original.' }), '/tmp/workspace');
+    expect(result.agentSystemPrompt).toContain('Original.');
+  });
+});

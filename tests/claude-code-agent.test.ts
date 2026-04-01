@@ -6,15 +6,15 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { ClaudeCodeTranslator } from '../src/agent_eval/tool-translator.js';
 import {
   handleEvent,
   normaliseStopReason,
-  normaliseToolArgs,
-  mapToolName,
   processStreamChunk,
   CLAUDE_CODE_MODEL_ID,
   type StreamState,
   type TurnStateUpdate,
+  type ProcessingContext,
   type CcSystemEvent,
   type CcContentText,
   type CcContentToolUse,
@@ -22,7 +22,7 @@ import {
   type CcToolResultContent,
   type CcUserEvent,
   type CcResultEvent,
-} from '../src/agent_eval/claude-code-agent.js';
+} from '../src/agent_eval/runners/claude-code/agent.js';
 import type { RunRecord } from '../src/agent_eval/agent-types.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -498,9 +498,11 @@ describe('handleEvent — unknown event type', () => {
   });
 });
 
-// ── mapToolName ───────────────────────────────────────────────────────────────
+// ── ClaudeCodeTranslator.mapName ──────────────────────────────────────────────
 
-describe('mapToolName', () => {
+describe('ClaudeCodeTranslator — mapName', () => {
+  const translator = new ClaudeCodeTranslator();
+
   it.each([
     ['Bash', 'run_command'],
     ['Read', 'read_file'],
@@ -515,90 +517,92 @@ describe('mapToolName', () => {
     ['AskUserQuestion', 'ask_user'],
     ['TodoRead', 'read_file'],
   ])('%s → %s', (ccName, expected) => {
-    expect(mapToolName(ccName)).toBe(expected);
+    expect(translator.mapName(ccName)).toBe(expected);
   });
 
   it('unknown tool falls back to lowercased cc name', () => {
-    expect(mapToolName('SomeFutureTool')).toBe('somefuturetool');
-    expect(mapToolName('mcp__auth0__search')).toBe('mcp__auth0__search');
+    expect(translator.mapName('SomeFutureTool')).toBe('somefuturetool');
+    expect(translator.mapName('mcp__auth0__search')).toBe('mcp__auth0__search');
   });
 });
 
-// ── normaliseToolArgs ─────────────────────────────────────────────────────────
+// ── ClaudeCodeTranslator.normalizeArgs ────────────────────────────────────────
 
-describe('normaliseToolArgs', () => {
+describe('ClaudeCodeTranslator — normalizeArgs', () => {
+  const translator = new ClaudeCodeTranslator();
+
   it('Bash: extracts command', () => {
-    expect(normaliseToolArgs('Bash', { command: 'npm test' })).toEqual({ command: 'npm test' });
+    expect(translator.normalizeArgs('Bash', { command: 'npm test' })).toEqual({ command: 'npm test' });
   });
 
   it('Bash: falls back to cmd', () => {
-    expect(normaliseToolArgs('Bash', { cmd: 'ls' })).toEqual({ command: 'ls' });
+    expect(translator.normalizeArgs('Bash', { cmd: 'ls' })).toEqual({ command: 'ls' });
   });
 
   it('Read: extracts file_path as path', () => {
-    expect(normaliseToolArgs('Read', { file_path: 'src/index.ts' })).toEqual({ path: 'src/index.ts' });
+    expect(translator.normalizeArgs('Read', { file_path: 'src/index.ts' })).toEqual({ path: 'src/index.ts' });
   });
 
   it('Read: falls back to path', () => {
-    expect(normaliseToolArgs('Read', { path: 'src/index.ts' })).toEqual({ path: 'src/index.ts' });
+    expect(translator.normalizeArgs('Read', { path: 'src/index.ts' })).toEqual({ path: 'src/index.ts' });
   });
 
   it('Write: extracts path and content', () => {
-    expect(normaliseToolArgs('Write', { file_path: 'out.txt', content: 'hello' })).toEqual({
+    expect(translator.normalizeArgs('Write', { file_path: 'out.txt', content: 'hello' })).toEqual({
       path: 'out.txt',
       content: 'hello',
     });
   });
 
   it('Edit: extracts path and new_string as content', () => {
-    expect(normaliseToolArgs('Edit', { file_path: 'app.ts', new_string: 'const x = 1;' })).toEqual({
+    expect(translator.normalizeArgs('Edit', { file_path: 'app.ts', new_string: 'const x = 1;' })).toEqual({
       path: 'app.ts',
       content: 'const x = 1;',
     });
   });
 
   it('MultiEdit: extracts path only', () => {
-    expect(normaliseToolArgs('MultiEdit', { file_path: 'app.ts' })).toEqual({ path: 'app.ts' });
+    expect(translator.normalizeArgs('MultiEdit', { file_path: 'app.ts' })).toEqual({ path: 'app.ts' });
   });
 
   it('Glob: maps pattern to path', () => {
-    expect(normaliseToolArgs('Glob', { pattern: '**/*.ts' })).toEqual({ path: '**/*.ts' });
+    expect(translator.normalizeArgs('Glob', { pattern: '**/*.ts' })).toEqual({ path: '**/*.ts' });
   });
 
   it('Grep: maps pattern to command, path defaults to .', () => {
-    expect(normaliseToolArgs('Grep', { pattern: 'import', path: 'src' })).toEqual({
+    expect(translator.normalizeArgs('Grep', { pattern: 'import', path: 'src' })).toEqual({
       path: 'src',
       command: 'grep "import"',
     });
   });
 
   it('LS: extracts path', () => {
-    expect(normaliseToolArgs('LS', { path: '/tmp' })).toEqual({ path: '/tmp' });
+    expect(translator.normalizeArgs('LS', { path: '/tmp' })).toEqual({ path: '/tmp' });
   });
 
   it('LS: defaults path to .', () => {
-    expect(normaliseToolArgs('LS', {})).toEqual({ path: '.' });
+    expect(translator.normalizeArgs('LS', {})).toEqual({ path: '.' });
   });
 
   it('WebFetch: extracts url', () => {
-    expect(normaliseToolArgs('WebFetch', { url: 'https://auth0.com/docs' })).toEqual({
+    expect(translator.normalizeArgs('WebFetch', { url: 'https://auth0.com/docs' })).toEqual({
       url: 'https://auth0.com/docs',
     });
   });
 
   it('WebSearch: maps query to url', () => {
-    expect(normaliseToolArgs('WebSearch', { query: 'auth0 login' })).toEqual({ url: 'auth0 login' });
+    expect(translator.normalizeArgs('WebSearch', { query: 'auth0 login' })).toEqual({ url: 'auth0 login' });
   });
 
   it('AskUserQuestion: extracts question', () => {
-    expect(normaliseToolArgs('AskUserQuestion', { question: 'Which tenant?' })).toEqual({
+    expect(translator.normalizeArgs('AskUserQuestion', { question: 'Which tenant?' })).toEqual({
       question: 'Which tenant?',
     });
   });
 
   it('unknown tool returns input unchanged', () => {
     const input = { custom: 'arg', value: 42 };
-    expect(normaliseToolArgs('SomeFutureTool', input)).toEqual(input);
+    expect(translator.normalizeArgs('SomeFutureTool', input)).toEqual(input);
   });
 });
 
@@ -608,77 +612,68 @@ function makeState(overrides: Partial<StreamState> = {}): StreamState {
   return { turnNum: 0, prevTurnEndTime: 0, parseFailures: 0, ...overrides };
 }
 
+function makeCtx(
+  record = makeRecord(),
+  pending: PendingMap = makePending(),
+  state: StreamState = makeState(),
+): ProcessingContext {
+  return { record, pending, state };
+}
+
 describe('processStreamChunk', () => {
   it('returns an empty string when input has no partial line', () => {
-    const record = makeRecord();
-    const pending = makePending();
-    const state = makeState();
-    const remaining = processStreamChunk(
-      '',
-      '{"type":"system","subtype":"init","session_id":"s1"}\n',
-      record,
-      pending,
-      state,
-    );
+    const remaining = processStreamChunk('', '{"type":"system","subtype":"init","session_id":"s1"}\n', {
+      record: makeRecord(),
+      pending: makePending(),
+      state: makeState(),
+    });
     expect(remaining).toBe('');
   });
 
   it('buffers partial lines and returns the incomplete tail', () => {
-    const record = makeRecord();
-    const pending = makePending();
-    const state = makeState();
+    const ctx = makeCtx();
     // Chunk ends mid-JSON — should be returned as the remainder
-    const remaining = processStreamChunk('', '{"type":"system","subt', record, pending, state);
+    const remaining = processStreamChunk('', '{"type":"system","subt', ctx);
     expect(remaining).toBe('{"type":"system","subt');
-    expect(state.parseFailures).toBe(0);
-    expect(record.providerErrors).toHaveLength(0);
+    expect(ctx.state.parseFailures).toBe(0);
+    expect(ctx.record.providerErrors).toHaveLength(0);
   });
 
   it('joins buf + chunk before splitting so split lines are processed', () => {
-    const record = makeRecord();
-    const pending = makePending();
-    const state = makeState();
+    const ctx = makeCtx();
     const firstChunk = '{"type":"system","subtype":"init","session_id":"s1"}';
     // Second chunk completes the first line and starts a new partial
-    const remaining = processStreamChunk(firstChunk, '\n{"type":"partial"', record, pending, state);
+    const remaining = processStreamChunk(firstChunk, '\n{"type":"partial"', ctx);
     // The completed first line is processed; the partial tail is returned
     expect(remaining).toBe('{"type":"partial"');
-    expect(state.parseFailures).toBe(0);
+    expect(ctx.state.parseFailures).toBe(0);
   });
 
   it('skips empty and whitespace-only lines silently', () => {
-    const record = makeRecord();
-    const pending = makePending();
-    const state = makeState();
-    const remaining = processStreamChunk('', '   \n\n\t\n', record, pending, state);
+    const ctx = makeCtx();
+    const remaining = processStreamChunk('', '   \n\n\t\n', ctx);
     expect(remaining).toBe('');
-    expect(state.parseFailures).toBe(0);
-    expect(record.providerErrors).toHaveLength(0);
+    expect(ctx.state.parseFailures).toBe(0);
+    expect(ctx.record.providerErrors).toHaveLength(0);
   });
 
   it('increments parseFailures and adds providerError on malformed JSON', () => {
-    const record = makeRecord();
-    const pending = makePending();
-    const state = makeState();
-    processStreamChunk('', 'not-valid-json\n', record, pending, state);
-    expect(state.parseFailures).toBe(1);
-    expect(record.providerErrors).toHaveLength(1);
-    expect(record.providerErrors[0]).toContain('stream_parse_error');
+    const ctx = makeCtx();
+    processStreamChunk('', 'not-valid-json\n', ctx);
+    expect(ctx.state.parseFailures).toBe(1);
+    expect(ctx.record.providerErrors).toHaveLength(1);
+    expect(ctx.record.providerErrors[0]).toContain('stream_parse_error');
   });
 
   it('accumulates multiple parse failures across chunks', () => {
-    const record = makeRecord();
-    const pending = makePending();
-    const state = makeState();
-    processStreamChunk('', 'bad1\nbad2\n', record, pending, state);
-    expect(state.parseFailures).toBe(2);
-    expect(record.providerErrors).toHaveLength(2);
+    const ctx = makeCtx();
+    processStreamChunk('', 'bad1\nbad2\n', ctx);
+    expect(ctx.state.parseFailures).toBe(2);
+    expect(ctx.record.providerErrors).toHaveLength(2);
   });
 
   it('processes a result event and sets finalSummary and status', () => {
-    const record = makeRecord();
-    const pending = makePending();
-    const state = makeState();
+    const ctx = makeCtx();
     const resultEvent: CcResultEvent = {
       type: 'result',
       subtype: 'success',
@@ -687,29 +682,27 @@ describe('processStreamChunk', () => {
       total_cost_usd: 0.01,
       usage: { input_tokens: 100, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
     };
-    processStreamChunk('', JSON.stringify(resultEvent) + '\n', record, pending, state);
-    expect(record.finalSummary).toBe('Task complete');
-    expect(record.status).toBe('success');
+    processStreamChunk('', JSON.stringify(resultEvent) + '\n', ctx);
+    expect(ctx.record.finalSummary).toBe('Task complete');
+    expect(ctx.record.status).toBe('success');
   });
 
   it('flush pattern: processStreamChunk with "\\n" processes buffered remainder', () => {
-    const record = makeRecord();
-    const pending = makePending();
-    const state = makeState();
+    const ctx = makeCtx();
     // First call: partial line stored in returned buf
-    const buf = processStreamChunk('', '{"type":"system","subtype":"init","session_id":"s2"}', record, pending, state);
+    const buf = processStreamChunk('', '{"type":"system","subtype":"init","session_id":"s2"}', ctx);
     expect(buf).toBe('{"type":"system","subtype":"init","session_id":"s2"}');
     // Flush: append "\n" to force the buffered line to be processed
-    const remaining = processStreamChunk(buf, '\n', record, pending, state);
+    const remaining = processStreamChunk(buf, '\n', ctx);
     expect(remaining).toBe('');
-    expect(state.parseFailures).toBe(0);
+    expect(ctx.state.parseFailures).toBe(0);
   });
 
   it('updates state.turnNum and state.prevTurnEndTime after an assistant event', () => {
     const record = makeRecord();
     record.startTime = 1000;
-    const pending = makePending();
     const state = makeState({ prevTurnEndTime: record.startTime });
+    const ctx = { record, pending: makePending(), state };
     const assistantEvent: CcAssistantEvent = {
       type: 'assistant',
       session_id: 's1',
@@ -723,8 +716,8 @@ describe('processStreamChunk', () => {
         usage: { input_tokens: 50, output_tokens: 20, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
       },
     };
-    processStreamChunk('', JSON.stringify(assistantEvent) + '\n', record, pending, state);
+    processStreamChunk('', JSON.stringify(assistantEvent) + '\n', ctx);
     // turnNum should have advanced from 0 to 1
-    expect(state.turnNum).toBe(1);
+    expect(ctx.state.turnNum).toBe(1);
   });
 });

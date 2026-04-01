@@ -1,4 +1,4 @@
-import { resolveSkillDir } from '../skills-config.js';
+import { resolveSkillDir } from '../skills/config.js';
 import { collectFiles } from './utils.js';
 import { Tool, ToolContext, ToolName, ToolResult } from './base.js';
 

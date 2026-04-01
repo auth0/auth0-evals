@@ -34,7 +34,6 @@ import { mergeResults, loadResults, saveResults, resolveOutputPath } from './per
 import { parseRunConfig } from './cli/config.js';
 import type { JobResult } from './types/results.js';
 import { gradeText, BASELINE_LEVELS } from './runners/baseline.js';
-import { copySkillsToWorkspace } from './runners/skills.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -79,12 +78,7 @@ export async function runJob(
       const graderResults = await gradeText(evalDef, result.responseText, apiKey, BASELINE_LEVELS);
       return serialiseBaseline(evalDef, result, graderResults, result.responseText);
     } else if (mode === 'agent') {
-      let evalToRun = evalDef;
-      if (tools.some((t) => t.toLowerCase() === 'skills') && agentType === DEFAULT_AGENT_TYPE) {
-        const { augmentWithSkills } = await import('./runners/skills.js');
-        evalToRun = await augmentWithSkills(evalDef);
-      }
-      return await runAgentJob(evalToRun, model, mode, tools, apiKey, keepWorkspace, agentType);
+      return await runAgentJob(evalDef, model, mode, tools, apiKey, keepWorkspace, agentType);
     } else {
       throw new UnknownModeError(mode);
     }
@@ -107,35 +101,16 @@ async function runAgentJob(
   keepWorkspace: boolean,
   agentType: AgentType,
 ): Promise<JobResult> {
-  const { setupWorkspace, cleanupWorkspace } = await import('./agent_eval/react-agent.js');
+  const { setupWorkspace, cleanupWorkspace } = await import('./agent_eval/workspace.js');
   const { score } = await import('./agent_eval/scorer.js');
+  const { initAgentRegistry, getRunner } = await import('./agent_eval/agent-registry.js');
+  initAgentRegistry();
 
   const workspace = setupWorkspace(evalDef.scaffold);
   try {
-    // ── Dispatch to the appropriate agent runner ──────────────────────────────
-    let record: Awaited<ReturnType<typeof import('./agent_eval/react-agent.js').runAgent>>;
-    let resolvedModel = model;
-
-    if (agentType === 'claude-code') {
-      const { runClaudeCodeAgent, CLAUDE_CODE_MODEL_ID } = await import('./agent_eval/claude-code-agent.js');
-      // Copy skill files into the workspace so Claude Code can read them with native Read/Glob tools
-      const evalForClaude = tools.includes('skills') ? await copySkillsToWorkspace(evalDef, workspace) : evalDef;
-      // Only pass a real Claude model ID; the 'claude-code' sentinel is not a valid Anthropic model.
-      const claudeModel = model !== CLAUDE_CODE_MODEL_ID && model.startsWith('claude-') ? model : undefined;
-      record = await runClaudeCodeAgent(evalForClaude, workspace, { tools, model: claudeModel });
-      resolvedModel = record.model ?? CLAUDE_CODE_MODEL_ID;
-    } else {
-      // auth0-ReAct-agent (default): custom ReAct loop via the ATKO LLM gateway
-      const { runAgent } = await import('./agent_eval/react-agent.js');
-      record = await runAgent(
-        apiKey,
-        model,
-        { name: evalDef.id, agentSystemPrompt: evalDef.agentSystemPrompt, userPrompt: evalDef.userPrompt },
-        workspace,
-        undefined,
-        tools,
-      );
-    }
+    const runner = getRunner(agentType);
+    const preparedEval = tools.includes('skills') ? await runner.prepareSkills(evalDef, workspace) : evalDef;
+    const { record, resolvedModel } = await runner.run({ evalDef: preparedEval, workspace, model, tools, apiKey });
 
     let graderResults: Awaited<ReturnType<typeof runGraders>> = [];
     if (evalDef.graders.length > 0) {
