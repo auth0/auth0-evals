@@ -9,31 +9,32 @@
  *   and fill in your ATKO_API_KEY.
  *
  * Options:
- *   --eval      Eval ID to run (default: all). Can be repeated.
- *   --model     Model(s) to run (default: gpt-5.2). Can be repeated.
- *               Use 'all' to run all known working models.
- *   --mode      Execution mode: baseline | agent | all (default: baseline)
- *   --tools     Tools to inject for agent mode: skills, mcp (default: none). Case-insensitive. Supports {skills} and skills,mcp,... syntax.
- *   --workers   Parallel workers (default: 4)
- *   --output    JSON output path (default: scores-<mode>.json)
+ *   --eval        Eval ID to run (default: all). Can be repeated.
+ *   --model       Model(s) to run (default: gpt-5.2). Can be repeated.
+ *                 Use 'all' to run all known working models.
+ *   --mode        Execution mode: baseline | agent | all (default: baseline)
+ *   --agent-type  Agent runner for agent mode: auth0-ReAct-agent | claude-code (default: auth0-ReAct-agent)
+ *   --tools       Tools to inject for agent mode: skills, mcp (default: none). Case-insensitive.
+ *   --workers     Parallel workers (default: 4)
+ *   --output      JSON output path (default: scores-<mode>.json)
  *   --keep-workspace   (agent mode) Keep temp workspace after run
  *   --braintrust       Log results to Braintrust experiment (requires BRAINTRUST_API_KEY)
  */
 
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { join, dirname, basename } from 'node:path';
+import { join, basename, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { tmpdir } from 'node:os';
 import pLimit from 'p-limit';
 import { config as loadDotenv } from 'dotenv';
 import { EVALUATIONS, type EvalConfig } from './config/evaluations.js';
 import { UnknownModeError } from './errors.js';
 import { loadEval, type EvalDefinition } from './runners/loader.js';
-import { runGraders, GraderLevel } from './agent_eval/graders.js';
+import { runGraders } from './agent_eval/graders.js';
 import { serialiseBaseline, serialiseAgent, serialiseError } from './runners/serializers.js';
 import { mergeResults, loadResults, saveResults, resolveOutputPath } from './persistence/results.js';
 import { parseRunConfig } from './cli/config.js';
 import type { JobResult } from './types/results.js';
+import { gradeText, BASELINE_LEVELS } from './runners/baseline.js';
+import { copySkillsToWorkspace } from './runners/skills.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -47,12 +48,14 @@ export {
   DEFAULT_MODEL,
   KNOWN_TOOLS,
   KNOWN_WORKING_MODELS,
+  KNOWN_AGENT_TYPES,
+  DEFAULT_AGENT_TYPE,
   parseToolsArg,
   type Mode,
+  type AgentType,
 } from './cli/constants.js';
-import type { Mode } from './cli/constants.js';
-
-const BASELINE_LEVELS = new Set([GraderLevel.L1, GraderLevel.L2, GraderLevel.L3]);
+import type { Mode, AgentType } from './cli/constants.js';
+import { DEFAULT_AGENT_TYPE } from './cli/constants.js';
 
 // ── Per-job execution ─────────────────────────────────────────────────────────
 
@@ -63,9 +66,11 @@ export async function runJob(
   tools: string[],
   apiKey: string,
   keepWorkspace = false,
+  agentType: AgentType = DEFAULT_AGENT_TYPE,
 ): Promise<JobResult> {
   const evalDef = await loadEval(evalConfig, FRAMEWORK_ROOT);
-  console.log(`  [${mode}] ${evalDef.id} / ${model}`);
+  const agentLabel = mode === 'agent' ? ` (${agentType})` : '';
+  console.log(`  [${mode}${agentLabel}] ${evalDef.id} / ${model}`);
 
   try {
     if (mode === 'baseline') {
@@ -75,46 +80,21 @@ export async function runJob(
       return serialiseBaseline(evalDef, result, graderResults, result.responseText);
     } else if (mode === 'agent') {
       let evalToRun = evalDef;
-      if (tools.some((t) => t.toLowerCase() === 'skills')) {
+      if (tools.some((t) => t.toLowerCase() === 'skills') && agentType === DEFAULT_AGENT_TYPE) {
         const { augmentWithSkills } = await import('./runners/skills.js');
         evalToRun = await augmentWithSkills(evalDef);
       }
-      return await runAgentJob(evalToRun, model, mode, tools, apiKey, keepWorkspace);
+      return await runAgentJob(evalToRun, model, mode, tools, apiKey, keepWorkspace, agentType);
     } else {
       throw new UnknownModeError(mode);
     }
   } catch (e) {
     const errorMsg = String(e);
     console.log(`  ✗ [${evalDef.id}] ${model} - ERROR: ${errorMsg.slice(0, 100)}`);
-    return serialiseError(evalDef.id, evalDef.category, model, mode, tools, errorMsg);
-  }
-}
-
-export function extractCodeBlocks(text: string): string {
-  const blocks = [...text.matchAll(/^[ \t]{0,3}```[^\r\n]*\r?\n([\s\S]*?)^[ \t]{0,3}```[ \t]*\r?$/gm)].map((m) => m[1]);
-  if (blocks.length > 0) {
-    return blocks.join('\n\n');
-  }
-  const openingFenceMatch = /^[ \t]{0,3}```[^\r\n]*\r?\n/m.exec(text);
-  if (openingFenceMatch) {
-    return text.slice(openingFenceMatch.index + openingFenceMatch[0].length);
-  }
-  return text;
-}
-
-async function gradeText(
-  evalDef: EvalDefinition,
-  text: string,
-  apiKey: string,
-  allowedLevels?: Set<GraderLevel>,
-): Promise<Awaited<ReturnType<typeof runGraders>>> {
-  const code = extractCodeBlocks(text);
-  const tmp = mkdtempSync(join(tmpdir(), 'auth0_eval_grade_'));
-  try {
-    writeFileSync(join(tmp, 'llm_response.txt'), code, 'utf-8');
-    return await runGraders(evalDef.graders, tmp, apiKey, undefined, allowedLevels);
-  } finally {
-    rmSync(tmp, { recursive: true, force: true });
+    return {
+      ...serialiseError(evalDef.id, evalDef.category, model, mode, tools, errorMsg),
+      ...(mode === 'agent' ? { agent_type: agentType } : {}),
+    };
   }
 }
 
@@ -125,19 +105,37 @@ async function runAgentJob(
   tools: string[],
   apiKey: string,
   keepWorkspace: boolean,
+  agentType: AgentType,
 ): Promise<JobResult> {
-  const { runAgent, setupWorkspace, cleanupWorkspace } = await import('./agent_eval/agent.js');
+  const { setupWorkspace, cleanupWorkspace } = await import('./agent_eval/react-agent.js');
   const { score } = await import('./agent_eval/scorer.js');
 
   const workspace = setupWorkspace(evalDef.scaffold);
   try {
-    const taskAdapter = {
-      name: evalDef.id,
-      agentSystemPrompt: evalDef.agentSystemPrompt,
-      userPrompt: evalDef.userPrompt,
-    };
+    // ── Dispatch to the appropriate agent runner ──────────────────────────────
+    let record: Awaited<ReturnType<typeof import('./agent_eval/react-agent.js').runAgent>>;
+    let resolvedModel = model;
 
-    const record = await runAgent(apiKey, model, taskAdapter, workspace, undefined, tools);
+    if (agentType === 'claude-code') {
+      const { runClaudeCodeAgent, CLAUDE_CODE_MODEL_ID } = await import('./agent_eval/claude-code-agent.js');
+      // Copy skill files into the workspace so Claude Code can read them with native Read/Glob tools
+      const evalForClaude = tools.includes('skills') ? await copySkillsToWorkspace(evalDef, workspace) : evalDef;
+      // Only pass a real Claude model ID; the 'claude-code' sentinel is not a valid Anthropic model.
+      const claudeModel = model !== CLAUDE_CODE_MODEL_ID && model.startsWith('claude-') ? model : undefined;
+      record = await runClaudeCodeAgent(evalForClaude, workspace, { tools, model: claudeModel });
+      resolvedModel = record.model ?? CLAUDE_CODE_MODEL_ID;
+    } else {
+      // auth0-ReAct-agent (default): custom ReAct loop via the ATKO LLM gateway
+      const { runAgent } = await import('./agent_eval/react-agent.js');
+      record = await runAgent(
+        apiKey,
+        model,
+        { name: evalDef.id, agentSystemPrompt: evalDef.agentSystemPrompt, userPrompt: evalDef.userPrompt },
+        workspace,
+        undefined,
+        tools,
+      );
+    }
 
     let graderResults: Awaited<ReturnType<typeof runGraders>> = [];
     if (evalDef.graders.length > 0) {
@@ -145,7 +143,10 @@ async function runAgentJob(
     }
 
     const scored = score(record, undefined, graderResults);
-    return serialiseAgent(evalDef, record, scored, graderResults, model, mode, tools);
+    return {
+      ...serialiseAgent(evalDef, record, scored, graderResults, resolvedModel, mode, tools),
+      agent_type: agentType,
+    };
   } finally {
     if (!keepWorkspace) {
       cleanupWorkspace(workspace);
@@ -158,8 +159,9 @@ async function runAgentJob(
 function printResult(r: JobResult): void {
   if (r.status === 'error') return; // already reported in runJob's catch block
   if (r.mode === 'agent') {
+    const agentTag = r.agent_type ? ` [${r.agent_type}]` : '';
     console.log(
-      `  ✓ [${r.eval_id}] ${r.model}  grade=${r.overall_grade} (${r.overall_score.toFixed(0)})  ` +
+      `  ✓ [${r.eval_id}]${agentTag} ${r.model}  grade=${r.overall_grade} (${r.overall_score.toFixed(0)})  ` +
         `graders=${(r.grader_pass_rate * 100).toFixed(0)}%  $${r.cost_usd.toFixed(4)}`,
     );
   } else {
@@ -190,6 +192,53 @@ function printSummary(results: JobResult[], elapsed: number): void {
   console.log('='.repeat(60));
 }
 
+// ── Job routing ───────────────────────────────────────────────────────────────
+
+/**
+ * Builds the flat list of (evalCfg, model, mode, tools, agentType) tuples to run.
+ *
+ * Auto-routing rules for agent mode:
+ *   - Claude models (prefix `claude-`) with no explicit --agent-type → `claude-code`
+ *   - Explicit `--agent-type claude-code` with a non-Claude model → deduplicated sentinel job
+ *   - Everything else → `auth0-ReAct-agent` (or the explicitly requested type)
+ * Exported so the routing logic can be unit-tested independently of the CLI.
+ */
+export function buildJobList(
+  registry: EvalConfig[],
+  models: string[],
+  modes: Mode[],
+  tools: string[],
+  agentType: AgentType | undefined,
+): Array<[EvalConfig, string, Mode, string[], AgentType]> {
+  const isClaudeModel = (m: string) => m.startsWith('claude-');
+  const jobs: Array<[EvalConfig, string, Mode, string[], AgentType]> = [];
+  const claudeCodeEvalsSeen = new Set<string>();
+  for (const evalCfg of registry) {
+    for (const model of models) {
+      for (const mode of modes) {
+        if (mode !== 'agent') {
+          jobs.push([evalCfg, model, mode, [], agentType ?? DEFAULT_AGENT_TYPE]);
+          continue;
+        }
+        const effectiveAgentType: AgentType =
+          !agentType && isClaudeModel(model) ? 'claude-code' : (agentType ?? DEFAULT_AGENT_TYPE);
+        if (effectiveAgentType === 'claude-code') {
+          if (isClaudeModel(model)) {
+            jobs.push([evalCfg, model, mode, tools, effectiveAgentType]);
+          } else {
+            if (claudeCodeEvalsSeen.has(evalCfg.id)) continue;
+            claudeCodeEvalsSeen.add(evalCfg.id);
+            jobs.push([evalCfg, 'claude-code', mode, tools, effectiveAgentType]);
+          }
+        } else {
+          jobs.push([evalCfg, model, mode, tools, effectiveAgentType]);
+        }
+      }
+    }
+  }
+  return jobs;
+}
+
 async function main(): Promise<void> {
   const config = parseRunConfig(process.argv);
   const {
@@ -203,6 +252,7 @@ async function main(): Promise<void> {
     braintrust,
     apiKey,
     modeArg,
+    agentType,
   } = config;
 
   const registry = evalIds.length > 0 ? EVALUATIONS.filter((e) => evalIds.includes(e.id)) : EVALUATIONS;
@@ -212,19 +262,14 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const jobs: [EvalConfig, string, Mode, string[]][] = [];
-  for (const evalCfg of registry) {
-    for (const model of models) {
-      for (const mode of modes) {
-        jobs.push([evalCfg, model, mode, mode === 'agent' ? tools : []]);
-      }
-    }
-  }
+  const jobs = buildJobList(registry, models, modes, tools, agentType);
 
   console.log(`\nRunning ${jobs.length} job(s)  modes=${JSON.stringify(modes)}  workers=${workers}`);
   console.log(`Evals : ${JSON.stringify(registry.map((e) => e.id))}`);
   console.log(`Models: ${JSON.stringify(models)}`);
-  console.log(`Modes : ${JSON.stringify(modes)}\n`);
+  console.log(`Modes : ${JSON.stringify(modes)}`);
+  if (modes.includes('agent')) console.log(`Agent : ${agentType}`);
+  console.log();
 
   // Braintrust experiment tracking (opt-in via --braintrust flag)
   let btReporter: Awaited<ReturnType<typeof import('./reporters/braintrust.js').createBraintrustReporter>> = null;
@@ -244,16 +289,19 @@ async function main(): Promise<void> {
 
   const limit = pLimit(workers);
   await Promise.all(
-    jobs.map(([evalCfg, model, mode, jobTools]) =>
+    jobs.map(([evalCfg, model, mode, jobTools, jobAgentType]) =>
       limit(async () => {
         try {
-          const result = await runJob(evalCfg, model, mode, jobTools, apiKey, keepWorkspace);
+          const result = await runJob(evalCfg, model, mode, jobTools, apiKey, keepWorkspace, jobAgentType);
           results.push(result);
           printResult(result);
           btReporter?.log(result);
         } catch (exc) {
           console.log(`  [ERROR] ${evalCfg.id}/${model}/${mode}: ${exc}`);
-          const errResult = serialiseError(evalCfg.id, evalCfg.category, model, mode, jobTools, String(exc));
+          const errResult = {
+            ...serialiseError(evalCfg.id, evalCfg.category, model, mode, jobTools, String(exc)),
+            ...(mode === 'agent' ? { agent_type: jobAgentType } : {}),
+          };
           results.push(errResult);
           btReporter?.log(errResult);
         }

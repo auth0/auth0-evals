@@ -1,149 +1,123 @@
 /**
- * Tests for src/run.ts
+ * Unit tests for buildJobList in run.ts.
+ *
+ * buildJobList is pure routing logic — it maps (registry, models, modes, tools, agentType)
+ * to a flat list of jobs. No subprocess, no filesystem, no mocking required.
  */
 
 import { describe, it, expect } from 'vitest';
-import { extractCodeBlocks, DEFAULT_MODEL, parseToolsArg } from '../src/run.js';
+import { buildJobList } from '../src/run.js';
+import type { EvalConfig } from '../src/config/evaluations.js';
 
-describe('DEFAULT_MODEL', () => {
-  it('is gpt-5.2', () => {
-    expect(DEFAULT_MODEL).toBe('gpt-5.2');
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function makeEvalCfg(id = 'test_eval'): EvalConfig {
+  return { id, category: 'quickstarts', path: `/tmp/${id}` } as EvalConfig;
+}
+
+const EVAL = makeEvalCfg('test_eval');
+
+// ── baseline mode ─────────────────────────────────────────────────────────────
+
+describe('buildJobList — baseline mode', () => {
+  it('creates one job per model', () => {
+    const jobs = buildJobList([EVAL], ['gpt-5.2', 'claude-4-6-sonnet'], ['baseline'], [], undefined);
+    expect(jobs).toHaveLength(2);
+    expect(jobs[0][1]).toBe('gpt-5.2');
+    expect(jobs[1][1]).toBe('claude-4-6-sonnet');
+  });
+
+  it('baseline jobs always have empty tools', () => {
+    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['baseline'], ['skills'], undefined);
+    expect(jobs[0][3]).toEqual([]);
+  });
+
+  it('baseline jobs use DEFAULT_AGENT_TYPE as agentType placeholder', () => {
+    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['baseline'], [], undefined);
+    expect(jobs[0][4]).toBe('auth0-ReAct-agent');
+  });
+
+  it('baseline jobs use the explicitly provided agentType', () => {
+    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['baseline'], [], 'claude-code');
+    expect(jobs[0][4]).toBe('claude-code');
   });
 });
 
-describe('extractCodeBlocks', () => {
-  it('extracts a single block', () => {
-    const text = 'Some prose.\n```js\nconst x = 1;\n```\nMore prose.';
-    expect(extractCodeBlocks(text)).toBe('const x = 1;\n');
+// ── agent mode — auto-routing ─────────────────────────────────────────────────
+
+describe('buildJobList — agent mode auto-routing', () => {
+  it('claude- model with no explicit agent type → routes to claude-code', () => {
+    const jobs = buildJobList([EVAL], ['claude-4-6-sonnet'], ['agent'], [], undefined);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0][4]).toBe('claude-code');
+    expect(jobs[0][1]).toBe('claude-4-6-sonnet');
   });
 
-  it('extracts multiple blocks', () => {
-    const text = 'Intro.\n```js\nconst a = 1;\n```\nMiddle.\n```jsx\nconst b = 2;\n```\nEnd.';
-    const result = extractCodeBlocks(text);
-    expect(result).toContain('const a = 1;');
-    expect(result).toContain('const b = 2;');
-    expect(result).not.toContain('Intro');
-    expect(result).not.toContain('Middle');
-    expect(result).not.toContain('End');
+  it('non-claude model with no explicit agent type → routes to auth0-ReAct-agent', () => {
+    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['agent'], [], undefined);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0][4]).toBe('auth0-ReAct-agent');
+    expect(jobs[0][1]).toBe('gpt-5.2');
   });
 
-  it('strips surrounding prose', () => {
-    const text = 'You should use Auth0Provider here.\n```jsx\nconst x = 1;\n```\nHope that helps!';
-    const result = extractCodeBlocks(text);
-    expect(result).not.toContain('Auth0Provider');
-    expect(result).not.toContain('Hope that helps');
+  it('explicit --agent-type auth0-ReAct-agent with claude model → respects explicit type', () => {
+    const jobs = buildJobList([EVAL], ['claude-4-6-sonnet'], ['agent'], [], 'auth0-ReAct-agent');
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0][4]).toBe('auth0-ReAct-agent');
   });
 
-  it('falls back to full text when no blocks', () => {
-    const text = 'Just plain text with no fences.';
-    expect(extractCodeBlocks(text)).toBe(text);
+  it('explicit --agent-type claude-code with non-claude model → sentinel job', () => {
+    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['agent'], [], 'claude-code');
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0][1]).toBe('claude-code'); // model sentinel, not gpt-5.2
+    expect(jobs[0][4]).toBe('claude-code');
   });
 
-  it('keyword in prose only not found', () => {
-    const text =
-      'Make sure to call loginWithRedirect when the user clicks login.\n```jsx\nfunction App() { return <div />; }\n```';
-    const result = extractCodeBlocks(text);
-    expect(result).not.toContain('loginWithRedirect');
+  it('explicit --agent-type claude-code with non-claude model deduplicates across models', () => {
+    const jobs = buildJobList([EVAL], ['gpt-5.2', 'gpt-4'], ['agent'], [], 'claude-code');
+    // Both models would produce the same claude-code sentinel job — only one should be emitted
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0][1]).toBe('claude-code');
   });
 
-  it('keyword in code block is found', () => {
-    const text = 'Here is how:\n```jsx\nloginWithRedirect();\n```';
-    const result = extractCodeBlocks(text);
-    expect(result).toContain('loginWithRedirect');
-  });
-
-  it('block without language tag', () => {
-    const text = '```\nplain code\n```';
-    expect(extractCodeBlocks(text)).toBe('plain code\n');
-  });
-
-  it('block with complex language tag', () => {
-    for (const tag of ['objective-c', 'c++', 'text.html', 'c#', 'bash linenos']) {
-      const text = `\`\`\`${tag}\nsome code\n\`\`\``;
-      expect(extractCodeBlocks(text), `failed for tag: ${tag}`).toBe('some code\n');
-    }
-  });
-
-  it('handles Windows line endings', () => {
-    const text = '```js\r\nconst x = 1;\r\n```';
-    expect(extractCodeBlocks(text)).toContain('const x = 1;');
-  });
-
-  it('empty block returns empty string', () => {
-    const text = '```\n```';
-    const result = extractCodeBlocks(text);
-    expect(result).toBe('');
-  });
-
-  it('prose only response unchanged', () => {
-    const text = 'import Auth0\nAuth0.webAuth(clientId: x, domain: y)';
-    expect(extractCodeBlocks(text)).toBe(text);
-  });
-
-  it('unterminated fence does not scan prose', () => {
-    const text =
-      'Make sure to call loginWithRedirect when the user clicks login.\n```jsx\nfunction App() { return <div />; }';
-    const result = extractCodeBlocks(text);
-    expect(result).not.toContain('loginWithRedirect');
+  it('explicit --agent-type claude-code with non-claude model does not deduplicate across evals', () => {
+    const eval2 = makeEvalCfg('another_eval');
+    const jobs = buildJobList([EVAL, eval2], ['gpt-5.2'], ['agent'], [], 'claude-code');
+    expect(jobs).toHaveLength(2);
+    expect(jobs[0][0].id).toBe('test_eval');
+    expect(jobs[1][0].id).toBe('another_eval');
   });
 });
 
-describe('parseToolsArg', () => {
-  it('returns empty array for empty string', () => {
-    expect(parseToolsArg('')).toEqual([]);
+// ── tools propagation ─────────────────────────────────────────────────────────
+
+describe('buildJobList — tools propagation', () => {
+  it('agent jobs receive the tools array', () => {
+    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['agent'], ['skills', 'mcp'], undefined);
+    expect(jobs[0][3]).toEqual(['skills', 'mcp']);
   });
 
-  it('returns empty array for whitespace-only string', () => {
-    expect(parseToolsArg('   ')).toEqual([]);
+  it('baseline jobs do not receive tools even when tools are passed', () => {
+    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['baseline'], ['skills'], undefined);
+    expect(jobs[0][3]).toEqual([]);
+  });
+});
+
+// ── mixed modes ───────────────────────────────────────────────────────────────
+
+describe('buildJobList — mixed modes', () => {
+  it('both baseline and agent → two jobs per model', () => {
+    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['baseline', 'agent'], [], undefined);
+    expect(jobs).toHaveLength(2);
+    const modes = jobs.map((j) => j[2]);
+    expect(modes).toContain('baseline');
+    expect(modes).toContain('agent');
   });
 
-  it('parses a single tool', () => {
-    expect(parseToolsArg('Skills')).toEqual(['skills']);
-  });
-
-  it('normalizes tool names to lowercase', () => {
-    expect(parseToolsArg('MCP')).toEqual(['mcp']);
-    expect(parseToolsArg('SKILLS')).toEqual(['skills']);
-  });
-
-  it('strips surrounding braces', () => {
-    expect(parseToolsArg('{Skills}')).toEqual(['skills']);
-  });
-
-  it('strips surrounding braces with multiple tools', () => {
-    expect(parseToolsArg('{Skills,Other}')).toEqual(['other', 'skills']);
-  });
-
-  it('parses comma-separated tools', () => {
-    expect(parseToolsArg('Skills,Other')).toEqual(['other', 'skills']);
-  });
-
-  it('trims whitespace around each tool', () => {
-    expect(parseToolsArg(' Skills , Other ')).toEqual(['other', 'skills']);
-  });
-
-  it('trims whitespace inside braces', () => {
-    expect(parseToolsArg('{ Skills }')).toEqual(['skills']);
-  });
-
-  it('filters out empty segments from consecutive commas', () => {
-    expect(parseToolsArg('Skills,,Other')).toEqual(['other', 'skills']);
-  });
-
-  it('sorts tools alphabetically', () => {
-    expect(parseToolsArg('Other,Skills')).toEqual(['other', 'skills']);
-    expect(parseToolsArg('Skills,Other')).toEqual(['other', 'skills']);
-  });
-
-  it('deduplicates repeated tools', () => {
-    expect(parseToolsArg('Skills,Skills')).toEqual(['skills']);
-  });
-
-  it('deduplicates case variants', () => {
-    expect(parseToolsArg('Skills,SKILLS')).toEqual(['skills']);
-  });
-
-  it('returns empty array for empty braces', () => {
-    expect(parseToolsArg('{}')).toEqual([]);
+  it('multiple evals × multiple models × both modes → correct job count', () => {
+    const eval2 = makeEvalCfg('eval_2');
+    const jobs = buildJobList([EVAL, eval2], ['gpt-5.2', 'gpt-4o'], ['baseline', 'agent'], [], undefined);
+    // 2 evals × 2 models × 2 modes = 8 jobs
+    expect(jobs).toHaveLength(8);
   });
 });

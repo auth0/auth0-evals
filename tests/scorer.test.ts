@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmpDir } from './tmp.js';
-import type { RunRecord, ToolCallRecord } from '../src/agent_eval/agent.js';
+import type { RunRecord, ToolCallRecord } from '../src/agent_eval/agent-types.js';
 import type { GraderResult } from '../src/agent_eval/graders.js';
 import { score, scoreToGrade, type ScoredResult, type DimensionScore } from '../src/agent_eval/scorer.js';
 

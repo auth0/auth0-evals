@@ -5,7 +5,7 @@
  * JSON-serialisable objects for post-run analysis and report rendering.
  */
 
-import type { ErrorCategory, RunRecord, ToolCallRecord } from './agent.js';
+import type { ErrorCategory, RunRecord, ToolCallRecord } from './agent-types.js';
 
 export function formatStep(tc: ToolCallRecord): string {
   const action = tc.actionType;

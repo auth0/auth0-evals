@@ -5,10 +5,11 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { join, dirname } from 'node:path';
 
-import { SKILLS_REMOTE_DIR, SKILLS_CLONE_DIR } from '../agent_eval/skills-config.js';
+import { SKILLS_REMOTE_DIR, SKILLS_CLONE_DIR, resolveSkillDir } from '../agent_eval/skills-config.js';
+import { collectFiles } from '../agent_eval/tools/utils.js';
 import type { EvalDefinition } from './loader.js';
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -19,7 +20,7 @@ const REMOTE_REPO_URL = 'https://github.com/auth0/agent-skills.git';
 
 let cloneReady: Promise<boolean> | undefined;
 
-function ensureCloned(): Promise<boolean> {
+export function ensureCloned(): Promise<boolean> {
   if (!cloneReady) {
     cloneReady = doEnsureCloned().then((result) => {
       if (!result) cloneReady = undefined; // reset on failure so next call retries
@@ -49,6 +50,50 @@ async function doEnsureCloned(): Promise<boolean> {
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
+
+/**
+ * Copies skill files into the workspace under `.auth0-skills/<skill>/` and rewrites
+ * the system prompt notice so Claude Code can access them with its native Read/Glob tools
+ * instead of the ReAct-only `list_skill_files` / `read_skill_file` custom tools.
+ */
+export async function copySkillsToWorkspace(evalDef: EvalDefinition, workspace: string): Promise<EvalDefinition> {
+  await ensureCloned();
+
+  const copiedSkills: string[] = [];
+
+  for (const skill of evalDef.skills) {
+    const skillDir = resolveSkillDir(skill);
+    if (!skillDir) {
+      throw new Error(`Skill '${skill}' not found in cloned repo — cannot run agent+skills without it`);
+    }
+    const files = collectFiles(skillDir, skillDir, Infinity);
+    for (const relPath of files) {
+      const dest = join(workspace, '.auth0-skills', skill, relPath);
+      mkdirSync(dirname(dest), { recursive: true });
+      copyFileSync(join(skillDir, relPath), dest);
+    }
+    console.log(`  [skills] Copied ${files.length} file(s) for '${skill}' → .auth0-skills/${skill}/`);
+    copiedSkills.push(skill);
+  }
+
+  if (copiedSkills.length === 0) return evalDef;
+
+  const notice = `## Available Skills
+
+The following Auth0 SDK skills are available: ${copiedSkills.join(', ')}
+
+Skill files have been copied into the workspace under \`.auth0-skills/\`. Use Glob and Read to access them:
+- List a skill's files: Glob pattern \`.auth0-skills/<skill-name>/**\`
+- Read a file: Read \`.auth0-skills/<skill-name>/<filename>\`
+
+Always read the relevant skill files before starting work.`;
+
+  const sep = '\n\n---\n\n';
+  const originalPrompt = evalDef.agentSystemPrompt ?? '';
+  const parts = [notice];
+  if (originalPrompt) parts.push(originalPrompt);
+  return { ...evalDef, agentSystemPrompt: parts.join(sep) };
+}
 
 export async function augmentWithSkills(evalDef: EvalDefinition): Promise<EvalDefinition> {
   if (!evalDef.skills.length) {

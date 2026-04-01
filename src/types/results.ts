@@ -4,6 +4,7 @@
 
 import type { GraderLevel } from '../agent_eval/graders.js';
 import type { TraceStep, TurnMetricEntry } from '../agent_eval/traces.js';
+import type { AgentType } from '../cli/constants.js';
 
 /** Serialised outcome of a single grader check, included in every result type. */
 export interface GraderSummary {
@@ -93,6 +94,8 @@ export interface AgentJobResult {
   model: string;
   /** Discriminant — always `"agent"` for this type. */
   mode: 'agent';
+  /** Agent runner that produced this result, e.g. `"auth0-ReAct-agent"` or `"claude-code"`. */
+  agent_type?: AgentType;
   /** Tools that were enabled for this run (e.g. `["skills"]`). */
   tools: string[];
   /** Opaque session identifier for correlation. */
@@ -138,6 +141,8 @@ export interface ErrorJobResult {
   model: string;
   /** Execution mode that was attempted when the error occurred. */
   mode: 'baseline' | 'agent';
+  /** Agent runner that was configured when the error occurred (agent mode only). */
+  agent_type?: AgentType;
   /** Tools that were configured when the error occurred. */
   tools: string[];
   /** Eval category. */

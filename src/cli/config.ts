@@ -6,7 +6,17 @@
 
 import { Command } from 'commander';
 import { EVALUATIONS } from '../config/evaluations.js';
-import { ALL_MODES, DEFAULT_MODEL, KNOWN_TOOLS, KNOWN_WORKING_MODELS, parseToolsArg, type Mode } from './constants.js';
+import {
+  ALL_MODES,
+  DEFAULT_MODEL,
+  KNOWN_TOOLS,
+  KNOWN_WORKING_MODELS,
+  parseToolsArg,
+  KNOWN_AGENT_TYPES,
+  DEFAULT_AGENT_TYPE,
+  type Mode,
+  type AgentType,
+} from './constants.js';
 
 /** Validated, fully-resolved configuration derived from the CLI flags. */
 export interface RunConfig {
@@ -35,6 +45,13 @@ export interface RunConfig {
    * than being replaced by the expanded `["baseline", "agent"]` array.
    */
   modeArg: string;
+  /**
+   * The agent runner to use for agent-mode jobs.
+   * `undefined` when --agent-type was not passed; claude-* models are then auto-routed to claude-code.
+   * `"auth0-ReAct-agent"` runs the custom ReAct loop via the ATKO LLM gateway.
+   * `"claude-code"` spawns the Claude Code CLI and parses its JSONL stream.
+   */
+  agentType: AgentType | undefined;
 }
 
 /**
@@ -61,6 +78,10 @@ export function parseRunConfig(argv: string[]): RunConfig {
       '--tools <tools>',
       `Tools for agent mode: ${KNOWN_TOOLS.join(', ')} (case-insensitive). Wrapping braces and comma-separation supported, e.g. {skills} or skills,mcp.`,
       '',
+    )
+    .option(
+      '--agent-type <type>',
+      `Agent runner for agent mode: ${KNOWN_AGENT_TYPES.join(' | ')} (default: ${DEFAULT_AGENT_TYPE})`,
     )
     .option('--workers <n>', 'Parallel workers (default: 4)', '4')
     .option('--output <path>', 'JSON output path')
@@ -131,6 +152,13 @@ export function parseRunConfig(argv: string[]): RunConfig {
     process.exit(1);
   }
 
+  // Agent type validation
+  const agentType = opts.agentType as AgentType | undefined;
+  if (agentType !== undefined && !(KNOWN_AGENT_TYPES as readonly string[]).includes(agentType)) {
+    console.error(`Invalid --agent-type: ${agentType}. Choose from: ${KNOWN_AGENT_TYPES.join(', ')}`);
+    process.exit(1);
+  }
+
   return {
     models,
     modes,
@@ -142,5 +170,6 @@ export function parseRunConfig(argv: string[]): RunConfig {
     braintrust: opts.braintrust as boolean,
     apiKey,
     modeArg,
+    agentType,
   };
 }

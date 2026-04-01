@@ -11,7 +11,7 @@ import { EXCLUDED_DIRS, MAX_LISTED_FILES } from './../../config/settings.js';
  * @param relativeTo The base directory to which the collected file paths should be relative.
  * @returns An array of relative file paths.
  */
-export function collectFiles(root: string, relativeTo: string): string[] {
+export function collectFiles(root: string, relativeTo: string, maxFiles = MAX_LISTED_FILES): string[] {
   // Use realpathSync to resolve symlinks in the workspace root itself (e.g. /var -> /private/var on macOS)
   let workspaceRoot: string;
   try {
@@ -42,7 +42,7 @@ export function collectFiles(root: string, relativeTo: string): string[] {
           const realPath = realpathSync(fullPath);
           if (isPathInside(workspaceRoot, realPath) && statSync(fullPath).isFile()) {
             files.push(relative(relativeTo, fullPath).replace(/\\/g, '/'));
-            if (files.length >= MAX_LISTED_FILES) {
+            if (files.length >= maxFiles) {
               truncated = true;
             }
           }
@@ -61,7 +61,7 @@ export function collectFiles(root: string, relativeTo: string): string[] {
           const realPath = realpathSync(fullPath);
           if (isPathInside(workspaceRoot, realPath)) {
             files.push(relative(relativeTo, fullPath).replace(/\\/g, '/'));
-            if (files.length >= MAX_LISTED_FILES) {
+            if (files.length >= maxFiles) {
               truncated = true;
             }
           }
@@ -75,7 +75,7 @@ export function collectFiles(root: string, relativeTo: string): string[] {
   walk(root);
   files.sort();
   if (truncated) {
-    files.push(`… (truncated at ${MAX_LISTED_FILES} files)`);
+    files.push(`… (truncated at ${maxFiles} files)`);
   }
   return files;
 }
