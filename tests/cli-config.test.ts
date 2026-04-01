@@ -4,7 +4,13 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { parseRunConfig } from '../src/cli/config.js';
-import { ALL_MODES, DEFAULT_MODEL, KNOWN_WORKING_MODELS } from '../src/cli/constants.js';
+import {
+  ALL_MODES,
+  DEFAULT_MODEL,
+  DEFAULT_AGENT_TYPE,
+  KNOWN_AGENT_TYPES,
+  KNOWN_WORKING_MODELS,
+} from '../src/cli/constants.js';
 import { EVALUATIONS } from '../src/config/evaluations.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -102,6 +108,11 @@ describe('defaults', () => {
   it('sets braintrust to false', () => {
     const config = parseRunConfig(argv());
     expect(config.braintrust).toBe(false);
+  });
+
+  it('sets agentType to undefined when --agent-type is not specified', () => {
+    const config = parseRunConfig(argv());
+    expect(config.agentType).toBeUndefined();
   });
 });
 
@@ -266,5 +277,28 @@ describe('flags', () => {
 
   it('--output sets outputPath', () => {
     expect(parseRunConfig(argv('--output', 'results.json')).outputPath).toBe('results.json');
+  });
+});
+
+// ── Agent type ────────────────────────────────────────────────────────────────
+
+describe('--agent-type', () => {
+  it('accepts every known agent type', () => {
+    for (const type of KNOWN_AGENT_TYPES) {
+      expect(parseRunConfig(argv('--agent-type', type)).agentType).toBe(type);
+    }
+  });
+
+  it('accepts the default agent type explicitly', () => {
+    expect(parseRunConfig(argv('--agent-type', DEFAULT_AGENT_TYPE)).agentType).toBe(DEFAULT_AGENT_TYPE);
+  });
+
+  it('exits for an unknown agent type', () => {
+    expect(() => parseRunConfig(argv('--agent-type', 'my-custom-agent'))).toThrow('process.exit(1)');
+  });
+
+  it('prints the invalid agent type in the error message', () => {
+    expect(() => parseRunConfig(argv('--agent-type', 'my-custom-agent'))).toThrow();
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('my-custom-agent'));
   });
 });

@@ -12,7 +12,7 @@
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
-import type { RunRecord } from './agent.js';
+import type { RunRecord } from './agent-types.js';
 import { passRate as graderPassRateFn, type GraderResult } from './graders.js';
 
 // ── Scoring constants ─────────────────────────────────────────────────────────

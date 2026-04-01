@@ -14,6 +14,15 @@ vi.mock('node:fs', () => ({
   existsSync: vi.fn().mockReturnValue(true),
   mkdirSync: vi.fn(),
   rmSync: vi.fn(),
+  copyFileSync: vi.fn(),
+}));
+vi.mock('../src/agent_eval/skills-config.js', () => ({
+  SKILLS_REMOTE_DIR: '/tmp/skills-remote',
+  SKILLS_CLONE_DIR: '/tmp/skills-remote/auth0-skills',
+  resolveSkillDir: vi.fn(),
+}));
+vi.mock('../src/agent_eval/tools/utils.js', () => ({
+  collectFiles: vi.fn(),
 }));
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -41,14 +50,26 @@ async function importAugment() {
   return mod.augmentWithSkills;
 }
 
+async function importCopySkills() {
+  const mod = await import('../src/runners/skills.js');
+  return mod.copySkillsToWorkspace;
+}
+
 beforeEach(async () => {
   vi.resetModules();
   vi.unstubAllGlobals();
   // Reset mocked fs functions to defaults (existsSync=true simulates a cloned repo)
   const fs = vi.mocked(await import('node:fs'));
   fs.existsSync.mockReturnValue(true);
+  fs.copyFileSync.mockReset();
+  fs.mkdirSync.mockReset();
   const cp = vi.mocked(await import('node:child_process'));
   vi.mocked(cp.execFileSync as (...args: unknown[]) => unknown).mockReset();
+  // Default: resolveSkillDir returns a valid path, collectFiles returns two files
+  const skillsConfig = vi.mocked(await import('../src/agent_eval/skills-config.js'));
+  vi.mocked(skillsConfig.resolveSkillDir).mockReturnValue('/tmp/skills-remote/auth0-skills/auth0-react');
+  const utils = vi.mocked(await import('../src/agent_eval/tools/utils.js'));
+  vi.mocked(utils.collectFiles).mockReturnValue(['README.md', 'SKILL.md']);
 });
 
 afterEach(() => {
@@ -201,5 +222,143 @@ describe('augmentWithSkills - clone failure', () => {
     });
     const cp = vi.mocked(await import('node:child_process'));
     expect(cp.execFileSync).toHaveBeenCalledWith('git', expect.arrayContaining(['clone']), expect.anything());
+  });
+});
+
+// ── copySkillsToWorkspace ─────────────────────────────────────────────────────
+
+describe('copySkillsToWorkspace - no skills', () => {
+  it('returns original evalDef unchanged when skills list is empty', async () => {
+    const copySkillsToWorkspace = await importCopySkills();
+    const evalDef = makeEvalDef({ skills: [] });
+
+    const result = await copySkillsToWorkspace(evalDef, '/tmp/workspace');
+
+    expect(result).toBe(evalDef);
+  });
+});
+
+describe('copySkillsToWorkspace - file copying', () => {
+  it('calls copyFileSync for each file returned by collectFiles', async () => {
+    const copySkillsToWorkspace = await importCopySkills();
+    const fs = vi.mocked(await import('node:fs'));
+    const evalDef = makeEvalDef({ skills: ['auth0-react'] });
+
+    await copySkillsToWorkspace(evalDef, '/tmp/workspace');
+
+    expect(fs.copyFileSync).toHaveBeenCalledTimes(2); // README.md and SKILL.md
+    expect(fs.copyFileSync).toHaveBeenCalledWith(
+      expect.stringContaining('README.md'),
+      expect.stringContaining('.auth0-skills/auth0-react/README.md'),
+    );
+    expect(fs.copyFileSync).toHaveBeenCalledWith(
+      expect.stringContaining('SKILL.md'),
+      expect.stringContaining('.auth0-skills/auth0-react/SKILL.md'),
+    );
+  });
+
+  it('creates destination directories for each file', async () => {
+    const copySkillsToWorkspace = await importCopySkills();
+    const fs = vi.mocked(await import('node:fs'));
+    const evalDef = makeEvalDef({ skills: ['auth0-react'] });
+
+    await copySkillsToWorkspace(evalDef, '/tmp/workspace');
+
+    expect(fs.mkdirSync).toHaveBeenCalledWith(
+      expect.stringContaining('.auth0-skills'),
+      expect.objectContaining({ recursive: true }),
+    );
+  });
+
+  it('copies files from multiple skills', async () => {
+    const copySkillsToWorkspace = await importCopySkills();
+    const fs = vi.mocked(await import('node:fs'));
+    const skillsConfig = vi.mocked(await import('../src/agent_eval/skills-config.js'));
+    vi.mocked(skillsConfig.resolveSkillDir)
+      .mockReturnValueOnce('/tmp/skills/auth0-react')
+      .mockReturnValueOnce('/tmp/skills/auth0-nextjs');
+    const evalDef = makeEvalDef({ skills: ['auth0-react', 'auth0-nextjs'] });
+
+    await copySkillsToWorkspace(evalDef, '/tmp/workspace');
+
+    // 2 files per skill × 2 skills = 4 copyFileSync calls
+    expect(fs.copyFileSync).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe('copySkillsToWorkspace - prompt injection', () => {
+  it('injects Available Skills section into agentSystemPrompt', async () => {
+    const copySkillsToWorkspace = await importCopySkills();
+    const evalDef = makeEvalDef({ skills: ['auth0-react'] });
+
+    const result = await copySkillsToWorkspace(evalDef, '/tmp/workspace');
+
+    expect(result.agentSystemPrompt).toContain('## Available Skills');
+    expect(result.agentSystemPrompt).toContain('auth0-react');
+  });
+
+  it('mentions .auth0-skills/ directory in the prompt', async () => {
+    const copySkillsToWorkspace = await importCopySkills();
+    const evalDef = makeEvalDef({ skills: ['auth0-react'] });
+
+    const result = await copySkillsToWorkspace(evalDef, '/tmp/workspace');
+
+    expect(result.agentSystemPrompt).toContain('.auth0-skills/');
+  });
+
+  it('instructs the agent to use Glob and Read tools', async () => {
+    const copySkillsToWorkspace = await importCopySkills();
+    const evalDef = makeEvalDef({ skills: ['auth0-react'] });
+
+    const result = await copySkillsToWorkspace(evalDef, '/tmp/workspace');
+
+    expect(result.agentSystemPrompt).toContain('Glob');
+    expect(result.agentSystemPrompt).toContain('Read');
+  });
+
+  it('appends existing agentSystemPrompt after a separator', async () => {
+    const copySkillsToWorkspace = await importCopySkills();
+    const evalDef = makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: 'You are an expert.' });
+
+    const result = await copySkillsToWorkspace(evalDef, '/tmp/workspace');
+
+    expect(result.agentSystemPrompt).toContain('## Available Skills');
+    expect(result.agentSystemPrompt).toContain('---');
+    expect(result.agentSystemPrompt).toContain('You are an expert.');
+    const skillIdx = result.agentSystemPrompt!.indexOf('## Available Skills');
+    const separatorIdx = result.agentSystemPrompt!.indexOf('---');
+    const promptIdx = result.agentSystemPrompt!.indexOf('You are an expert.');
+    expect(skillIdx).toBeLessThan(separatorIdx);
+    expect(separatorIdx).toBeLessThan(promptIdx);
+  });
+
+  it('does not add separator when there is no existing agentSystemPrompt', async () => {
+    const copySkillsToWorkspace = await importCopySkills();
+    const evalDef = makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: '' });
+
+    const result = await copySkillsToWorkspace(evalDef, '/tmp/workspace');
+
+    expect(result.agentSystemPrompt).not.toContain('---');
+  });
+
+  it('does not mutate the original evalDef', async () => {
+    const copySkillsToWorkspace = await importCopySkills();
+    const evalDef = makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: 'Original.' });
+    const originalPrompt = evalDef.agentSystemPrompt;
+
+    await copySkillsToWorkspace(evalDef, '/tmp/workspace');
+
+    expect(evalDef.agentSystemPrompt).toBe(originalPrompt);
+  });
+});
+
+describe('copySkillsToWorkspace - skill not found', () => {
+  it('throws when resolveSkillDir returns null for a skill', async () => {
+    const copySkillsToWorkspace = await importCopySkills();
+    const skillsConfig = vi.mocked(await import('../src/agent_eval/skills-config.js'));
+    vi.mocked(skillsConfig.resolveSkillDir).mockReturnValue(null);
+    const evalDef = makeEvalDef({ skills: ['unknown-skill'] });
+
+    await expect(copySkillsToWorkspace(evalDef, '/tmp/workspace')).rejects.toThrow("Skill 'unknown-skill' not found");
   });
 });

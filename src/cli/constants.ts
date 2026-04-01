@@ -21,6 +21,15 @@ export const ALL_MODES: Mode[] = ['baseline', 'agent'];
 /** Tool names accepted by the `--tools` flag (case-insensitive). */
 export const KNOWN_TOOLS = ['skills', 'mcp'];
 
+/** Agent runner types accepted by the `--agent-type` flag. */
+export const KNOWN_AGENT_TYPES = ['auth0-ReAct-agent', 'claude-code'] as const;
+
+/** Union of valid agent runner identifiers, derived from KNOWN_AGENT_TYPES. */
+export type AgentType = (typeof KNOWN_AGENT_TYPES)[number];
+
+/** Agent runner used when no `--agent-type` flag is provided. */
+export const DEFAULT_AGENT_TYPE = 'auth0-ReAct-agent';
+
 /**
  * Parses the `--tools` flag value into a sorted, deduplicated, lowercase array.
  *
