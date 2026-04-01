@@ -10,6 +10,7 @@ export default defineConfig({
         'src/evals/quickstarts/react/graders': resolve(__dirname, 'src/evals/quickstarts/react/graders.ts'),
         'src/evals/quickstarts/nextjs/graders': resolve(__dirname, 'src/evals/quickstarts/nextjs/graders.ts'),
         'src/evals/quickstarts/swift/graders': resolve(__dirname, 'src/evals/quickstarts/swift/graders.ts'),
+        'src/evals/quickstarts/android/graders': resolve(__dirname, 'src/evals/quickstarts/android/graders.ts'),
         'src/evals/quickstarts/express/graders': resolve(__dirname, 'src/evals/quickstarts/express/graders.ts'),
         'src/evals/quickstarts/express-api/graders': resolve(__dirname, 'src/evals/quickstarts/express-api/graders.ts'),
         'src/evals/quickstarts/fastapi/graders': resolve(__dirname, 'src/evals/quickstarts/fastapi/graders.ts'),
