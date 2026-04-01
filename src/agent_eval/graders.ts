@@ -152,7 +152,7 @@ export async function runGraders(
   allowedLevels?: Set<GraderLevel>,
 ): Promise<GraderResult[]> {
   const active = allowedLevels
-    ? graderDefs.filter((g) => g.level !== undefined && allowedLevels.has(g.level))
+    ? graderDefs.filter((g) => g.level === undefined || allowedLevels.has(g.level))
     : graderDefs;
 
   const files = collectFiles(workspace);

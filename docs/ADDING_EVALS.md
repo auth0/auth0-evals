@@ -6,7 +6,7 @@ This guide walks through adding a new evaluation to `auth0-evals`.
 
 ## 1. Create the Folder Structure
 
-Pick a descriptive slug and create a directory under `src/evals/<category>/<eval-id>/`. The category groups related evals (e.g., `quickstarts`, `api`, `mfa`).
+Pick a short, kebab-case directory name and create a folder under `src/evals/<category>/<eval-dir>/`. The category groups related evals (e.g., `quickstarts`, `api`, `mfa`). Note that the on-disk directory name (e.g. `my-new-eval`) is separate from the snake_case config ID (e.g. `my_new_eval`) you'll register in `evaluations.ts` and use with `--eval`.
 
 ```
 src/evals/

@@ -418,19 +418,19 @@ describe('runGraders - allowedLevels', () => {
     expect(results[0].name).toBe('L1 check');
   });
 
-  it('excludes untagged graders when allowedLevels is provided', async () => {
+  it('always includes untagged graders even when allowedLevels is provided', async () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'App.js'), "import Auth0 from '@auth0/auth0-react';");
     const graders = [
       contains('@auth0/auth0-react', 'L1 check', GraderLevel.L1),
-      contains('Auth0', 'holistic check'), // no level
+      contains('Auth0', 'holistic check'), // no level — must always run
     ];
     const allowed = new Set([GraderLevel.L1, GraderLevel.L2, GraderLevel.L3]);
 
     const results = await runGraders(graders, dir, 'unused', undefined, allowed);
 
-    expect(results.length).toBe(1);
-    expect(results[0].name).toBe('L1 check');
+    expect(results.length).toBe(2);
+    expect(results.map((r) => r.name)).toContain('holistic check');
   });
 
   it('includes untagged graders when allowedLevels is undefined (agent mode)', async () => {
@@ -457,7 +457,7 @@ describe('runGraders - allowedLevels', () => {
     expect(results[1].level).toBeUndefined();
   });
 
-  it('returns empty results when no grader matches allowed levels', async () => {
+  it('filters out-of-range leveled graders but still runs untagged graders', async () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'App.js'), 'some code');
     const graders = [contains('token', 'L4 check', GraderLevel.L4), contains('token', 'holistic check')];
@@ -465,6 +465,7 @@ describe('runGraders - allowedLevels', () => {
 
     const results = await runGraders(graders, dir, 'unused', undefined, allowed);
 
-    expect(results.length).toBe(0);
+    expect(results.length).toBe(1);
+    expect(results[0].name).toBe('holistic check');
   });
 });
