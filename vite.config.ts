@@ -14,6 +14,7 @@ export default defineConfig({
         'src/evals/quickstarts/express-api/graders': resolve(__dirname, 'src/evals/quickstarts/express-api/graders.ts'),
         'src/evals/quickstarts/fastapi/graders': resolve(__dirname, 'src/evals/quickstarts/fastapi/graders.ts'),
         'src/evals/quickstarts/fastify-api/graders': resolve(__dirname, 'src/evals/quickstarts/fastify-api/graders.ts'),
+        'src/evals/quickstarts/vue/graders': resolve(__dirname, 'src/evals/quickstarts/vue/graders.ts'),
       },
       formats: ['es'],
     },

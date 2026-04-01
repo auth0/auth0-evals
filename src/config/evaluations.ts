@@ -48,4 +48,10 @@ export const EVALUATIONS: EvalConfig[] = [
     category: 'quickstarts',
     path: 'src/evals/quickstarts/fastify-api',
   },
+  {
+    id: 'vue_quickstart',
+    name: 'Vue Quickstart',
+    category: 'quickstarts',
+    path: 'src/evals/quickstarts/vue',
+  },
 ];
