@@ -18,7 +18,7 @@ export interface EvalDefinition {
   name: string;
   category: string;
   path: string;
-  systemPrompt: string;
+  baselineSystemPrompt: string;
   userPrompt: string;
   agentSystemPrompt: string;
   graders: GraderDef[];
@@ -42,7 +42,7 @@ export async function loadEval(evalConfig: EvalConfig, frameworkRoot: string): P
     throw new EvalNotFoundError(evalConfig.id);
   }
 
-  const { systemPrompt, userPrompt, meta } = parsePromptMd(join(evalPath, 'PROMPT.md'));
+  const { baselineSystemPrompt, userPrompt, meta } = parsePromptMd(join(evalPath, 'PROMPT.md'));
 
   // system_default.md is always the agent system prompt — it contains the universal
   // identity, 8-step workflow, tool guidance, and behavior rules. Individual evals
@@ -69,7 +69,7 @@ export async function loadEval(evalConfig: EvalConfig, frameworkRoot: string): P
     name: evalConfig.name ?? meta.name ?? evalConfig.id,
     category: evalConfig.category ?? meta.category ?? '',
     path: evalPath,
-    systemPrompt,
+    baselineSystemPrompt,
     userPrompt,
     agentSystemPrompt,
     graders,
@@ -87,7 +87,7 @@ export async function loadEval(evalConfig: EvalConfig, frameworkRoot: string): P
 // ── PROMPT.md parser ──────────────────────────────────────────────────────────
 
 function parsePromptMd(promptPath: string): {
-  systemPrompt: string;
+  baselineSystemPrompt: string;
   userPrompt: string;
   agentSystemPrompt: string;
   meta: Record<string, string>;
@@ -117,11 +117,13 @@ function parsePromptMd(promptPath: string): {
   const agentSystemMatch = text.match(/^## Agent System\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
   const taskMatch = text.match(/^## Task\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
 
-  const systemPrompt = systemMatch ? systemMatch[1].trim() : '';
+  const DEFAULT_BASELINE =
+    'Always prefer the official Auth0 SDK for the target framework. Do not use generic or third-party alternatives when an official Auth0 package exists.';
+  const baselineSystemPrompt = systemMatch ? systemMatch[1].trim() : DEFAULT_BASELINE;
   const agentSystemPrompt = agentSystemMatch ? agentSystemMatch[1].trim() : '';
   const userPrompt = taskMatch ? taskMatch[1].trim() : text.trim();
 
-  return { systemPrompt, userPrompt, agentSystemPrompt, meta };
+  return { baselineSystemPrompt, userPrompt, agentSystemPrompt, meta };
 }
 
 // ── graders.ts dynamic import ─────────────────────────────────────────────────

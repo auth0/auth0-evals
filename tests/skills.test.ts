@@ -33,7 +33,7 @@ function makeEvalDef(overrides: Partial<EvalDefinition> = {}): EvalDefinition {
     name: 'Test Eval',
     category: 'quickstarts',
     path: '/tmp/test',
-    systemPrompt: '',
+    baselineSystemPrompt: '',
     userPrompt: 'Add authentication.',
     agentSystemPrompt: '',
     graders: [],

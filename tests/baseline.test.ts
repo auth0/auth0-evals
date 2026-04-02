@@ -11,7 +11,7 @@ import { runBaseline } from '../src/runners/baseline.js';
 function makeEvalDef(evalId = 'react_quickstart') {
   return {
     id: evalId,
-    systemPrompt: 'You are a React developer.',
+    baselineSystemPrompt: 'You are a React developer.',
     userPrompt: 'Add Auth0 authentication to the app.',
   };
 }
