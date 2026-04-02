@@ -3,9 +3,10 @@ skills: auth0-react
 ---
 
 ## Task
-Add Auth0 authentication to a React application using the @auth0/auth0-react SDK.
+Add Auth0 login to my React app.
 
 Domain: dev-barkbook.us.auth0.com
 Client ID: barkbook_client_abc123xyz
+Audience: https://api.barkbook.com
 
-Also get an Access Token to call an external API with audience https://api.barkbook.com and include a function that makes an authenticated API request using that token.
+I also need to call an external API — get an access token and include a function that makes an authenticated request using that token.

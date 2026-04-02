@@ -3,15 +3,16 @@ skills: auth0-express
 ---
 
 ## Task
-Add Auth0 authentication to an Express.js application using the express-openid-connect SDK.
+Add Auth0 login to my Express.js app.
 
 Domain: dev-barkbook.us.auth0.com
 Client ID: barkbook_client_abc123xyz
 Client Secret: barkbook_secret_def456uvw
 Base URL: http://localhost:3000
+Audience: https://api.barkbook.com
 
-Also get an Access Token to call an external API with audience https://api.barkbook.com and include a route that makes an authenticated API request using that token.
+I also need to call an external API — get an access token and include a route that makes an authenticated request using that token.
 
-Create a protected /profile route that requires authentication and displays the logged-in user's profile information.
+Create a protected /profile route that requires login and shows the user's profile.
 
 Do not prompt for permissions to create any .env or .env.local files.

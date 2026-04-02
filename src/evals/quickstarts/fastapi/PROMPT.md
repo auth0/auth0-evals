@@ -3,13 +3,13 @@ skills: auth0-fastapi-api
 ---
 
 ## Task
-Add Auth0 JWT authentication to a FastAPI API using the `auth0-fastapi-api` SDK.
+Add Auth0 authentication to my FastAPI API.
 
 Domain: dev-barkbook.us.auth0.com
 Audience: https://api.barkbook.com
 
-Create:
-1. A protected `/api/messages` route that requires a valid access token with the `read:messages` scope, and returns the authenticated user's `sub` claim
-2. A protected `/api/private` route that requires any valid access token and returns the authenticated user's `sub` claim
+I need two protected routes:
+1. /api/messages — requires a valid token with the `read:messages` scope, returns the user's `sub` claim
+2. /api/private — requires any valid token, returns the user's `sub` claim
 
 Do not prompt for permissions to create any .env files.

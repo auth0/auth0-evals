@@ -72,7 +72,7 @@ describe('loadEval - PROMPT.md parsing', () => {
 
     const result = await loadEval(EVAL_CONFIG, tmpBase);
 
-    expect(result.systemPrompt).toContain('expert React developer');
+    expect(result.baselineSystemPrompt).toContain('expert React developer');
     expect(result.userPrompt).toContain('Add Auth0 authentication');
     expect(result.skills).toEqual(['auth0-react']);
   });
@@ -82,7 +82,7 @@ describe('loadEval - PROMPT.md parsing', () => {
 
     const result = await loadEval(EVAL_CONFIG, tmpBase);
 
-    expect(result.systemPrompt).toContain('You are a developer');
+    expect(result.baselineSystemPrompt).toContain('You are a developer');
     expect(result.userPrompt).toContain('Write some code');
     expect(result.skills).toEqual([]);
   });
@@ -92,7 +92,7 @@ describe('loadEval - PROMPT.md parsing', () => {
 
     const result = await loadEval(EVAL_CONFIG, tmpBase);
 
-    expect(result.systemPrompt).toBe('');
+    expect(result.baselineSystemPrompt).toContain('official Auth0 SDK');
     expect(result.userPrompt).toContain('Add Auth0 to the app');
   });
 
@@ -114,7 +114,7 @@ describe('loadEval - PROMPT.md parsing', () => {
 
     const result = await loadEval(EVAL_CONFIG, tmpBase);
 
-    expect(result.systemPrompt).toContain('You are a developer.');
+    expect(result.baselineSystemPrompt).toContain('You are a developer.');
     expect(result.userPrompt).toContain('Add Auth0.');
     expect(result.skills).toEqual(['auth0-react']);
   });
@@ -164,12 +164,12 @@ describe('loadEval - Agent System prompt', () => {
     expect(result.agentSystemPrompt).not.toContain('Old per-eval override');
   });
 
-  it('systemPrompt is still parsed from ## System section', async () => {
+  it('baselineSystemPrompt is still parsed from ## System section', async () => {
     makeEvalDir(tmpBase, '## System\nGeneric system prompt.\n\n## Task\nDo the task.\n');
 
     const result = await loadEval(EVAL_CONFIG, tmpBase);
 
-    expect(result.systemPrompt).toContain('Generic system prompt');
+    expect(result.baselineSystemPrompt).toContain('Generic system prompt');
   });
 });
 

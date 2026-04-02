@@ -37,7 +37,7 @@ function makeSessionId(): string {
 export async function runBaseline(
   apiKey: string,
   model: string,
-  evalDef: Pick<EvalDefinition, 'id' | 'systemPrompt' | 'userPrompt'>,
+  evalDef: Pick<EvalDefinition, 'id' | 'baselineSystemPrompt' | 'userPrompt'>,
 ): Promise<BaselineResult> {
   const result: BaselineResult = {
     evalId: evalDef.id,
@@ -56,8 +56,8 @@ export async function runBaseline(
   const tStart = Date.now();
 
   const messages: { role: string; content: string }[] = [];
-  if (evalDef.systemPrompt) {
-    messages.push({ role: 'system', content: evalDef.systemPrompt });
+  if (evalDef.baselineSystemPrompt) {
+    messages.push({ role: 'system', content: evalDef.baselineSystemPrompt });
   }
   messages.push({ role: 'user', content: evalDef.userPrompt });
 
