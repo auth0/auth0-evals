@@ -7,10 +7,16 @@
  */
 
 /** Models known to work reliably across all eval modes. Used when `--model all` is passed. */
-export const KNOWN_WORKING_MODELS = ['gpt-5.2', 'claude-4-6-sonnet', 'claude-4-6-opus', 'gemini-3-pro-preview'];
+export const KNOWN_WORKING_MODELS = [
+  'gpt-5.4',
+  'gpt-4.1',
+  'claude-4-6-sonnet',
+  'claude-4-6-opus',
+  'gemini-3.1-pro-preview',
+];
 
 /** Model used when no `--model` flag is provided. */
-export const DEFAULT_MODEL = 'gpt-5.2';
+export const DEFAULT_MODEL = 'gpt-5.4';
 
 /** The two concrete execution modes. `"all"` is a CLI meta-value that expands to this union. */
 export type Mode = 'baseline' | 'agent';
