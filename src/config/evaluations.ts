@@ -66,4 +66,10 @@ export const EVALUATIONS: EvalConfig[] = [
     category: 'quickstarts',
     path: 'src/evals/quickstarts/nuxt',
   },
+  {
+    id: 'angular_quickstart',
+    name: 'Angular Quickstart',
+    category: 'quickstarts',
+    path: 'src/evals/quickstarts/angular',
+  },
 ];
