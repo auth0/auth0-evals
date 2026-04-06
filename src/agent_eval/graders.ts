@@ -64,11 +64,19 @@ export interface GraderResult {
 
 // ── Workspace helpers ─────────────────────────────────────────────────────────
 
+/**
+ * Directories excluded from grading and scoring — these contain injected context
+ * (skill files, scaffold metadata) that would contaminate results if included.
+ * Shared by graders.ts (collectFiles) and scorer.ts (walkFiles).
+ */
+export const EXCLUDED_EVAL_DIRS = new Set(['.auth0-skills']);
+
 export function collectFiles(workspace: string): Record<string, string> {
   const files: Record<string, string> = {};
   for (const relPath of collectFilePaths(workspace, workspace)) {
     if (relPath.startsWith('…')) continue; // skip truncation notice
     if (relPath === 'package-lock.json') continue;
+    if ([...EXCLUDED_EVAL_DIRS].some((dir) => relPath.startsWith(dir + '/'))) continue;
     try {
       files[relPath] = readFileSync(join(workspace, relPath), 'utf-8');
     } catch {

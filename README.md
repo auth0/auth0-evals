@@ -45,20 +45,23 @@ npm run report -- --input scores-all-modes.json
 npm run run -- --eval react_quickstart --mode all --model all && npm run report -- --input scores-all-modes.json && open report.html
 ```
 
-## Modes
+## Modes & Tools
 
-| Mode | Description |
-|------|-------------|
-| `baseline` | Single LLM call, no tools, no skills. What the model knows from training data alone. |
-| `agent` | Full agentic loop with tools (read/write/bash/fetch). What agents do without our investment. |
-| `agent+skills` | Full agentic loop with tools + SKILL.md injected into context. The real-world scenario. |
+| Configuration | CLI flags | What it measures | Grader set |
+|------|-----------|-----------------|------------|
+| `baseline` | `--mode baseline` | Training data knowledge | L1-L3 |
+| `agent` | `--mode agent` | Generic tool access value | L1-L4 |
+| `agent+skills` | `--mode agent --tools skills` | Skills investment value | L1-L4 |
+| `agent+mcp` | `--mode agent --tools mcp` | MCP server product value | L1-L5 |
+| `agent+mcp+skills` | `--mode agent --tools mcp,skills` | Full compound effect | L1-L5 |
 
-Use `--mode all` to run all three modes in parallel for faster evaluation.
+Use `--mode all` to run both modes in parallel. Combine with `--tools` for specific tool configurations.
 
-The delta between modes tells you where to invest:
+The delta between configurations tells you where to invest:
 - **baseline → agent**: value of tool access alone
 - **agent → agent+skills**: value of our skills investment
-- **baseline → agent+skills**: total end-to-end improvement
+- **agent → agent+mcp**: value of our MCP server
+- **agent → agent+mcp+skills**: full compound effect
 
 ## Models
 
@@ -99,8 +102,9 @@ npm run run -- --model gpt-5.2
 --eval      Eval ID to run (default: all). Can be repeated.
 --model     Model to use (default: gpt-5.2). Can be repeated for multiple models.
             Use 'all' to run all known working models.
---mode      baseline | agent | agent+skills | all (default: baseline)
-            Use 'all' to run all three modes in parallel.
+--mode      baseline | agent | all (default: baseline)
+            Use 'all' to run both modes in parallel.
+--tools     skills | mcp | mcp,skills (agent mode only)
 --workers   Parallel workers (default: 4)
 --output    JSON output path (default: scores-<mode>.json or scores-all-modes.json)
 --keep-workspace   (agent mode only) Keep temp workspace after run
@@ -120,15 +124,22 @@ The framework maintains a list of models that work reliably across all modes (ba
 **Google:**
 - `gemini-3-pro-preview`
 
-**Note:** Model availability depends on your ATKO API key configuration.
+**Note:** GPT and Gemini use the ATKO LiteLLM proxy (`ATKO_API_KEY`). Claude models use the local `claude` CLI's own OAuth auth.
 
 ## Evals
 
 | Category | ID | Description |
 |----------|----|-------------|
-| `quickstarts` | `react_quickstart` | Add Auth0 authentication to a React app using @auth0/auth0-react |
-| `quickstarts` | `nextjs_quickstart` | Add Auth0 authentication to a Next.js App Router app using @auth0/nextjs-auth0 |
-| `quickstarts` | `swift_quickstart` | Add Auth0 authentication to a Swift iOS app using Auth0.swift |
+| `quickstarts` | `react_quickstart` | Add Auth0 login to a React SPA using @auth0/auth0-react |
+| `quickstarts` | `nextjs_quickstart` | Add Auth0 login to a Next.js App Router app using @auth0/nextjs-auth0 |
+| `quickstarts` | `swift_quickstart` | Add Auth0 login to a Swift iOS app using Auth0.swift |
+| `quickstarts` | `android_quickstart` | Add Auth0 login to an Android app using Auth0.Android |
+| `quickstarts` | `express_quickstart` | Add Auth0 login to an Express web app using express-openid-connect |
+| `quickstarts` | `express_api_quickstart` | Protect an Express API using express-oauth2-jwt-bearer |
+| `quickstarts` | `fastapi_quickstart` | Protect a FastAPI API using auth0-fastapi-api |
+| `quickstarts` | `fastify_api_quickstart` | Protect a Fastify API using @auth0/auth0-fastify-api |
+| `quickstarts` | `vue_quickstart` | Add Auth0 login to a Vue 3 SPA using @auth0/auth0-vue |
+| `quickstarts` | `nuxt_quickstart` | Add Auth0 login to a Nuxt app using @auth0/auth0-nuxt |
 
 ## Skills
 
