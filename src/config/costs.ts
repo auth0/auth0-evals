@@ -1,8 +1,9 @@
 export const COST_TABLE: Record<string, [number, number]> = {
-  'gpt-5.2': [1.75, 14.0],
+  'gpt-5.4': [2.5, 15.0],
+  'gpt-4.1': [2.0, 8.0],
   'claude-4-6-sonnet': [3.0, 15.0],
   'claude-4-6-opus': [5.0, 25.0],
-  'gemini-3-pro-preview': [2.0, 12.0],
+  'gemini-3.1-pro-preview': [2.0, 12.0],
 };
 
 export function estimateCost(model: string, inputTokens: number, outputTokens: number): number {

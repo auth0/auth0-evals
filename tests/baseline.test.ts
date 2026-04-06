@@ -27,18 +27,18 @@ function makeLlmResponse(content = 'Here is the code.', inputTokens = 100, outpu
 
 describe('estimateCost', () => {
   it('uses correct input price for known model', () => {
-    const cost = estimateCost('gpt-5.2', 1_000_000, 0);
-    expect(cost).toBe(1.75);
+    const cost = estimateCost('gpt-5.4', 1_000_000, 0);
+    expect(cost).toBe(2.5);
   });
 
   it('uses correct output price for known model', () => {
-    const cost = estimateCost('gpt-5.2', 0, 1_000_000);
-    expect(cost).toBe(14.0);
+    const cost = estimateCost('gpt-5.4', 0, 1_000_000);
+    expect(cost).toBe(15.0);
   });
 
   it('sums input and output costs', () => {
-    const cost = estimateCost('gpt-5.2', 1_000_000, 1_000_000);
-    expect(cost).toBe(15.75);
+    const cost = estimateCost('gpt-5.4', 1_000_000, 1_000_000);
+    expect(cost).toBe(17.5);
   });
 
   it('uses default price for unknown model', () => {
@@ -47,7 +47,7 @@ describe('estimateCost', () => {
   });
 
   it('returns zero cost for zero tokens', () => {
-    const cost = estimateCost('gpt-5.2', 0, 0);
+    const cost = estimateCost('gpt-5.4', 0, 0);
     expect(cost).toBe(0.0);
   });
 });
@@ -65,9 +65,9 @@ describe('runBaseline', () => {
       json: async () => makeLlmResponse(),
     } as unknown as Response);
 
-    const result = await runBaseline('key', 'gpt-5.2', makeEvalDef());
+    const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
     expect(result.evalId).toBe('react_quickstart');
-    expect(result.model).toBe('gpt-5.2');
+    expect(result.model).toBe('gpt-5.4');
   });
 
   it('mode is baseline', async () => {
@@ -76,7 +76,7 @@ describe('runBaseline', () => {
       json: async () => makeLlmResponse(),
     } as unknown as Response);
 
-    const result = await runBaseline('key', 'gpt-5.2', makeEvalDef());
+    const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
     expect(result.mode).toBe('baseline');
   });
 
@@ -86,7 +86,7 @@ describe('runBaseline', () => {
       json: async () => makeLlmResponse('Auth0 code here'),
     } as unknown as Response);
 
-    const result = await runBaseline('key', 'gpt-5.2', makeEvalDef());
+    const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
     expect(result.responseText).toBe('Auth0 code here');
   });
 
@@ -96,7 +96,7 @@ describe('runBaseline', () => {
       json: async () => makeLlmResponse('ok', 500, 250),
     } as unknown as Response);
 
-    const result = await runBaseline('key', 'gpt-5.2', makeEvalDef());
+    const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
     expect(result.inputTokens).toBe(500);
     expect(result.outputTokens).toBe(250);
   });
@@ -135,7 +135,7 @@ describe('runBaseline', () => {
       json: async () => ({ choices: [{ message: { content: 'ok' } }], usage: {} }),
     } as unknown as Response);
 
-    const result = await runBaseline('key', 'gpt-5.2', makeEvalDef());
+    const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
     expect(result.inputTokens).toBe(0);
     expect(result.outputTokens).toBe(0);
   });
@@ -146,8 +146,8 @@ describe('runBaseline', () => {
       json: async () => makeLlmResponse('ok', 1_000_000, 0),
     } as unknown as Response);
 
-    const result = await runBaseline('key', 'gpt-5.2', makeEvalDef());
-    expect(result.costUsd).toBe(1.75);
+    const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
+    expect(result.costUsd).toBe(2.5);
   });
 
   it('status is success on happy path', async () => {
@@ -156,14 +156,14 @@ describe('runBaseline', () => {
       json: async () => makeLlmResponse(),
     } as unknown as Response);
 
-    const result = await runBaseline('key', 'gpt-5.2', makeEvalDef());
+    const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
     expect(result.status).toBe('success');
   });
 
   it('status is failure on error', async () => {
     vi.spyOn(global, 'fetch').mockRejectedValue(new Error('timeout'));
 
-    const result = await runBaseline('key', 'gpt-5.2', makeEvalDef());
+    const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
     expect(result.status).toBe('failure');
     expect(result.error).toContain('timeout');
   });
@@ -174,7 +174,7 @@ describe('runBaseline', () => {
       json: async () => makeLlmResponse(),
     } as unknown as Response);
 
-    const result = await runBaseline('key', 'gpt-5.2', makeEvalDef());
+    const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
     expect(typeof result.wallTime).toBe('number');
     expect(result.wallTime).toBeGreaterThanOrEqual(0);
   });
