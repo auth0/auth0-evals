@@ -13,7 +13,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import type { RunRecord } from './agent-types.js';
-import { passRate as graderPassRateFn, type GraderResult } from './graders.js';
+import { passRate as graderPassRateFn, EXCLUDED_EVAL_DIRS, type GraderResult } from './graders.js';
 
 // ── Scoring constants ─────────────────────────────────────────────────────────
 
@@ -177,7 +177,7 @@ function scoreHallucination(workspace: string): [number, string] {
     [/from\s+auth0\s+import\s+Auth0Client/i, "Auth0Client doesn't exist in auth0 package"],
     [/import\s+@auth0\/auth0-sdk/i, "@auth0/auth0-sdk doesn't exist"],
     [/Auth0\.configure\(/i, 'Auth0.configure() not a real method'],
-    [/auth0\.loginWithRedirect\(/i, 'Incorrect method name (should be loginWithPopup)'],
+    // loginWithRedirect is a real method in @auth0/auth0-react and @auth0/auth0-vue — not a hallucination.
   ];
 
   for (const filePath of walkFiles(workspace)) {
@@ -255,7 +255,9 @@ function* walkFiles(dir: string): Generator<string> {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
-      yield* walkFiles(full);
+      if (!EXCLUDED_EVAL_DIRS.has(entry.name)) {
+        yield* walkFiles(full);
+      }
     } else {
       yield full;
     }
@@ -289,12 +291,42 @@ export function score(
   const [hallucinationScore, hallucinationNotes] = scoreHallucination(record.workspace);
   const [securityScore, securityNotes] = scoreSecurity(record.workspace);
 
+  // Zero out process dimensions when the agent never actually executed.
+  // Without this gate, a broken run (0 tool calls) scores 48/50 on process
+  // because "no interruptions, fast, efficient" — rewarding failure.
+  const hasToolCalls = record.toolCalls.length > 0;
+
   const dimensions: DimensionScore[] = [
-    makeDim('Setup Friction', 0.15, frictionScore, frictionNotes),
-    makeDim('Setup Speed', 0.1, speedScore, speedNotes),
-    makeDim('Efficiency', 0.1, effScore, effNotes),
-    makeDim('Error Recovery', 0.05, errScore, errNotes),
-    makeDim('Docs Quality', 0.1, docScore, docNotes),
+    makeDim(
+      'Setup Friction',
+      0.15,
+      hasToolCalls ? frictionScore : 0,
+      hasToolCalls ? frictionNotes : 'Agent did not execute (0 tool calls)',
+    ),
+    makeDim(
+      'Setup Speed',
+      0.1,
+      hasToolCalls ? speedScore : 0,
+      hasToolCalls ? speedNotes : 'Agent did not execute (0 tool calls)',
+    ),
+    makeDim(
+      'Efficiency',
+      0.1,
+      hasToolCalls ? effScore : 0,
+      hasToolCalls ? effNotes : 'Agent did not execute (0 tool calls)',
+    ),
+    makeDim(
+      'Error Recovery',
+      0.05,
+      hasToolCalls ? errScore : 0,
+      hasToolCalls ? errNotes : 'Agent did not execute (0 tool calls)',
+    ),
+    makeDim(
+      'Docs Quality',
+      0.1,
+      hasToolCalls ? docScore : 0,
+      hasToolCalls ? docNotes : 'Agent did not execute (0 tool calls)',
+    ),
     makeDim('Correctness', 0.25, correctnessScore, correctnessNotes),
     makeDim('Hallucination', 0.15, hallucinationScore, hallucinationNotes),
     makeDim('Security', 0.1, securityScore, securityNotes),

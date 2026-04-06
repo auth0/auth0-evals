@@ -3,11 +3,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmpDir } from './tmp.js';
 import type { RunRecord, ToolCallRecord } from '../src/agent_eval/agent-types.js';
 import type { GraderResult } from '../src/agent_eval/graders.js';
+import { collectFiles } from '../src/agent_eval/graders.js';
 import { score, scoreToGrade, type ScoredResult, type DimensionScore } from '../src/agent_eval/scorer.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -19,7 +20,7 @@ function makeRecord(overrides: Partial<RunRecord> = {}): RunRecord {
     sessionId: 'abc12345',
     startTime: 0,
     endTime: 0,
-    toolCalls: [],
+    toolCalls: [makeToolCall()], // default: 1 tool call so process dimensions are active
     turnMetrics: [],
     providerErrors: [],
     inputTokens: 0,
@@ -131,10 +132,10 @@ describe('score - Setup Speed', () => {
 // ── Efficiency tests ──────────────────────────────────────────────────────────
 
 describe('score - Efficiency', () => {
-  it('no tool calls = N/A (100)', () => {
+  it('no tool calls = zeroed out (agent did not execute)', () => {
     const dir = tmpDir();
-    const result = score(makeRecord({ workspace: dir }));
-    expect(getDim(result, 'Efficiency').rawScore).toBe(100.0);
+    const result = score(makeRecord({ workspace: dir, toolCalls: [] }));
+    expect(getDim(result, 'Efficiency').rawScore).toBe(0);
   });
 
   it('at ideal call count = 100', () => {
@@ -322,6 +323,35 @@ describe('score - Security', () => {
 
 // ── score() integration tests ─────────────────────────────────────────────────
 
+describe('score - process zero-out gate', () => {
+  it('zeroes all 5 process dimensions when toolCalls is empty', () => {
+    const dir = tmpDir();
+    const result = score(makeRecord({ workspace: dir, toolCalls: [] }), undefined, []);
+    const processNames = ['Setup Friction', 'Setup Speed', 'Efficiency', 'Error Recovery', 'Docs Quality'];
+    for (const name of processNames) {
+      expect(getDim(result, name).rawScore).toBe(0);
+      expect(getDim(result, name).notes).toContain('Agent did not execute');
+    }
+  });
+
+  it('preserves output dimensions when toolCalls is empty', () => {
+    const dir = tmpDir();
+    const graderResults: GraderResult[] = [
+      { name: 'a', kind: 'contains', passed: true, detail: '' },
+      { name: 'b', kind: 'contains', passed: false, detail: '' },
+    ];
+    const result = score(makeRecord({ workspace: dir, toolCalls: [] }), undefined, graderResults);
+    expect(getDim(result, 'Correctness').rawScore).toBe(50);
+  });
+
+  it('scores process dimensions normally when toolCalls is non-empty', () => {
+    const dir = tmpDir();
+    const result = score(makeRecord({ workspace: dir }), undefined, []);
+    expect(getDim(result, 'Setup Friction').rawScore).toBe(100);
+    expect(getDim(result, 'Efficiency').rawScore).toBe(100);
+  });
+});
+
 describe('score() integration', () => {
   it('returns 8 dimensions', () => {
     const dir = tmpDir();
@@ -347,5 +377,33 @@ describe('score() integration', () => {
     const graderResults: GraderResult[] = [{ name: 'a', kind: 'contains', passed: true, detail: '' }];
     const result = score(makeRecord({ workspace: dir }), undefined, graderResults);
     expect(result.graderPassRate).toBe(1.0);
+  });
+});
+
+// ── Grader collectFiles exclusion tests ──────────────────────────────────────
+
+describe('collectFiles - skill file exclusion', () => {
+  it('excludes .auth0-skills/ directory from grading corpus', () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'app.ts'), 'import { Auth0Provider } from "@auth0/auth0-react"');
+    mkdirSync(join(dir, '.auth0-skills', 'auth0-react'), { recursive: true });
+    writeFileSync(join(dir, '.auth0-skills', 'auth0-react', 'SKILL.md'), 'loginWithRedirect');
+
+    const files = collectFiles(dir);
+    const paths = Object.keys(files);
+    expect(paths).toContain('app.ts');
+    expect(paths.every((p) => !p.startsWith('.auth0-skills/'))).toBe(true);
+  });
+
+  it('does not match skill keywords when only present in .auth0-skills/', () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'index.ts'), 'console.log("hello")');
+    mkdirSync(join(dir, '.auth0-skills', 'auth0-react'), { recursive: true });
+    writeFileSync(join(dir, '.auth0-skills', 'auth0-react', 'SKILL.md'), 'Auth0Provider useAuth0');
+
+    const files = collectFiles(dir);
+    const combined = Object.values(files).join('\n');
+    expect(combined).not.toContain('Auth0Provider');
+    expect(combined).not.toContain('useAuth0');
   });
 });

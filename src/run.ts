@@ -33,7 +33,7 @@ import { serialiseBaseline, serialiseAgent, serialiseError } from './runners/ser
 import { mergeResults, loadResults, saveResults, resolveOutputPath } from './persistence/results.js';
 import { parseRunConfig } from './cli/config.js';
 import type { JobResult } from './types/results.js';
-import { gradeText, BASELINE_LEVELS } from './runners/baseline.js';
+import { gradeText, BASELINE_LEVELS, AGENT_LEVELS, AGENT_MCP_LEVELS } from './runners/baseline.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -114,7 +114,11 @@ async function runAgentJob(
 
     let graderResults: Awaited<ReturnType<typeof runGraders>> = [];
     if (evalDef.graders.length > 0) {
-      graderResults = await runGraders(evalDef.graders, workspace, apiKey);
+      // L5 (version_correctness) only runs when MCP is enabled — the model has docs
+      // access, so using deprecated APIs is a real failure. Without MCP, the model
+      // works from training data and shouldn't be penalized for version drift.
+      const agentLevels = tools.includes('mcp') ? AGENT_MCP_LEVELS : AGENT_LEVELS;
+      graderResults = await runGraders(evalDef.graders, workspace, apiKey, undefined, agentLevels);
     }
 
     const scored = score(record, undefined, graderResults);
