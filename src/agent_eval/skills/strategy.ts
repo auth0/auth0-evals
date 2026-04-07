@@ -10,8 +10,8 @@
  *       accesses skill files via `list_skill_files` / `read_skill_file` tools.
  *
  *   - CopySkillsStrategy  (filesystem-native agents: Claude Code, Codex, etc.)
- *       Copies skill files into the workspace under `.auth0-skills/<skill>/`
- *       and updates the prompt with filesystem paths.
+ *       Copies skill files into the workspace under `.claude/skills/<skill>/`
+ *       so Claude Code auto-loads them as context.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -62,14 +62,11 @@ async function doEnsureCloned(): Promise<boolean> {
 // ── Public functions ──────────────────────────────────────────────────────────
 
 /**
- * Copies skill files into the workspace under `.auth0-skills/<skill>/` and rewrites
- * the system prompt notice so Claude Code can access them with its native Read/Glob tools
- * instead of the ReAct-only `list_skill_files` / `read_skill_file` custom tools.
+ * Copies skill files into `.claude/skills/<skill>/` in the workspace so Claude Code
+ * auto-loads them as persistent context. No prompt augmentation is needed.
  */
 export async function copySkillsToWorkspace(evalDef: EvalDefinition, workspace: string): Promise<EvalDefinition> {
   await ensureCloned();
-
-  const copiedSkills: string[] = [];
 
   for (const skill of evalDef.skills) {
     const skillDir = resolveSkillDir(skill);
@@ -78,31 +75,15 @@ export async function copySkillsToWorkspace(evalDef: EvalDefinition, workspace: 
     }
     const files = collectFiles(skillDir, skillDir, Infinity);
     for (const relPath of files) {
-      const dest = join(workspace, '.auth0-skills', skill, relPath);
+      const dest = join(workspace, '.claude', 'skills', skill, relPath);
       mkdirSync(dirname(dest), { recursive: true });
       copyFileSync(join(skillDir, relPath), dest);
     }
-    console.log(`  [skills] Copied ${files.length} file(s) for '${skill}' → .auth0-skills/${skill}/`);
-    copiedSkills.push(skill);
+    console.log(`  [skills] Copied ${files.length} file(s) for '${skill}' → .claude/skills/${skill}/`);
   }
 
-  if (copiedSkills.length === 0) return evalDef;
-
-  const notice = `## Available Skills
-
-The following Auth0 SDK skills are available: ${copiedSkills.join(', ')}
-
-Skill files have been copied into the workspace under \`.auth0-skills/\`. Use Glob and Read to access them:
-- List a skill's files: Glob pattern \`.auth0-skills/<skill-name>/**\`
-- Read a file: Read \`.auth0-skills/<skill-name>/<filename>\`
-
-Always read the relevant skill files before starting work.`;
-
-  const sep = '\n\n---\n\n';
-  const originalPrompt = evalDef.agentSystemPrompt ?? '';
-  const parts = [notice];
-  if (originalPrompt) parts.push(originalPrompt);
-  return { ...evalDef, agentSystemPrompt: parts.join(sep) };
+  // No prompt augmentation needed — Claude Code auto-loads .claude/skills/ as context.
+  return evalDef;
 }
 
 export async function augmentWithSkills(evalDef: EvalDefinition): Promise<EvalDefinition> {
@@ -140,9 +121,8 @@ export async function augmentWithSkills(evalDef: EvalDefinition): Promise<EvalDe
  *       custom tools.
  *
  *   - CopySkillsStrategy  (filesystem-native agents such as Claude Code)
- *       Copies skill files into the workspace under `.auth0-skills/<skill>/`
- *       and updates the prompt to point there. The agent reads them with its
- *       own native file tools (Read, Glob, etc.).
+ *       Copies skill files into the workspace under `.claude/skills/<skill>/`
+ *       so Claude Code auto-loads them as context.
  *
  * When adding a new agent, pick the strategy that matches how it reads context
  * — no need to re-implement the injection logic.
@@ -181,9 +161,8 @@ export class InjectSkillsStrategy implements SkillsStrategy {
 // ── CopySkillsStrategy ────────────────────────────────────────────────────────
 
 /**
- * Delivers skills by copying files into the workspace and updating the prompt
- * with filesystem paths. Used by agents that read context with native file
- * tools (Claude Code, Codex, Gemini CLI, etc.).
+ * Delivers skills by copying files into `.claude/skills/` in the workspace.
+ * Claude Code auto-loads this directory as persistent context.
  */
 export class CopySkillsStrategy implements SkillsStrategy {
   async apply(evalDef: EvalDefinition, workspace: string): Promise<EvalDefinition> {

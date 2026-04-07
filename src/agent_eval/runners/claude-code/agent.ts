@@ -81,7 +81,7 @@ const ANTHROPIC_PROXY_URL = BASE_URL.replace(/\/v1\/?$/, '/anthropic');
  *
  * AskUserQuestion is excluded to suppress interactive interruptions during unattended evals.
  */
-const DEFAULT_ALLOWED_TOOLS = ['Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'LS', 'WebFetch'].join(
+const DEFAULT_ALLOWED_TOOLS = ['Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'LS', 'WebFetch', 'Skill'].join(
   ',',
 );
 

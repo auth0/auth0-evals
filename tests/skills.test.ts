@@ -249,11 +249,11 @@ describe('copySkillsToWorkspace - file copying', () => {
     expect(fs.copyFileSync).toHaveBeenCalledTimes(2); // README.md and SKILL.md
     expect(fs.copyFileSync).toHaveBeenCalledWith(
       expect.stringContaining('README.md'),
-      expect.stringContaining('.auth0-skills/auth0-react/README.md'),
+      expect.stringContaining('.claude/skills/auth0-react/README.md'),
     );
     expect(fs.copyFileSync).toHaveBeenCalledWith(
       expect.stringContaining('SKILL.md'),
-      expect.stringContaining('.auth0-skills/auth0-react/SKILL.md'),
+      expect.stringContaining('.claude/skills/auth0-react/SKILL.md'),
     );
   });
 
@@ -265,7 +265,7 @@ describe('copySkillsToWorkspace - file copying', () => {
     await copySkillsToWorkspace(evalDef, '/tmp/workspace');
 
     expect(fs.mkdirSync).toHaveBeenCalledWith(
-      expect.stringContaining('.auth0-skills'),
+      expect.stringContaining('.claude/skills'),
       expect.objectContaining({ recursive: true }),
     );
   });
@@ -286,69 +286,23 @@ describe('copySkillsToWorkspace - file copying', () => {
   });
 });
 
-describe('copySkillsToWorkspace - prompt injection', () => {
-  it('injects Available Skills section into agentSystemPrompt', async () => {
-    const copySkillsToWorkspace = await importCopySkills();
-    const evalDef = makeEvalDef({ skills: ['auth0-react'] });
-
-    const result = await copySkillsToWorkspace(evalDef, '/tmp/workspace');
-
-    expect(result.agentSystemPrompt).toContain('## Available Skills');
-    expect(result.agentSystemPrompt).toContain('auth0-react');
-  });
-
-  it('mentions .auth0-skills/ directory in the prompt', async () => {
-    const copySkillsToWorkspace = await importCopySkills();
-    const evalDef = makeEvalDef({ skills: ['auth0-react'] });
-
-    const result = await copySkillsToWorkspace(evalDef, '/tmp/workspace');
-
-    expect(result.agentSystemPrompt).toContain('.auth0-skills/');
-  });
-
-  it('instructs the agent to use Glob and Read tools', async () => {
-    const copySkillsToWorkspace = await importCopySkills();
-    const evalDef = makeEvalDef({ skills: ['auth0-react'] });
-
-    const result = await copySkillsToWorkspace(evalDef, '/tmp/workspace');
-
-    expect(result.agentSystemPrompt).toContain('Glob');
-    expect(result.agentSystemPrompt).toContain('Read');
-  });
-
-  it('appends existing agentSystemPrompt after a separator', async () => {
-    const copySkillsToWorkspace = await importCopySkills();
-    const evalDef = makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: 'You are an expert.' });
-
-    const result = await copySkillsToWorkspace(evalDef, '/tmp/workspace');
-
-    expect(result.agentSystemPrompt).toContain('## Available Skills');
-    expect(result.agentSystemPrompt).toContain('---');
-    expect(result.agentSystemPrompt).toContain('You are an expert.');
-    const skillIdx = result.agentSystemPrompt!.indexOf('## Available Skills');
-    const separatorIdx = result.agentSystemPrompt!.indexOf('---');
-    const promptIdx = result.agentSystemPrompt!.indexOf('You are an expert.');
-    expect(skillIdx).toBeLessThan(separatorIdx);
-    expect(separatorIdx).toBeLessThan(promptIdx);
-  });
-
-  it('does not add separator when there is no existing agentSystemPrompt', async () => {
-    const copySkillsToWorkspace = await importCopySkills();
-    const evalDef = makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: '' });
-
-    const result = await copySkillsToWorkspace(evalDef, '/tmp/workspace');
-
-    expect(result.agentSystemPrompt).not.toContain('---');
-  });
-
-  it('does not mutate the original evalDef', async () => {
+describe('copySkillsToWorkspace - no prompt augmentation', () => {
+  it('does not modify agentSystemPrompt (Claude Code auto-loads .claude/skills/)', async () => {
     const copySkillsToWorkspace = await importCopySkills();
     const evalDef = makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: 'Original.' });
-    const originalPrompt = evalDef.agentSystemPrompt;
 
-    await copySkillsToWorkspace(evalDef, '/tmp/workspace');
+    const result = await copySkillsToWorkspace(evalDef, '/tmp/workspace');
 
-    expect(evalDef.agentSystemPrompt).toBe(originalPrompt);
+    expect(result.agentSystemPrompt).toBe('Original.');
+  });
+
+  it('returns the same evalDef object (no prompt changes needed)', async () => {
+    const copySkillsToWorkspace = await importCopySkills();
+    const evalDef = makeEvalDef({ skills: ['auth0-react'] });
+
+    const result = await copySkillsToWorkspace(evalDef, '/tmp/workspace');
+
+    expect(result).toBe(evalDef);
   });
 });
 

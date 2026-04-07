@@ -69,7 +69,7 @@ export interface GraderResult {
  * (skill files, scaffold metadata) that would contaminate results if included.
  * Shared by graders.ts (collectFiles) and scorer.ts (walkFiles).
  */
-export const EXCLUDED_EVAL_DIRS = new Set(['.auth0-skills']);
+export const EXCLUDED_EVAL_DIRS = new Set(['.claude']);
 
 export function collectFiles(workspace: string): Record<string, string> {
   const files: Record<string, string> = {};
