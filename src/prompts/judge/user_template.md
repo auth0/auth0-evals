@@ -5,4 +5,4 @@ Question: {question}
 Code:
 {code}
 
-Answer (yes/no) on the first line, then explain your reasoning briefly:
+First explain your reasoning briefly, then on the FINAL line write your verdict as exactly 'yes' or 'no':

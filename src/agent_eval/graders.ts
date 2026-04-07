@@ -245,8 +245,8 @@ export async function llmJudge(
 ): Promise<{ passed: boolean; detail: string }> {
   const base = loadFrameworkPrompt(framework);
   const system =
-    `${base} Reply with 'yes' or 'no' on the first line, ` +
-    'then a brief explanation of your reasoning on the following lines.';
+    `${base} Provide 1-3 short sentences of reasoning, ` +
+    "then on the FINAL line write your verdict as exactly 'yes' or 'no' (nothing else on that line).";
   const user = loadUserTemplate().replace('{question}', question).replace('{code}', code.slice(0, 6000));
 
   const payload = JSON.stringify({
@@ -284,12 +284,13 @@ export async function llmJudge(
     if (!answer) {
       return { passed: false, detail: `Judge (${model}) error: empty response` };
     }
-    const firstLine = answer.split('\n')[0]!.toLowerCase();
-    const m = /^(yes|no)\b/.exec(firstLine);
+    const lines = answer.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+    const lastLine = lines[lines.length - 1]!.toLowerCase();
+    const m = /^(yes|no)\b/.exec(lastLine);
     if (!m) {
       return {
         passed: false,
-        detail: `Judge (${model}) error: unexpected verdict ${JSON.stringify(firstLine)}: ${answer}`,
+        detail: `Judge (${model}) error: unexpected verdict ${JSON.stringify(lastLine)}: ${answer}`,
       };
     }
     return { passed: m[1] === 'yes', detail: `Judge (${model}): ${answer}` };
