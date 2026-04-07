@@ -84,7 +84,7 @@ Use `notContainsInSource` (not `notContains`) when a value like a client ID is a
 ## Grading exclusions
 
 Graders run against **agent-written files only**. The following are excluded from the grading corpus:
-- `.auth0-skills/` — injected skill files (would contaminate `contains()` checks)
+- `.claude/skills/` — injected skill files (would contaminate `contains()` checks)
 - `package-lock.json` — noise
 
 ---

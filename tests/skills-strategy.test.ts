@@ -69,16 +69,19 @@ describe('InjectSkillsStrategy', () => {
 });
 
 describe('CopySkillsStrategy', () => {
-  it('injects workspace-path skill notice into agentSystemPrompt', async () => {
+  it('does not modify agentSystemPrompt (Claude Code auto-loads .claude/skills/)', async () => {
     const strategy = new CopySkillsStrategy();
     const result = await strategy.apply(makeEvalDef(), '/tmp/workspace');
-    expect(result.agentSystemPrompt).toContain('.auth0-skills');
-    expect(result.agentSystemPrompt).toContain('auth0-react');
+    expect(result.agentSystemPrompt).toBe('Original prompt.');
   });
 
-  it('preserves the original system prompt', async () => {
+  it('copies skill files to .claude/skills/ in the workspace', async () => {
+    const fs = vi.mocked(await import('node:fs'));
     const strategy = new CopySkillsStrategy();
-    const result = await strategy.apply(makeEvalDef({ agentSystemPrompt: 'Original.' }), '/tmp/workspace');
-    expect(result.agentSystemPrompt).toContain('Original.');
+    await strategy.apply(makeEvalDef(), '/tmp/workspace');
+    expect(fs.copyFileSync).toHaveBeenCalledWith(
+      expect.stringContaining('SKILL.md'),
+      expect.stringContaining('.claude/skills/auth0-react/SKILL.md'),
+    );
   });
 });

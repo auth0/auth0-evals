@@ -383,23 +383,23 @@ describe('score() integration', () => {
 // ── Grader collectFiles exclusion tests ──────────────────────────────────────
 
 describe('collectFiles - skill file exclusion', () => {
-  it('excludes .auth0-skills/ directory from grading corpus', () => {
+  it('excludes .claude/ directory from grading corpus', () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'app.ts'), 'import { Auth0Provider } from "@auth0/auth0-react"');
-    mkdirSync(join(dir, '.auth0-skills', 'auth0-react'), { recursive: true });
-    writeFileSync(join(dir, '.auth0-skills', 'auth0-react', 'SKILL.md'), 'loginWithRedirect');
+    mkdirSync(join(dir, '.claude', 'skills', 'auth0-react'), { recursive: true });
+    writeFileSync(join(dir, '.claude', 'skills', 'auth0-react', 'SKILL.md'), 'loginWithRedirect');
 
     const files = collectFiles(dir);
     const paths = Object.keys(files);
     expect(paths).toContain('app.ts');
-    expect(paths.every((p) => !p.startsWith('.auth0-skills/'))).toBe(true);
+    expect(paths.every((p) => !p.startsWith('.claude/'))).toBe(true);
   });
 
-  it('does not match skill keywords when only present in .auth0-skills/', () => {
+  it('does not match skill keywords when only present in .claude/skills/', () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'index.ts'), 'console.log("hello")');
-    mkdirSync(join(dir, '.auth0-skills', 'auth0-react'), { recursive: true });
-    writeFileSync(join(dir, '.auth0-skills', 'auth0-react', 'SKILL.md'), 'Auth0Provider useAuth0');
+    mkdirSync(join(dir, '.claude', 'skills', 'auth0-react'), { recursive: true });
+    writeFileSync(join(dir, '.claude', 'skills', 'auth0-react', 'SKILL.md'), 'Auth0Provider useAuth0');
 
     const files = collectFiles(dir);
     const combined = Object.values(files).join('\n');
