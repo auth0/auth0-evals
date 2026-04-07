@@ -325,20 +325,20 @@ function mockFetchResponse(content: string) {
 describe('llmJudge', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('passes when first line is yes', async () => {
-    vi.stubGlobal('fetch', mockFetchResponse('yes\n\nThe code correctly wraps the app with Auth0Provider.'));
+  it('passes when last line is yes', async () => {
+    vi.stubGlobal('fetch', mockFetchResponse('The code correctly wraps the app with Auth0Provider.\n\nyes'));
     const { passed } = await llmJudge('Does it use Auth0Provider?', 'code', 'key', 'model');
     expect(passed).toBe(true);
   });
 
-  it('fails when first line is no', async () => {
-    vi.stubGlobal('fetch', mockFetchResponse('no\n\nAuth0Provider is missing from the component tree.'));
+  it('fails when last line is no', async () => {
+    vi.stubGlobal('fetch', mockFetchResponse('Auth0Provider is missing from the component tree.\n\nno'));
     const { passed } = await llmJudge('Does it use Auth0Provider?', 'code', 'key', 'model');
     expect(passed).toBe(false);
   });
 
   it('detail contains full reasoning', async () => {
-    const reasoning = 'yes\n\nThe loginWithRedirect call is present on the button.';
+    const reasoning = 'The loginWithRedirect call is present on the button.\n\nyes';
     vi.stubGlobal('fetch', mockFetchResponse(reasoning));
     const { detail } = await llmJudge('Does it call loginWithRedirect?', 'code', 'key', 'model');
     expect(detail).toContain('loginWithRedirect call is present');
@@ -358,20 +358,30 @@ describe('llmJudge', () => {
   });
 
   it('rejects words that merely start with yes (word boundary)', async () => {
-    vi.stubGlobal('fetch', mockFetchResponse('yesterday the code was correct'));
+    vi.stubGlobal('fetch', mockFetchResponse('The code was correct.\n\nyesterday'));
     const { passed, detail } = await llmJudge('question', 'code', 'key', 'model');
     expect(passed).toBe(false);
     expect(detail).toContain('unexpected verdict');
   });
 
   it('passes when yes has trailing punctuation', async () => {
-    vi.stubGlobal('fetch', mockFetchResponse('yes.\n\nThe Auth0Provider wrapper is present.'));
+    vi.stubGlobal('fetch', mockFetchResponse('The Auth0Provider wrapper is present.\n\nyes.'));
     const { passed } = await llmJudge('question', 'code', 'key', 'model');
     expect(passed).toBe(true);
   });
 
-  it('fails when no has trailing punctuation', async () => {
-    vi.stubGlobal('fetch', mockFetchResponse('no, the provider is missing.'));
+  it('fails when no verdict has trailing explanation', async () => {
+    vi.stubGlobal('fetch', mockFetchResponse('The provider is missing.\n\nno, the provider is missing.'));
+    const { passed, detail } = await llmJudge('question', 'code', 'key', 'model');
+    expect(passed).toBe(false);
+    expect(detail).not.toContain('unexpected verdict');
+  });
+
+  it('uses final-line verdict when reasoning contains opposite verdict', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetchResponse('yes, the provider appears to be set up.\nHowever on closer inspection it is missing.\n\nno'),
+    );
     const { passed, detail } = await llmJudge('question', 'code', 'key', 'model');
     expect(passed).toBe(false);
     expect(detail).not.toContain('unexpected verdict');
