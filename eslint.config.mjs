@@ -13,6 +13,13 @@ export default defineConfig(
   {
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      'no-console': 'error',
+    },
+  },
+  {
+    files: ['tests/**/*.ts', 'src/evals/**/*.ts'],
+    rules: {
+      'no-console': 'off',
     },
   },
 );

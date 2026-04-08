@@ -16,6 +16,7 @@ import { fileURLToPath } from 'url';
 import { Command } from 'commander';
 import nunjucks from 'nunjucks';
 import { ALL_FILTERS } from './report-filters.js';
+import { logger } from './utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -199,14 +200,14 @@ async function main(): Promise<void> {
   }
 
   if (inputFiles.length === 0) {
-    console.error('No scores-*.json files found. Run `node dist/run.js` first.');
+    logger.error('No scores-*.json files found. Run `node dist/run.js` first.');
     process.exit(1);
   }
 
-  console.log(`Loading: ${JSON.stringify(inputFiles)}`);
+  logger.info(`Loading: ${JSON.stringify(inputFiles)}`);
   const results = loadScores(inputFiles);
   const evalCount = new Set(results.map((r) => r.eval_id)).size;
-  console.log(`  ${results.length} result(s) across ${evalCount} eval(s)`);
+  logger.info(`  ${results.length} result(s) across ${evalCount} eval(s)`);
 
   const now = new Date();
   const generatedAt = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -214,13 +215,13 @@ async function main(): Promise<void> {
   const html = renderHtml(results, generatedAt);
   const outputPath = join(FRAMEWORK_ROOT, opts.output as string);
   writeFileSync(outputPath, html, 'utf-8');
-  console.log(`Report saved to: ${outputPath}`);
+  logger.info(`Report saved to: ${outputPath}`);
 }
 
 // Skip main() when running under Vitest (process.env.VITEST is set automatically)
 if (!process.env.VITEST) {
   main().catch((e) => {
-    console.error(e);
+    logger.error(e);
     process.exit(1);
   });
 }

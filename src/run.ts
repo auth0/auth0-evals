@@ -32,6 +32,7 @@ import { runGraders } from './agent_eval/graders.js';
 import { serialiseBaseline, serialiseAgent, serialiseError } from './runners/serializers.js';
 import { mergeResults, loadResults, saveResults, resolveOutputPath } from './persistence/results.js';
 import { parseRunConfig } from './cli/config.js';
+import { logger } from './utils/logger.js';
 import type { JobResult } from './types/results.js';
 import { gradeText, BASELINE_LEVELS, AGENT_LEVELS, AGENT_MCP_LEVELS } from './runners/baseline.js';
 
@@ -69,7 +70,7 @@ export async function runJob(
 ): Promise<JobResult> {
   const evalDef = await loadEval(evalConfig, FRAMEWORK_ROOT);
   const agentLabel = mode === 'agent' ? ` (${agentType})` : '';
-  console.log(`  [${mode}${agentLabel}] ${evalDef.id} / ${model}`);
+  logger.info(`  [${mode}${agentLabel}] ${evalDef.id} / ${model}`);
 
   try {
     if (mode === 'baseline') {
@@ -84,7 +85,7 @@ export async function runJob(
     }
   } catch (e) {
     const errorMsg = String(e);
-    console.log(`  ✗ [${evalDef.id}] ${model} - ERROR: ${errorMsg.slice(0, 100)}`);
+    logger.error(`  ✗ [${evalDef.id}] ${model} - ERROR: ${errorMsg.slice(0, 100)}`);
     return {
       ...serialiseError(evalDef.id, evalDef.category, model, mode, tools, errorMsg),
       ...(mode === 'agent' ? { agent_type: agentType } : {}),
@@ -139,12 +140,12 @@ function printResult(r: JobResult): void {
   if (r.status === 'error') return; // already reported in runJob's catch block
   if (r.mode === 'agent') {
     const agentTag = r.agent_type ? ` [${r.agent_type}]` : '';
-    console.log(
+    logger.info(
       `  ✓ [${r.eval_id}]${agentTag} ${r.model}  grade=${r.overall_grade} (${r.overall_score.toFixed(0)})  ` +
         `graders=${(r.grader_pass_rate * 100).toFixed(0)}%  $${r.cost_usd.toFixed(4)}`,
     );
   } else {
-    console.log(
+    logger.info(
       `  ✓ [${r.eval_id}] ${r.model}  graders=${r.graders_passed}/${r.graders_total} ` +
         `(${(r.grader_pass_rate * 100).toFixed(0)}%)  $${r.cost_usd.toFixed(4)}`,
     );
@@ -152,23 +153,23 @@ function printResult(r: JobResult): void {
 }
 
 function printSummary(results: JobResult[], elapsed: number): void {
-  console.log('\n' + '='.repeat(60));
-  console.log(`  Summary — ${results.length} run(s)  (${elapsed.toFixed(1)}s total)`);
-  console.log('='.repeat(60));
+  logger.info('\n' + '='.repeat(60));
+  logger.info(`  Summary — ${results.length} run(s)  (${elapsed.toFixed(1)}s total)`);
+  logger.info('='.repeat(60));
   const succeeded = results.filter((r) => r.status !== 'error' && r.status !== 'failure');
   const failed = results.filter((r) => r.status === 'error' || r.status === 'failure');
-  console.log(`  Passed : ${succeeded.length}`);
-  console.log(`  Failed : ${failed.length}`);
+  logger.info(`  Passed : ${succeeded.length}`);
+  logger.info(`  Failed : ${failed.length}`);
   const totalCost = results.reduce((sum, r) => sum + Number(r.cost_usd ?? 0), 0);
-  console.log(`  Cost   : $${totalCost.toFixed(4)}`);
+  logger.info(`  Cost   : $${totalCost.toFixed(4)}`);
   if (failed.length > 0) {
-    console.log('\n  Failures:');
+    logger.info('\n  Failures:');
     for (const r of failed) {
       const error = 'error' in r && typeof r.error === 'string' ? r.error : '';
-      console.log(`    ${r.eval_id}/${r.model}: ${error}`);
+      logger.info(`    ${r.eval_id}/${r.model}: ${error}`);
     }
   }
-  console.log('='.repeat(60));
+  logger.info('='.repeat(60));
 }
 
 // ── Job routing ───────────────────────────────────────────────────────────────
@@ -237,18 +238,18 @@ async function main(): Promise<void> {
   const registry = evalIds.length > 0 ? EVALUATIONS.filter((e) => evalIds.includes(e.id)) : EVALUATIONS;
 
   if (registry.length === 0) {
-    console.error('No evals to run. Check your --eval flag.');
+    logger.error('No evals to run. Check your --eval flag.');
     process.exit(1);
   }
 
   const jobs = buildJobList(registry, models, modes, tools, agentType);
 
-  console.log(`\nRunning ${jobs.length} job(s)  modes=${JSON.stringify(modes)}  workers=${workers}`);
-  console.log(`Evals : ${JSON.stringify(registry.map((e) => e.id))}`);
-  console.log(`Models: ${JSON.stringify(models)}`);
-  console.log(`Modes : ${JSON.stringify(modes)}`);
-  if (modes.includes('agent')) console.log(`Agent : ${agentType}`);
-  console.log();
+  logger.info(`\nRunning ${jobs.length} job(s)  modes=${JSON.stringify(modes)}  workers=${workers}`);
+  logger.info(`Evals : ${JSON.stringify(registry.map((e) => e.id))}`);
+  logger.info(`Models: ${JSON.stringify(models)}`);
+  logger.info(`Modes : ${JSON.stringify(modes)}`);
+  if (modes.includes('agent')) logger.info(`Agent : ${agentType}`);
+  logger.info();
 
   // Braintrust experiment tracking (opt-in via --braintrust flag)
   let btReporter: Awaited<ReturnType<typeof import('./reporters/braintrust.js').createBraintrustReporter>> = null;
@@ -260,7 +261,7 @@ async function main(): Promise<void> {
     const { syncDataset, toEvalSummaries } = await import('./reporters/braintrust-dataset.js');
     Promise.all(registry.map((cfg) => loadEval(cfg, FRAMEWORK_ROOT)))
       .then((evalDefs) => syncDataset(toEvalSummaries(evalDefs)))
-      .catch((e) => console.error(`[Braintrust] Dataset sync error: ${e}`));
+      .catch((e) => logger.error(`[Braintrust] Dataset sync error: ${e}`));
   }
 
   const results: JobResult[] = [];
@@ -276,7 +277,7 @@ async function main(): Promise<void> {
           printResult(result);
           btReporter?.log(result);
         } catch (exc) {
-          console.log(`  [ERROR] ${evalCfg.id}/${model}/${mode}: ${exc}`);
+          logger.error(`  [ERROR] ${evalCfg.id}/${model}/${mode}: ${exc}`);
           const errResult = {
             ...serialiseError(evalCfg.id, evalCfg.category, model, mode, jobTools, String(exc)),
             ...(mode === 'agent' ? { agent_type: jobAgentType } : {}),
@@ -299,13 +300,13 @@ async function main(): Promise<void> {
   const existing = loadResults(outputPath);
   const merged = mergeResults(existing, results);
   saveResults(outputPath, merged);
-  console.log(`\n[Output] Results saved to: ${outputPath}`);
+  logger.info(`\n[Output] Results saved to: ${outputPath}`);
 }
 
 // Skip main() when running under Vitest (process.env.VITEST is set automatically)
 if (!process.env.VITEST) {
   main().catch((e) => {
-    console.error(e);
+    logger.error(e);
     process.exit(1);
   });
 }

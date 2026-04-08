@@ -18,6 +18,7 @@ import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
+import { logger } from '../../utils/logger.js';
 import { SKILLS_REMOTE_DIR, SKILLS_CLONE_DIR, resolveSkillDir } from './config.js';
 import { collectFiles } from '../tools/utils.js';
 import type { EvalDefinition } from '../../runners/loader.js';
@@ -54,7 +55,7 @@ async function doEnsureCloned(): Promise<boolean> {
     }
     return true;
   } catch (e) {
-    console.log(`  [skills] failed to clone/pull — ${e}`);
+    logger.error(`  [skills] failed to clone/pull — ${e}`);
     return false;
   }
 }
@@ -79,7 +80,7 @@ export async function copySkillsToWorkspace(evalDef: EvalDefinition, workspace: 
       mkdirSync(dirname(dest), { recursive: true });
       copyFileSync(join(skillDir, relPath), dest);
     }
-    console.log(`  [skills] Copied ${files.length} file(s) for '${skill}' → .claude/skills/${skill}/`);
+    logger.info(`  [skills] Copied ${files.length} file(s) for '${skill}' → .claude/skills/${skill}/`);
   }
 
   // No prompt augmentation needed — Claude Code auto-loads .claude/skills/ as context.

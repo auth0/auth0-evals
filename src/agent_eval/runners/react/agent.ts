@@ -6,6 +6,7 @@
  * in a RunRecord for downstream scoring and report generation.
  */
 
+import { logger } from '../../../utils/logger.js';
 import { estimateCost } from '../../../config/costs.js';
 import { BedrockToolConfigError, LlmApiError } from '../../../errors.js';
 import { withRetry } from '../../../utils/retry.js';
@@ -55,10 +56,10 @@ export async function llmCall(
   const inputText = JSON.stringify(messages);
   const inputSizeKb = Buffer.byteLength(inputText, 'utf-8') / 1024;
 
-  console.log(`\n[LLM API] Calling remote API: ${BASE_URL}/chat/completions`);
-  console.log(`[LLM API] Model: ${model}`);
-  console.log(`[LLM API] Messages: ${messages.length} in history (~${inputSizeKb.toFixed(1)} KB)`);
-  console.log('[LLM API] Waiting for response...');
+  logger.info(`\n[LLM API] Calling remote API: ${BASE_URL}/chat/completions`);
+  logger.info(`[LLM API] Model: ${model}`);
+  logger.info(`[LLM API] Messages: ${messages.length} in history (~${inputSizeKb.toFixed(1)} KB)`);
+  logger.info('[LLM API] Waiting for response...');
 
   const callStart = Date.now();
 
@@ -90,8 +91,8 @@ export async function llmCall(
     if (!resp.ok) {
       const bodyText = await resp.text();
       const attemptDuration = (Date.now() - attemptStart) / 1000;
-      console.log(`[LLM API] ❌ API error ${resp.status} after ${attemptDuration.toFixed(2)}s`);
-      console.log(`[LLM API] 💥 Error: ${bodyText.slice(0, 200)}`);
+      logger.error(`[LLM API] ❌ API error ${resp.status} after ${attemptDuration.toFixed(2)}s`);
+      logger.error(`[LLM API] 💥 Error: ${bodyText.slice(0, 200)}`);
 
       if (bodyText.includes('toolConfig') && bodyText.includes('BedrockException')) {
         throw new BedrockToolConfigError(model);
@@ -106,20 +107,20 @@ export async function llmCall(
   const usage = (responseData.usage as Record<string, number>) ?? {};
   const [inputTokens, outputTokens] = extractTokens(usage);
 
-  console.log(`[LLM API] Response received (${callDuration.toFixed(2)}s)`);
-  console.log(`[LLM API] Tokens: ${inputTokens} in / ${outputTokens} out`);
+  logger.info(`[LLM API] Response received (${callDuration.toFixed(2)}s)`);
+  logger.info(`[LLM API] Tokens: ${inputTokens} in / ${outputTokens} out`);
 
   const message = (responseData.choices as Record<string, unknown>[])?.[0]?.message as Record<string, unknown>;
   const toolCalls = message?.tool_calls;
   const functionCall = message?.function_call;
 
   if (toolCalls) {
-    console.log(`[LLM API] Agent requested ${(toolCalls as unknown[]).length} tool call(s)`);
+    logger.info(`[LLM API] Agent requested ${(toolCalls as unknown[]).length} tool call(s)`);
   } else if (functionCall) {
-    console.log(`[LLM API] Agent requested function call: ${(functionCall as Record<string, unknown>).name}`);
+    logger.info(`[LLM API] Agent requested function call: ${(functionCall as Record<string, unknown>).name}`);
   } else {
     const contentPreview = ((message?.content as string) ?? '').slice(0, 80);
-    console.log(`[LLM API] Agent finished: "${contentPreview}"`);
+    logger.info(`[LLM API] Agent finished: "${contentPreview}"`);
   }
 
   return responseData;
@@ -148,9 +149,9 @@ export async function runAgent(
   tools: string[] = [],
 ): Promise<RunRecord> {
   if (isBedrockModel(model)) {
-    console.log(`\n[Agent] Model '${model}' is Bedrock-routed — using XML tool-call fallback mode`);
+    logger.info(`\n[Agent] Model '${model}' is Bedrock-routed — using XML tool-call fallback mode`);
   } else if (isGeminiModel(model)) {
-    console.log(`\n[Agent] Model '${model}' is Gemini — using functions/function_call API`);
+    logger.info(`\n[Agent] Model '${model}' is Gemini — using functions/function_call API`);
   }
 
   const record = makeRunRecord(task.name, model, workspace);
@@ -162,15 +163,15 @@ export async function runAgent(
       const { tools: toolDefs, toolNames } = await executor.initMcp(AUTH0_MCP);
       mcpToolDefs = toolDefs;
       if (toolNames.length > 0) {
-        console.log(`[Agent] MCP tools registered with LLM: ${toolNames.join(', ')}`);
+        logger.info(`[Agent] MCP tools registered with LLM: ${toolNames.join(', ')}`);
       }
     }
 
     const messages = buildInitialMessages(task, tools, mcpToolDefs, workspace);
 
     record.startTime = Date.now() / 1000;
-    console.log(`\n[Agent] Starting task: ${task.name}`);
-    console.log(`[Agent] Model: ${model} | Workspace: ${workspace}\n`);
+    logger.info(`\n[Agent] Starting task: ${task.name}`);
+    logger.info(`[Agent] Model: ${model} | Workspace: ${workspace}\n`);
 
     let taskFinishedOuter = false;
     for (let turn = 0; turn < MAX_TURNS; turn++) {
@@ -231,7 +232,7 @@ export async function runAgent(
       if (!toolCalls.length) {
         record.finalSummary = (message?.content as string) ?? '';
         record.status = 'success';
-        console.log(`\n[Agent] Done. Final message: ${record.finalSummary.slice(0, 200)}`);
+        logger.info(`\n[Agent] Done. Final message: ${record.finalSummary.slice(0, 200)}`);
         taskFinishedOuter = true;
         break;
       }
@@ -258,11 +259,11 @@ export async function runAgent(
         const elapsed = ((tEnd - tStart) * 1000).toFixed(0);
         if (isError) {
           const preview = result.slice(0, 120).replace(/\n/g, ' ');
-          console.log(`✗ (${elapsed}ms) ${preview}`);
+          logger.error(`✗ (${elapsed}ms) ${preview}`);
           record.providerErrors.push(`${toolName}: ${result}`);
         } else {
           const preview = result.slice(0, 80).replace(/\n/g, ' ');
-          console.log(`✓ (${elapsed}ms)${preview ? ` → ${preview}` : ''}`);
+          logger.info(`✓ (${elapsed}ms)${preview ? ` → ${preview}` : ''}`);
         }
 
         const isRetry = detectRetry(record.toolCalls, toolName, toolArgs);
@@ -295,7 +296,7 @@ export async function runAgent(
           record.finalSummary = (toolArgs.summary as string) ?? result;
           record.status = 'success';
           taskFinished = true;
-          console.log(`\n[Agent] Done. Summary: ${record.finalSummary.slice(0, 200)}`);
+          logger.info(`\n[Agent] Done. Summary: ${record.finalSummary.slice(0, 200)}`);
         }
       }
 
@@ -307,7 +308,7 @@ export async function runAgent(
 
     if (!taskFinishedOuter && record.status === 'running') {
       record.status = 'failure';
-      console.log('[Agent] Max turns reached without completion.');
+      logger.warn('[Agent] Max turns reached without completion.');
     }
 
     record.endTime = Date.now() / 1000;

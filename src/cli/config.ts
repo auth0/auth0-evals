@@ -6,6 +6,7 @@
 
 import { Command } from 'commander';
 import { EVALUATIONS } from '../config/evaluations.js';
+import { logger } from '../utils/logger.js';
 import {
   ALL_MODES,
   DEFAULT_MODEL,
@@ -93,7 +94,7 @@ export function parseRunConfig(argv: string[]): RunConfig {
 
   const apiKey = process.env.ATKO_API_KEY;
   if (!apiKey) {
-    console.error('Error: ATKO_API_KEY environment variable not set.');
+    logger.error('Error: ATKO_API_KEY environment variable not set.');
     process.exit(1);
   }
 
@@ -102,7 +103,7 @@ export function parseRunConfig(argv: string[]): RunConfig {
   let models: string[];
   if (rawModels.length > 0 && rawModels.includes('all')) {
     models = KNOWN_WORKING_MODELS;
-    console.log(`Using all known working models: ${models.join(', ')}`);
+    logger.info(`Using all known working models: ${models.join(', ')}`);
   } else if (rawModels.length > 0) {
     models = rawModels;
   } else {
@@ -114,13 +115,13 @@ export function parseRunConfig(argv: string[]): RunConfig {
   let modes: Mode[];
   if (modeArg === 'all') {
     modes = ALL_MODES;
-    console.log(`Running all modes: ${modes.join(', ')}`);
+    logger.info(`Running all modes: ${modes.join(', ')}`);
   } else {
     if (!ALL_MODES.includes(modeArg as Mode)) {
       if (modeArg === 'agent+skills') {
-        console.error(`'agent+skills' mode has been replaced. Use: --mode agent --tools skills`);
+        logger.error(`'agent+skills' mode has been replaced. Use: --mode agent --tools skills`);
       } else {
-        console.error(`Invalid mode: ${modeArg}. Choose from: ${ALL_MODES.join(', ')} or 'all'`);
+        logger.error(`Invalid mode: ${modeArg}. Choose from: ${ALL_MODES.join(', ')} or 'all'`);
       }
       process.exit(1);
     }
@@ -132,7 +133,7 @@ export function parseRunConfig(argv: string[]): RunConfig {
   if (evalIds.length > 0) {
     const unknown = evalIds.filter((id) => !EVALUATIONS.some((e) => e.id === id));
     if (unknown.length > 0) {
-      console.error(`Unknown eval(s): ${unknown.join(', ')}`);
+      logger.error(`Unknown eval(s): ${unknown.join(', ')}`);
       process.exit(1);
     }
   }
@@ -141,21 +142,21 @@ export function parseRunConfig(argv: string[]): RunConfig {
   const tools = parseToolsArg(opts.tools as string);
   const unknownTools = tools.filter((t) => !KNOWN_TOOLS.some((k) => k.toLowerCase() === t.toLowerCase()));
   if (unknownTools.length > 0) {
-    console.error(`Unknown tool(s): ${unknownTools.join(', ')}. Known tools: ${KNOWN_TOOLS.join(', ')}`);
+    logger.error(`Unknown tool(s): ${unknownTools.join(', ')}. Known tools: ${KNOWN_TOOLS.join(', ')}`);
     process.exit(1);
   }
 
   // Workers validation
   const workers = parseInt(opts.workers, 10);
   if (!Number.isInteger(workers) || workers < 1) {
-    console.error(`Invalid --workers value: ${JSON.stringify(opts.workers)}. Must be a positive integer.`);
+    logger.error(`Invalid --workers value: ${JSON.stringify(opts.workers)}. Must be a positive integer.`);
     process.exit(1);
   }
 
   // Agent type validation
   const agentType = opts.agentType as AgentType | undefined;
   if (agentType !== undefined && !(KNOWN_AGENT_TYPES as readonly string[]).includes(agentType)) {
-    console.error(`Invalid --agent-type: ${agentType}. Choose from: ${KNOWN_AGENT_TYPES.join(', ')}`);
+    logger.error(`Invalid --agent-type: ${agentType}. Choose from: ${KNOWN_AGENT_TYPES.join(', ')}`);
     process.exit(1);
   }
 

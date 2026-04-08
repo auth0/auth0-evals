@@ -13,6 +13,7 @@
  */
 
 import { BedrockToolConfigError, LlmApiError } from '../errors.js';
+import { logger } from './logger.js';
 
 // ── Retryability predicate ────────────────────────────────────────────────────
 
@@ -73,7 +74,7 @@ export async function withRetry<T>(fn: () => Promise<T>, opts: RetryOptions = {}
       }
 
       const delayMs = baseDelayMs * 2 ** attempt;
-      console.log(
+      logger.info(
         `  [retry] Attempt ${attempt + 1}/${maxAttempts} failed — ${error}. ` + `Retrying in ${delayMs / 1_000}s...`,
       );
       await sleep(delayMs);

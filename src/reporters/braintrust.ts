@@ -9,6 +9,7 @@
 
 import { init as btInit, type Experiment } from 'braintrust';
 import type { JobResult } from '../types/results.js';
+import { logger } from '../utils/logger.js';
 
 const PROJECT_ID = '38395851-dd41-46ec-a971-a30402db6921';
 
@@ -107,7 +108,7 @@ function mapResult(result: JobResult): {
 export async function createBraintrustReporter(mode: string, tools: string[]): Promise<BraintrustReporter | null> {
   const apiKey = process.env.BRAINTRUST_API_KEY;
   if (!apiKey) {
-    console.log('[Braintrust] BRAINTRUST_API_KEY not set — skipping.');
+    logger.info('[Braintrust] BRAINTRUST_API_KEY not set — skipping.');
     return null;
   }
 
@@ -119,11 +120,11 @@ export async function createBraintrustReporter(mode: string, tools: string[]): P
       apiKey,
     });
   } catch (e) {
-    console.log(`[Braintrust] Failed to initialize experiment: ${e}`);
+    logger.error(`[Braintrust] Failed to initialize experiment: ${e}`);
     return null;
   }
 
-  console.log(`[Braintrust] Experiment initialized: ${name}`);
+  logger.info(`[Braintrust] Experiment initialized: ${name}`);
 
   return {
     log(result: JobResult): void {
@@ -141,9 +142,9 @@ export async function createBraintrustReporter(mode: string, tools: string[]): P
     async summarize(): Promise<void> {
       try {
         const summary = await experiment.summarize();
-        console.log(`[Braintrust] Experiment: ${summary.experimentUrl}`);
+        logger.info(`[Braintrust] Experiment: ${summary.experimentUrl}`);
       } catch (e) {
-        console.log(`[Braintrust] Failed to summarize: ${e}`);
+        logger.error(`[Braintrust] Failed to summarize: ${e}`);
       }
     },
   };

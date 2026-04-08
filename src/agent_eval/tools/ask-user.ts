@@ -1,4 +1,5 @@
 import { Tool, ToolContext, ToolName, ToolResult } from './base.js';
+import { logger } from '../../utils/logger.js';
 
 function wrapResult(message: string): ToolResult {
   return [message, false, true, false];
@@ -23,7 +24,7 @@ export class AskUserTool implements Tool {
     ) {
       return wrapResult(context.credentials.client_id);
     }
-    console.log(`\n[AGENT ASKING]: ${question}`);
+    logger.info(`\n[AGENT ASKING]: ${question}`);
     // In automated mode, return placeholder
     return wrapResult('(no answer provided)');
   }
