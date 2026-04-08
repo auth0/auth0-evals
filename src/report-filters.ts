@@ -82,10 +82,18 @@ export function judgeHtml(detail: string): string {
   }
 
   const [firstLine, ...bodyLines] = detail.split('\n');
-  const body = bodyLines.join('\n').trim();
 
-  const modelMatch = /Judge \(([^)]+)\):/.exec(firstLine);
-  const model = modelMatch ? modelMatch[1] : 'judge';
+  if (!firstLine) {
+    return '';
+  }
+
+  const modelMatch = /Judge \(([^)]+)\):\s*/.exec(firstLine);
+  const model = modelMatch && modelMatch[1] ? modelMatch[1] : 'judge';
+
+  // The reasoning starts on the same line as the "Judge (model): " prefix.
+  // Strip the prefix to recover it, then join with any remaining lines.
+  const firstLineReasoning = modelMatch ? firstLine.slice(modelMatch[0].length) : firstLine;
+  const body = [firstLineReasoning, ...bodyLines].join('\n').trim();
 
   const rendered =
     body && body.length > 0 ? safeMarked.parse(body) : '<p class="no-reasoning">No reasoning provided.</p>';
