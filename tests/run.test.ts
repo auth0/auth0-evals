@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { buildJobList } from '../src/run.js';
+import { buildJobList, buildSubprocessArgs, MATRIX_TOOL_SETS } from '../src/run.js';
 import type { EvalConfig } from '../src/config/evaluations.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -119,5 +119,124 @@ describe('buildJobList — mixed modes', () => {
     const jobs = buildJobList([EVAL, eval2], ['gpt-5.2', 'gpt-4o'], ['baseline', 'agent'], [], undefined);
     // 2 evals × 2 models × 2 modes = 8 jobs
     expect(jobs).toHaveLength(8);
+  });
+});
+
+// ── matrix mode ───────────────────────────────────────────────────────────────
+
+describe('buildJobList — matrix mode', () => {
+  it('produces one baseline + three agent jobs for a single model', () => {
+    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['baseline', 'agent'], [], undefined, true);
+    // 1 baseline + 3 agent tool-sets (none, skills, mcp+skills) = 4 jobs
+    expect(jobs).toHaveLength(4);
+    const baseline = jobs.filter((j) => j[2] === 'baseline');
+    const agent = jobs.filter((j) => j[2] === 'agent');
+    expect(baseline).toHaveLength(1);
+    expect(agent).toHaveLength(3);
+  });
+
+  it('baseline jobs in matrix mode always have empty tools', () => {
+    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['baseline', 'agent'], [], undefined, true);
+    for (const job of jobs.filter((j) => j[2] === 'baseline')) {
+      expect(job[3]).toEqual([]);
+    }
+  });
+
+  it('agent jobs in matrix mode cover every MATRIX_TOOL_SETS combination', () => {
+    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['agent'], [], undefined, true);
+    const toolSets = jobs.map((j) => j[3]);
+    expect(toolSets).toEqual(MATRIX_TOOL_SETS);
+  });
+
+  it('scales correctly across multiple models', () => {
+    const jobs = buildJobList([EVAL], ['gpt-5.2', 'gpt-4o'], ['baseline', 'agent'], [], undefined, true);
+    // 2 models × (1 baseline + 3 agent) = 8 jobs
+    expect(jobs).toHaveLength(8);
+  });
+
+  it('scales correctly across multiple evals', () => {
+    const eval2 = makeEvalCfg('eval_2');
+    const jobs = buildJobList([EVAL, eval2], ['gpt-5.2'], ['baseline', 'agent'], [], undefined, true);
+    // 2 evals × (1 baseline + 3 agent) = 8 jobs
+    expect(jobs).toHaveLength(8);
+  });
+
+  it('claude-code deduplication is per-eval per-tool-set, not per-eval only', () => {
+    // When --agent-type claude-code with non-claude models, each tool-set is a distinct sentinel
+    const jobs = buildJobList([EVAL], ['gpt-5.2', 'gpt-4o'], ['agent'], [], 'claude-code', true);
+    // 3 tool-sets × 1 eval = 3 sentinel jobs (not 1 or 6)
+    expect(jobs).toHaveLength(3);
+    for (const job of jobs) {
+      expect(job[1]).toBe('claude-code');
+      expect(job[4]).toBe('claude-code');
+    }
+  });
+
+  it('matrix=false preserves existing single-tools behaviour', () => {
+    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['agent'], ['skills'], undefined, false);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0][3]).toEqual(['skills']);
+  });
+});
+
+// ── buildSubprocessArgs ───────────────────────────────────────────────────────
+
+describe('buildSubprocessArgs', () => {
+  it('strips --eval and its value', () => {
+    expect(buildSubprocessArgs(['--eval', 'react_quickstart', '--workers', '4'])).toEqual(['--workers', '4']);
+  });
+
+  it('strips --output and its value', () => {
+    expect(buildSubprocessArgs(['--output', 'scores.json', '--workers', '4'])).toEqual(['--workers', '4']);
+  });
+
+  it('strips --model and its value', () => {
+    expect(buildSubprocessArgs(['--model', 'gpt-5.4', '--workers', '4'])).toEqual(['--workers', '4']);
+  });
+
+  it('strips --mode and its value', () => {
+    expect(buildSubprocessArgs(['--mode', 'agent', '--workers', '4'])).toEqual(['--workers', '4']);
+  });
+
+  it('strips --tools and its value', () => {
+    expect(buildSubprocessArgs(['--tools', 'skills,mcp', '--workers', '4'])).toEqual(['--workers', '4']);
+  });
+
+  it('strips --agent-type and its value', () => {
+    expect(buildSubprocessArgs(['--agent-type', 'claude-code', '--workers', '4'])).toEqual(['--workers', '4']);
+  });
+
+  it('strips boolean --matrix flag', () => {
+    expect(buildSubprocessArgs(['--matrix', '--workers', '4'])).toEqual(['--workers', '4']);
+  });
+
+  it('strips multiple per-job flags and keeps the rest', () => {
+    const argv = [
+      '--eval',
+      'react_quickstart',
+      '--model',
+      'gpt-5.4',
+      '--mode',
+      'agent',
+      '--tools',
+      'skills',
+      '--agent-type',
+      'auth0-ReAct-agent',
+      '--matrix',
+      '--output',
+      'scores.json',
+      '--workers',
+      '8',
+      '--keep-workspace',
+    ];
+    expect(buildSubprocessArgs(argv)).toEqual(['--workers', '8', '--keep-workspace']);
+  });
+
+  it('returns empty array when all args are stripped', () => {
+    expect(buildSubprocessArgs(['--eval', 'foo', '--model', 'gpt-5.4', '--mode', 'baseline'])).toEqual([]);
+  });
+
+  it('returns input unchanged when no per-job flags are present', () => {
+    expect(buildSubprocessArgs(['--workers', '4', '--braintrust'])).toEqual(['--workers', '4', '--braintrust']);
   });
 });

@@ -7,13 +7,7 @@
  */
 
 /** Models known to work reliably across all eval modes. Used when `--model all` is passed. */
-export const KNOWN_WORKING_MODELS = [
-  'gpt-5.4',
-  'gpt-4.1',
-  'claude-4-6-sonnet',
-  'claude-4-6-opus',
-  'gemini-3.1-pro-preview',
-];
+export const KNOWN_WORKING_MODELS = ['gpt-5.4', 'claude-4-6-sonnet', 'claude-4-6-opus', 'gemini-3.1-pro-preview'];
 
 /** Model used when no `--model` flag is provided. */
 export const DEFAULT_MODEL = 'gpt-5.4';
@@ -26,6 +20,13 @@ export const ALL_MODES: Mode[] = ['baseline', 'agent'];
 
 /** Tool names accepted by the `--tools` flag (case-insensitive). */
 export const KNOWN_TOOLS = ['skills', 'mcp'];
+
+/**
+ * The agent tool-set combinations used by `--mode matrix`.
+ * Each entry is a sorted list of tool names. Baseline always runs without tools
+ * and is not represented here.
+ */
+export const MATRIX_TOOL_SETS: string[][] = [[], ['skills'], ['mcp', 'skills']];
 
 /** Agent runner types accepted by the `--agent-type` flag. */
 export const KNOWN_AGENT_TYPES = ['auth0-ReAct-agent', 'claude-code'] as const;

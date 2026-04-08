@@ -10,8 +10,8 @@ cp .env.example .env
 
 npm install
 
-# Run all evals × all models × all modes (recommended)
-npm run run -- --mode all --model all --workers 8
+# Run full matrix — all 4 mode+tool combos across all evals (recommended)
+npm run run -- --mode matrix --model all
 
 # Generate and view report
 npm run report
@@ -23,26 +23,26 @@ npm run report
 # Quick test - baseline mode with default model
 npm run run -- --eval react_quickstart --mode baseline
 
-# Test all modes with one model
-npm run run -- --eval react_quickstart --mode all --model gpt-5.2
+# Full matrix for a single eval
+npm run run -- --eval react_quickstart --mode matrix
+
+# Full matrix for a single eval across all models
+npm run run -- --eval react_quickstart --mode matrix --model all
 
 # Run all known working models in baseline mode
 npm run run -- --model all --mode baseline
 
-# Run specific models across all modes
-npm run run -- --model claude-4-6-sonnet --model claude-4-6-opus --mode all
+# Run agent mode with skills for a specific eval
+npm run run -- --eval react_quickstart --mode agent --tools skills
 
-# Full evaluation - all modes × all models
-npm run run -- --eval react_quickstart --mode all --model all --workers 8
-
-# Run everything (all evals × all models × all modes)
-npm run run -- --mode all --model all
+# Run everything (all evals × all models × full matrix)
+npm run run -- --mode matrix --model all
 
 # Generate HTML report from results
-npm run report -- --input scores-all-modes.json
+npm run report -- --input scores-matrix.json
 
 # Run and view results in one command
-npm run run -- --eval react_quickstart --mode all --model all && npm run report -- --input scores-all-modes.json && open report.html
+npm run run -- --eval react_quickstart --mode matrix --model all && npm run report -- --input scores-matrix.json && open report.html
 ```
 
 ## Modes & Tools
@@ -112,7 +112,7 @@ npm run run -- --model gpt-5.2
 
 ### Known Working Models
 
-The framework maintains a list of models that work reliably across all modes (baseline, agent, and agent+skills):
+The framework maintains a list of models that work reliably across all modes:
 
 **OpenAI:**
 - `gpt-5.2` (default)

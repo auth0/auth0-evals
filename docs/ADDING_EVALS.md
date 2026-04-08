@@ -355,11 +355,11 @@ The key is the output path relative to `dist/` (no `.js` extension). The value i
 ## 6. Run and Iterate
 
 ```bash
-# Run only your eval in all modes with the default model
-npm run run -- --eval my_new_eval --mode all
+# Run only your eval across all 4 combos with the default model
+npm run run -- --eval my_new_eval --mode matrix
 
-# Run with a specific model
-npm run run -- --eval my_new_eval --model claude-4-6-sonnet --mode agent+skills
+# Run a specific combo
+npm run run -- --eval my_new_eval --mode agent --tools skills
 
 # Keep the temporary workspace after the run for inspection
 npm run run -- --eval my_new_eval --mode agent --keep-workspace
@@ -367,13 +367,14 @@ npm run run -- --eval my_new_eval --mode agent --keep-workspace
 
 ### Modes
 
-| Mode | What it tests |
+| Combo | What it tests |
 |---|---|
 | `baseline` | Single LLM call, no tools; grades extracted code blocks |
 | `agent` | ReAct agent with file/shell tools; grades written workspace files |
-| `agent+skills` | Same as `agent`, with the fetched `SKILL.md` prepended to the agent system prompt |
+| `agent --tools mcp` | Same as `agent`, with the Auth0 MCP server available |
+| `agent --tools skills` | Same as `agent`, with the fetched `SKILL.md` prepended to the agent system prompt |
 
-Use `--mode all` to compare all three and measure the delta that skills provide.
+Use `--mode matrix` to run all 4 combos in parallel and measure the delta that each investment provides.
 
 ---
 

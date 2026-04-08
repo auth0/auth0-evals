@@ -50,12 +50,13 @@ export {
   KNOWN_WORKING_MODELS,
   KNOWN_AGENT_TYPES,
   DEFAULT_AGENT_TYPE,
+  MATRIX_TOOL_SETS,
   parseToolsArg,
   type Mode,
   type AgentType,
 } from './cli/constants.js';
 import type { Mode, AgentType } from './cli/constants.js';
-import { DEFAULT_AGENT_TYPE } from './cli/constants.js';
+import { DEFAULT_AGENT_TYPE, MATRIX_TOOL_SETS } from './cli/constants.js';
 
 // ── Per-job execution ─────────────────────────────────────────────────────────
 
@@ -172,6 +173,32 @@ function printSummary(results: JobResult[], elapsed: number): void {
   logger.info('='.repeat(60));
 }
 
+/**
+ * Returns process.argv (after the node/script pair) with all per-job flags
+ * stripped out. Subprocesses receive these flags explicitly so each runs
+ * exactly one (eval × model × mode × tools) job without re-expanding them.
+ *
+ * Flags with paired values that are stripped: --eval, --output, --model,
+ * --mode, --tools, --agent-type.
+ * Boolean flags stripped: --matrix (already expanded into individual jobs).
+ */
+export function buildSubprocessArgs(argv: string[] = process.argv.slice(2)): string[] {
+  const VALUE_FLAGS = new Set(['--eval', '--output', '--model', '--mode', '--tools', '--agent-type']);
+  const BOOL_FLAGS = new Set(['--matrix']);
+  const stripped: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (VALUE_FLAGS.has(argv[i])) {
+      i++; // skip the paired value
+      continue;
+    }
+    if (BOOL_FLAGS.has(argv[i])) {
+      continue;
+    }
+    stripped.push(argv[i]);
+  }
+  return stripped;
+}
+
 // ── Job routing ───────────────────────────────────────────────────────────────
 
 /**
@@ -189,10 +216,14 @@ export function buildJobList(
   modes: Mode[],
   tools: string[],
   agentType: AgentType | undefined,
+  matrix = false,
 ): Array<[EvalConfig, string, Mode, string[], AgentType]> {
   const isClaudeModel = (m: string) => m.startsWith('claude-');
   const jobs: Array<[EvalConfig, string, Mode, string[], AgentType]> = [];
   const claudeCodeEvalsSeen = new Set<string>();
+  // In matrix mode iterate over all four tool-set combinations for agent jobs.
+  // In normal mode wrap the single tools array so the inner loop is uniform.
+  const agentToolSets = matrix ? MATRIX_TOOL_SETS : [tools];
   for (const evalCfg of registry) {
     for (const model of models) {
       for (const mode of modes) {
@@ -202,16 +233,19 @@ export function buildJobList(
         }
         const effectiveAgentType: AgentType =
           !agentType && isClaudeModel(model) ? 'claude-code' : (agentType ?? DEFAULT_AGENT_TYPE);
-        if (effectiveAgentType === 'claude-code') {
-          if (isClaudeModel(model)) {
-            jobs.push([evalCfg, model, mode, tools, effectiveAgentType]);
+        for (const jobTools of agentToolSets) {
+          if (effectiveAgentType === 'claude-code') {
+            if (isClaudeModel(model)) {
+              jobs.push([evalCfg, model, mode, jobTools, effectiveAgentType]);
+            } else {
+              const seenKey = `${evalCfg.id}|${jobTools.join(',')}`;
+              if (claudeCodeEvalsSeen.has(seenKey)) continue;
+              claudeCodeEvalsSeen.add(seenKey);
+              jobs.push([evalCfg, 'claude-code', mode, jobTools, effectiveAgentType]);
+            }
           } else {
-            if (claudeCodeEvalsSeen.has(evalCfg.id)) continue;
-            claudeCodeEvalsSeen.add(evalCfg.id);
-            jobs.push([evalCfg, 'claude-code', mode, tools, effectiveAgentType]);
+            jobs.push([evalCfg, model, mode, jobTools, effectiveAgentType]);
           }
-        } else {
-          jobs.push([evalCfg, model, mode, tools, effectiveAgentType]);
         }
       }
     }
@@ -224,6 +258,7 @@ async function main(): Promise<void> {
   const {
     models,
     modes,
+    matrix,
     tools,
     evalIds,
     workers,
@@ -242,7 +277,53 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const jobs = buildJobList(registry, models, modes, tools, agentType);
+  const jobs = buildJobList(registry, models, modes, tools, agentType, matrix);
+
+  // ── Subprocess-per-job parallelism ──────────────────────────────────────────
+  // Spawn one child process per (eval × model × mode × tools) job so a crash
+  // or memory leak in one job cannot affect the others.  Each subprocess
+  // receives explicit --eval, --model, --mode, --tools, --agent-type flags so
+  // it resolves to exactly one job and takes the single-job path below, writing
+  // its result to a per-job temp file.  The parent waits for all subprocesses
+  // (up to `workers` concurrently) then merges the temp files into the final
+  // output.
+  if (jobs.length > 1) {
+    const { spawnEval, mergeIntoOutput } = await import('./runners/subprocess-runner.js');
+    const selfPath = join(__dirname, 'run.js');
+    const outputPath = resolveOutputPath(FRAMEWORK_ROOT, matrix ? [modeArg] : modes, outputOverride);
+
+    // Strip all per-job flags — each subprocess gets its own explicit values.
+    // --matrix is also stripped: the matrix has already been expanded into jobs.
+    const baseArgs = buildSubprocessArgs();
+
+    const tempFiles: string[] = [];
+    const subLimit = pLimit(workers);
+    await Promise.all(
+      jobs.map(([evalCfg, model, mode, jobTools, jobAgentType]) =>
+        subLimit(async () => {
+          const toolsSuffix = jobTools.length > 0 ? `-${jobTools.join('+')}` : '';
+          const safeModel = model.replace(/[^a-zA-Z0-9.-]/g, '_');
+          const tempFile = join(FRAMEWORK_ROOT, `scores-tmp-${evalCfg.id}-${safeModel}-${mode}${toolsSuffix}.json`);
+          tempFiles.push(tempFile);
+          const jobArgs = [
+            ...baseArgs,
+            '--model',
+            model,
+            '--mode',
+            mode,
+            '--agent-type',
+            jobAgentType,
+            ...(jobTools.length > 0 ? ['--tools', jobTools.join(',')] : []),
+          ];
+          await spawnEval(selfPath, evalCfg.id, [...jobArgs, '--output', tempFile]);
+        }),
+      ),
+    );
+
+    mergeIntoOutput(tempFiles, outputPath);
+    logger.info(`\n[Output] Results saved to: ${outputPath}`);
+    return;
+  }
 
   logger.info(`\nRunning ${jobs.length} job(s)  modes=${JSON.stringify(modes)}  workers=${workers}`);
   logger.info(`Evals : ${JSON.stringify(registry.map((e) => e.id))}`);
@@ -257,7 +338,6 @@ async function main(): Promise<void> {
     const { createBraintrustReporter } = await import('./reporters/braintrust.js');
     btReporter = await createBraintrustReporter(modeArg, tools);
 
-    // Sync eval definitions to Braintrust dataset (fire-and-forget, non-blocking)
     const { syncDataset, toEvalSummaries } = await import('./reporters/braintrust-dataset.js');
     Promise.all(registry.map((cfg) => loadEval(cfg, FRAMEWORK_ROOT)))
       .then((evalDefs) => syncDataset(toEvalSummaries(evalDefs)))
@@ -277,7 +357,8 @@ async function main(): Promise<void> {
           printResult(result);
           btReporter?.log(result);
         } catch (exc) {
-          logger.error(`  [ERROR] ${evalCfg.id}/${model}/${mode}: ${exc}`);
+          const toolLabel = jobTools.length > 0 ? ` [tools=${jobTools.join('+')}]` : '';
+          logger.error(`  [ERROR] ${evalCfg.id}/${model}/${mode}${toolLabel}: ${exc}`);
           const errResult = {
             ...serialiseError(evalCfg.id, evalCfg.category, model, mode, jobTools, String(exc)),
             ...(mode === 'agent' ? { agent_type: jobAgentType } : {}),
@@ -296,14 +377,14 @@ async function main(): Promise<void> {
     await btReporter.summarize();
   }
 
-  const outputPath = resolveOutputPath(FRAMEWORK_ROOT, modes, outputOverride);
+  const outputPath = resolveOutputPath(FRAMEWORK_ROOT, matrix ? [modeArg] : modes, outputOverride);
   const existing = loadResults(outputPath);
   const merged = mergeResults(existing, results);
   saveResults(outputPath, merged);
   logger.info(`\n[Output] Results saved to: ${outputPath}`);
 }
 
-// Skip main() when running under Vitest (process.env.VITEST is set automatically)
+// ── Entry point ───────────────────────────────────────────────────────────────
 if (!process.env.VITEST) {
   main().catch((e) => {
     logger.error(e);

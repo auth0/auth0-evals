@@ -19,6 +19,9 @@ import {
   type AgentType,
 } from './constants.js';
 
+/** Valid meta-values accepted by `--mode` in addition to the concrete Mode values. */
+const META_MODES = ['all', 'matrix'] as const;
+
 /** Validated, fully-resolved configuration derived from the CLI flags. */
 export interface RunConfig {
   /** Expanded list of model identifiers to run (never empty). */
@@ -47,6 +50,12 @@ export interface RunConfig {
    */
   modeArg: string;
   /**
+   * When `true`, `--mode matrix` was passed. `buildJobList` will expand agent
+   * mode across all four tool-set combinations (none, skills, mcp, mcp+skills)
+   * so the full 5-configuration matrix runs in a single command.
+   */
+  matrix: boolean;
+  /**
    * The agent runner to use for agent-mode jobs.
    * `undefined` when --agent-type was not passed; claude-* models are then auto-routed to claude-code.
    * `"auth0-ReAct-agent"` runs the custom ReAct loop via the ATKO LLM gateway.
@@ -74,7 +83,7 @@ export function parseRunConfig(argv: string[]): RunConfig {
       (v, prev: string[]) => [...prev, v],
       [] as string[],
     )
-    .option('--mode <mode>', 'Execution mode: baseline | agent | all (default: baseline)', 'baseline')
+    .option('--mode <mode>', 'Execution mode: baseline | agent | all | matrix (default: baseline)', 'baseline')
     .option(
       '--tools <tools>',
       `Tools for agent mode: ${KNOWN_TOOLS.join(', ')} (case-insensitive). Wrapping braces and comma-separation supported, e.g. {skills} or skills,mcp.`,
@@ -84,7 +93,7 @@ export function parseRunConfig(argv: string[]): RunConfig {
       '--agent-type <type>',
       `Agent runner for agent mode: ${KNOWN_AGENT_TYPES.join(' | ')} (default: ${DEFAULT_AGENT_TYPE})`,
     )
-    .option('--workers <n>', 'Parallel workers (default: 4)', '4')
+    .option('--workers <n>', 'Parallel workers (default: 4; default in matrix mode: 20)')
     .option('--output <path>', 'JSON output path')
     .option('--keep-workspace', '(agent mode) Keep temp workspace after run', false)
     .option('--braintrust', 'Log results to Braintrust experiment', false);
@@ -113,15 +122,21 @@ export function parseRunConfig(argv: string[]): RunConfig {
   // Mode selection
   const modeArg = opts.mode as string;
   let modes: Mode[];
+  let matrix = false;
   if (modeArg === 'all') {
     modes = ALL_MODES;
     logger.info(`Running all modes: ${modes.join(', ')}`);
+  } else if (modeArg === 'matrix') {
+    matrix = true;
+    modes = ALL_MODES;
+    logger.info(`Running matrix: baseline + agent × ${['none', 'skills', 'mcp', 'mcp+skills'].join(', ')}`);
   } else {
     if (!ALL_MODES.includes(modeArg as Mode)) {
       if (modeArg === 'agent+skills') {
         logger.error(`'agent+skills' mode has been replaced. Use: --mode agent --tools skills`);
       } else {
-        logger.error(`Invalid mode: ${modeArg}. Choose from: ${ALL_MODES.join(', ')} or 'all'`);
+        const validValues = [...ALL_MODES, ...META_MODES].join(', ');
+        logger.error(`Invalid mode: ${modeArg}. Choose from: ${validValues}`);
       }
       process.exit(1);
     }
@@ -146,8 +161,8 @@ export function parseRunConfig(argv: string[]): RunConfig {
     process.exit(1);
   }
 
-  // Workers validation
-  const workers = parseInt(opts.workers, 10);
+  // Workers validation — matrix defaults to 20, otherwise 4
+  const workers = parseInt((opts.workers as string | undefined) ?? (matrix ? '20' : '4'), 10);
   if (!Number.isInteger(workers) || workers < 1) {
     logger.error(`Invalid --workers value: ${JSON.stringify(opts.workers)}. Must be a positive integer.`);
     process.exit(1);
@@ -163,6 +178,7 @@ export function parseRunConfig(argv: string[]): RunConfig {
   return {
     models,
     modes,
+    matrix,
     tools,
     evalIds,
     workers,

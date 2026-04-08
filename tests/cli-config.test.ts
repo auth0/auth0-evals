@@ -114,6 +114,11 @@ describe('defaults', () => {
     const config = parseRunConfig(argv());
     expect(config.agentType).toBeUndefined();
   });
+
+  it('sets matrix to false by default', () => {
+    const config = parseRunConfig(argv());
+    expect(config.matrix).toBe(false);
+  });
 });
 
 // ── Model selection ───────────────────────────────────────────────────────────
@@ -158,6 +163,24 @@ describe('--mode', () => {
   it('modeArg preserves the raw --mode value even after expansion', () => {
     expect(parseRunConfig(argv('--mode', 'all')).modeArg).toBe('all');
     expect(parseRunConfig(argv('--mode', 'baseline')).modeArg).toBe('baseline');
+  });
+
+  it('--mode matrix expands modes to all known modes', () => {
+    expect(parseRunConfig(argv('--mode', 'matrix')).modes).toEqual(ALL_MODES);
+  });
+
+  it('--mode matrix sets matrix to true', () => {
+    expect(parseRunConfig(argv('--mode', 'matrix')).matrix).toBe(true);
+  });
+
+  it('--mode matrix preserves modeArg as "matrix"', () => {
+    expect(parseRunConfig(argv('--mode', 'matrix')).modeArg).toBe('matrix');
+  });
+
+  it('non-matrix modes set matrix to false', () => {
+    expect(parseRunConfig(argv('--mode', 'baseline')).matrix).toBe(false);
+    expect(parseRunConfig(argv('--mode', 'agent')).matrix).toBe(false);
+    expect(parseRunConfig(argv('--mode', 'all')).matrix).toBe(false);
   });
 
   it('exits for an unrecognised mode', () => {
