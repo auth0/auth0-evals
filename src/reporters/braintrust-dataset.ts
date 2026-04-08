@@ -6,6 +6,7 @@
  */
 
 import { initDataset } from 'braintrust';
+import { logger } from '../utils/logger.js';
 
 const PROJECT_ID = '38395851-dd41-46ec-a971-a30402db6921';
 const DATASET_NAME = 'auth0-evals';
@@ -49,10 +50,10 @@ export async function syncDataset(summaries: EvalSummary[]): Promise<boolean | n
 
     await dataset.flush();
     await dataset.close();
-    console.log(`[Braintrust] Dataset synced: ${summaries.length} evaluation(s) to ${DATASET_NAME}`);
+    logger.info(`[Braintrust] Dataset synced: ${summaries.length} evaluation(s) to ${DATASET_NAME}`);
     return true;
   } catch (e) {
-    console.error(`[Braintrust] Dataset sync failed: ${e}`);
+    logger.error(`[Braintrust] Dataset sync failed: ${e}`);
     return null;
   }
 }

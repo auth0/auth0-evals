@@ -8,6 +8,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { logger } from '../utils/logger.js';
 
 /**
  * Creates a fresh temp directory and seeds it with the scaffold files from the
@@ -31,6 +32,6 @@ export function cleanupWorkspace(workspace: string): void {
   try {
     rmSync(workspace, { recursive: true, force: true });
   } catch (e) {
-    console.warn(`[Cleanup] Failed to remove workspace ${workspace}: ${e}`);
+    logger.warn(`[Cleanup] Failed to remove workspace ${workspace}: ${e}`);
   }
 }

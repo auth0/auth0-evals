@@ -19,6 +19,7 @@ import { classifyActionType, classifyErrorCategory, detectRetry } from '../../ag
 import type { EvalDefinition } from '../../../runners/loader.js';
 import { BASE_URL, CLAUDE_CODE_TASK_TIMEOUT_MS } from '../../../config/settings.js';
 import { ClaudeCodeTranslator } from '../../tool-translator.js';
+import { logger } from '../../../utils/logger.js';
 import type {
   CcEvent,
   CcSystemEvent,
@@ -204,15 +205,15 @@ export async function runClaudeCodeAgent(
     args.push('--mcp-config', writeMcpConfig(workspace));
   }
 
-  console.log(`\n[ClaudeCode] Starting task: ${evalDef.id}`);
-  console.log(`[ClaudeCode] Workspace: ${workspace}`);
-  console.log(`[ClaudeCode] Allowed tools: ${allowedTools}`);
+  logger.info(`\n[ClaudeCode] Starting task: ${evalDef.id}`);
+  logger.info(`[ClaudeCode] Workspace: ${workspace}`);
+  logger.info(`[ClaudeCode] Allowed tools: ${allowedTools}`);
   if (resolvedModel) {
     const modelLabel = resolvedModel !== model ? `${model} → ${resolvedModel}` : resolvedModel;
-    console.log(`[ClaudeCode] Model: ${modelLabel}`);
+    logger.info(`[ClaudeCode] Model: ${modelLabel}`);
   }
-  if (tools.includes('mcp')) console.log(`[ClaudeCode] MCP: https://auth0.com/docs/mcp`);
-  console.log(`[ClaudeCode] Proxy: ${ANTHROPIC_PROXY_URL}`);
+  if (tools.includes('mcp')) logger.info(`[ClaudeCode] MCP: https://auth0.com/docs/mcp`);
+  logger.info(`[ClaudeCode] Proxy: ${ANTHROPIC_PROXY_URL}`);
 
   return new Promise<RunRecord>((resolve) => {
     // Route the claude CLI through the ATKO proxy's Anthropic pass-through endpoint.
@@ -234,7 +235,7 @@ export async function runClaudeCodeAgent(
     const taskTimeout = setTimeout(() => {
       record.providerErrors.push(`task timeout: killed after ${CLAUDE_CODE_TASK_TIMEOUT_MS / 1000}s`);
       record.status = 'failure';
-      console.log(`[ClaudeCode] ✗ Task timeout after ${CLAUDE_CODE_TASK_TIMEOUT_MS / 1000}s — killing subprocess`);
+      logger.error(`[ClaudeCode] ✗ Task timeout after ${CLAUDE_CODE_TASK_TIMEOUT_MS / 1000}s — killing subprocess`);
       child.kill('SIGTERM');
     }, CLAUDE_CODE_TASK_TIMEOUT_MS);
 
@@ -263,7 +264,7 @@ export async function runClaudeCodeAgent(
       record.endTime = Date.now() / 1000;
       record.status = 'failure';
       record.providerErrors.push(`spawn error: ${err.message}`);
-      console.log(`[ClaudeCode] ✗ Spawn failed: ${err.message}`);
+      logger.error(`[ClaudeCode] ✗ Spawn failed: ${err.message}`);
       resolve(record);
     });
 
@@ -283,7 +284,7 @@ export async function runClaudeCodeAgent(
         record.providerErrors.push(
           `stream parse error: ${ctx.state.parseFailures} line(s) failed to parse and no events were processed — stream format may have changed`,
         );
-        console.log(
+        logger.info(
           `[ClaudeCode] ✗ Stream parse failure: ${ctx.state.parseFailures} unparseable line(s), 0 turns recorded`,
         );
       }
@@ -316,7 +317,7 @@ export async function runClaudeCodeAgent(
             errorCategory: 'unknown',
           });
           record.providerErrors.push(`orphaned tool_use: ${pend.name} (id=${id}) never received a result${ctx_str}`);
-          console.log(`[ClaudeCode] ⚠ Orphaned tool_use: ${pend.name} (id=${id})`);
+          logger.warn(`[ClaudeCode] ⚠ Orphaned tool_use: ${pend.name} (id=${id})`);
         }
       }
       pending.clear();
@@ -327,10 +328,10 @@ export async function runClaudeCodeAgent(
         if (code !== 0) {
           const errPreview = stderrBuf.slice(0, 1000).trim();
           record.providerErrors.push(`exit code ${code}${errPreview ? `: ${errPreview}` : ''}`);
-          console.log(`[ClaudeCode] ✗ Exited with code ${code}${errPreview ? `\n${errPreview}` : ''}`);
+          logger.error(`[ClaudeCode] ✗ Exited with code ${code}${errPreview ? `\n${errPreview}` : ''}`);
         }
       }
-      console.log(
+      logger.info(
         `[ClaudeCode] Done — status=${record.status} turns=${ctx.state.turnNum} ` +
           `tools=${record.toolCalls.length} cost=$${record.costUsd.toFixed(4)}`,
       );
@@ -360,7 +361,7 @@ export function handleEvent(
     // Enrich model identifier with the actual underlying model reported by Claude Code
     record.model = sys.model ? `claude-code/${sys.model}` : CLAUDE_CODE_MODEL_ID;
     record.sessionId = sys.session_id;
-    console.log(`[ClaudeCode] Session ${sys.session_id} model=${sys.model}`);
+    logger.info(`[ClaudeCode] Session ${sys.session_id} model=${sys.model}`);
     return null;
   }
 
@@ -411,7 +412,7 @@ export function handleEvent(
     };
     record.turnMetrics.push(turnMetric);
 
-    console.log(
+    logger.info(
       `[ClaudeCode] Turn ${nextTurnNum}: ${turnInput}in/${turnOutput}out tokens, ` +
         `${toolUseCount} tool(s), finish=${stopReason}`,
     );
@@ -450,7 +451,7 @@ export function handleEvent(
       // Internal Claude Code tools (TodoWrite, Task, etc.) are bookkeeping, not task actions.
       // Log them for visibility but don't add to toolCalls so they don't distort scoring.
       if (translator.isInternalTool(pend.name)) {
-        console.log(`  [ClaudeCode] ${pend.name} (internal, skipped) (${elapsed}ms)`);
+        logger.info(`  [ClaudeCode] ${pend.name} (internal, skipped) (${elapsed}ms)`);
         continue;
       }
 
@@ -484,9 +485,9 @@ export function handleEvent(
       record.toolCalls.push(tc);
 
       if (isError) {
-        console.log(`  [ClaudeCode] ${pend.name} ✗ (${elapsed}ms) ${preview}`);
+        logger.error(`  [ClaudeCode] ${pend.name} ✗ (${elapsed}ms) ${preview}`);
       } else {
-        console.log(`  [ClaudeCode] ${pend.name} ✓ (${elapsed}ms)${preview ? ` → ${preview}` : ''}`);
+        logger.info(`  [ClaudeCode] ${pend.name} ✓ (${elapsed}ms)${preview ? ` → ${preview}` : ''}`);
       }
     }
 
@@ -562,7 +563,7 @@ export function processStreamChunk(buf: string, chunk: string, ctx: ProcessingCo
     } catch (e) {
       ctx.state.parseFailures++;
       const preview = raw.slice(0, 120);
-      console.error(`[ClaudeCode] ✗ Stream parse error (failure #${ctx.state.parseFailures}): ${preview} — ${e}`);
+      logger.error(`[ClaudeCode] ✗ Stream parse error (failure #${ctx.state.parseFailures}): ${preview} — ${e}`);
       ctx.record.providerErrors.push(`stream_parse_error: ${preview.slice(0, 80)}`);
       continue;
     }

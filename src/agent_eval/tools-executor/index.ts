@@ -4,6 +4,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { Tool, ToolResult } from '../tools/base.js';
 import { ALL_BASE_TOOLS } from '../tools/index.js';
+import { logger } from '../../utils/logger.js';
 
 export interface McpConfig {
   url: string;
@@ -40,7 +41,7 @@ export class ToolExecutor {
   async initMcp(config: McpConfig): Promise<{ tools: unknown[]; toolNames: string[] }> {
     const { url, version, name } = config;
 
-    console.log(`\n[MCP] Connecting to MCP server '${url}'...`);
+    logger.info(`\n[MCP] Connecting to MCP server '${url}'...`);
 
     const client = new Client({ name: name, version: version });
     const transport = new StreamableHTTPClientTransport(new URL(url), {
@@ -49,7 +50,7 @@ export class ToolExecutor {
     await client.connect(transport);
     const { tools } = await client.listTools();
 
-    console.log(`[MCP] Connected to '${url}'. Available tools: ${tools.map((t) => t.name).join(', ')}`);
+    logger.info(`[MCP] Connected to '${url}'. Available tools: ${tools.map((t) => t.name).join(', ')}`);
 
     const localToolNames = new Set(this.#tools.map((t) => t.name));
     const conflicts = tools.map((t) => t.name).filter((n) => this.#mcpToolToClient.has(n) || localToolNames.has(n));
@@ -102,17 +103,17 @@ export class ToolExecutor {
       const mcpClient = this.#mcpToolToClient.get(name);
       if (mcpClient) {
         const argsPreview = JSON.stringify(args).slice(0, 120);
-        console.log(`[MCP] Calling tool: ${name}(${argsPreview})`);
+        logger.info(`[MCP] Calling tool: ${name}(${argsPreview})`);
         const result = await mcpClient.callTool({ name, arguments: args });
         if (result.isError) {
-          console.log(`[MCP] Tool ${name} returned an error`);
+          logger.error(`[MCP] Tool ${name} returned an error`);
           return [`MCP error: ${JSON.stringify(result.content).slice(0, 500)}`, false, false, true];
         }
         const text = (result.content as { type: string; text: string }[])
           .filter((c) => c.type === 'text')
           .map((c) => c.text)
           .join('\n');
-        console.log(`[MCP] Tool ${name} returned ${text.length} chars`);
+        logger.info(`[MCP] Tool ${name} returned ${text.length} chars`);
         return [text.slice(0, 3000).trim() || '(no results)', true, false, false];
       }
 

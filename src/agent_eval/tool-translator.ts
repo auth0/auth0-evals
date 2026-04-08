@@ -10,6 +10,8 @@
  *   2. Use it inside that agent's runner — no changes elsewhere.
  */
 
+import { logger } from '../utils/logger.js';
+
 // ── Interface ─────────────────────────────────────────────────────────────────
 
 export interface ToolTranslator {
@@ -106,7 +108,7 @@ export class ClaudeCodeTranslator implements ToolTranslator {
   mapName(ccName: string): string {
     if (ccName in CC_TOOL_MAP) return CC_TOOL_MAP[ccName]!;
     if (ccName.startsWith('mcp__')) return ccName.toLowerCase();
-    console.warn(`[ClaudeCodeTranslator] Unknown tool "${ccName}" — falling back to "${ccName.toLowerCase()}"`);
+    logger.warn(`[ClaudeCodeTranslator] Unknown tool "${ccName}" — falling back to "${ccName.toLowerCase()}"`);
     return ccName.toLowerCase();
   }
 
