@@ -190,6 +190,7 @@ claims["scope"]         # space-separated scopes
 
 ## References
 
+- [auth0-fastapi-api on GitHub](https://github.com/auth0/auth0-fastapi-api)
 - [auth0-fastapi-api on PyPI](https://pypi.org/project/auth0-fastapi-api/)
-- [Auth0 FastAPI API Quickstart](https://auth0.com/docs/quickstart/backend/python)
+- [Auth0 FastAPI API Quickstart](https://auth0.com/docs/quickstart/backend/fastapi)
 - [FastAPI Dependency Injection](https://fastapi.tiangolo.com/tutorial/dependencies/)
