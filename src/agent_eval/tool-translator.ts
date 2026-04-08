@@ -81,6 +81,7 @@ const CC_TOOL_MAP: Record<string, string> = {
   WebSearch: 'fetch_url',
   AskUserQuestion: 'ask_user',
   TodoRead: 'read_file',
+  Skill: 'skill',
 };
 
 const CC_DOC_LOOKUP_TOOLS = new Set(['WebFetch', 'WebSearch']);
@@ -133,6 +134,8 @@ export class ClaudeCodeTranslator implements ToolTranslator {
         return { url: input.query ?? '' };
       case 'AskUserQuestion':
         return { question: input.question ?? '' };
+      case 'Skill':
+        return { name: input.skill ?? '' };
       default:
         return input;
     }

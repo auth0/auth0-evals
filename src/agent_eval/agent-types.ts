@@ -10,7 +10,7 @@
 
 export type FinishReason = 'tool_calls' | 'stop' | 'max_tokens' | 'length' | 'error' | 'unknown';
 export type ErrorCategory = 'not_found' | 'timeout' | 'syntax' | 'auth' | 'network' | 'permission' | 'unknown';
-export type ActionType = 'Implementation' | 'Discovery' | 'Error' | 'Interruption' | 'unknown';
+export type ActionType = 'Implementation' | 'Discovery' | 'Error' | 'Interruption' | 'Skill' | 'unknown';
 
 /** Per-LLM-call metrics captured during the agent loop. */
 export interface TurnMetric {
@@ -111,6 +111,7 @@ const TOOL_ACTION_TYPES: Record<string, ActionType> = {
   run_command: 'Implementation',
   finish_task: 'Implementation',
   search_auth0_docs: 'Discovery',
+  skill: 'Skill',
 };
 
 /**
