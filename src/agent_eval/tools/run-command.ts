@@ -1,8 +1,12 @@
 import { execSync } from 'node:child_process';
 import { Tool, ToolContext, ToolName, ToolResult } from './base.js';
 
-function wrapResult(message: string): ToolResult {
+function successResult(message: string): ToolResult {
   return [message, false, false, false];
+}
+
+function errorResult(message: string): ToolResult {
+  return [message, false, false, true];
 }
 
 /**
@@ -19,16 +23,16 @@ export class RunCommandTool implements Tool {
     try {
       const stdout = execSync(command, {
         cwd: context.workspace,
-        timeout: 60_000,
+        timeout: 180_000,
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
       });
-      return wrapResult((stdout as string).slice(-2000) || '(no output)');
+      return successResult((stdout as string).slice(-2000) || '(no output)');
     } catch (e: unknown) {
       const err = e as { stdout?: string; stderr?: string; message?: string };
       const out = (err.stdout ?? '').slice(-2000);
       const errText = (err.stderr ?? err.message ?? '').slice(-1000);
-      return wrapResult((out + (errText ? '\n' + errText : '')).trim() || '(no output)');
+      return errorResult((out + (errText ? '\n' + errText : '')).trim() || '(no output)');
     }
   }
 }
