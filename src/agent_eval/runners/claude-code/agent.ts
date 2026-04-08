@@ -53,10 +53,10 @@ const translator = new ClaudeCodeTranslator();
  */
 const ATKO_MODEL_ALIAS_MAP: Record<string, string> = {
   'claude-4-6-sonnet': 'global.anthropic.claude-sonnet-4-6',
-  'claude-4-6-opus': 'global.anthropic.claude-opus-4-6',
-  'claude-4-5-sonnet': 'global.anthropic.claude-sonnet-4-5',
-  'claude-4-5-opus': 'global.anthropic.claude-opus-4-5',
-  'claude-4-5-haiku': 'global.anthropic.claude-haiku-4-5',
+  'claude-4-6-opus': 'global.anthropic.claude-opus-4-6-v1',
+  'claude-4-5-sonnet': 'global.anthropic.claude-sonnet-4-5-20250929-v1:0',
+  'claude-4-5-opus': 'global.anthropic.claude-opus-4-5-20251101-v1:0',
+  'claude-4-5-haiku': 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
 };
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -81,9 +81,18 @@ const ANTHROPIC_PROXY_URL = BASE_URL.replace(/\/v1\/?$/, '/anthropic');
  *
  * AskUserQuestion is excluded to suppress interactive interruptions during unattended evals.
  */
-const DEFAULT_ALLOWED_TOOLS = ['Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'LS', 'WebFetch', 'Skill'].join(
-  ',',
-);
+const DEFAULT_ALLOWED_TOOLS = [
+  'Bash',
+  'Read',
+  'Write',
+  'Edit',
+  'MultiEdit',
+  'Glob',
+  'Grep',
+  'LS',
+  'WebFetch',
+  'Skill',
+].join(',');
 
 export interface ClaudeCodeRunOptions {
   /** Path to the `claude` binary. Defaults to `claude` (resolved via PATH). */
@@ -499,17 +508,13 @@ export function handleEvent(
     }
     record.costUsd = res.total_cost_usd ?? 0;
 
-    switch (res.subtype) {
-      case 'success':
-        record.status = 'success';
-        break;
-      case 'error_max_turns':
-        record.status = 'failure';
-        record.providerErrors.push('max_turns_reached');
-        break;
-      default:
-        record.status = 'failure';
-        record.providerErrors.push(`result subtype: ${res.subtype}`);
+    // Success only when the subtype is 'success' with no error flag. Everything else
+    // is a failure — result carries the message when available, subtype otherwise.
+    if (res.subtype === 'success' && !res.is_error) {
+      record.status = 'success';
+    } else {
+      record.status = 'failure';
+      record.providerErrors.push(res.result || res.subtype);
     }
     return null;
   }

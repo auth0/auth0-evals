@@ -437,11 +437,11 @@ describe('handleEvent — result', () => {
     expect(record.status).toBe('success');
   });
 
-  it('error_max_turns sets status to failure and pushes max_turns_reached', () => {
+  it('error_max_turns sets status to failure and records the subtype', () => {
     const record = makeRecord();
     handleEvent(makeResultEv({ subtype: 'error_max_turns' }), record, makePending(), 0, 0);
     expect(record.status).toBe('failure');
-    expect(record.providerErrors).toContain('max_turns_reached');
+    expect(record.providerErrors.some((e) => e.includes('error_max_turns'))).toBe(true);
   });
 
   it('other subtype sets status to failure and records the subtype', () => {
@@ -477,6 +477,17 @@ describe('handleEvent — result', () => {
     record.finalSummary = 'Already set by assistant event.';
     handleEvent(makeResultEv({ subtype: 'success', result: 'Should not overwrite.' }), record, makePending(), 0, 0);
     expect(record.finalSummary).toBe('Already set by assistant event.');
+  });
+
+  it('success subtype with is_error:true sets failure and records the API error message', () => {
+    const record = makeRecord();
+    const ev: CcResultEvent = {
+      ...makeResultEv({ subtype: 'success', result: 'API Error (bad-model): 400 invalid model' }),
+      is_error: true,
+    };
+    handleEvent(ev, record, makePending(), 0, 0);
+    expect(record.status).toBe('failure');
+    expect(record.providerErrors.some((e) => e.includes('invalid model'))).toBe(true);
   });
 
   it('returns null', () => {
