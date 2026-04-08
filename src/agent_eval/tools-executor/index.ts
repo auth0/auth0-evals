@@ -66,14 +66,19 @@ export class ToolExecutor {
 
     return {
       toolNames: tools.map((t) => t.name),
-      tools: tools.map((t) => ({
-        type: 'function',
-        function: {
-          name: t.name,
-          description: t.description ?? '',
-          parameters: t.inputSchema,
-        },
-      })),
+      tools: tools.map((t) => {
+        // Strip $schema — Vertex AI / Gemini rejects unknown top-level keys
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { $schema: _, ...parameters } = t.inputSchema as Record<string, unknown>;
+        return {
+          type: 'function',
+          function: {
+            name: t.name,
+            description: t.description ?? '',
+            parameters,
+          },
+        };
+      }),
     };
   }
 

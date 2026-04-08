@@ -865,6 +865,32 @@ describe('ToolExecutor.search_auth0_docs', () => {
     const [result] = await executor.execute('search_auth0_docs', { query: 'anything' });
     expect(result).toBe('(no results)');
   });
+
+  it('strips $schema from MCP tool inputSchema', async () => {
+    mockClient.listTools.mockResolvedValue({
+      tools: [
+        {
+          name: 'search_auth0_docs',
+          description: 'Search docs',
+          inputSchema: {
+            $schema: 'https://json-schema.org/draft/2020-12/schema',
+            type: 'object',
+            properties: { query: { type: 'string' } },
+            required: ['query'],
+          },
+        },
+      ],
+    });
+    const executor = new ToolExecutor(tmpDir());
+    const { tools } = await executor.initMcp({ url: 'http://mcp', name: 'test', version: '1.0.0' });
+    const fn = (tools[0] as { function: { parameters: Record<string, unknown> } }).function;
+    expect(fn.parameters).not.toHaveProperty('$schema');
+    expect(fn.parameters).toEqual({
+      type: 'object',
+      properties: { query: { type: 'string' } },
+      required: ['query'],
+    });
+  });
 });
 
 // ── ToolExecutor.list_skill_files tests ───────────────────────────────────────
