@@ -60,6 +60,11 @@ const ATKO_MODEL_ALIAS_MAP: Record<string, string> = {
   'claude-4-5-haiku': 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
 };
 
+/** Reverse lookup: full Anthropic model ID → friendly ATKO alias. */
+const ATKO_MODEL_REVERSE_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(ATKO_MODEL_ALIAS_MAP).map(([alias, full]) => [full, alias]),
+);
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /** Model identifier written to RunRecord when Claude Code runner is used. */
@@ -359,7 +364,9 @@ export function handleEvent(
     // Skip hook_response and other non-init system events
     if (sys.subtype !== 'init') return null;
     // Enrich model identifier with the actual underlying model reported by Claude Code
-    record.model = sys.model ? `claude-code/${sys.model}` : CLAUDE_CODE_MODEL_ID;
+    record.model = sys.model
+      ? (ATKO_MODEL_REVERSE_MAP[sys.model] ?? `claude-code/${sys.model}`)
+      : CLAUDE_CODE_MODEL_ID;
     record.sessionId = sys.session_id;
     logger.info(`[ClaudeCode] Session ${sys.session_id} model=${sys.model}`);
     return null;
