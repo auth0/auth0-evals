@@ -67,11 +67,11 @@ The runner will log the source for each skill loaded:
 
 ### 4. Compare against the baseline
 
-Run all three modes to measure the delta your skill provides:
+Run all 4 combos to measure the delta your skill provides:
 
 ```bash
-npm run run -- --eval react_quickstart --mode all --model gpt-5.2
-npm run report -- --input scores-all-modes.json && open report.html
+npm run run -- --eval react_quickstart --mode matrix --model gpt-5.2
+npm run report -- --input scores-matrix.json && open report.html
 ```
 
 The delta between `agent` and `agent+skills` is the signal. If the skill helps, it will show up as a grader pass-rate or score increase in `agent+skills` vs `agent`.

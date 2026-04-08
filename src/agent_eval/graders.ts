@@ -284,7 +284,10 @@ export async function llmJudge(
     if (!answer) {
       return { passed: false, detail: `Judge (${model}) error: empty response` };
     }
-    const lines = answer.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+    const lines = answer
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
     const lastLine = lines[lines.length - 1]!.toLowerCase();
     const m = /^(yes|no)\b/.exec(lastLine);
     if (!m) {
