@@ -119,6 +119,11 @@ describe('defaults', () => {
     const config = parseRunConfig(argv());
     expect(config.matrix).toBe(false);
   });
+
+  it('does not include modeArg in the returned config', () => {
+    const config = parseRunConfig(argv());
+    expect(config).not.toHaveProperty('modeArg');
+  });
 });
 
 // ── Model selection ───────────────────────────────────────────────────────────
@@ -160,21 +165,9 @@ describe('--mode', () => {
     expect(parseRunConfig(argv('--mode', 'all')).modes).toEqual(ALL_MODES);
   });
 
-  it('modeArg preserves the raw --mode value even after expansion', () => {
-    expect(parseRunConfig(argv('--mode', 'all')).modeArg).toBe('all');
-    expect(parseRunConfig(argv('--mode', 'baseline')).modeArg).toBe('baseline');
-  });
-
-  it('--mode matrix expands modes to all known modes', () => {
-    expect(parseRunConfig(argv('--mode', 'matrix')).modes).toEqual(ALL_MODES);
-  });
-
-  it('--mode matrix sets matrix to true', () => {
-    expect(parseRunConfig(argv('--mode', 'matrix')).matrix).toBe(true);
-  });
-
-  it('--mode matrix preserves modeArg as "matrix"', () => {
-    expect(parseRunConfig(argv('--mode', 'matrix')).modeArg).toBe('matrix');
+  it('--mode matrix exits with migration hint', () => {
+    expect(() => parseRunConfig(argv('--mode', 'matrix'))).toThrow('process.exit(1)');
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('--matrix'));
   });
 
   it('non-matrix modes set matrix to false', () => {
@@ -199,6 +192,43 @@ describe('--mode', () => {
   it('prints a migration hint for agent+skills', () => {
     expect(() => parseRunConfig(argv('--mode', 'agent+skills'))).toThrow();
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining('--mode agent --tools skills'));
+  });
+});
+
+// ── Matrix flag ──────────────────────────────────────────────────────────────
+
+describe('--matrix', () => {
+  it('sets matrix to true', () => {
+    expect(parseRunConfig(argv('--matrix')).matrix).toBe(true);
+  });
+
+  it('defaults modes to all known modes', () => {
+    expect(parseRunConfig(argv('--matrix')).modes).toEqual(ALL_MODES);
+  });
+
+  it('defaults models to all known working models', () => {
+    expect(parseRunConfig(argv('--matrix')).models).toEqual(KNOWN_WORKING_MODELS);
+  });
+
+  it('defaults workers to 20', () => {
+    expect(parseRunConfig(argv('--matrix')).workers).toBe(20);
+  });
+
+  it('explicit --mode narrows the matrix', () => {
+    expect(parseRunConfig(argv('--matrix', '--mode', 'agent')).modes).toEqual(['agent']);
+  });
+
+  it('explicit --model narrows the matrix', () => {
+    expect(parseRunConfig(argv('--matrix', '--model', 'gpt-5.4')).models).toEqual(['gpt-5.4']);
+  });
+
+  it('explicit --workers overrides the matrix default', () => {
+    expect(parseRunConfig(argv('--matrix', '--workers', '2')).workers).toBe(2);
+  });
+
+  it('explicit --eval narrows the matrix', () => {
+    const config = parseRunConfig(argv('--matrix', '--eval', VALID_EVAL_ID));
+    expect(config.evalIds).toEqual([VALID_EVAL_ID]);
   });
 });
 
