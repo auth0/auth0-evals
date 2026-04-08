@@ -20,7 +20,7 @@ import {
 } from './constants.js';
 
 /** Valid meta-values accepted by `--mode` in addition to the concrete Mode values. */
-const META_MODES = ['all', 'matrix'] as const;
+const META_MODES = ['all'] as const;
 
 /** Validated, fully-resolved configuration derived from the CLI flags. */
 export interface RunConfig {
@@ -43,16 +43,10 @@ export interface RunConfig {
   /** Validated API key read from `ATKO_API_KEY`. */
   apiKey: string;
   /**
-   * The raw `--mode` argument before expansion.
-   *
-   * Used when naming Braintrust experiments so `"all"` is preserved rather
-   * than being replaced by the expanded `["baseline", "agent"]` array.
-   */
-  modeArg: string;
-  /**
-   * When `true`, `--mode matrix` was passed. `buildJobList` will expand agent
-   * mode across all four tool-set combinations (none, skills, mcp, mcp+skills)
-   * so the full 5-configuration matrix runs in a single command.
+   * When `true`, `--matrix` was passed. Shorthand for running all evals × all
+   * models × all modes × all tool-set combinations. Explicit `--eval`, `--model`,
+   * or `--mode` flags narrow the matrix. `buildJobList` uses this to expand
+   * agent mode across all tool-set combinations.
    */
   matrix: boolean;
   /**
@@ -83,7 +77,7 @@ export function parseRunConfig(argv: string[]): RunConfig {
       (v, prev: string[]) => [...prev, v],
       [] as string[],
     )
-    .option('--mode <mode>', 'Execution mode: baseline | agent | all | matrix (default: baseline)', 'baseline')
+    .option('--mode <mode>', 'Execution mode: baseline | agent | all (default: baseline)')
     .option(
       '--tools <tools>',
       `Tools for agent mode: ${KNOWN_TOOLS.join(', ')} (case-insensitive). Wrapping braces and comma-separation supported, e.g. {skills} or skills,mcp.`,
@@ -92,6 +86,11 @@ export function parseRunConfig(argv: string[]): RunConfig {
     .option(
       '--agent-type <type>',
       `Agent runner for agent mode: ${KNOWN_AGENT_TYPES.join(' | ')} (default: ${DEFAULT_AGENT_TYPE})`,
+    )
+    .option(
+      '--matrix',
+      'Run the full eval matrix: all evals × all models × all modes × all tool-set combinations',
+      false,
     )
     .option('--workers <n>', 'Parallel workers (default: 4; default in matrix mode: 20)')
     .option('--output <path>', 'JSON output path')
@@ -107,7 +106,9 @@ export function parseRunConfig(argv: string[]): RunConfig {
     process.exit(1);
   }
 
-  // Model selection
+  const matrix = opts.matrix as boolean;
+
+  // Model selection — --matrix defaults to all models, explicit --model narrows
   const rawModels = opts.model as string[];
   let models: string[];
   if (rawModels.length > 0 && rawModels.includes('all')) {
@@ -115,32 +116,39 @@ export function parseRunConfig(argv: string[]): RunConfig {
     logger.info(`Using all known working models: ${models.join(', ')}`);
   } else if (rawModels.length > 0) {
     models = rawModels;
+  } else if (matrix) {
+    models = KNOWN_WORKING_MODELS;
+    logger.info(`Using all known working models: ${models.join(', ')}`);
   } else {
     models = [DEFAULT_MODEL];
   }
 
-  // Mode selection
-  const modeArg = opts.mode as string;
+  // Mode selection — --matrix defaults to all modes, explicit --mode narrows
+  const modeArg = opts.mode as string | undefined;
   let modes: Mode[];
-  let matrix = false;
-  if (modeArg === 'all') {
+  if (modeArg == null) {
+    // No explicit --mode: use all modes in matrix, baseline otherwise
+    modes = matrix ? ALL_MODES : ['baseline'];
+  } else if (modeArg === 'all') {
     modes = ALL_MODES;
     logger.info(`Running all modes: ${modes.join(', ')}`);
   } else if (modeArg === 'matrix') {
-    matrix = true;
-    modes = ALL_MODES;
-    logger.info(`Running matrix: baseline + agent × ${['none', 'skills', 'mcp', 'mcp+skills'].join(', ')}`);
-  } else {
-    if (!ALL_MODES.includes(modeArg as Mode)) {
-      if (modeArg === 'agent+skills') {
-        logger.error(`'agent+skills' mode has been replaced. Use: --mode agent --tools skills`);
-      } else {
-        const validValues = [...ALL_MODES, ...META_MODES].join(', ');
-        logger.error(`Invalid mode: ${modeArg}. Choose from: ${validValues}`);
-      }
-      process.exit(1);
+    logger.error(`'--mode matrix' has been replaced. Use the standalone --matrix flag instead.`);
+    process.exit(1);
+  } else if (!ALL_MODES.includes(modeArg as Mode)) {
+    if (modeArg === 'agent+skills') {
+      logger.error(`'agent+skills' mode has been replaced. Use: --mode agent --tools skills`);
+    } else {
+      const validValues = [...ALL_MODES, ...META_MODES].join(', ');
+      logger.error(`Invalid mode: ${modeArg}. Choose from: ${validValues}`);
     }
+    process.exit(1);
+  } else {
     modes = [modeArg as Mode];
+  }
+
+  if (matrix) {
+    logger.info(`Running matrix: ${modes.join(', ')} × ${['none', 'skills', 'mcp+skills'].join(', ')}`);
   }
 
   // Eval filtering
@@ -186,7 +194,6 @@ export function parseRunConfig(argv: string[]): RunConfig {
     keepWorkspace: opts.keepWorkspace as boolean,
     braintrust: opts.braintrust as boolean,
     apiKey,
-    modeArg,
     agentType,
   };
 }

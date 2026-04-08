@@ -177,6 +177,22 @@ describe('buildJobList — matrix mode', () => {
     expect(jobs).toHaveLength(1);
     expect(jobs[0][3]).toEqual(['skills']);
   });
+
+  it('explicit tools override matrix tool-set expansion', () => {
+    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['agent'], ['skills'], undefined, true);
+    // matrix=true but tools are explicitly provided → use only that tool set
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0][3]).toEqual(['skills']);
+  });
+
+  it('explicit tools override matrix for baseline+agent', () => {
+    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['baseline', 'agent'], ['mcp', 'skills'], undefined, true);
+    // 1 baseline + 1 agent (with explicit tools) = 2 jobs
+    expect(jobs).toHaveLength(2);
+    const agent = jobs.filter((j) => j[2] === 'agent');
+    expect(agent).toHaveLength(1);
+    expect(agent[0][3]).toEqual(['mcp', 'skills']);
+  });
 });
 
 // ── buildSubprocessArgs ───────────────────────────────────────────────────────

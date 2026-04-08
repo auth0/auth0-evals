@@ -13,6 +13,7 @@
  *   --model       Model(s) to run (default: gpt-5.2). Can be repeated.
  *                 Use 'all' to run all known working models.
  *   --mode        Execution mode: baseline | agent | all (default: baseline)
+ *   --matrix      Run all evals × all models × all modes × all tool-set combinations
  *   --agent-type  Agent runner for agent mode: auth0-ReAct-agent | claude-code (default: auth0-ReAct-agent)
  *   --tools       Tools to inject for agent mode: skills, mcp (default: none). Case-insensitive.
  *   --workers     Parallel workers (default: 4)
@@ -223,7 +224,7 @@ export function buildJobList(
   const claudeCodeEvalsSeen = new Set<string>();
   // In matrix mode iterate over all four tool-set combinations for agent jobs.
   // In normal mode wrap the single tools array so the inner loop is uniform.
-  const agentToolSets = matrix ? MATRIX_TOOL_SETS : [tools];
+  const agentToolSets = matrix && tools.length === 0 ? MATRIX_TOOL_SETS : [tools];
   for (const evalCfg of registry) {
     for (const model of models) {
       for (const mode of modes) {
@@ -266,7 +267,6 @@ async function main(): Promise<void> {
     keepWorkspace,
     braintrust,
     apiKey,
-    modeArg,
     agentType,
   } = config;
 
@@ -290,7 +290,7 @@ async function main(): Promise<void> {
   if (jobs.length > 1) {
     const { spawnEval, mergeIntoOutput } = await import('./runners/subprocess-runner.js');
     const selfPath = join(__dirname, 'run.js');
-    const outputPath = resolveOutputPath(FRAMEWORK_ROOT, matrix ? [modeArg] : modes, outputOverride);
+    const outputPath = resolveOutputPath(FRAMEWORK_ROOT, matrix ? ['matrix'] : modes, outputOverride);
 
     // Strip all per-job flags — each subprocess gets its own explicit values.
     // --matrix is also stripped: the matrix has already been expanded into jobs.
@@ -336,7 +336,8 @@ async function main(): Promise<void> {
   let btReporter: Awaited<ReturnType<typeof import('./reporters/braintrust.js').createBraintrustReporter>> = null;
   if (braintrust) {
     const { createBraintrustReporter } = await import('./reporters/braintrust.js');
-    btReporter = await createBraintrustReporter(modeArg, tools);
+    const modeLabel = matrix ? 'matrix' : modes.join(',');
+    btReporter = await createBraintrustReporter(modeLabel, tools);
 
     const { syncDataset, toEvalSummaries } = await import('./reporters/braintrust-dataset.js');
     Promise.all(registry.map((cfg) => loadEval(cfg, FRAMEWORK_ROOT)))
@@ -377,7 +378,7 @@ async function main(): Promise<void> {
     await btReporter.summarize();
   }
 
-  const outputPath = resolveOutputPath(FRAMEWORK_ROOT, matrix ? [modeArg] : modes, outputOverride);
+  const outputPath = resolveOutputPath(FRAMEWORK_ROOT, matrix ? ['matrix'] : modes, outputOverride);
   const existing = loadResults(outputPath);
   const merged = mergeResults(existing, results);
   saveResults(outputPath, merged);
