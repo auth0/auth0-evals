@@ -10,8 +10,8 @@ cp .env.example .env
 
 npm install
 
-# Run full matrix — all 4 mode+tool combos across all evals (recommended)
-npm run run -- --mode matrix --model all
+# Run full matrix — all evals × all models × all modes × all tool combos (recommended)
+npm run run -- --matrix
 
 # Generate and view report
 npm run report
@@ -23,11 +23,8 @@ npm run report
 # Quick test - baseline mode with default model
 npm run run -- --eval react_quickstart --mode baseline
 
-# Full matrix for a single eval
-npm run run -- --eval react_quickstart --mode matrix
-
 # Full matrix for a single eval across all models
-npm run run -- --eval react_quickstart --mode matrix --model all
+npm run run -- --matrix --eval react_quickstart
 
 # Run all known working models in baseline mode
 npm run run -- --model all --mode baseline
@@ -36,13 +33,13 @@ npm run run -- --model all --mode baseline
 npm run run -- --eval react_quickstart --mode agent --tools skills
 
 # Run everything (all evals × all models × full matrix)
-npm run run -- --mode matrix --model all
+npm run run -- --matrix
 
 # Generate HTML report from results
 npm run report -- --input scores-matrix.json
 
 # Run and view results in one command
-npm run run -- --eval react_quickstart --mode matrix --model all && npm run report -- --input scores-matrix.json && open report.html
+npm run run -- --matrix --eval react_quickstart && npm run report -- --input scores-matrix.json && open report.html
 ```
 
 ## Modes & Tools
@@ -104,8 +101,10 @@ npm run run -- --model gpt-5.2
             Use 'all' to run all known working models.
 --mode      baseline | agent | all (default: baseline)
             Use 'all' to run both modes in parallel.
+--matrix    Run full eval matrix: all evals × all models × all modes × all tool combos.
+            Explicit --eval, --model, --mode, or --tools narrow the matrix.
 --tools     skills | mcp | mcp,skills (agent mode only)
---workers   Parallel workers (default: 4)
+--workers   Parallel workers (default: 4; default in matrix mode: 20)
 --output    JSON output path (default: scores-<mode>.json or scores-all-modes.json)
 --keep-workspace   (agent mode only) Keep temp workspace after run
 ```
