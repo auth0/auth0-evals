@@ -123,7 +123,7 @@ The framework maintains a list of models that work reliably across all modes:
 **Google:**
 - `gemini-3-pro-preview`
 
-**Note:** GPT and Gemini use the ATKO LiteLLM proxy (`ATKO_API_KEY`). Claude models use the local `claude` CLI's own OAuth auth.
+**Note:** GPT and Gemini use the ATKO LiteLLM proxy (`ATKO_API_KEY`). Claude models use the `claude` CLI routed through the ATKO proxy's Bedrock pass-through endpoint by default. Set `CLAUDE_CODE_USE_BEDROCK_PROXY=0` to route through the LiteLLM proxy instead.
 
 ## Evals
 

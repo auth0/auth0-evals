@@ -116,9 +116,11 @@ Process dimensions (50% weight) are **zeroed out when the agent didn't execute**
 | Runner | Used for | Auth |
 |---|---|---|
 | ReAct (`auth0-ReAct-agent`) | GPT, Gemini — any model via ATKO LiteLLM proxy | `ATKO_API_KEY` env var |
-| Claude Code (`claude-code`) | Claude models — auto-selected | Local `claude` CLI OAuth (keychain) |
+| Claude Code (`claude-code`) | Claude models — auto-selected | `ATKO_API_KEY` via ATKO proxy |
 
-Claude Code runner spawns the `claude` CLI as a subprocess. It does **not** use the ATKO proxy — it uses the CLI's own authentication against `api.anthropic.com`.
+Claude Code runner spawns the `claude` CLI as a subprocess, routing requests through the ATKO proxy.
+
+By default it uses the Bedrock proxy, which maps short aliases (e.g. `claude-4-6-sonnet`) to full Bedrock model IDs. Set `CLAUDE_CODE_USE_BEDROCK_PROXY=0` to route through the LiteLLM proxy instead — aliases are passed directly and the proxy handles resolution.
 
 ## Key commands
 
