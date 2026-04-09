@@ -92,9 +92,13 @@ jobs:
           name: build-dist
           path: dist/
 
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
       - name: Run eval
         env:
           ATKO_API_KEY: ${{ secrets.ATKO_API_KEY }}
+          CLAUDE_CODE_USE_BEDROCK_PROXY: 0
         run: |
           ARGS="--eval ${{ matrix.eval }} \
                 --mode ${{ matrix.mode.mode }} \

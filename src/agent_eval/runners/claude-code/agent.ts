@@ -44,15 +44,17 @@ const translator = new ClaudeCodeTranslator();
 
 // ── Model alias mapping ───────────────────────────────────────────────────────
 
+/** Whether the runner should use Bedrock model IDs (via the ATKO /anthropic proxy endpoint). */
+const USE_BEDROCK = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY !== '0';
+
 /**
- * Maps the short ATKO OpenAI-compat model aliases (used by the ReAct agent via
- * /v1/chat/completions) to the full Anthropic pass-through model IDs expected by
- * the claude CLI when routing through the ATKO Anthropic endpoint.
+ * Maps the short ATKO OpenAI-compat model aliases to the full Bedrock model IDs
+ * expected by the claude CLI when routing through the ATKO Anthropic pass-through endpoint.
  *
- * This lets callers use a single standard name (e.g. `claude-4-6-sonnet`) for
- * both agent runners without worrying about which endpoint each one targets.
+ * Only used when CLAUDE_CODE_USE_BEDROCK_PROXY !== '0'; in LiteLLM proxy mode the aliases are
+ * passed through directly.
  */
-const ATKO_MODEL_ALIAS_MAP: Record<string, string> = {
+const BEDROCK_MODEL_ALIAS_MAP: Record<string, string> = {
   'claude-4-6-sonnet': 'global.anthropic.claude-sonnet-4-6',
   'claude-4-6-opus': 'global.anthropic.claude-opus-4-6-v1',
   'claude-4-5-sonnet': 'global.anthropic.claude-sonnet-4-5-20250929-v1:0',
@@ -60,10 +62,13 @@ const ATKO_MODEL_ALIAS_MAP: Record<string, string> = {
   'claude-4-5-haiku': 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
 };
 
-/** Reverse lookup: full Anthropic model ID → friendly ATKO alias. */
-const ATKO_MODEL_REVERSE_MAP: Record<string, string> = Object.fromEntries(
-  Object.entries(ATKO_MODEL_ALIAS_MAP).map(([alias, full]) => [full, alias]),
+/** Reverse lookup: full Bedrock model ID → friendly ATKO alias. */
+const BEDROCK_MODEL_REVERSE_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(BEDROCK_MODEL_ALIAS_MAP).map(([alias, full]) => [full, alias]),
 );
+
+/** Set of known ATKO proxy model aliases — used to validate model IDs in reports. */
+const ATKO_KNOWN_MODELS = new Set(Object.keys(BEDROCK_MODEL_ALIAS_MAP));
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
@@ -71,12 +76,13 @@ const ATKO_MODEL_REVERSE_MAP: Record<string, string> = Object.fromEntries(
 export const CLAUDE_CODE_MODEL_ID = 'claude-code';
 
 /**
- * Anthropic pass-through URL on the ATKO LiteLLM proxy.
- * Derived from BASE_URL by replacing the OpenAI-compat `/v1` suffix with `/anthropic`.
+ * ATKO proxy base URL for the Claude CLI.
+ * - Bedrock mode: `/anthropic` pass-through endpoint on the ATKO LiteLLM proxy.
+ * - LiteLLM mode: proxy root (stripped `/v1` suffix) — handles Anthropic-protocol requests directly.
  * The `claude` CLI honours ANTHROPIC_BASE_URL, routing all requests through the proxy
  * instead of hitting api.anthropic.com directly.
  */
-const ANTHROPIC_PROXY_URL = BASE_URL.replace(/\/v1\/?$/, '/anthropic');
+const ANTHROPIC_PROXY_URL = USE_BEDROCK ? BASE_URL.replace(/\/v1\/?$/, '/anthropic') : BASE_URL.replace(/\/v1\/?$/, '');
 
 /**
  * Tools available during eval runs.
@@ -179,10 +185,10 @@ export async function runClaudeCodeAgent(
     workspace,
   };
 
-  // Resolve short ATKO OpenAI-compat alias to the full Anthropic pass-through model ID
-  // the claude CLI expects (e.g. claude-4-6-sonnet → global.anthropic.claude-sonnet-4-6).
-  // This lets callers use the same model name for both ReAct and Claude Code runners.
-  const resolvedModel = model ? (ATKO_MODEL_ALIAS_MAP[model] ?? model) : undefined;
+  // In Bedrock mode, resolve short ATKO alias to the full Bedrock model ID
+  // (e.g. claude-4-6-sonnet → global.anthropic.claude-sonnet-4-6).
+  // In LiteLLM mode, pass the alias directly — the proxy handles resolution.
+  const resolvedModel = model ? (USE_BEDROCK ? (BEDROCK_MODEL_ALIAS_MAP[model] ?? model) : model) : undefined;
 
   const args = [
     '--print',
@@ -221,12 +227,13 @@ export async function runClaudeCodeAgent(
   logger.info(`[ClaudeCode] Proxy: ${ANTHROPIC_PROXY_URL}`);
 
   return new Promise<RunRecord>((resolve) => {
-    // Route the claude CLI through the ATKO proxy's Anthropic pass-through endpoint.
-    // ANTHROPIC_BASE_URL tells the Anthropic SDK (used internally by claude CLI) where
-    // to send requests. ANTHROPIC_API_KEY is set to the ATKO key so the proxy accepts auth.
+    // Route the claude CLI through the ATKO proxy.
+    // ANTHROPIC_BASE_URL tells the CLI where to send requests.
+    // ANTHROPIC_API_KEY is set to the ATKO key so the proxy accepts auth.
     const proxyEnv: Record<string, string> = {
       ANTHROPIC_BASE_URL: ANTHROPIC_PROXY_URL,
     };
+
     if (process.env.ATKO_API_KEY) {
       proxyEnv.ANTHROPIC_API_KEY = process.env.ATKO_API_KEY;
     }
@@ -363,9 +370,12 @@ export function handleEvent(
     const sys = ev as CcSystemEvent;
     // Skip hook_response and other non-init system events
     if (sys.subtype !== 'init') return null;
-    // Enrich model identifier with the actual underlying model reported by Claude Code
+    // Enrich model identifier with the actual underlying model reported by Claude Code.
+    // In Bedrock mode the CLI reports full Bedrock IDs — reverse-map to friendly aliases.
+    // In LiteLLM mode the CLI reports the alias directly — validate and use as-is.
     record.model = sys.model
-      ? (ATKO_MODEL_REVERSE_MAP[sys.model] ?? `claude-code/${sys.model}`)
+      ? (BEDROCK_MODEL_REVERSE_MAP[sys.model] ??
+        (ATKO_KNOWN_MODELS.has(sys.model) ? sys.model : `claude-code/${sys.model}`))
       : CLAUDE_CODE_MODEL_ID;
     record.sessionId = sys.session_id;
     logger.info(`[ClaudeCode] Session ${sys.session_id} model=${sys.model}`);
