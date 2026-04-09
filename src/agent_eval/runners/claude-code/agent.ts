@@ -24,6 +24,7 @@ import type { RunRecord, ToolCallRecord, TurnMetric, FinishReason } from '../../
 import { classifyActionType, classifyErrorCategory, detectRetry } from '../../agent-types.js';
 import type { EvalDefinition } from '../../../runners/loader.js';
 import { BASE_URL, CLAUDE_CODE_TASK_TIMEOUT_MS } from '../../../config/settings.js';
+import { estimateCost } from '../../../config/costs.js';
 import { ClaudeCodeTranslator } from '../../tool-translator.js';
 import { logger } from '../../../utils/logger.js';
 
@@ -467,6 +468,20 @@ export function handleMessage(
       record.outputTokens = res.usage.output_tokens;
     }
     record.costUsd = res.total_cost_usd ?? 0;
+
+    // Back-fill per-turn costs. Claude Code only reports a session-level total, so
+    // estimate each turn's share using the pricing table, then scale proportionally
+    // so per-turn values sum to the authoritative total.
+    if (record.costUsd > 0 && record.turnMetrics.length > 0) {
+      const rawCosts = record.turnMetrics.map((tm) =>
+        estimateCost(record.model, tm.inputTokens, tm.outputTokens),
+      );
+      const rawTotal = rawCosts.reduce((s, c) => s + c, 0);
+      const scale = rawTotal > 0 ? record.costUsd / rawTotal : 0;
+      for (let i = 0; i < record.turnMetrics.length; i++) {
+        record.turnMetrics[i].costUsd = rawCosts[i] * scale;
+      }
+    }
 
     // Success only when the subtype is 'success' with no error flag. Everything else
     // is a failure — result carries the message when available, subtype otherwise.
