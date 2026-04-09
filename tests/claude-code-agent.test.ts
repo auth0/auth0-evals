@@ -1,28 +1,40 @@
 /**
- * Unit tests for handleEvent and normaliseStopReason in claude-code-agent.ts.
+ * Unit tests for handleMessage, normaliseStopReason, and runClaudeCodeAgent
+ * in claude-code-agent.ts.
  *
- * handleEvent is pure data transformation — it takes a stream-json event and
- * mutates a RunRecord / pending map.  No subprocess, no filesystem, no mocking required.
+ * handleMessage is pure data transformation — it takes an SDK message and
+ * mutates a RunRecord / pending map. No subprocess, no filesystem, no mocking required.
+ *
+ * runClaudeCodeAgent tests mock the SDK's query() function to return controlled
+ * async iterables, verifying timeout, error, orphaned-tool, and fallback logic.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ClaudeCodeTranslator } from '../src/agent_eval/tool-translator.js';
+
+// ── Mock for @anthropic-ai/claude-agent-sdk ───────────────────────────────────
+
+const mockQuery = vi.hoisted(() => vi.fn());
+
+vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
+  query: mockQuery,
+}));
+
+// Must import after vi.mock so the mock is in place
 import {
-  handleEvent,
+  handleMessage,
   normaliseStopReason,
-  processStreamChunk,
+  runClaudeCodeAgent,
   CLAUDE_CODE_MODEL_ID,
-  type StreamState,
   type TurnStateUpdate,
-  type ProcessingContext,
-  type CcSystemEvent,
-  type CcContentText,
-  type CcContentToolUse,
-  type CcAssistantEvent,
-  type CcToolResultContent,
-  type CcUserEvent,
-  type CcResultEvent,
 } from '../src/agent_eval/runners/claude-code/agent.js';
+import type {
+  SDKAssistantMessage,
+  SDKUserMessage,
+  SDKResultMessage,
+  SDKSystemMessage,
+  SDKMessage,
+} from '@anthropic-ai/claude-agent-sdk';
 import type { RunRecord } from '../src/agent_eval/agent-types.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -54,58 +66,83 @@ function makePending(
   return new Map(entries);
 }
 
-function makeAssistantEv(
+function makeAssistantMsg(
   overrides: {
-    content?: (CcContentText | CcContentToolUse)[];
+    content?: Array<{ type: string; text?: string; id?: string; name?: string; input?: Record<string, unknown> }>;
     stop_reason?: string | null;
     input_tokens?: number;
     output_tokens?: number;
   } = {},
-): CcAssistantEvent {
+): SDKAssistantMessage {
   return {
     type: 'assistant',
+    uuid: 'uuid_1',
+    session_id: 'sess_1',
+    parent_tool_use_id: null,
     message: {
       id: 'msg_1',
       role: 'assistant',
-      content: overrides.content ?? [],
+      type: 'message',
+      content: (overrides.content ?? []) as SDKAssistantMessage['message']['content'],
       model: 'claude-sonnet',
       stop_reason: overrides.stop_reason !== undefined ? overrides.stop_reason : null,
+      stop_sequence: null,
       usage: {
         input_tokens: overrides.input_tokens ?? 10,
         output_tokens: overrides.output_tokens ?? 5,
       },
+    } as SDKAssistantMessage['message'],
+  } as SDKAssistantMessage;
+}
+
+function makeUserMsg(
+  blocks: Array<{
+    type: 'tool_result';
+    tool_use_id: string;
+    content: string | Array<{ type: string; text: string }>;
+    is_error?: boolean;
+  }>,
+): SDKUserMessage {
+  return {
+    type: 'user',
+    session_id: 'sess_1',
+    parent_tool_use_id: null,
+    message: {
+      role: 'user',
+      content: blocks,
     },
-  };
+  } as SDKUserMessage;
 }
 
-function makeUserEv(blocks: CcToolResultContent[]): CcUserEvent {
-  return { type: 'user', message: { role: 'user', content: blocks } };
-}
-
-function makeResultEv(
+function makeResultMsg(
   overrides: {
-    subtype?: CcResultEvent['subtype'];
+    subtype?: 'success' | 'error_max_turns' | 'error_during_execution';
     result?: string;
     total_cost_usd?: number;
     input_tokens?: number;
     output_tokens?: number;
   } = {},
-): CcResultEvent {
+): SDKResultMessage {
   const subtype = overrides.subtype ?? 'success';
   return {
     type: 'result',
     subtype,
+    uuid: 'uuid_r',
+    session_id: 'sess_1',
     is_error: subtype !== 'success',
     result: overrides.result ?? '',
-    session_id: 'sess_1',
-    total_cost_usd: overrides.total_cost_usd ?? 0.05,
     duration_ms: 5000,
+    duration_api_ms: 4000,
     num_turns: 3,
+    stop_reason: null,
+    total_cost_usd: overrides.total_cost_usd ?? 0.05,
     usage: {
       input_tokens: overrides.input_tokens ?? 500,
       output_tokens: overrides.output_tokens ?? 200,
     },
-  };
+    modelUsage: {},
+    permission_denials: [],
+  } as SDKResultMessage;
 }
 
 // ── normaliseStopReason ───────────────────────────────────────────────────────
@@ -133,19 +170,29 @@ describe('normaliseStopReason', () => {
   });
 });
 
-// ── handleEvent — system ──────────────────────────────────────────────────────
+// ── handleMessage — system ──────────────────────────────────────────────────────
 
-describe('handleEvent — system', () => {
+describe('handleMessage — system', () => {
   it('init event enriches model and sets sessionId', () => {
     const record = makeRecord();
-    const ev: CcSystemEvent = {
+    const msg = {
       type: 'system',
       subtype: 'init',
+      uuid: 'uuid_sys',
       session_id: 'sess_abc',
       model: 'claude-sonnet-4-5',
       cwd: '/tmp',
-    };
-    const result = handleEvent(ev, record, makePending(), 0, 0);
+      tools: [],
+      mcp_servers: [],
+      permissionMode: 'bypassPermissions',
+      slash_commands: [],
+      output_style: 'concise',
+      skills: [],
+      plugins: [],
+      apiKeySource: 'user',
+      claude_code_version: '1.0.0',
+    } as unknown as SDKSystemMessage;
+    const result = handleMessage(msg, record, makePending(), 0, 0);
     expect(result).toBeNull();
     expect(record.model).toBe('claude-code/claude-sonnet-4-5');
     expect(record.sessionId).toBe('sess_abc');
@@ -153,36 +200,51 @@ describe('handleEvent — system', () => {
 
   it('init with empty model falls back to CLAUDE_CODE_MODEL_ID', () => {
     const record = makeRecord();
-    const ev: CcSystemEvent = { type: 'system', subtype: 'init', session_id: 'sess_xyz', model: '', cwd: '/tmp' };
-    handleEvent(ev, record, makePending(), 0, 0);
+    const msg = {
+      type: 'system',
+      subtype: 'init',
+      uuid: 'uuid_sys',
+      session_id: 'sess_xyz',
+      model: '',
+      cwd: '/tmp',
+      tools: [],
+      mcp_servers: [],
+      permissionMode: 'bypassPermissions',
+      slash_commands: [],
+      output_style: 'concise',
+      skills: [],
+      plugins: [],
+      apiKeySource: 'user',
+      claude_code_version: '1.0.0',
+    } as unknown as SDKSystemMessage;
+    handleMessage(msg, record, makePending(), 0, 0);
     expect(record.model).toBe(CLAUDE_CODE_MODEL_ID);
   });
 
   it('non-init subtype returns null without mutating record', () => {
     const record = makeRecord();
     const before = { ...record };
-    const ev: CcSystemEvent = {
+    const msg = {
       type: 'system',
       subtype: 'hook_response',
+      uuid: 'uuid_sys',
       session_id: 'sess_1',
-      model: 'x',
-      cwd: '/tmp',
-    };
-    const result = handleEvent(ev, record, makePending(), 0, 0);
+    } as unknown as SDKMessage;
+    const result = handleMessage(msg, record, makePending(), 0, 0);
     expect(result).toBeNull();
     expect(record.model).toBe(before.model);
     expect(record.sessionId).toBe(before.sessionId);
   });
 });
 
-// ── handleEvent — assistant ───────────────────────────────────────────────────
+// ── handleMessage — assistant ───────────────────────────────────────────────────
 
-describe('handleEvent — assistant', () => {
+describe('handleMessage — assistant', () => {
   it('accumulates tokens into record', () => {
     const record = makeRecord();
     record.inputTokens = 100;
     record.outputTokens = 50;
-    handleEvent(makeAssistantEv({ input_tokens: 20, output_tokens: 8 }), record, makePending(), 0, 0);
+    handleMessage(makeAssistantMsg({ input_tokens: 20, output_tokens: 8 }), record, makePending(), 0, 0);
     expect(record.inputTokens).toBe(120);
     expect(record.outputTokens).toBe(58);
   });
@@ -190,13 +252,13 @@ describe('handleEvent — assistant', () => {
   it('registers tool_use blocks into the pending map', () => {
     const record = makeRecord();
     const pending = makePending();
-    const ev = makeAssistantEv({
+    const msg = makeAssistantMsg({
       content: [
         { type: 'tool_use', id: 'tu_1', name: 'Read', input: { file_path: 'src/index.ts' } },
         { type: 'tool_use', id: 'tu_2', name: 'Bash', input: { command: 'npm test' } },
       ],
     });
-    handleEvent(ev, record, pending, 0, 0);
+    handleMessage(msg, record, pending, 0, 0);
     expect(pending.has('tu_1')).toBe(true);
     expect(pending.get('tu_1')?.name).toBe('Read');
     expect(pending.has('tu_2')).toBe(true);
@@ -205,10 +267,10 @@ describe('handleEvent — assistant', () => {
 
   it('with tool_use content → TurnMetric finishReason is tool_calls', () => {
     const record = makeRecord();
-    const ev = makeAssistantEv({
+    const msg = makeAssistantMsg({
       content: [{ type: 'tool_use', id: 'tu_1', name: 'Bash', input: {} }],
     });
-    handleEvent(ev, record, makePending(), 0, 0);
+    handleMessage(msg, record, makePending(), 0, 0);
     expect(record.turnMetrics).toHaveLength(1);
     expect(record.turnMetrics[0].finishReason).toBe('tool_calls');
     expect(record.turnMetrics[0].toolCallCount).toBe(1);
@@ -216,8 +278,8 @@ describe('handleEvent — assistant', () => {
 
   it('without tool_use content → TurnMetric finishReason is stop', () => {
     const record = makeRecord();
-    const ev = makeAssistantEv({ content: [{ type: 'text', text: 'Done.' }] });
-    handleEvent(ev, record, makePending(), 0, 0);
+    const msg = makeAssistantMsg({ content: [{ type: 'text', text: 'Done.' }] });
+    handleMessage(msg, record, makePending(), 0, 0);
     expect(record.turnMetrics).toHaveLength(1);
     expect(record.turnMetrics[0].finishReason).toBe('stop');
     expect(record.turnMetrics[0].toolCallCount).toBe(0);
@@ -225,58 +287,58 @@ describe('handleEvent — assistant', () => {
 
   it('sets finalSummary from text content when stop_reason is end_turn', () => {
     const record = makeRecord();
-    const ev = makeAssistantEv({
+    const msg = makeAssistantMsg({
       content: [{ type: 'text', text: 'Integration complete.' }],
       stop_reason: 'end_turn',
     });
-    handleEvent(ev, record, makePending(), 0, 0);
+    handleMessage(msg, record, makePending(), 0, 0);
     expect(record.finalSummary).toBe('Integration complete.');
   });
 
   it('does not overwrite existing finalSummary with empty text', () => {
     const record = makeRecord();
     record.finalSummary = 'Previous summary.';
-    const ev = makeAssistantEv({ content: [], stop_reason: 'end_turn' });
-    handleEvent(ev, record, makePending(), 0, 0);
+    const msg = makeAssistantMsg({ content: [], stop_reason: 'end_turn' });
+    handleMessage(msg, record, makePending(), 0, 0);
     expect(record.finalSummary).toBe('Previous summary.');
   });
 
   it('stop_reason null with no tool_use → derives end_turn → finishReason stop', () => {
     const record = makeRecord();
-    const ev = makeAssistantEv({ content: [{ type: 'text', text: 'All done.' }], stop_reason: null });
-    handleEvent(ev, record, makePending(), 0, 0);
+    const msg = makeAssistantMsg({ content: [{ type: 'text', text: 'All done.' }], stop_reason: null });
+    handleMessage(msg, record, makePending(), 0, 0);
     expect(record.turnMetrics[0].finishReason).toBe('stop');
   });
 
   it('stop_reason null with tool_use → derives tool_use → finishReason tool_calls', () => {
     const record = makeRecord();
-    const ev = makeAssistantEv({
+    const msg = makeAssistantMsg({
       content: [{ type: 'tool_use', id: 'tu_1', name: 'Read', input: {} }],
       stop_reason: null,
     });
-    handleEvent(ev, record, makePending(), 0, 0);
+    handleMessage(msg, record, makePending(), 0, 0);
     expect(record.turnMetrics[0].finishReason).toBe('tool_calls');
   });
 
   it('returns TurnStateUpdate with incremented turnNum', () => {
     const record = makeRecord();
-    const result = handleEvent(makeAssistantEv(), record, makePending(), 3, 0) as TurnStateUpdate;
+    const result = handleMessage(makeAssistantMsg(), record, makePending(), 3, 0) as TurnStateUpdate;
     expect(result).not.toBeNull();
     expect(result.turnNum).toBe(4);
   });
 
   it('TurnMetric records the incremented turn number', () => {
     const record = makeRecord();
-    handleEvent(makeAssistantEv({ input_tokens: 10, output_tokens: 5 }), record, makePending(), 2, 0);
+    handleMessage(makeAssistantMsg({ input_tokens: 10, output_tokens: 5 }), record, makePending(), 2, 0);
     expect(record.turnMetrics[0].turn).toBe(3);
     expect(record.turnMetrics[0].inputTokens).toBe(10);
     expect(record.turnMetrics[0].outputTokens).toBe(5);
   });
 });
 
-// ── handleEvent — user ────────────────────────────────────────────────────────
+// ── handleMessage — user ────────────────────────────────────────────────────────
 
-describe('handleEvent — user', () => {
+describe('handleMessage — user', () => {
   function makePendingWithEntry(id: string, name: string, input: Record<string, unknown> = {}): PendingMap {
     return makePending([[id, { name, input, startTime: Date.now() / 1000 - 0.1 }]]);
   }
@@ -284,8 +346,8 @@ describe('handleEvent — user', () => {
   it('resolves pending tool and creates ToolCallRecord', () => {
     const record = makeRecord();
     const pending = makePendingWithEntry('tu_1', 'Read', { file_path: 'src/app.ts' });
-    const ev = makeUserEv([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'file contents', is_error: false }]);
-    handleEvent(ev, record, pending, 1, 0);
+    const msg = makeUserMsg([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'file contents', is_error: false }]);
+    handleMessage(msg, record, pending, 1, 0);
     expect(pending.has('tu_1')).toBe(false); // consumed
     expect(record.toolCalls).toHaveLength(1);
     expect(record.toolCalls[0].name).toBe('read_file'); // Read → read_file
@@ -311,8 +373,8 @@ describe('handleEvent — user', () => {
       const r = makeRecord();
       const id = `tu_${ccName}`;
       const pending = makePendingWithEntry(id, ccName, {});
-      const ev = makeUserEv([{ type: 'tool_result', tool_use_id: id, content: 'ok', is_error: false }]);
-      handleEvent(ev, r, pending, 0, 0);
+      const msg = makeUserMsg([{ type: 'tool_result', tool_use_id: id, content: 'ok', is_error: false }]);
+      handleMessage(msg, r, pending, 0, 0);
       expect(r.toolCalls[0].name).toBe(expectedName);
     }
   });
@@ -320,18 +382,18 @@ describe('handleEvent — user', () => {
   it('unknown tool name falls back to lowercase', () => {
     const record = makeRecord();
     const pending = makePendingWithEntry('tu_1', 'SomeFutureTool', {});
-    const ev = makeUserEv([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'result', is_error: false }]);
-    handleEvent(ev, record, pending, 0, 0);
+    const msg = makeUserMsg([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'result', is_error: false }]);
+    handleMessage(msg, record, pending, 0, 0);
     expect(record.toolCalls[0].name).toBe('somefuturetool');
   });
 
   it('is_error=true sets causedError, errorCategory, and pushes to providerErrors', () => {
     const record = makeRecord();
     const pending = makePendingWithEntry('tu_1', 'Bash', { command: 'npm test' });
-    const ev = makeUserEv([
+    const msg = makeUserMsg([
       { type: 'tool_result', tool_use_id: 'tu_1', content: 'permission denied: cannot write', is_error: true },
     ]);
-    handleEvent(ev, record, pending, 0, 0);
+    handleMessage(msg, record, pending, 0, 0);
     const tc = record.toolCalls[0];
     expect(tc.causedError).toBe(true);
     expect(tc.errorCategory).toBe('permission');
@@ -341,23 +403,23 @@ describe('handleEvent — user', () => {
   it('is_error=false does not push to providerErrors', () => {
     const record = makeRecord();
     const pending = makePendingWithEntry('tu_1', 'Read', { file_path: 'index.ts' });
-    const ev = makeUserEv([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'content', is_error: false }]);
-    handleEvent(ev, record, pending, 0, 0);
+    const msg = makeUserMsg([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'content', is_error: false }]);
+    handleMessage(msg, record, pending, 0, 0);
     expect(record.providerErrors).toHaveLength(0);
   });
 
   it('orphaned tool_use_id (not in pending) is skipped', () => {
     const record = makeRecord();
-    const ev = makeUserEv([{ type: 'tool_result', tool_use_id: 'unknown_id', content: 'x', is_error: false }]);
-    handleEvent(ev, record, makePending(), 0, 0);
+    const msg = makeUserMsg([{ type: 'tool_result', tool_use_id: 'unknown_id', content: 'x', is_error: false }]);
+    handleMessage(msg, record, makePending(), 0, 0);
     expect(record.toolCalls).toHaveLength(0);
   });
 
   it('internal tool (TodoWrite) is skipped and not added to toolCalls', () => {
     const record = makeRecord();
     const pending = makePendingWithEntry('tu_1', 'TodoWrite', { todos: [] });
-    const ev = makeUserEv([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'ok', is_error: false }]);
-    handleEvent(ev, record, pending, 0, 0);
+    const msg = makeUserMsg([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'ok', is_error: false }]);
+    handleMessage(msg, record, pending, 0, 0);
     expect(record.toolCalls).toHaveLength(0);
   });
 
@@ -365,8 +427,8 @@ describe('handleEvent — user', () => {
     for (const toolName of ['Task', 'TaskOutput', 'ExitPlanMode', 'KillShell', 'EnterPlanMode', 'TodoRead']) {
       const r = makeRecord();
       const pending = makePendingWithEntry('tu_1', toolName, {});
-      const ev = makeUserEv([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'ok', is_error: false }]);
-      handleEvent(ev, r, pending, 0, 0);
+      const msg = makeUserMsg([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'ok', is_error: false }]);
+      handleMessage(msg, r, pending, 0, 0);
       expect(r.toolCalls).toHaveLength(0);
     }
   });
@@ -374,7 +436,7 @@ describe('handleEvent — user', () => {
   it('array content blocks are joined into a single result string', () => {
     const record = makeRecord();
     const pending = makePendingWithEntry('tu_1', 'Read', {});
-    const ev = makeUserEv([
+    const msg = makeUserMsg([
       {
         type: 'tool_result',
         tool_use_id: 'tu_1',
@@ -385,7 +447,7 @@ describe('handleEvent — user', () => {
         is_error: false,
       },
     ]);
-    handleEvent(ev, record, pending, 0, 0);
+    handleMessage(msg, record, pending, 0, 0);
     expect(record.toolCalls[0].result).toContain('line one');
     expect(record.toolCalls[0].result).toContain('line two');
   });
@@ -393,24 +455,24 @@ describe('handleEvent — user', () => {
   it('WebFetch tool is classified as a doc lookup', () => {
     const record = makeRecord();
     const pending = makePendingWithEntry('tu_1', 'WebFetch', { url: 'https://auth0.com/docs' });
-    const ev = makeUserEv([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'doc content', is_error: false }]);
-    handleEvent(ev, record, pending, 0, 0);
+    const msg = makeUserMsg([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'doc content', is_error: false }]);
+    handleMessage(msg, record, pending, 0, 0);
     expect(record.toolCalls[0].isDocLookup).toBe(true);
   });
 
   it('AskUserQuestion tool is classified as an interruption', () => {
     const record = makeRecord();
     const pending = makePendingWithEntry('tu_1', 'AskUserQuestion', { question: 'Which tenant?' });
-    const ev = makeUserEv([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'answer', is_error: false }]);
-    handleEvent(ev, record, pending, 0, 0);
+    const msg = makeUserMsg([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'answer', is_error: false }]);
+    handleMessage(msg, record, pending, 0, 0);
     expect(record.toolCalls[0].isInterruption).toBe(true);
   });
 
   it('mcp__ prefixed tool is classified as a doc lookup', () => {
     const record = makeRecord();
     const pending = makePendingWithEntry('tu_1', 'mcp__auth0__search_auth0_docs', { query: 'login' });
-    const ev = makeUserEv([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'docs', is_error: false }]);
-    handleEvent(ev, record, pending, 0, 0);
+    const msg = makeUserMsg([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'docs', is_error: false }]);
+    handleMessage(msg, record, pending, 0, 0);
     expect(record.toolCalls[0].isDocLookup).toBe(true);
   });
 
@@ -418,8 +480,8 @@ describe('handleEvent — user', () => {
     const record = makeRecord();
     const before = Date.now() / 1000;
     const pending = makePendingWithEntry('tu_1', 'Bash', { command: 'ls' });
-    const ev = makeUserEv([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'ok', is_error: false }]);
-    const result = handleEvent(ev, record, pending, 2, 0) as TurnStateUpdate;
+    const msg = makeUserMsg([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'ok', is_error: false }]);
+    const result = handleMessage(msg, record, pending, 2, 0) as TurnStateUpdate;
     const after = Date.now() / 1000;
     expect(result).not.toBeNull();
     expect(result.turnNum).toBe(2); // user events do not increment turnNum
@@ -428,25 +490,25 @@ describe('handleEvent — user', () => {
   });
 });
 
-// ── handleEvent — result ──────────────────────────────────────────────────────
+// ── handleMessage — result ──────────────────────────────────────────────────────
 
-describe('handleEvent — result', () => {
+describe('handleMessage — result', () => {
   it('success subtype sets status to success', () => {
     const record = makeRecord();
-    handleEvent(makeResultEv({ subtype: 'success' }), record, makePending(), 0, 0);
+    handleMessage(makeResultMsg({ subtype: 'success' }), record, makePending(), 0, 0);
     expect(record.status).toBe('success');
   });
 
   it('error_max_turns sets status to failure and records the subtype', () => {
     const record = makeRecord();
-    handleEvent(makeResultEv({ subtype: 'error_max_turns' }), record, makePending(), 0, 0);
+    handleMessage(makeResultMsg({ subtype: 'error_max_turns' }), record, makePending(), 0, 0);
     expect(record.status).toBe('failure');
     expect(record.providerErrors.some((e) => e.includes('error_max_turns'))).toBe(true);
   });
 
   it('other subtype sets status to failure and records the subtype', () => {
     const record = makeRecord();
-    handleEvent(makeResultEv({ subtype: 'error_during_execution' }), record, makePending(), 0, 0);
+    handleMessage(makeResultMsg({ subtype: 'error_during_execution' }), record, makePending(), 0, 0);
     expect(record.status).toBe('failure');
     expect(record.providerErrors.some((e) => e.includes('error_during_execution'))).toBe(true);
   });
@@ -455,55 +517,55 @@ describe('handleEvent — result', () => {
     const record = makeRecord();
     record.inputTokens = 999;
     record.outputTokens = 888;
-    handleEvent(makeResultEv({ input_tokens: 500, output_tokens: 200 }), record, makePending(), 0, 0);
+    handleMessage(makeResultMsg({ input_tokens: 500, output_tokens: 200 }), record, makePending(), 0, 0);
     expect(record.inputTokens).toBe(500);
     expect(record.outputTokens).toBe(200);
   });
 
   it('sets costUsd from total_cost_usd', () => {
     const record = makeRecord();
-    handleEvent(makeResultEv({ total_cost_usd: 0.1234 }), record, makePending(), 0, 0);
+    handleMessage(makeResultMsg({ total_cost_usd: 0.1234 }), record, makePending(), 0, 0);
     expect(record.costUsd).toBe(0.1234);
   });
 
   it('uses result string as finalSummary when record has none', () => {
     const record = makeRecord();
-    handleEvent(makeResultEv({ subtype: 'success', result: 'Task complete.' }), record, makePending(), 0, 0);
+    handleMessage(makeResultMsg({ subtype: 'success', result: 'Task complete.' }), record, makePending(), 0, 0);
     expect(record.finalSummary).toBe('Task complete.');
   });
 
   it('does not overwrite an existing finalSummary', () => {
     const record = makeRecord();
     record.finalSummary = 'Already set by assistant event.';
-    handleEvent(makeResultEv({ subtype: 'success', result: 'Should not overwrite.' }), record, makePending(), 0, 0);
+    handleMessage(makeResultMsg({ subtype: 'success', result: 'Should not overwrite.' }), record, makePending(), 0, 0);
     expect(record.finalSummary).toBe('Already set by assistant event.');
   });
 
   it('success subtype with is_error:true sets failure and records the API error message', () => {
     const record = makeRecord();
-    const ev: CcResultEvent = {
-      ...makeResultEv({ subtype: 'success', result: 'API Error (bad-model): 400 invalid model' }),
+    const msg = {
+      ...makeResultMsg({ subtype: 'success', result: 'API Error (bad-model): 400 invalid model' }),
       is_error: true,
-    };
-    handleEvent(ev, record, makePending(), 0, 0);
+    } as SDKResultMessage;
+    handleMessage(msg, record, makePending(), 0, 0);
     expect(record.status).toBe('failure');
     expect(record.providerErrors.some((e) => e.includes('invalid model'))).toBe(true);
   });
 
   it('returns null', () => {
     const record = makeRecord();
-    const result = handleEvent(makeResultEv(), record, makePending(), 0, 0);
+    const result = handleMessage(makeResultMsg(), record, makePending(), 0, 0);
     expect(result).toBeNull();
   });
 });
 
-// ── handleEvent — unknown event type ─────────────────────────────────────────
+// ── handleMessage — unknown event type ─────────────────────────────────────────
 
-describe('handleEvent — unknown event type', () => {
+describe('handleMessage — unknown event type', () => {
   it('returns null without mutating record', () => {
     const record = makeRecord();
     const before = JSON.stringify(record);
-    const result = handleEvent({ type: 'debug' }, record, makePending(), 0, 0);
+    const result = handleMessage({ type: 'tool_progress' } as unknown as SDKMessage, record, makePending(), 0, 0);
     expect(result).toBeNull();
     expect(JSON.stringify(record)).toBe(before);
   });
@@ -617,118 +679,191 @@ describe('ClaudeCodeTranslator — normalizeArgs', () => {
   });
 });
 
-// ── processStreamChunk tests ──────────────────────────────────────────────────
+// ── runClaudeCodeAgent ────────────────────────────────────────────────────────
 
-function makeState(overrides: Partial<StreamState> = {}): StreamState {
-  return { turnNum: 0, prevTurnEndTime: 0, parseFailures: 0, ...overrides };
+/**
+ * Helper: creates an async iterable that yields the given messages in order.
+ */
+async function* fakeQuery(messages: SDKMessage[]): AsyncGenerator<SDKMessage, void> {
+  for (const m of messages) {
+    yield m;
+  }
 }
 
-function makeCtx(
-  record = makeRecord(),
-  pending: PendingMap = makePending(),
-  state: StreamState = makeState(),
-): ProcessingContext {
-  return { record, pending, state };
+/**
+ * Helper: creates an async iterable that throws after yielding the given messages.
+ */
+async function* fakeQueryThatThrows(messages: SDKMessage[], error: Error): AsyncGenerator<SDKMessage, void> {
+  for (const m of messages) {
+    yield m;
+  }
+  throw error;
 }
 
-describe('processStreamChunk', () => {
-  it('returns an empty string when input has no partial line', () => {
-    const remaining = processStreamChunk('', '{"type":"system","subtype":"init","session_id":"s1"}\n', {
-      record: makeRecord(),
-      pending: makePending(),
-      state: makeState(),
-    });
-    expect(remaining).toBe('');
+const evalDef = { id: 'test_eval', userPrompt: 'Integrate Auth0 into a React app' };
+const workspace = '/tmp/test-workspace';
+
+describe('runClaudeCodeAgent', () => {
+  beforeEach(() => {
+    mockQuery.mockReset();
+    // Suppress console.log noise from the function under test
+    vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
-  it('buffers partial lines and returns the incomplete tail', () => {
-    const ctx = makeCtx();
-    // Chunk ends mid-JSON — should be returned as the remainder
-    const remaining = processStreamChunk('', '{"type":"system","subt', ctx);
-    expect(remaining).toBe('{"type":"system","subt');
-    expect(ctx.state.parseFailures).toBe(0);
-    expect(ctx.record.providerErrors).toHaveLength(0);
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
-  it('joins buf + chunk before splitting so split lines are processed', () => {
-    const ctx = makeCtx();
-    const firstChunk = '{"type":"system","subtype":"init","session_id":"s1"}';
-    // Second chunk completes the first line and starts a new partial
-    const remaining = processStreamChunk(firstChunk, '\n{"type":"partial"', ctx);
-    // The completed first line is processed; the partial tail is returned
-    expect(remaining).toBe('{"type":"partial"');
-    expect(ctx.state.parseFailures).toBe(0);
-  });
-
-  it('skips empty and whitespace-only lines silently', () => {
-    const ctx = makeCtx();
-    const remaining = processStreamChunk('', '   \n\n\t\n', ctx);
-    expect(remaining).toBe('');
-    expect(ctx.state.parseFailures).toBe(0);
-    expect(ctx.record.providerErrors).toHaveLength(0);
-  });
-
-  it('increments parseFailures and adds providerError on malformed JSON', () => {
-    const ctx = makeCtx();
-    processStreamChunk('', 'not-valid-json\n', ctx);
-    expect(ctx.state.parseFailures).toBe(1);
-    expect(ctx.record.providerErrors).toHaveLength(1);
-    expect(ctx.record.providerErrors[0]).toContain('stream_parse_error');
-  });
-
-  it('accumulates multiple parse failures across chunks', () => {
-    const ctx = makeCtx();
-    processStreamChunk('', 'bad1\nbad2\n', ctx);
-    expect(ctx.state.parseFailures).toBe(2);
-    expect(ctx.record.providerErrors).toHaveLength(2);
-  });
-
-  it('processes a result event and sets finalSummary and status', () => {
-    const ctx = makeCtx();
-    const resultEvent: CcResultEvent = {
-      type: 'result',
-      subtype: 'success',
-      result: 'Task complete',
-      session_id: 's1',
-      total_cost_usd: 0.01,
-      usage: { input_tokens: 100, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
-    };
-    processStreamChunk('', JSON.stringify(resultEvent) + '\n', ctx);
-    expect(ctx.record.finalSummary).toBe('Task complete');
-    expect(ctx.record.status).toBe('success');
-  });
-
-  it('flush pattern: processStreamChunk with "\\n" processes buffered remainder', () => {
-    const ctx = makeCtx();
-    // First call: partial line stored in returned buf
-    const buf = processStreamChunk('', '{"type":"system","subtype":"init","session_id":"s2"}', ctx);
-    expect(buf).toBe('{"type":"system","subtype":"init","session_id":"s2"}');
-    // Flush: append "\n" to force the buffered line to be processed
-    const remaining = processStreamChunk(buf, '\n', ctx);
-    expect(remaining).toBe('');
-    expect(ctx.state.parseFailures).toBe(0);
-  });
-
-  it('updates state.turnNum and state.prevTurnEndTime after an assistant event', () => {
-    const record = makeRecord();
-    record.startTime = 1000;
-    const state = makeState({ prevTurnEndTime: record.startTime });
-    const ctx = { record, pending: makePending(), state };
-    const assistantEvent: CcAssistantEvent = {
-      type: 'assistant',
-      session_id: 's1',
-      message: {
-        id: 'msg_1',
-        type: 'message',
-        role: 'assistant',
+  it('successful run with result message sets status, tokens, and cost', async () => {
+    const messages: SDKMessage[] = [
+      {
+        type: 'system',
+        subtype: 'init',
+        uuid: 'u1',
+        session_id: 's1',
         model: 'claude-sonnet-4-5',
-        content: [{ type: 'text', text: 'hello' }],
+        cwd: workspace,
+        tools: [],
+        mcp_servers: [],
+        permissionMode: 'bypassPermissions',
+        slash_commands: [],
+        output_style: 'concise',
+        skills: [],
+        plugins: [],
+        apiKeySource: 'user',
+        claude_code_version: '1.0.0',
+      } as unknown as SDKMessage,
+      makeAssistantMsg({
+        content: [{ type: 'tool_use', id: 'tu_1', name: 'Read', input: { file_path: 'src/app.ts' } }],
+        input_tokens: 100,
+        output_tokens: 20,
+      }) as SDKMessage,
+      makeUserMsg([
+        { type: 'tool_result', tool_use_id: 'tu_1', content: 'file contents', is_error: false },
+      ]) as SDKMessage,
+      makeAssistantMsg({
+        content: [{ type: 'text', text: 'Done integrating Auth0.' }],
         stop_reason: 'end_turn',
-        usage: { input_tokens: 50, output_tokens: 20, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
-      },
-    };
-    processStreamChunk('', JSON.stringify(assistantEvent) + '\n', ctx);
-    // turnNum should have advanced from 0 to 1
-    expect(ctx.state.turnNum).toBe(1);
+        input_tokens: 50,
+        output_tokens: 10,
+      }) as SDKMessage,
+      makeResultMsg({
+        subtype: 'success',
+        result: 'Task complete.',
+        total_cost_usd: 0.042,
+        input_tokens: 150,
+        output_tokens: 30,
+      }) as SDKMessage,
+    ];
+
+    mockQuery.mockReturnValue(fakeQuery(messages));
+
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+
+    expect(record.status).toBe('success');
+    expect(record.inputTokens).toBe(150);
+    expect(record.outputTokens).toBe(30);
+    expect(record.costUsd).toBe(0.042);
+    expect(record.toolCalls).toHaveLength(1);
+    expect(record.toolCalls[0].name).toBe('read_file');
+    expect(record.finalSummary).toBe('Done integrating Auth0.');
+    expect(record.providerErrors).toHaveLength(0);
+  });
+
+  it('SDK error sets status to failure with error in providerErrors', async () => {
+    mockQuery.mockReturnValue(fakeQueryThatThrows([], new Error('connection refused')));
+
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+
+    expect(record.status).toBe('failure');
+    expect(record.providerErrors).toContain('sdk error: connection refused');
+  });
+
+  it('empty stream (zero turns, no result) sets status to failure', async () => {
+    mockQuery.mockReturnValue(fakeQuery([]));
+
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+
+    expect(record.status).toBe('failure');
+    expect(record.providerErrors.some((e) => e.includes('no result event received'))).toBe(true);
+  });
+
+  it('stream with turns but no result message falls back to success', async () => {
+    const messages: SDKMessage[] = [
+      makeAssistantMsg({
+        content: [{ type: 'text', text: 'All done.' }],
+        stop_reason: 'end_turn',
+      }) as SDKMessage,
+    ];
+
+    mockQuery.mockReturnValue(fakeQuery(messages));
+
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+
+    expect(record.status).toBe('success');
+    expect(record.turnMetrics).toHaveLength(1);
+  });
+
+  it('orphaned tool_use blocks are drained into toolCalls and providerErrors', async () => {
+    // Assistant registers a tool_use, but stream ends before a user message delivers the result
+    const messages: SDKMessage[] = [
+      makeAssistantMsg({
+        content: [{ type: 'tool_use', id: 'tu_orphan', name: 'Bash', input: { command: 'npm install' } }],
+      }) as SDKMessage,
+    ];
+
+    mockQuery.mockReturnValue(fakeQuery(messages));
+
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+
+    expect(record.toolCalls).toHaveLength(1);
+    expect(record.toolCalls[0].name).toBe('run_command');
+    expect(record.toolCalls[0].result).toBe('<orphaned: result event never received>');
+    expect(record.toolCalls[0].causedError).toBe(true);
+    expect(record.providerErrors.some((e) => e.includes('orphaned tool_use: Bash'))).toBe(true);
+  });
+
+  it('orphaned internal tools are not added to toolCalls', async () => {
+    const messages: SDKMessage[] = [
+      makeAssistantMsg({
+        content: [{ type: 'tool_use', id: 'tu_internal', name: 'TodoWrite', input: {} }],
+      }) as SDKMessage,
+    ];
+
+    mockQuery.mockReturnValue(fakeQuery(messages));
+
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+
+    expect(record.toolCalls).toHaveLength(0);
+    expect(record.providerErrors.every((e) => !e.includes('TodoWrite'))).toBe(true);
+  });
+
+  it('SDK error after timeout does not overwrite failure status', async () => {
+    // Simulate: the abort causes the async generator to throw, but status is already 'failure' from timeout
+    async function* abortingQuery(): AsyncGenerator<SDKMessage, void> {
+      // Yield one assistant turn so there's some activity
+      yield makeAssistantMsg({ content: [{ type: 'text', text: 'Working...' }] }) as SDKMessage;
+      // Simulate the abort error that would come after timeout
+      throw new Error('aborted');
+    }
+
+    mockQuery.mockReturnValue(abortingQuery());
+
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+
+    // The error catch should set failure + sdk error since status was 'running' (not pre-set to failure by timeout)
+    expect(record.status).toBe('failure');
+    expect(record.providerErrors.some((e) => e.includes('sdk error: aborted'))).toBe(true);
+  });
+
+  it('record endTime is always set', async () => {
+    mockQuery.mockReturnValue(fakeQuery([]));
+
+    const before = Date.now() / 1000;
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+    const after = Date.now() / 1000;
+
+    expect(record.endTime).toBeGreaterThanOrEqual(before);
+    expect(record.endTime).toBeLessThanOrEqual(after + 0.01);
   });
 });

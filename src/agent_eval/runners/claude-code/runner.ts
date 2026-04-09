@@ -1,5 +1,5 @@
 /**
- * AgentRunner implementation for the Claude Code CLI.
+ * AgentRunner implementation for Claude Code via the Agent SDK.
  *
  * Skills are copied into the workspace filesystem so Claude Code can access
  * them with its native Read/Glob tools instead of the ReAct-only skill tools.
@@ -19,7 +19,7 @@ export class ClaudeCodeRunner implements AgentRunner {
   }
 
   async run({ evalDef, workspace, model, tools }: RunParams): Promise<RunResult> {
-    // Translate ATKO short alias to the full Anthropic model ID the claude CLI expects.
+    // Translate ATKO short alias to the full Anthropic model ID the SDK expects.
     // If the caller already passed the sentinel 'claude-code', omit the model flag and
     // let Claude Code use its default.
     const claudeModel = model !== CLAUDE_CODE_MODEL_ID && model.startsWith('claude-') ? model : undefined;
