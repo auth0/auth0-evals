@@ -31,7 +31,7 @@ skills: auth0-react
 ---
 ```
 
-`skills` references entries in the [auth0/agent-skills](https://github.com/auth0/agent-skills) repository. The matching `SKILL.md` is fetched at runtime and prepended to the agent system prompt (`## Agent System`) when running in `agent+skills` mode.
+`skills` references entries in the [auth0/agent-skills](https://github.com/auth0/agent-skills) repository. The matching `SKILL.md` is fetched at runtime and prepended to the agent system prompt (`## Agent System`) when running with `--mode agent --tools skills`.
 
 To test a skill before it is pushed to the remote repo, see [TESTING_SKILLS.md](TESTING_SKILLS.md).
 
@@ -40,7 +40,7 @@ To test a skill before it is pushed to the remote repo, see [TESTING_SKILLS.md](
 | Section | Used in | Purpose |
 |---|---|---|
 | `## System` | `baseline` | System prompt for a single-turn LLM call |
-| `## Agent System` | `agent`, `agent+skills` | System prompt for the ReAct agent loop |
+| `## Agent System` | `agent` (all variants) | System prompt for the ReAct agent loop |
 | `## Task` | all modes | The user-facing request sent to the model |
 
 If no sections are present, the entire file is used as the task prompt.
@@ -361,11 +361,14 @@ npm run run -- --eval my_new_eval --mode matrix
 # Run a specific combo
 npm run run -- --eval my_new_eval --mode agent --tools skills
 
+# Run with a specific model
+npm run run -- --eval my_new_eval --model claude-4-6-sonnet --mode agent
+
 # Keep the temporary workspace after the run for inspection
 npm run run -- --eval my_new_eval --mode agent --keep-workspace
 ```
 
-### Modes
+### Modes and tools
 
 | Combo | What it tests |
 |---|---|
@@ -373,8 +376,15 @@ npm run run -- --eval my_new_eval --mode agent --keep-workspace
 | `agent` | ReAct agent with file/shell tools; grades written workspace files |
 | `agent --tools mcp` | Same as `agent`, with the Auth0 MCP server available |
 | `agent --tools skills` | Same as `agent`, with the fetched `SKILL.md` prepended to the agent system prompt |
+| `agent --tools skills,mcp` | Both skill injection and MCP docs together |
 
 Use `--mode matrix` to run all 4 combos in parallel and measure the delta that each investment provides.
+
+---
+
+### Running with GitHub Copilot CLI
+
+Pass `--agent-type copilot` to route the eval through the `copilot` binary. Skills and MCP are both supported.
 
 ---
 

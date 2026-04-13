@@ -14,7 +14,7 @@
  *                 Use 'all' to run all known working models.
  *   --mode        Execution mode: baseline | agent | all (default: baseline)
  *   --matrix      Run all evals × all models × all modes × all tool-set combinations
- *   --agent-type  Agent runner for agent mode: auth0-ReAct-agent | claude-code (default: auth0-ReAct-agent)
+ *   --agent-type  Agent runner for agent mode: auth0-ReAct-agent | claude-code | copilot (default: auth0-ReAct-agent)
  *   --tools       Tools to inject for agent mode: skills, mcp (default: none). Case-insensitive.
  *   --workers     Parallel workers (default: 4)
  *   --output      JSON output path (default: scores-<mode>.json)

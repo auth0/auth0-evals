@@ -13,10 +13,12 @@
 import { registerRunner, getRunner } from './agent-runner.js';
 import { ReactAgentRunner } from './runners/react/runner.js';
 import { ClaudeCodeRunner } from './runners/claude-code/runner.js';
+import { CopilotCliRunner } from './runners/copilot/runner.js';
 
 export function initAgentRegistry(): void {
   registerRunner('auth0-ReAct-agent', new ReactAgentRunner());
   registerRunner('claude-code', new ClaudeCodeRunner());
+  registerRunner('copilot', new CopilotCliRunner());
 }
 
 // Re-export getRunner so callers only need to import this file.

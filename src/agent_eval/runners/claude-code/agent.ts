@@ -80,18 +80,7 @@ const ANTHROPIC_PROXY_URL = USE_BEDROCK ? BASE_URL.replace(/\/v1\/?$/, '/anthrop
  *
  * AskUserQuestion is excluded to suppress interactive interruptions during unattended evals.
  */
-const DEFAULT_ALLOWED_TOOLS = [
-  'Bash',
-  'Read',
-  'Write',
-  'Edit',
-  'MultiEdit',
-  'Glob',
-  'Grep',
-  'LS',
-  'WebFetch',
-  'Skill',
-];
+const DEFAULT_ALLOWED_TOOLS = ['Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'LS', 'WebFetch', 'Skill'];
 
 export interface ClaudeCodeRunOptions {
   /** Comma-separated list of Claude Code tools to allow. Overrides DEFAULT_ALLOWED_TOOLS. */
@@ -473,9 +462,7 @@ export function handleMessage(
     // estimate each turn's share using the pricing table, then scale proportionally
     // so per-turn values sum to the authoritative total.
     if (record.costUsd > 0 && record.turnMetrics.length > 0) {
-      const rawCosts = record.turnMetrics.map((tm) =>
-        estimateCost(record.model, tm.inputTokens, tm.outputTokens),
-      );
+      const rawCosts = record.turnMetrics.map((tm) => estimateCost(record.model, tm.inputTokens, tm.outputTokens));
       const rawTotal = rawCosts.reduce((s, c) => s + c, 0);
       const scale = rawTotal > 0 ? record.costUsd / rawTotal : 0;
       for (let i = 0; i < record.turnMetrics.length; i++) {

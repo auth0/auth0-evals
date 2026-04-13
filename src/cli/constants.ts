@@ -29,7 +29,7 @@ export const KNOWN_TOOLS = ['skills', 'mcp'];
 export const MATRIX_TOOL_SETS: string[][] = [[], ['skills'], ['mcp', 'skills']];
 
 /** Agent runner types accepted by the `--agent-type` flag. */
-export const KNOWN_AGENT_TYPES = ['auth0-ReAct-agent', 'claude-code'] as const;
+export const KNOWN_AGENT_TYPES = ['auth0-ReAct-agent', 'claude-code', 'copilot'] as const;
 
 /** Union of valid agent runner identifiers, derived from KNOWN_AGENT_TYPES. */
 export type AgentType = (typeof KNOWN_AGENT_TYPES)[number];
