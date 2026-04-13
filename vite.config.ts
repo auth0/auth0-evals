@@ -42,6 +42,7 @@ export default defineConfig({
         'nunjucks',
         'p-limit',
         /^@modelcontextprotocol\//,
+        /^@github\//,
         /^@anthropic-ai\//,
         'braintrust',
       ],

@@ -170,3 +170,36 @@ export class CopySkillsStrategy implements SkillsStrategy {
     return copySkillsToWorkspace(evalDef, workspace);
   }
 }
+
+// ── CopilotSdkSkillsStrategy ──────────────────────────────────────────────────
+
+/**
+ * Delivers skills for the Copilot SDK runner.
+ *
+ * Copies skill files into `.github/skills/<skill>/` in the workspace.
+ * The SDK's `skillDirectories` session config option then points at
+ * `.github/skills/` so the Copilot CLI discovers each SKILL.md automatically
+ * — no prompt modification needed.
+ */
+export class CopilotSdkSkillsStrategy implements SkillsStrategy {
+  async apply(evalDef: EvalDefinition, workspace: string): Promise<EvalDefinition> {
+    await ensureCloned();
+
+    for (const skill of evalDef.skills) {
+      const skillDir = resolveSkillDir(skill);
+      if (!skillDir) {
+        throw new Error(`Skill '${skill}' not found in cloned repo — cannot run agent+skills without it`);
+      }
+      const files = collectFiles(skillDir, skillDir, Infinity);
+      for (const relPath of files) {
+        const dest = join(workspace, '.github', 'skills', skill, relPath);
+        mkdirSync(dirname(dest), { recursive: true });
+        copyFileSync(join(skillDir, relPath), dest);
+      }
+      logger.info(`  [skills] Copied ${files.length} file(s) for '${skill}' → .github/skills/${skill}/`);
+    }
+
+    // No prompt modification — the SDK uses skillDirectories config to discover skills.
+    return evalDef;
+  }
+}

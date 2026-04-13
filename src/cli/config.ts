@@ -54,6 +54,7 @@ export interface RunConfig {
    * `undefined` when --agent-type was not passed; claude-* models are then auto-routed to claude-code.
    * `"auth0-ReAct-agent"` runs the custom ReAct loop via the ATKO LLM gateway.
    * `"claude-code"` spawns the Claude Code CLI and parses its JSONL stream.
+   * `"copilot"` spawns GitHub Copilot CLI and parses its JSONL stream.
    */
   agentType: AgentType | undefined;
 }

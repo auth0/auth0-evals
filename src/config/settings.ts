@@ -33,3 +33,6 @@ export const EXCLUDED_DIRS = new Set([
 
 /** Maximum wall-clock time for a single Claude Code subprocess task (~6.9 hours). */
 export const CLAUDE_CODE_TASK_TIMEOUT_MS = 50 * 300_000;
+
+/** Maximum wall-clock time for a single Copilot SDK agent task (~6.9 hours). */
+export const COPILOT_TASK_TIMEOUT_MS = 50 * 300_000;
