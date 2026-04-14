@@ -6,6 +6,30 @@ import { basename, join, resolve } from 'node:path';
  * Uses a separator-aware check to prevent prefix collisions, e.g.
  * dir=/tmp/auth0_eval_A must not match /tmp/auth0_eval_ABC/file.
  */
+const MAX_PATH_LENGTH = 4096;
+
+const NULL = '\\0';
+const C0_CONTROLS = '\\x01-\\x1f'; // SOH through US (ASCII 1–31)
+const DEL = '\\x7f'; // ASCII 127
+const C1_CONTROLS = '\\x80-\\x9f'; // Legacy terminal escapes (128–159)
+
+// eslint-disable-next-line no-control-regex
+const INVALID_PATH_CHARS = new RegExp(`[${NULL}${C0_CONTROLS}${DEL}${C1_CONTROLS}]`);
+
+/**
+ * Validates the raw format of a file path before resolution.
+ * Returns an error message if the path is malformed, or null if it's acceptable.
+ */
+export function validatePathFormat(path: string): string | null {
+  if (path.length > MAX_PATH_LENGTH) {
+    return `Path too long (${path.length} chars, max ${MAX_PATH_LENGTH})`;
+  }
+  if (INVALID_PATH_CHARS.test(path)) {
+    return 'Path contains invalid characters';
+  }
+  return null;
+}
+
 export function isPathInside(dir: string, path: string): boolean {
   return path === dir || path.startsWith(dir + '/');
 }
@@ -20,6 +44,11 @@ export function isPathInside(dir: string, path: string): boolean {
  * @throws {Error} if the resolved path escapes the directory
  */
 export function resolveInside(dir: string, relativePath: string): string {
+  const formatError = validatePathFormat(relativePath);
+  if (formatError) {
+    throw new Error(formatError);
+  }
+
   const full = resolve(join(dir, relativePath));
 
   // Attempt to canonicalize the full path (follows symlinks).

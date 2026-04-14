@@ -1,10 +1,10 @@
 import { existsSync, statSync } from 'node:fs';
 import { Tool, ToolContext, ToolName, ToolResult } from './base.js';
-import { resolveInside } from '../path-utils.js';
+import { resolveInside, validatePathFormat } from '../path-utils.js';
 import { collectFiles } from './utils.js';
 
-function wrapResult(message: string): ToolResult {
-  return [message, false, false, false];
+function wrapResult(message: string, isError: boolean = false): ToolResult {
+  return [message, false, false, isError];
 }
 
 /**
@@ -17,11 +17,17 @@ export class ListFilesTool implements Tool {
 
   async run(context: ToolContext, args: Record<string, unknown>): Promise<ToolResult> {
     const path = (args.path as string) ?? '';
+    if (path) {
+      const formatError = validatePathFormat(path);
+      if (formatError) {
+        return wrapResult(formatError, true);
+      }
+    }
     let full: string;
     try {
       full = resolveInside(context.workspace, path);
     } catch {
-      return wrapResult('Access denied: path is outside workspace');
+      return wrapResult('Access denied: path is outside workspace', true);
     }
     if (!existsSync(full)) {
       return wrapResult(`Directory not found: '${path}'`);

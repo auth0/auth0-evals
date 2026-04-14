@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmpDir } from './tmp.js';
-import { isPathInside, resolveInside } from '../src/agent_eval/path-utils.js';
+import { isPathInside, resolveInside, validatePathFormat } from '../src/agent_eval/path-utils.js';
 
 const tmpDir = makeTmpDir('path_utils_test_');
 
@@ -66,5 +66,40 @@ describe('resolveInside', () => {
     const dir = tmpDir();
     symlinkSync(join(outside, 'secret.txt'), join(dir, 'link.txt'));
     expect(() => resolveInside(dir, 'link.txt')).toThrow('path escapes directory');
+  });
+});
+
+// ── validatePathFormat tests ─────────────────────────────────────────────────
+
+describe('validatePathFormat', () => {
+  it('accepts a normal relative path', () => {
+    expect(validatePathFormat('src/index.ts')).toBeNull();
+  });
+
+  it('accepts an empty string', () => {
+    expect(validatePathFormat('')).toBeNull();
+  });
+
+  it('rejects paths containing null bytes', () => {
+    expect(validatePathFormat('file\0.txt')).toBe('Path contains invalid characters');
+  });
+
+  it('rejects paths containing control characters', () => {
+    expect(validatePathFormat('file\x01name')).toBe('Path contains invalid characters');
+    expect(validatePathFormat('file\x1fname')).toBe('Path contains invalid characters');
+    expect(validatePathFormat('file\x7fname')).toBe('Path contains invalid characters');
+    expect(validatePathFormat('file\x80name')).toBe('Path contains invalid characters');
+    expect(validatePathFormat('file\x9fname')).toBe('Path contains invalid characters');
+  });
+
+  it('rejects paths exceeding max length', () => {
+    const longPath = 'a'.repeat(4097);
+    const result = validatePathFormat(longPath);
+    expect(result).toContain('Path too long');
+  });
+
+  it('accepts paths at exactly max length', () => {
+    const maxPath = 'a'.repeat(4096);
+    expect(validatePathFormat(maxPath)).toBeNull();
   });
 });
