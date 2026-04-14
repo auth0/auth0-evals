@@ -1,0 +1,401 @@
+/**
+ * Gemini CLI agent runner.
+ *
+ * Spawns `gemini -p <prompt> --approval-mode yolo -o stream-json -m <model>`
+ * as a subprocess and parses the JSONL event stream into a RunRecord.
+ *
+ * Authentication: routed through the ATKO LiteLLM proxy (https://llm.atko.ai)
+ * via `ocm auth litellm`. Falls back to GEMINI_API_KEY from env if OCM fails.
+ *
+ * Event format (stream-json):
+ *   {"type":"init",        "session_id":"...", "model":"..."}
+ *   {"type":"tool_use",    "tool_name":"...", "tool_id":"...", "parameters":{...}}
+ *   {"type":"tool_result", "tool_id":"...",   "status":"success|error", "output":"..."}
+ *   {"type":"message",     "role":"assistant","content":"...", "delta":true}
+ *   {"type":"result",      "status":"success","stats":{total_tokens, input_tokens, output_tokens, tool_calls, ...}}
+ */
+
+import { spawn } from 'node:child_process';
+import { createInterface } from 'node:readline';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import type { RunRecord, ToolCallRecord, TurnMetric } from '../../agent-types.js';
+import type { EvalDefinition } from '../../../runners/loader.js';
+import { CLAUDE_CODE_TASK_TIMEOUT_MS } from '../../../config/settings.js';
+import { estimateCost } from '../../../config/costs.js';
+import { classifyActionType, classifyErrorCategory, detectRetry } from '../../agent-types.js';
+import { logger } from '../../../utils/logger.js';
+import { geminiProxyEnv } from './proxy.js';
+
+/** Model identifier written to RunRecord when Gemini CLI runner is used. */
+export const GEMINI_CLI_MODEL_ID = 'gemini-cli';
+
+/** Default model — flash has a higher free-tier quota than pro. */
+export const GEMINI_CLI_DEFAULT_MODEL = 'gemini-3.1-pro-preview';
+
+/** Reuse the Claude Code timeout budget. */
+const GEMINI_CLI_TIMEOUT_MS = CLAUDE_CODE_TASK_TIMEOUT_MS;
+
+/** Auth0 docs MCP server HTTP URL — same endpoint used by Claude Code runner. */
+const AUTH0_MCP_URL = 'https://auth0.com/docs/mcp';
+
+/**
+ * Writes .gemini/settings.json into the workspace so the Gemini CLI picks up
+ * the Auth0 docs MCP server for the duration of the eval run.
+ *
+ * Gemini CLI discovers per-project MCP config from <workspace>/.gemini/settings.json.
+ * MCP tool calls appear in the stream-json output as tool_use events with names
+ * using the format `mcp__<serverName>__<toolName>` (e.g. `mcp__auth0-docs__search_auth0_docs`).
+ */
+function writeMcpSettings(workspace: string, mcpHttpUrl: string): void {
+  const geminiDir = join(workspace, '.gemini');
+  mkdirSync(geminiDir, { recursive: true });
+  const settings = {
+    mcpServers: {
+      'auth0-docs': {
+        httpUrl: mcpHttpUrl,
+        timeout: 30000,
+      },
+    },
+  };
+  writeFileSync(join(geminiDir, 'settings.json'), JSON.stringify(settings, null, 2), 'utf-8');
+}
+
+/**
+ * Maps Gemini CLI tool names to the canonical names used across all runners.
+ * Any unmapped name is passed through as-is.
+ */
+const TOOL_NAME_MAP: Record<string, string> = {
+  list_directory: 'bash',
+  run_shell_command: 'bash',
+  create_directory: 'bash',
+  move_file: 'bash',
+  copy_file: 'bash',
+  delete_file: 'bash',
+  read_file: 'read',
+  write_file: 'write',
+  edit_file: 'edit',
+  replace_in_file: 'edit',
+  glob: 'glob',
+  grep: 'grep',
+  web_fetch: 'webfetch',
+  web_search: 'webfetch',
+};
+
+function mapToolName(name: string): string {
+  // MCP tool calls use the format mcp_<serverName>_<toolName> — map to 'mcp'
+  // so they show up as a canonical action type in logs and scoring.
+  if (name.startsWith('mcp_')) return 'mcp';
+  return TOOL_NAME_MAP[name] ?? name;
+}
+
+function isDocLookup(name: string): boolean {
+  return (
+    name === 'web_fetch' ||
+    name === 'web_search' ||
+    name.startsWith('mcp_') ||
+    name.includes('search') ||
+    name.includes('doc')
+  );
+}
+
+export interface GeminiCliRunOptions {
+  /** Tool flags (e.g. ['mcp', 'skills']). */
+  tools?: string[];
+  /** Gemini model to use. Defaults to GEMINI_CLI_DEFAULT_MODEL. */
+  model?: string;
+}
+
+/**
+ * Runs a Gemini CLI agent against an eval and returns a RunRecord compatible
+ * with the scorer and serialisers used by the standard agent pipeline.
+ */
+export async function runGeminiCliAgent(
+  evalDef: Pick<EvalDefinition, 'id' | 'userPrompt'>,
+  workspace: string,
+  opts: GeminiCliRunOptions = {},
+): Promise<RunRecord> {
+  const { tools = [], model = GEMINI_CLI_DEFAULT_MODEL } = opts;
+
+  const record: RunRecord = {
+    taskName: evalDef.id,
+    model,
+    sessionId: Math.random().toString(36).slice(2, 10),
+    startTime: Date.now() / 1000,
+    endTime: 0,
+    toolCalls: [],
+    turnMetrics: [],
+    providerErrors: [],
+    inputTokens: 0,
+    outputTokens: 0,
+    costUsd: 0,
+    status: 'running',
+    finalSummary: '',
+    workspace,
+  };
+
+  logger.info(`\n[GeminiCLI] Starting task: ${evalDef.id}`);
+  logger.info(`[GeminiCLI] Workspace: ${workspace}`);
+  logger.info(`[GeminiCLI] Model: ${model}`);
+  if (tools.includes('mcp')) {
+    writeMcpSettings(workspace, AUTH0_MCP_URL);
+    logger.info(`[GeminiCLI] MCP: ${AUTH0_MCP_URL}`);
+  }
+
+  const args: string[] = ['-p', evalDef.userPrompt, '--approval-mode', 'yolo', '-o', 'stream-json', '-m', model];
+
+  // Build env: inherit process env, then overlay ATKO LiteLLM proxy vars so
+  // the Gemini CLI routes through https://llm.atko.ai instead of the public
+  // Gemini API.  geminiProxyEnv() fetches the LiteLLM token via OCM and sets
+  // GOOGLE_GEMINI_BASE_URL + GEMINI_API_KEY; it returns {} on OCM failure so
+  // the caller's existing GEMINI_API_KEY is used as a fallback.
+  const geminiEnv: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (v !== undefined) geminiEnv[k] = v;
+  }
+  Object.assign(geminiEnv, geminiProxyEnv());
+
+  // Pending tool calls: tool_id → { name, args, startTime }
+  const pending = new Map<string, { name: string; args: Record<string, unknown>; startTime: number }>();
+
+  // Turn tracking — one TurnMetric per assistant message batch.
+  let turnNum = 0;
+  let turnToolCount = 0;
+  let turnStartTime = record.startTime;
+  // True once we've seen at least one delta chunk for the current turn but
+  // haven't yet received a closing non-delta message.  Flushed at result time
+  // when the Gemini CLI omits the final non-delta message (streaming-only mode).
+  let pendingDeltaTurn = false;
+
+  return new Promise<RunRecord>((resolve) => {
+    const child = spawn('gemini', args, { cwd: workspace, env: geminiEnv });
+
+    const taskTimeout = setTimeout(() => {
+      record.providerErrors.push(`task timeout after ${GEMINI_CLI_TIMEOUT_MS / 1000}s`);
+      record.status = 'failure';
+      logger.info(`[GeminiCLI] ✗ Task timeout — killing`);
+      child.kill('SIGTERM');
+    }, GEMINI_CLI_TIMEOUT_MS);
+
+    const stderrChunks: Buffer[] = [];
+    if (child.stderr) {
+      child.stderr.on('data', (c: Buffer) => stderrChunks.push(c));
+    }
+
+    if (child.stdout) {
+      const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
+
+      rl.on('line', (line: string) => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('YOLO mode')) return;
+
+        let event: Record<string, unknown>;
+        try {
+          event = JSON.parse(trimmed) as Record<string, unknown>;
+        } catch {
+          logger.warn(`[GeminiCLI] Non-JSON stdout: ${trimmed.slice(0, 120)}`);
+          return;
+        }
+
+        const type = event.type as string;
+
+        switch (type) {
+          case 'init':
+            record.sessionId = (event.session_id as string) ?? record.sessionId;
+            logger.info(`[GeminiCLI] Session ${record.sessionId}`);
+            break;
+
+          case 'tool_use': {
+            const toolName = (event.tool_name as string) ?? 'unknown';
+            const toolId = (event.tool_id as string) ?? String(Date.now());
+            const params = (event.parameters ?? {}) as Record<string, unknown>;
+            pending.set(toolId, { name: toolName, args: params, startTime: Date.now() / 1000 });
+            turnToolCount++;
+            break;
+          }
+
+          case 'tool_result': {
+            const toolId = (event.tool_id as string) ?? '';
+            const pend = pending.get(toolId);
+            if (pend) pending.delete(toolId);
+
+            const isError = event.status !== 'success';
+            const output = (event.output as string) ?? '';
+            const rawName = pend?.name ?? 'unknown';
+            const mappedName = mapToolName(rawName);
+            const toolArgs = pend?.args ?? {};
+            const startTime = pend?.startTime ?? Date.now() / 1000;
+            const endTime = Date.now() / 1000;
+            const elapsed = ((endTime - startTime) * 1000).toFixed(0);
+            const preview = output.slice(0, 80).replace(/\n/g, ' ');
+
+            if (isError) {
+              logger.error(`  [GeminiCLI] ${mappedName} ✗ (${elapsed}ms) ${preview}`);
+            } else {
+              logger.info(`  [GeminiCLI] ${mappedName} ✓ (${elapsed}ms)${preview ? ` → ${preview}` : ''}`);
+            }
+
+            const isRetry = detectRetry(record.toolCalls, mappedName, toolArgs);
+            const tc: ToolCallRecord = {
+              name: mappedName,
+              args: toolArgs,
+              result: output,
+              startTime,
+              endTime,
+              isDocLookup: isDocLookup(rawName),
+              isInterruption: false,
+              causedError: isError,
+              actionType: classifyActionType(mappedName, isError),
+              isRetry,
+              recoveredFromError: isRetry && !isError,
+            };
+            if (isError) tc.errorCategory = classifyErrorCategory(output);
+            record.toolCalls.push(tc);
+            break;
+          }
+
+          case 'message': {
+            if ((event.role as string) === 'assistant') {
+              const content = (event.content as string) ?? '';
+              if (content) record.finalSummary = content;
+
+              if (event.delta === true) {
+                // Streaming chunk — mark that a turn is in progress but don't
+                // close it yet; the non-delta message (or result event) will do that.
+                pendingDeltaTurn = true;
+              } else {
+                // Non-delta: the turn is complete.
+                pendingDeltaTurn = false;
+                turnNum++;
+                const turnEndTime = Date.now() / 1000;
+                const tm: TurnMetric = {
+                  turn: turnNum,
+                  inputTokens: 0,
+                  outputTokens: 0,
+                  llmLatency: Math.max(0, turnEndTime - turnStartTime),
+                  finishReason: turnToolCount > 0 ? 'tool_calls' : 'stop',
+                  toolCallCount: turnToolCount,
+                  costUsd: 0,
+                };
+                record.turnMetrics.push(tm);
+                turnStartTime = turnEndTime;
+                logger.info(`[GeminiCLI] Turn ${turnNum}: ${turnToolCount} tool(s)`);
+                turnToolCount = 0;
+              }
+            }
+            break;
+          }
+
+          case 'result': {
+            const stats = (event.stats ?? {}) as Record<string, unknown>;
+            const inputTokens = (stats.input_tokens as number) ?? 0;
+            const outputTokens = (stats.output_tokens as number) ?? 0;
+            const durationMs = (stats.duration_ms as number) ?? 0;
+            const totalToolCalls = (stats.tool_calls as number) ?? 0;
+
+            // Flush a pending delta-only turn — the Gemini CLI can emit streaming
+            // chunks (delta:true) without a closing non-delta message when the
+            // session runs in streaming-only mode.
+            if (pendingDeltaTurn) {
+              pendingDeltaTurn = false;
+              turnNum++;
+              const tm: TurnMetric = {
+                turn: turnNum,
+                inputTokens: 0,
+                outputTokens: 0,
+                // durationMs comes from the result stats — authoritative wall time
+                // for this turn. Delta streaming means the turn ended with text output.
+                llmLatency: Math.max(0, durationMs / 1000),
+                finishReason: 'stop',
+                toolCallCount: turnToolCount,
+                costUsd: 0,
+              };
+              record.turnMetrics.push(tm);
+              turnToolCount = 0;
+            }
+
+            record.inputTokens = inputTokens;
+            record.outputTokens = outputTokens;
+            record.costUsd = estimateCost(model, inputTokens, outputTokens);
+
+            // Back-fill the last TurnMetric with authoritative stats.
+            const last = record.turnMetrics[record.turnMetrics.length - 1];
+            if (last) {
+              last.inputTokens = inputTokens;
+              last.outputTokens = outputTokens;
+              last.llmLatency = durationMs / 1000;
+              last.costUsd = record.costUsd;
+            }
+
+            logger.info(
+              `[GeminiCLI] Turn ${turnNum}: ${inputTokens}in/${outputTokens}out tokens, ` +
+                `${totalToolCalls} tool(s), cost=$${record.costUsd.toFixed(4)}`,
+            );
+            break;
+          }
+        }
+      });
+    }
+
+    child.on('close', (code) => {
+      clearTimeout(taskTimeout);
+
+      // Drain tool_use events that never received a tool_result (e.g. on timeout
+      // or unexpected exit) so we don't silently lose tool-call metrics.
+      for (const [, pend] of pending) {
+        const tc: ToolCallRecord = {
+          name: mapToolName(pend.name),
+          args: pend.args,
+          result: '',
+          startTime: pend.startTime,
+          endTime: Date.now() / 1000,
+          isDocLookup: isDocLookup(pend.name),
+          isInterruption: false,
+          causedError: true,
+          actionType: classifyActionType(mapToolName(pend.name), true),
+          isRetry: false,
+          recoveredFromError: false,
+          errorCategory: 'unknown',
+        };
+        record.toolCalls.push(tc);
+        record.providerErrors.push(`orphaned tool call: ${pend.name}`);
+      }
+      pending.clear();
+
+      if (code !== 0 && record.status !== 'failure') {
+        const stderr = Buffer.concat(stderrChunks).toString('utf-8').trim();
+        // Gemini CLI exits non-zero on 503 retries but may still have completed
+        // the task. Only treat as failure if there's nothing to show.
+        if (record.toolCalls.length === 0 && !record.finalSummary) {
+          const msg = `gemini exited with code ${code ?? 1}${stderr ? `: ${stderr.slice(0, 200)}` : ''}`;
+          record.providerErrors.push(msg);
+          record.status = 'failure';
+          logger.error(`[GeminiCLI] ✗ ${msg}`);
+        }
+      }
+
+      record.endTime = Date.now() / 1000;
+      if (record.status === 'running') {
+        record.status = record.toolCalls.length > 0 || record.finalSummary ? 'success' : 'failure';
+        if (record.status === 'failure') {
+          record.providerErrors.push('no output received');
+        }
+      }
+
+      logger.info(
+        `[GeminiCLI] Done — status=${record.status} turns=${turnNum} ` +
+          `tools=${record.toolCalls.length} cost=$${record.costUsd.toFixed(4)}`,
+      );
+      resolve(record);
+    });
+
+    child.on('error', (err) => {
+      clearTimeout(taskTimeout);
+      record.providerErrors.push(`spawn error: ${err.message}`);
+      record.status = 'failure';
+      record.endTime = Date.now() / 1000;
+      logger.error(`[GeminiCLI] ✗ Spawn error: ${err.message}`);
+      resolve(record);
+    });
+  });
+}

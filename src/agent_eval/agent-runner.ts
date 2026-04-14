@@ -1,7 +1,7 @@
 /**
  * AgentRunner interface and registry.
  *
- * Each agent (ReAct, Claude Code, Codex, Gemini CLI, …) implements AgentRunner
+ * Each agent (ReAct, Claude Code, Copilot, Gemini CLI, …) implements AgentRunner
  * and registers itself at startup via registerRunner().
  *
  * runAgentJob() in run.ts calls getRunner(agentType) and delegates to the
@@ -31,7 +31,7 @@ export interface RunParams {
 /**
  * Contract every agent runner must fulfil.
  *
- * Adding a new agent (e.g. Codex, Gemini CLI) means:
+ * Adding a new agent means:
  *   1. Create a class implementing this interface.
  *   2. Add the new agent id to KNOWN_AGENT_TYPES in cli/constants.ts.
  *   3. Register it in agent-registry.ts.

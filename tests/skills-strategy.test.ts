@@ -1,5 +1,5 @@
 /**
- * Unit tests for InjectSkillsStrategy and CopySkillsStrategy.
+ * Unit tests for InjectSkillsStrategy, CopySkillsStrategy, and GeminiCliSkillsStrategy.
  *
  * Tests observable output of strategy.apply() by mocking at the
  * filesystem / config level (same approach as skills.test.ts).
@@ -14,6 +14,7 @@ vi.mock('node:fs', () => ({
   mkdirSync: vi.fn(),
   rmSync: vi.fn(),
   copyFileSync: vi.fn(),
+  writeFileSync: vi.fn(),
 }));
 vi.mock('../src/agent_eval/skills/config.js', () => ({
   SKILLS_REMOTE_DIR: '/tmp/skills-remote',
@@ -25,7 +26,8 @@ vi.mock('../src/agent_eval/tools/utils.js', () => ({
 }));
 
 // Import after mocks are set up
-const { InjectSkillsStrategy, CopySkillsStrategy } = await import('../src/agent_eval/skills/strategy.js');
+const { InjectSkillsStrategy, CopySkillsStrategy, GeminiCliSkillsStrategy } =
+  await import('../src/agent_eval/skills/strategy.js');
 
 function makeEvalDef(overrides: Partial<EvalDefinition> = {}): EvalDefinition {
   return {
@@ -83,5 +85,47 @@ describe('CopySkillsStrategy', () => {
       expect.stringContaining('SKILL.md'),
       expect.stringContaining('.claude/skills/auth0-react/SKILL.md'),
     );
+  });
+});
+
+describe('GeminiCliSkillsStrategy', () => {
+  it('does not modify agentSystemPrompt (Gemini CLI auto-loads GEMINI.md)', async () => {
+    const strategy = new GeminiCliSkillsStrategy();
+    const result = await strategy.apply(makeEvalDef(), '/tmp/workspace');
+    expect(result.agentSystemPrompt).toBe('Original prompt.');
+  });
+
+  it('copies skill files to .gemini/skills/<skill>/ in the workspace', async () => {
+    const fs = vi.mocked(await import('node:fs'));
+    const strategy = new GeminiCliSkillsStrategy();
+    await strategy.apply(makeEvalDef(), '/tmp/workspace');
+    expect(fs.copyFileSync).toHaveBeenCalledWith(
+      expect.stringContaining('SKILL.md'),
+      expect.stringContaining('.gemini/skills/auth0-react/SKILL.md'),
+    );
+  });
+
+  it('writes GEMINI.md at the workspace root', async () => {
+    const fs = vi.mocked(await import('node:fs'));
+    const strategy = new GeminiCliSkillsStrategy();
+    await strategy.apply(makeEvalDef(), '/tmp/workspace');
+    expect(fs.writeFileSync).toHaveBeenCalledWith(expect.stringContaining('GEMINI.md'), expect.any(String), 'utf-8');
+  });
+
+  it('GEMINI.md references the skill SKILL.md path', async () => {
+    const fs = vi.mocked(await import('node:fs'));
+    const strategy = new GeminiCliSkillsStrategy();
+    await strategy.apply(makeEvalDef(), '/tmp/workspace');
+    const [, content] = fs.writeFileSync.mock.calls.find(([path]) => String(path).endsWith('GEMINI.md'))!;
+    expect(String(content)).toContain('.gemini/skills/auth0-react/SKILL.md');
+  });
+
+  it('GEMINI.md lists all skills when multiple are provided', async () => {
+    const fs = vi.mocked(await import('node:fs'));
+    const strategy = new GeminiCliSkillsStrategy();
+    await strategy.apply(makeEvalDef({ skills: ['auth0-react', 'auth0-nextjs'] }), '/tmp/workspace');
+    const [, content] = fs.writeFileSync.mock.calls.find(([path]) => String(path).endsWith('GEMINI.md'))!;
+    expect(String(content)).toContain('.gemini/skills/auth0-react/SKILL.md');
+    expect(String(content)).toContain('.gemini/skills/auth0-nextjs/SKILL.md');
   });
 });
