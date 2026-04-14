@@ -31,6 +31,9 @@ const translator = new CopilotCliTranslator();
 /** Model identifier written to RunRecord when Copilot SDK runner is used. */
 export const COPILOT_MODEL_ID = 'copilot';
 
+/** Default GPT model used when no explicit model is requested. */
+export const COPILOT_DEFAULT_MODEL = 'gpt-5.4';
+
 export interface CopilotRunOptions {
   /** Path to the `copilot` binary. Defaults to the bundled CLI from @github/copilot. */
   copilotBin?: string;
@@ -97,10 +100,18 @@ export async function runCopilotAgent(
     ...(copilotBin ? { cliPath: copilotBin } : {}),
     cwd: workspace,
     env: { ...process.env, ...env },
+    ...(process.env.ATKO_API_KEY
+      ? { provider: { baseUrl: '<LLM_PROXY_URL>', apiKey: process.env.ATKO_API_KEY } }
+      : {}),
   });
 
   logger.info(`\n[Copilot] Starting task: ${evalDef.id}`);
   logger.info(`[Copilot] Workspace: ${workspace}`);
+  if (process.env.ATKO_API_KEY) {
+    logger.info('[Copilot] Routing through ATKO LiteLLM proxy (<LLM_PROXY_URL>).');
+  } else {
+    logger.warn('[Copilot] ATKO_API_KEY not set — using default GitHub Copilot auth.');
+  }
   if (model) {
     logger.info(`[Copilot] Model: ${model}`);
   }
