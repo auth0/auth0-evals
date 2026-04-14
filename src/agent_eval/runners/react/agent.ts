@@ -7,6 +7,7 @@
  */
 
 import { logger } from '../../../utils/logger.js';
+import { makeSessionId } from '../../../utils/session.js';
 import { estimateCost } from '../../../config/costs.js';
 import { BedrockToolConfigError, LlmApiError } from '../../../errors.js';
 import { withRetry } from '../../../utils/retry.js';
@@ -30,7 +31,7 @@ function makeRunRecord(taskName: string, model: string, workspace: string): RunR
   return {
     taskName,
     model,
-    sessionId: Math.random().toString(36).slice(2, 10),
+    sessionId: makeSessionId(),
     startTime: 0,
     endTime: 0,
     toolCalls: [],

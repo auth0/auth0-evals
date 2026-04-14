@@ -27,6 +27,7 @@ import { BASE_URL, CLAUDE_CODE_TASK_TIMEOUT_MS } from '../../../config/settings.
 import { estimateCost } from '../../../config/costs.js';
 import { ClaudeCodeTranslator } from '../../tool-translator.js';
 import { logger } from '../../../utils/logger.js';
+import { makeSessionId } from '../../../utils/session.js';
 
 // Module-level translator instance — all event processing uses this.
 const translator = new ClaudeCodeTranslator();
@@ -131,7 +132,7 @@ export async function runClaudeCodeAgent(
   const record: RunRecord = {
     taskName: evalDef.id,
     model: CLAUDE_CODE_MODEL_ID,
-    sessionId: Math.random().toString(36).slice(2, 10),
+    sessionId: makeSessionId(),
     startTime: Date.now() / 1000,
     endTime: 0,
     toolCalls: [],

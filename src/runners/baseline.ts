@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { estimateCost } from '../config/costs.js';
 import { BASE_URL } from '../config/settings.js';
+import { makeSessionId } from '../utils/session.js';
 import { LlmApiError } from '../errors.js';
 import { withRetry } from '../utils/retry.js';
 import { runGraders, GraderLevel } from '../agent_eval/graders.js';
@@ -30,9 +31,6 @@ export interface BaselineResult {
   error: string;
 }
 
-function makeSessionId(): string {
-  return Math.random().toString(36).slice(2, 10);
-}
 
 export async function runBaseline(
   apiKey: string,
