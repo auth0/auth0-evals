@@ -5,7 +5,7 @@
  * as a subprocess and parses the JSONL event stream into a RunRecord.
  *
  * Authentication: routed through the ATKO LiteLLM proxy (<LLM_PROXY_URL>)
- * via `ocm auth litellm`. Falls back to GEMINI_API_KEY from env if OCM fails.
+ * using ATKO_API_KEY — the same token used by all other runners.
  *
  * Event format (stream-json):
  *   {"type":"init",        "session_id":"...", "model":"..."}
@@ -25,7 +25,6 @@ import { CLAUDE_CODE_TASK_TIMEOUT_MS } from '../../../config/settings.js';
 import { estimateCost } from '../../../config/costs.js';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '../../agent-types.js';
 import { logger } from '../../../utils/logger.js';
-import { geminiProxyEnv } from './proxy.js';
 
 /** Model identifier written to RunRecord when Gemini CLI runner is used. */
 export const GEMINI_CLI_MODEL_ID = 'gemini-cli';
@@ -144,16 +143,17 @@ export async function runGeminiCliAgent(
 
   const args: string[] = ['-p', evalDef.userPrompt, '--approval-mode', 'yolo', '-o', 'stream-json', '-m', model];
 
-  // Build env: inherit process env, then overlay ATKO LiteLLM proxy vars so
-  // the Gemini CLI routes through <LLM_PROXY_URL> instead of the public
-  // Gemini API.  geminiProxyEnv() fetches the LiteLLM token via OCM and sets
-  // GOOGLE_GEMINI_BASE_URL + GEMINI_API_KEY; it returns {} on OCM failure so
-  // the caller's existing GEMINI_API_KEY is used as a fallback.
+  // Route through the ATKO LiteLLM proxy — same pattern as the Claude Code runner.
   const geminiEnv: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (v !== undefined) geminiEnv[k] = v;
   }
-  Object.assign(geminiEnv, geminiProxyEnv());
+  if (process.env.ATKO_API_KEY) {
+    geminiEnv.GOOGLE_GEMINI_BASE_URL = '<LLM_PROXY_URL>';
+    geminiEnv.GEMINI_API_KEY = process.env.ATKO_API_KEY;
+  } else {
+    logger.warn('[GeminiCLI] ATKO_API_KEY not set — requests will fail.');
+  }
 
   // Pending tool calls: tool_id → { name, args, startTime }
   const pending = new Map<string, { name: string; args: Record<string, unknown>; startTime: number }>();

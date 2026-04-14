@@ -1,49 +1,81 @@
 /**
- * Unit tests for geminiProxyEnv() in gemini-cli/proxy.ts.
+ * Unit tests for the ATKO proxy env-var injection in runGeminiCliAgent().
  *
- * Verifies env var reading, routing configuration, and warning behaviour
- * by stubbing process.env before each call.
+ * Verifies that ATKO_API_KEY is forwarded as GEMINI_API_KEY and that
+ * GOOGLE_GEMINI_BASE_URL is set to the ATKO LiteLLM proxy endpoint.
+ * Achieved by stubbing process.env and capturing the env passed to spawn.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { geminiProxyEnv } from '../src/agent_eval/runners/gemini-cli/proxy.js';
+import type { SpawnOptionsWithoutStdio } from 'node:child_process';
+import { EventEmitter } from 'node:events';
+import { Readable } from 'node:stream';
+import { runGeminiCliAgent } from '../src/agent_eval/runners/gemini-cli/agent.js';
 
-beforeEach(() => {
+vi.mock('node:child_process', () => ({
+  spawn: vi.fn(),
+}));
+
+let spawnMock: ReturnType<typeof vi.fn>;
+
+beforeEach(async () => {
   vi.unstubAllEnvs();
+  const cp = await import('node:child_process');
+  spawnMock = cp.spawn as unknown as ReturnType<typeof vi.fn>;
+  spawnMock.mockReset();
+
+  // Each call to spawn returns a minimal child stub and immediately emits
+  // 'close' (after listeners are attached) so the agent promise resolves.
+  spawnMock.mockImplementation(() => {
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: Readable;
+      stderr: Readable;
+      kill: () => void;
+    };
+    // readline.createInterface requires a proper Readable (needs resume()).
+    child.stdout = new Readable({ read() {} });
+    child.stderr = new Readable({ read() {} });
+    child.kill = () => {};
+    // Emit close after the agent has had a chance to attach its listener.
+    setImmediate(() => child.emit('close', 0));
+    return child;
+  });
 });
 
-describe('geminiProxyEnv', () => {
-  it('returns ATKO LiteLLM proxy env vars when GEMINI_API_KEY is set', () => {
-    vi.stubEnv('GEMINI_API_KEY', 'test-litellm-token');
+function capturedEnv(): Record<string, string> {
+  const call = spawnMock.mock.calls[0] as [string, string[], SpawnOptionsWithoutStdio];
+  return (call[2]?.env ?? {}) as Record<string, string>;
+}
 
-    const env = geminiProxyEnv();
+async function triggerRun() {
+  await runGeminiCliAgent({ id: 'test', userPrompt: 'hello' }, '/tmp/workspace', {
+    model: 'gemini-2.5-flash',
+  });
+}
 
-    expect(env.GOOGLE_GEMINI_BASE_URL).toBe('<LLM_PROXY_URL>');
-    expect(env.GEMINI_API_KEY).toBe('test-litellm-token');
+describe('runGeminiCliAgent proxy env injection', () => {
+  it('sets GOOGLE_GEMINI_BASE_URL to ATKO proxy when ATKO_API_KEY is set', async () => {
+    vi.stubEnv('ATKO_API_KEY', 'test-atko-token');
+    await triggerRun();
+    expect(capturedEnv().GOOGLE_GEMINI_BASE_URL).toBe('<LLM_PROXY_URL>');
   });
 
-  it('returns empty object when GEMINI_API_KEY is not set', () => {
-    vi.stubEnv('GEMINI_API_KEY', '');
-
-    const env = geminiProxyEnv();
-
-    expect(env).toEqual({});
+  it('sets GEMINI_API_KEY to the value of ATKO_API_KEY', async () => {
+    vi.stubEnv('ATKO_API_KEY', 'test-atko-token');
+    await triggerRun();
+    expect(capturedEnv().GEMINI_API_KEY).toBe('test-atko-token');
   });
 
-  it('does not include GOOGLE_GEMINI_BASE_URL when GEMINI_API_KEY is missing', () => {
-    vi.stubEnv('GEMINI_API_KEY', '');
-
-    const env = geminiProxyEnv();
-
-    expect(env).not.toHaveProperty('GOOGLE_GEMINI_BASE_URL');
+  it('does not set GOOGLE_GEMINI_BASE_URL when ATKO_API_KEY is absent', async () => {
+    vi.stubEnv('ATKO_API_KEY', '');
+    await triggerRun();
+    expect(capturedEnv()).not.toHaveProperty('GOOGLE_GEMINI_BASE_URL');
   });
 
-  it('passes through the exact GEMINI_API_KEY value set in env', () => {
+  it('passes through the exact ATKO_API_KEY value as GEMINI_API_KEY', async () => {
     const token = 'eyJhbGciOiJSUzI1NiJ9.payload.signature';
-    vi.stubEnv('GEMINI_API_KEY', token);
-
-    const env = geminiProxyEnv();
-
-    expect(env.GEMINI_API_KEY).toBe(token);
+    vi.stubEnv('ATKO_API_KEY', token);
+    await triggerRun();
+    expect(capturedEnv().GEMINI_API_KEY).toBe(token);
   });
 });
