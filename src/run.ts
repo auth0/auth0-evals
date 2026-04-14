@@ -211,6 +211,7 @@ export function buildSubprocessArgs(argv: string[] = process.argv.slice(2)): str
  *
  * Auto-routing rules for agent mode:
  *   - Claude models (prefix `claude-`) with no explicit --agent-type → `claude-code`
+ *   - Gemini models (prefix `gemini-`) with no explicit --agent-type → `gemini-cli`
  *   - Explicit `--agent-type claude-code` with a non-Claude model → deduplicated sentinel job
  *   - Everything else → `auth0-ReAct-agent` (or the explicitly requested type)
  * Exported so the routing logic can be unit-tested independently of the CLI.
@@ -224,6 +225,7 @@ export function buildJobList(
   matrix = false,
 ): Array<[EvalConfig, string, Mode, string[], AgentType]> {
   const isClaudeModel = (m: string) => m.startsWith('claude-');
+  const isGeminiModel = (m: string) => m.startsWith('gemini-');
   const jobs: Array<[EvalConfig, string, Mode, string[], AgentType]> = [];
   const claudeCodeEvalsSeen = new Set<string>();
   // In matrix mode iterate over all four tool-set combinations for agent jobs.
@@ -237,7 +239,11 @@ export function buildJobList(
           continue;
         }
         const effectiveAgentType: AgentType =
-          !agentType && isClaudeModel(model) ? 'claude-code' : (agentType ?? DEFAULT_AGENT_TYPE);
+          !agentType && isClaudeModel(model)
+            ? 'claude-code'
+            : !agentType && isGeminiModel(model)
+              ? 'gemini-cli'
+              : (agentType ?? DEFAULT_AGENT_TYPE);
         for (const jobTools of agentToolSets) {
           if (effectiveAgentType === 'claude-code') {
             if (isClaudeModel(model)) {

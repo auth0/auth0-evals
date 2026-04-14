@@ -16,7 +16,7 @@ on:
         default: 'all'
         type: string
       agent_type:
-        description: 'Agent runner (auto = Claude models use claude-code, others use ReAct)'
+        description: 'Agent runner (auto = Claude→claude-code, Gemini→gemini-cli, others→ReAct)'
         default: 'auto'
         type: choice
         options:
