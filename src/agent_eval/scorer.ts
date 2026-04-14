@@ -13,7 +13,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import type { RunRecord } from './agent-types.js';
-import { passRate as graderPassRateFn, EXCLUDED_EVAL_DIRS, type GraderResult } from './graders.js';
+import { passRate as graderPassRateFn, EXCLUDED_EVAL_DIRS, EXCLUDED_EVAL_FILES, type GraderResult } from './graders.js';
 
 // ── Scoring constants ─────────────────────────────────────────────────────────
 
@@ -258,7 +258,7 @@ function* walkFiles(dir: string): Generator<string> {
       if (!EXCLUDED_EVAL_DIRS.has(entry.name)) {
         yield* walkFiles(full);
       }
-    } else {
+    } else if (!EXCLUDED_EVAL_FILES.has(entry.name)) {
       yield full;
     }
   }
