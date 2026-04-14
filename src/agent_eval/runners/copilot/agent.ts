@@ -24,6 +24,7 @@ import type { RunRecord, ToolCallRecord, TurnMetric } from '../../agent-types.js
 import { classifyActionType, classifyErrorCategory, detectRetry } from '../../agent-types.js';
 import { CopilotCliTranslator } from '../../tool-translator.js';
 import { logger } from '../../../utils/logger.js';
+import { makeSessionId } from '../../../utils/session.js';
 
 const translator = new CopilotCliTranslator();
 
@@ -73,7 +74,7 @@ export async function runCopilotAgent(
   const record: RunRecord = {
     taskName: evalDef.id,
     model: COPILOT_MODEL_ID,
-    sessionId: Math.random().toString(36).slice(2, 10),
+    sessionId: makeSessionId(),
     startTime: Date.now() / 1000,
     endTime: 0,
     toolCalls: [],
