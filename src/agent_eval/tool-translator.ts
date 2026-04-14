@@ -5,7 +5,7 @@
  * an agent's tool names and arguments into the internal taxonomy used by the
  * scorer and report pipeline (read_file, write_file, run_command, etc.).
  *
- * To add a new agent with different tool names (Codex, Gemini CLI, etc.):
+ * To add a new agent with different tool names:
  *   1. Implement ToolTranslator for that agent's vocabulary.
  *   2. Use it inside that agent's runner — no changes elsewhere.
  */

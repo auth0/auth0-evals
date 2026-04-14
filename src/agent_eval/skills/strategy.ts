@@ -9,13 +9,13 @@
  *       Augments the system prompt with skill names and tool hints. The agent
  *       accesses skill files via `list_skill_files` / `read_skill_file` tools.
  *
- *   - CopySkillsStrategy  (filesystem-native agents: Claude Code, Codex, etc.)
+ *   - CopySkillsStrategy  (filesystem-native agents: Claude Code, etc.)
  *       Copies skill files into the workspace under `.claude/skills/<skill>/`
  *       so Claude Code auto-loads them as context.
  */
 
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
 import { logger } from '../../utils/logger.js';
@@ -200,6 +200,50 @@ export class CopilotSdkSkillsStrategy implements SkillsStrategy {
     }
 
     // No prompt modification — the SDK uses skillDirectories config to discover skills.
+    return evalDef;
+  }
+}
+
+// ── GeminiCliSkillsStrategy ───────────────────────────────────────────────────
+
+/**
+ * Delivers skills for the Gemini CLI runner.
+ *
+ * Copies skill files into `.gemini/skills/<skill>/` in the workspace and writes
+ * a `GEMINI.md` at the workspace root. The Gemini CLI auto-loads `GEMINI.md`
+ * as persistent context (same convention as Claude Code's `CLAUDE.md`), so the
+ * model sees the skill instructions without any prompt modification.
+ */
+export class GeminiCliSkillsStrategy implements SkillsStrategy {
+  async apply(evalDef: EvalDefinition, workspace: string): Promise<EvalDefinition> {
+    await ensureCloned();
+
+    const skillLines: string[] = [];
+
+    for (const skill of evalDef.skills) {
+      const skillDir = resolveSkillDir(skill);
+      if (!skillDir) {
+        throw new Error(`Skill '${skill}' not found in cloned repo — cannot run agent+skills without it`);
+      }
+      const files = collectFiles(skillDir, skillDir, Infinity);
+      for (const relPath of files) {
+        const dest = join(workspace, '.gemini', 'skills', skill, relPath);
+        mkdirSync(dirname(dest), { recursive: true });
+        copyFileSync(join(skillDir, relPath), dest);
+      }
+      logger.info(`  [skills] Copied ${files.length} file(s) for '${skill}' → .gemini/skills/${skill}/`);
+      skillLines.push(`- .gemini/skills/${skill}/SKILL.md`);
+    }
+
+    // Write GEMINI.md so the Gemini CLI auto-loads skill instructions as context.
+    const geminiMd =
+      `# Skills\n\n` +
+      `The following Auth0 SDK skills are available. Read each SKILL.md before starting:\n\n` +
+      skillLines.join('\n') +
+      '\n';
+    writeFileSync(join(workspace, 'GEMINI.md'), geminiMd, 'utf-8');
+    logger.info(`  [skills] Wrote GEMINI.md with ${evalDef.skills.length} skill(s)`);
+
     return evalDef;
   }
 }

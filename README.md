@@ -125,6 +125,35 @@ The framework maintains a list of models that work reliably across all modes:
 
 **Note:** GPT and Gemini use the ATKO LiteLLM proxy (`ATKO_API_KEY`). Claude models use the `claude` CLI routed through the ATKO proxy's Bedrock pass-through endpoint by default. Set `CLAUDE_CODE_USE_BEDROCK_PROXY=0` to route through the LiteLLM proxy instead.
 
+## Agent Runners
+
+The `--agent-type` flag selects the agent runner for agent mode:
+
+| Runner | Flag | Default model |
+|--------|------|---------------|
+| ReAct (default) | `--agent-type auth0-ReAct-agent` | `gpt-5.4` |
+| Claude Code | `--agent-type claude-code` | auto-selected for `claude-*` models |
+| GitHub Copilot | `--agent-type copilot` | — |
+| Gemini CLI | `--agent-type gemini-cli` | `gemini-2.5-flash` |
+
+### Gemini CLI setup
+
+The Gemini CLI runner routes through the ATKO LiteLLM proxy. Before running, add your LiteLLM token to `.env`:
+
+```bash
+# Get a fresh token via OCM and add it to .env
+echo "GEMINI_API_KEY=$(ocm auth litellm)" >> .env
+```
+
+Then run evals as normal:
+
+```bash
+npm run run -- --eval swift_quickstart --mode agent --agent-type gemini-cli
+npm run run -- --eval react_quickstart --mode agent --agent-type gemini-cli --tools mcp
+```
+
+If the token expires, re-run the `echo` command above to refresh it.
+
 ## Evals
 
 | Category | ID | Description |
