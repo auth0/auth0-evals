@@ -52,7 +52,7 @@ export class ToolExecutor {
 
     logger.info(`[MCP] Connected to '${url}'. Available tools: ${tools.map((t) => t.name).join(', ')}`);
 
-    const localToolNames = new Set(this.#tools.map((t) => t.name));
+    const localToolNames = new Set<string>(this.#tools.map((t) => t.name));
     const conflicts = tools.map((t) => t.name).filter((n) => this.#mcpToolToClient.has(n) || localToolNames.has(n));
     if (conflicts.length > 0) {
       await client.close();

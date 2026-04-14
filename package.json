@@ -3,8 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "build": "tsc",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
@@ -38,7 +37,6 @@
     "prettier": "^3.8.1",
     "typescript": "^5.4.5",
     "typescript-eslint": "^8.58.1",
-    "vite": "^8.0.7",
     "vitest": "^4.1.0"
   },
   "lint-staged": {

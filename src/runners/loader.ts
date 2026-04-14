@@ -52,7 +52,8 @@ export async function loadEval(evalConfig: EvalConfig, frameworkRoot: string): P
   const defaultPath = existsSync(srcDefaultPath) ? srcDefaultPath : distDefaultPath;
   const agentSystemPrompt = existsSync(defaultPath) ? readFileSync(defaultPath, 'utf-8').trim() : '';
 
-  const distGradersPath = join(frameworkRoot, 'dist', evalConfig.path, 'graders.js');
+  const distRelPath = evalConfig.path.replace(/^src\//, '');
+  const distGradersPath = join(frameworkRoot, 'dist', distRelPath, 'graders.js');
   const srcGradersPath = join(evalPath, 'graders.ts');
   const gradersPath = existsSync(distGradersPath) ? distGradersPath : srcGradersPath;
   const graders = await loadGraders(gradersPath);
@@ -101,7 +102,7 @@ function parsePromptMd(promptPath: string): {
   // Extract YAML-ish frontmatter between --- delimiters
   const meta: Record<string, string> = {};
   const frontMatch = text.match(/^---\n([\s\S]*?)\n---\n/);
-  if (frontMatch) {
+  if (frontMatch && frontMatch[1]) {
     for (const line of frontMatch[1].split('\n')) {
       const colonIdx = line.indexOf(':');
       if (colonIdx !== -1) {
@@ -110,7 +111,9 @@ function parsePromptMd(promptPath: string): {
         meta[k] = v;
       }
     }
-    text = text.slice(frontMatch[0].length);
+    if (frontMatch[0]) {
+      text = text.slice(frontMatch[0].length);
+    }
   }
 
   const systemMatch = text.match(/^## System\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
@@ -119,9 +122,9 @@ function parsePromptMd(promptPath: string): {
 
   const DEFAULT_BASELINE =
     'Always prefer the official Auth0 SDK for the target framework. Do not use generic or third-party alternatives when an official Auth0 package exists.';
-  const baselineSystemPrompt = systemMatch ? systemMatch[1].trim() : DEFAULT_BASELINE;
-  const agentSystemPrompt = agentSystemMatch ? agentSystemMatch[1].trim() : '';
-  const userPrompt = taskMatch ? taskMatch[1].trim() : text.trim();
+  const baselineSystemPrompt = systemMatch?.[1] ? systemMatch[1].trim() : DEFAULT_BASELINE;
+  const agentSystemPrompt = agentSystemMatch?.[1] ? agentSystemMatch[1].trim() : '';
+  const userPrompt = taskMatch?.[1] ? taskMatch[1].trim() : text.trim();
 
   return { baselineSystemPrompt, userPrompt, agentSystemPrompt, meta };
 }

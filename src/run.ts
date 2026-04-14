@@ -188,14 +188,18 @@ export function buildSubprocessArgs(argv: string[] = process.argv.slice(2)): str
   const BOOL_FLAGS = new Set(['--matrix']);
   const stripped: string[] = [];
   for (let i = 0; i < argv.length; i++) {
-    if (VALUE_FLAGS.has(argv[i])) {
-      i++; // skip the paired value
-      continue;
+    const arg = argv[i];
+
+    if (arg !== undefined) {
+      if (VALUE_FLAGS.has(arg)) {
+        i++; // skip the paired value
+        continue;
+      }
+      if (BOOL_FLAGS.has(arg)) {
+        continue;
+      }
+      stripped.push(arg);
     }
-    if (BOOL_FLAGS.has(argv[i])) {
-      continue;
-    }
-    stripped.push(argv[i]);
   }
   return stripped;
 }

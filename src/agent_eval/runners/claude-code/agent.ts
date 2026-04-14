@@ -337,7 +337,7 @@ export function handleMessage(
     const stopReason = msg.stop_reason ?? (hasToolUse ? 'tool_use' : 'end_turn');
     if (stopReason !== 'tool_use') {
       const textContent = msg.content
-        .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+        .filter((b) => b.type === 'text')
         .map((b) => b.text)
         .join('\n');
       if (textContent) {
@@ -467,7 +467,11 @@ export function handleMessage(
       const rawTotal = rawCosts.reduce((s, c) => s + c, 0);
       const scale = rawTotal > 0 ? record.costUsd / rawTotal : 0;
       for (let i = 0; i < record.turnMetrics.length; i++) {
-        record.turnMetrics[i].costUsd = rawCosts[i] * scale;
+        const tm = record.turnMetrics[i] as TurnMetric;
+        const cost = rawCosts[i];
+        if (cost !== undefined) {
+          tm.costUsd = cost * scale;
+        }
       }
     }
 
@@ -477,7 +481,8 @@ export function handleMessage(
       record.status = 'success';
     } else {
       record.status = 'failure';
-      record.providerErrors.push(res.result || res.subtype);
+      const message = ('result' in res ? res.result : undefined) || res.subtype;
+      record.providerErrors.push(message);
     }
     return null;
   }
