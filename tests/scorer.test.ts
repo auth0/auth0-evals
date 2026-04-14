@@ -406,4 +406,39 @@ describe('collectFiles - skill file exclusion', () => {
     expect(combined).not.toContain('Auth0Provider');
     expect(combined).not.toContain('useAuth0');
   });
+
+  it('excludes .github/ directory from grading corpus', () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'app.ts'), 'import { Auth0Provider } from "@auth0/auth0-react"');
+    mkdirSync(join(dir, '.github'), { recursive: true });
+    writeFileSync(join(dir, '.github', 'settings.json'), 'Auth0Provider useAuth0');
+
+    const files = collectFiles(dir);
+    const paths = Object.keys(files);
+    expect(paths).toContain('app.ts');
+    expect(paths.every((p) => !p.startsWith('.github/'))).toBe(true);
+  });
+
+  it('excludes .gemini/ directory from grading corpus', () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'app.ts'), 'import { Auth0Provider } from "@auth0/auth0-react"');
+    mkdirSync(join(dir, '.gemini'), { recursive: true });
+    writeFileSync(join(dir, '.gemini', 'settings.json'), 'Auth0Provider useAuth0');
+
+    const files = collectFiles(dir);
+    const paths = Object.keys(files);
+    expect(paths).toContain('app.ts');
+    expect(paths.every((p) => !p.startsWith('.gemini/'))).toBe(true);
+  });
+
+  it('excludes GEMINI.md from grading corpus', () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'app.ts'), 'import { Auth0Provider } from "@auth0/auth0-react"');
+    writeFileSync(join(dir, 'GEMINI.md'), 'Auth0Provider useAuth0 skill content');
+
+    const files = collectFiles(dir);
+    const paths = Object.keys(files);
+    expect(paths).toContain('app.ts');
+    expect(paths).not.toContain('GEMINI.md');
+  });
 });
