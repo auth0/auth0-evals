@@ -15,6 +15,15 @@ on:
         description: 'Models to run: "all" or comma-separated (e.g. gpt-5.2,claude-4-6-sonnet)'
         default: 'all'
         type: string
+      agent_type:
+        description: 'Agent runner (auto = Claude models use claude-code, others use ReAct)'
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - auth0-ReAct-agent
+          - claude-code
+          - copilot
 
 concurrency:
   group: eval-${{ github.ref }}
@@ -100,10 +109,14 @@ jobs:
           ATKO_API_KEY: ${{ secrets.ATKO_API_KEY }}
           CLAUDE_CODE_USE_BEDROCK_PROXY: 0
         run: |
+          AGENT_TYPE="${{ inputs.agent_type || 'auto' }}"
           ARGS="--eval ${{ matrix.eval }} \
                 --mode ${{ matrix.mode.mode }} \
                 --model ${{ matrix.model }} \
                 --output scores-${{ matrix.eval }}-${{ matrix.mode.label }}-${{ matrix.model }}.json"
+          if [ "$AGENT_TYPE" != "auto" ]; then
+            ARGS="$ARGS --agent-type $AGENT_TYPE"
+          fi
           if [ -n "${{ matrix.mode.tools }}" ]; then
             ARGS="$ARGS --tools ${{ matrix.mode.tools }}"
           fi
