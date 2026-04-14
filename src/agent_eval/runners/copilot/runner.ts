@@ -9,7 +9,7 @@ import type { AgentRunner, RunParams, RunResult } from '../../agent-runner.js';
 import type { EvalDefinition } from '../../../runners/loader.js';
 import { CopilotSdkSkillsStrategy } from '../../skills/strategy.js';
 import type { SkillsStrategy } from '../../skills/strategy.js';
-import { runCopilotAgent, COPILOT_MODEL_ID } from './agent.js';
+import { runCopilotAgent, COPILOT_MODEL_ID, COPILOT_DEFAULT_MODEL } from './agent.js';
 
 export class CopilotCliRunner implements AgentRunner {
   private readonly skillsStrategy: SkillsStrategy = new CopilotSdkSkillsStrategy();
@@ -19,9 +19,11 @@ export class CopilotCliRunner implements AgentRunner {
   }
 
   async run({ evalDef, workspace, model, tools }: RunParams): Promise<RunResult> {
-    // If the caller passed the sentinel 'copilot', omit --model and let
-    // Copilot choose its default model.
-    const copilotModel = model !== COPILOT_MODEL_ID ? model : undefined;
+    // Accept the sentinel 'copilot' or an explicit GPT model (gpt-*, o*).
+    // Anything else (e.g. the global default 'claude-...' or 'gemini-...') is
+    // not a valid Copilot model — fall back to the default GPT model.
+    const isGptModel = model === COPILOT_MODEL_ID || model.startsWith('gpt-') || model.startsWith('o');
+    const copilotModel = isGptModel && model !== COPILOT_MODEL_ID ? model : COPILOT_DEFAULT_MODEL;
     const record = await runCopilotAgent(evalDef, workspace, { tools, model: copilotModel });
     return { record, resolvedModel: record.model ?? COPILOT_MODEL_ID };
   }
