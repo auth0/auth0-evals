@@ -24,6 +24,7 @@ on:
           - auth0-ReAct-agent
           - claude-code
           - copilot
+          - gemini-cli
 
 concurrency:
   group: eval-${{ github.ref }}
@@ -103,6 +104,9 @@ jobs:
 
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
+
+      - name: Install Gemini CLI
+        run: npm install -g @google/gemini-cli
 
       - name: Run eval
         env:
