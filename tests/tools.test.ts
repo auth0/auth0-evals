@@ -60,20 +60,22 @@ describe('ListFilesTool', () => {
     expect(result).toContain('(empty directory)');
   });
 
-  it('returns error for a non-existent directory', async () => {
+  it('returns non-error result for a non-existent directory', async () => {
     const dir = tmpDir();
     const tool = new ListFilesTool();
-    const [result] = await tool.run(makeContext(dir), { path: 'nonexistent' });
+    const [result, , , isError] = await tool.run(makeContext(dir), { path: 'nonexistent' });
     expect(result).toContain("Directory not found: 'nonexistent'");
+    expect(isError).toBe(false);
   });
 
-  it('returns error when path points to a file and suggests read_file', async () => {
+  it('returns non-error result when path points to a file and suggests read_file', async () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'file.txt'), 'content');
     const tool = new ListFilesTool();
-    const [result] = await tool.run(makeContext(dir), { path: 'file.txt' });
+    const [result, , , isError] = await tool.run(makeContext(dir), { path: 'file.txt' });
     expect(result).toContain("Path is a file: 'file.txt'");
     expect(result).toContain('read_file');
+    expect(isError).toBe(false);
   });
 
   it('returns access denied for path outside workspace', async () => {
@@ -81,6 +83,21 @@ describe('ListFilesTool', () => {
     const tool = new ListFilesTool();
     const [result] = await tool.run(makeContext(dir), { path: '../../etc' });
     expect(result).toBe('Access denied: path is outside workspace');
+  });
+
+  it('returns isError=true for path traversal attempts', async () => {
+    const dir = tmpDir();
+    const tool = new ListFilesTool();
+    const [, , , isError] = await tool.run(makeContext(dir), { path: '../../etc' });
+    expect(isError).toBe(true);
+  });
+
+  it('returns isError=true for paths with null bytes', async () => {
+    const dir = tmpDir();
+    const tool = new ListFilesTool();
+    const [result, , , isError] = await tool.run(makeContext(dir), { path: 'file\0name' });
+    expect(isError).toBe(true);
+    expect(result).toBe('Path contains invalid characters');
   });
 });
 
@@ -124,6 +141,21 @@ describe('WriteFileTool', () => {
     const [result] = await tool.run(makeContext(dir), { path: '../../evil.txt', content: 'x' });
     expect(result).toBe('Access denied: path is outside workspace');
   });
+
+  it('returns isError=true for path traversal attempts', async () => {
+    const dir = tmpDir();
+    const tool = new WriteFileTool();
+    const [, , , isError] = await tool.run(makeContext(dir), { path: '../../evil.txt', content: 'x' });
+    expect(isError).toBe(true);
+  });
+
+  it('returns isError=true for paths with control characters', async () => {
+    const dir = tmpDir();
+    const tool = new WriteFileTool();
+    const [result, , , isError] = await tool.run(makeContext(dir), { path: 'file\x01.txt', content: 'x' });
+    expect(isError).toBe(true);
+    expect(result).toBe('Path contains invalid characters');
+  });
 });
 
 // ── ReadFileTool tests ────────────────────────────────────────────────────────
@@ -147,29 +179,32 @@ describe('ReadFileTool', () => {
     expect(result).toBe('hello world');
   });
 
-  it('returns a directory suggestion when path points to a directory', async () => {
+  it('returns non-error result when path points to a directory', async () => {
     const dir = tmpDir();
     mkdirSync(join(dir, 'subdir'));
     const tool = new ReadFileTool();
-    const [result] = await tool.run(makeContext(dir), { path: 'subdir' });
+    const [result, , , isError] = await tool.run(makeContext(dir), { path: 'subdir' });
     expect(result).toContain("Path is a directory: 'subdir'");
     expect(result).toContain('list_files');
+    expect(isError).toBe(false);
   });
 
-  it('returns file-not-found with nearby files when the parent directory exists', async () => {
+  it('returns non-error file-not-found with nearby files when the parent directory exists', async () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'nearby.txt'), '');
     const tool = new ReadFileTool();
-    const [result] = await tool.run(makeContext(dir), { path: 'missing.txt' });
+    const [result, , , isError] = await tool.run(makeContext(dir), { path: 'missing.txt' });
     expect(result).toContain('File not found: missing.txt');
     expect(result).toContain('nearby.txt');
+    expect(isError).toBe(false);
   });
 
-  it('returns file-not-found when the parent directory does not exist', async () => {
+  it('returns non-error file-not-found when the parent directory does not exist', async () => {
     const dir = tmpDir();
     const tool = new ReadFileTool();
-    const [result] = await tool.run(makeContext(dir), { path: 'noparent/missing.txt' });
+    const [result, , , isError] = await tool.run(makeContext(dir), { path: 'noparent/missing.txt' });
     expect(result).toContain('File not found: noparent/missing.txt');
+    expect(isError).toBe(false);
   });
 
   it('returns access denied for path outside workspace', async () => {
@@ -187,6 +222,21 @@ describe('ReadFileTool', () => {
     expect(isDoc).toBe(false);
     expect(isInterrupt).toBe(false);
     expect(isError).toBe(false);
+  });
+
+  it('returns isError=true for path traversal attempts', async () => {
+    const dir = tmpDir();
+    const tool = new ReadFileTool();
+    const [, , , isError] = await tool.run(makeContext(dir), { path: '../../etc/passwd' });
+    expect(isError).toBe(true);
+  });
+
+  it('returns isError=true for paths with null bytes', async () => {
+    const dir = tmpDir();
+    const tool = new ReadFileTool();
+    const [result, , , isError] = await tool.run(makeContext(dir), { path: 'file\0.txt' });
+    expect(isError).toBe(true);
+    expect(result).toBe('Path contains invalid characters');
   });
 });
 

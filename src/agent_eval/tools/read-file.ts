@@ -1,11 +1,11 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { resolveInside } from './../path-utils.js';
+import { resolveInside, validatePathFormat } from './../path-utils.js';
 import { collectFiles } from './utils.js';
 import { Tool, ToolContext, ToolName, ToolResult } from './base.js';
 
-function wrapResult(message: string): ToolResult {
-  return [message, false, false, false];
+function wrapResult(message: string, isError: boolean = false): ToolResult {
+  return [message, false, false, isError];
 }
 
 /**
@@ -21,11 +21,15 @@ export class ReadFileTool implements Tool {
     if (!path?.trim()) {
       throw new Error('read_file requires a file path. To list workspace files use list_files with an empty string.');
     }
+    const formatError = validatePathFormat(path);
+    if (formatError) {
+      return wrapResult(formatError, true);
+    }
     let full: string;
     try {
       full = resolveInside(context.workspace, path);
     } catch {
-      return wrapResult('Access denied: path is outside workspace');
+      return wrapResult('Access denied: path is outside workspace', true);
     }
     if (existsSync(full) && statSync(full).isDirectory()) {
       return wrapResult(`Path is a directory: '${path}'. Use list_files to list its contents.`);
