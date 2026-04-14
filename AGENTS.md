@@ -36,24 +36,6 @@ import { contains } from '../agent_eval/graders';     // ✗ fails at runtime
 
 For dynamic imports of absolute paths, use `pathToFileURL(path).href` — bare absolute paths fail on macOS and Windows.
 
-### JSON data in `graders.ts`
-
-Use static imports — Vite inlines them at build time. `readFileSync` with `__dirname` breaks because after compilation `__dirname` resolves to `dist/`, not `src/`:
-
-```typescript
-import data from './data.json';                                        // ✓
-const data = JSON.parse(readFileSync(join(__dirname, 'data.json')));  // ✗ fails in dist/
-```
-
-### Vite entry required per eval grader
-
-Every new eval's `graders.ts` must be registered in `vite.config.ts`. If missing, `loadEval()` silently falls back to raw `.ts` source, which may fail:
-
-```typescript
-// vite.config.ts — add to the entry object
-'src/evals/quickstarts/my-eval/graders': resolve(__dirname, 'src/evals/quickstarts/my-eval/graders.ts'),
-```
-
 ### Tools return tuples, never throw
 
 Tools return `[message, isDoc, isInterrupt, isError]`. Throwing crashes the agent loop:
@@ -99,11 +81,9 @@ The project uses ESLint and Prettier. Run `npm run lint` and `npm run format` be
 
 1. `src/evals/<category>/<eval-dir>/PROMPT.md` + `graders.ts`
 2. Register in `src/config/evaluations.ts` — `id` is the snake_case config ID (e.g. `vue_quickstart`), `path` points to the directory (e.g. `src/evals/quickstarts/vue`); these are **not** the same
-3. Add grader entry to `vite.config.ts` using the directory path, not the config ID
-4. All imports use `.js` extensions; `import type` for type-only
-5. All graders have `GraderLevel`; one final holistic `judge` with no level
-6. No `readFileSync` for JSON in graders — use static `import`
-7. `npm run build && npm test` passes
+3. All imports use `.js` extensions; `import type` for type-only
+4. All graders have `GraderLevel`; one final holistic `judge` with no level
+5. `npm run build && npm test` passes
 
 ---
 

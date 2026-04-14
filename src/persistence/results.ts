@@ -60,7 +60,7 @@ export function loadResults(path: string): JobResult[] {
     if (Array.isArray(loaded)) {
       return (loaded as JobResult[]).filter((r) => {
         if (typeof r !== 'object' || r === null) return false;
-        const rec = r as Record<string, unknown>;
+        const rec = r as unknown as Record<string, unknown>;
         if (typeof rec.eval_id !== 'string' || typeof rec.model !== 'string') return false;
         if (!ALL_MODES.includes(rec.mode as Mode)) return false;
         if ('tools' in rec) {

@@ -121,8 +121,12 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
   // Sort result keys for the detail section: baseline < agent < agent+* (then by model).
   function sortResultKeys(keys: string[]): string[] {
     return [...keys].sort((a, b) => {
-      const [aModel, aVariant] = a.split('|');
-      const [bModel, bVariant] = b.split('|');
+      const aParts = a.split('|');
+      const bParts = b.split('|');
+      const aModel = aParts[0] ?? '';
+      const aVariant = aParts[1] ?? '';
+      const bModel = bParts[0] ?? '';
+      const bVariant = bParts[1] ?? '';
       const aModeIdx = MODES.indexOf(aVariant) !== -1 ? MODES.indexOf(aVariant) : 99;
       const bModeIdx = MODES.indexOf(bVariant) !== -1 ? MODES.indexOf(bVariant) : 99;
       if (aModeIdx !== bModeIdx) return aModeIdx - bModeIdx;

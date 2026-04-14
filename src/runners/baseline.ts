@@ -64,7 +64,10 @@ export async function runBaseline(
     const usage = (response.usage as Record<string, number>) ?? {};
     result.inputTokens = usage.prompt_tokens ?? usage.input_tokens ?? 0;
     result.outputTokens = usage.completion_tokens ?? usage.output_tokens ?? 0;
-    result.responseText = response.choices?.[0]?.message?.content ?? '';
+    const choices = response.choices as unknown[];
+    const choicesRecord = choices?.[0] as Record<string, unknown> | undefined;
+    const message = choicesRecord?.message as Record<string, unknown> | undefined;
+    result.responseText = (typeof message?.content === 'string' ? message.content : '') ?? '';
     result.costUsd = estimateCost(model, result.inputTokens, result.outputTokens);
   } catch (e) {
     result.status = 'failure';
