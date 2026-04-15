@@ -69,7 +69,22 @@ export interface GraderResult {
  * (skill files, scaffold metadata) that would contaminate results if included.
  * Shared by graders.ts (collectFiles) and scorer.ts (walkFiles).
  */
-export const EXCLUDED_EVAL_DIRS = new Set(['.claude', '.github', '.gemini', 'node_modules']);
+export const EXCLUDED_EVAL_DIRS = new Set([
+  // Agent specific directories
+  '.claude',
+  '.github',
+  '.gemini',
+  // Npm directory
+  'node_modules',
+  // Build output directories
+  'dist',
+  '.next',
+  '.nuxt',
+  '.output',
+  '.build',
+  '.angular',
+  'out-tsc'
+]);
 export const EXCLUDED_EVAL_FILES = new Set(['package-lock.json', 'GEMINI.md']);
 
 export function collectFiles(workspace: string): Record<string, string> {
