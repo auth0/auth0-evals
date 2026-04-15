@@ -102,6 +102,12 @@ Claude Code runner spawns the `claude` CLI as a subprocess, routing requests thr
 
 By default it uses the Bedrock proxy, which maps short aliases (e.g. `claude-4-6-sonnet`) to full Bedrock model IDs. Set `CLAUDE_CODE_USE_BEDROCK_PROXY=0` to route through the LiteLLM proxy instead — aliases are passed directly and the proxy handles resolution.
 
+## Slash commands
+
+| Command | Purpose |
+|---|---|
+| `/evals-smoke-test` | End-to-end smoke test: builds the project, runs the full `react_quickstart` matrix across all models and configurations, generates an HTML report, and reports a PASS/FAIL verdict. Use after making framework changes to verify nothing is broken. |
+
 ## Key commands
 
 ```bash

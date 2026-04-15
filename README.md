@@ -254,6 +254,14 @@ Quick summary:
 
 Then rebuild: `npm run build`
 
+## Claude Code Slash Commands
+
+| Command | Purpose |
+|---|---|
+| `/evals-smoke-test` | End-to-end smoke test: builds the project, runs the full `react_quickstart` matrix across all models and configurations, generates an HTML report, and reports a PASS/FAIL verdict. Use after making framework changes to verify nothing is broken. |
+
+Slash commands live in `.claude/commands/` and can be invoked from any Claude Code session inside this repo.
+
 ## Development
 
 ```bash
