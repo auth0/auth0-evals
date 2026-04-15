@@ -53,11 +53,18 @@ describe('buildJobList — agent mode auto-routing', () => {
     expect(jobs[0][1]).toBe('claude-4-6-sonnet');
   });
 
-  it('non-claude model with no explicit agent type → routes to auth0-ReAct-agent', () => {
+  it('gpt- model with no explicit agent type → routes to copilot', () => {
     const jobs = buildJobList([EVAL], ['gpt-5.2'], ['agent'], [], undefined);
     expect(jobs).toHaveLength(1);
-    expect(jobs[0][4]).toBe('auth0-ReAct-agent');
+    expect(jobs[0][4]).toBe('copilot');
     expect(jobs[0][1]).toBe('gpt-5.2');
+  });
+
+  it('non-claude non-gemini non-gpt model with no explicit agent type → routes to auth0-ReAct-agent', () => {
+    const jobs = buildJobList([EVAL], ['some-other-model'], ['agent'], [], undefined);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0][4]).toBe('auth0-ReAct-agent');
+    expect(jobs[0][1]).toBe('some-other-model');
   });
 
   it('explicit --agent-type auth0-ReAct-agent with claude model → respects explicit type', () => {
@@ -125,14 +132,14 @@ describe('buildJobList — mixed modes', () => {
 // ── matrix mode ───────────────────────────────────────────────────────────────
 
 describe('buildJobList — matrix mode', () => {
-  it('produces one baseline + three agent jobs for a single model', () => {
+  it('produces one baseline + two agent jobs for a single model', () => {
     const jobs = buildJobList([EVAL], ['gpt-5.2'], ['baseline', 'agent'], [], undefined, true);
-    // 1 baseline + 3 agent tool-sets (none, skills, mcp+skills) = 4 jobs
-    expect(jobs).toHaveLength(4);
+    // 1 baseline + 2 agent tool-sets (skills, mcp+skills) = 3 jobs
+    expect(jobs).toHaveLength(3);
     const baseline = jobs.filter((j) => j[2] === 'baseline');
     const agent = jobs.filter((j) => j[2] === 'agent');
     expect(baseline).toHaveLength(1);
-    expect(agent).toHaveLength(3);
+    expect(agent).toHaveLength(2);
   });
 
   it('baseline jobs in matrix mode always have empty tools', () => {
@@ -150,22 +157,22 @@ describe('buildJobList — matrix mode', () => {
 
   it('scales correctly across multiple models', () => {
     const jobs = buildJobList([EVAL], ['gpt-5.2', 'gpt-4o'], ['baseline', 'agent'], [], undefined, true);
-    // 2 models × (1 baseline + 3 agent) = 8 jobs
-    expect(jobs).toHaveLength(8);
+    // 2 models × (1 baseline + 2 agent) = 6 jobs
+    expect(jobs).toHaveLength(6);
   });
 
   it('scales correctly across multiple evals', () => {
     const eval2 = makeEvalCfg('eval_2');
     const jobs = buildJobList([EVAL, eval2], ['gpt-5.2'], ['baseline', 'agent'], [], undefined, true);
-    // 2 evals × (1 baseline + 3 agent) = 8 jobs
-    expect(jobs).toHaveLength(8);
+    // 2 evals × (1 baseline + 2 agent) = 6 jobs
+    expect(jobs).toHaveLength(6);
   });
 
   it('claude-code deduplication is per-eval per-tool-set, not per-eval only', () => {
     // When --agent-type claude-code with non-claude models, each tool-set is a distinct sentinel
     const jobs = buildJobList([EVAL], ['gpt-5.2', 'gpt-4o'], ['agent'], [], 'claude-code', true);
-    // 3 tool-sets × 1 eval = 3 sentinel jobs (not 1 or 6)
-    expect(jobs).toHaveLength(3);
+    // 2 tool-sets × 1 eval = 2 sentinel jobs (not 1 or 4)
+    expect(jobs).toHaveLength(2);
     for (const job of jobs) {
       expect(job[1]).toBe('claude-code');
       expect(job[4]).toBe('claude-code');

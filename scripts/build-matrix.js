@@ -1,29 +1,25 @@
 import { appendFileSync } from 'node:fs';
+import { EVALUATIONS } from '../dist/config/evaluations.js';
 
-const ALL_EVALS = [
-  'react_quickstart',
-  'nextjs_quickstart',
-  'swift_quickstart',
-  'express_quickstart',
-];
+const ALL_EVALS = EVALUATIONS.map(e => e.id);
 
 const ALL_MODES = [
-  { label: 'baseline',     mode: 'baseline', tools: ''       },
-  { label: 'agent',        mode: 'agent',    tools: ''       },
-  { label: 'agent-mcp',    mode: 'agent',    tools: 'mcp'    },
-  { label: 'agent-skills', mode: 'agent',    tools: 'skills' },
+  { label: 'baseline',         mode: 'baseline', tools: ''            },
+  { label: 'agent-skills',     mode: 'agent',    tools: 'skills'      },
+  { label: 'agent-mcp-skills', mode: 'agent',    tools: 'mcp,skills'  },
 ];
 
 const ALL_MODELS = [
-  'gpt-5.2',
+  'gpt-5.4',
   'claude-4-6-sonnet',
   'claude-4-6-opus',
   'gemini-3-pro-preview',
 ];
 
-const evalsIn  = process.env.EVALS_INPUT;
-const modesIn  = process.env.MODES_INPUT;
-const modelsIn = process.env.MODELS_INPUT;
+const evalsIn     = process.env.EVALS_INPUT;
+const modesIn     = process.env.MODES_INPUT;
+const modelsIn    = process.env.MODELS_INPUT;
+const agentTypeIn = process.env.AGENT_TYPE_INPUT ?? 'auto';
 
 const evals = evalsIn === 'all'
   ? ALL_EVALS
@@ -51,7 +47,30 @@ const models = modelsIn === 'all'
 
 if (models.length === 0) throw new Error('No valid models in: ' + modelsIn);
 
-const total = evals.length * modes.length * models.length;
-const matrix = JSON.stringify({ eval: evals, mode: modes, model: models });
-console.log('Matrix (' + total + ' jobs):', matrix);
+/** Mirrors the auto-resolution logic in src/run.ts */
+function resolveAgentType(model, override) {
+  if (override && override !== 'auto') return override;
+  if (model.startsWith('claude-'))  return 'claude-code';
+  if (model.startsWith('gemini-'))  return 'gemini-cli';
+  if (model.startsWith('gpt-'))     return 'copilot';
+  return 'auth0-ReAct-agent';
+}
+
+// Build an explicit include list so each job has a pre-resolved agent_type.
+const include = [];
+for (const evalId of evals) {
+  for (const mode of modes) {
+    for (const model of models) {
+      include.push({
+        eval: evalId,
+        mode,
+        model,
+        agent_type: resolveAgentType(model, agentTypeIn),
+      });
+    }
+  }
+}
+
+const matrix = JSON.stringify({ include });
+console.log('Matrix (' + include.length + ' jobs):', matrix);
 appendFileSync(process.env.GITHUB_OUTPUT, 'matrix=' + matrix + '\n');
