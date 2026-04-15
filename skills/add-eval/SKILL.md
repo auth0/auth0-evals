@@ -24,7 +24,7 @@ src/evals/<category>/<eval-dir>/
 └── scaffold/       ← starter files pre-loaded into agent workspace
 ```
 
-Plus two registration entries — one in `src/config/evaluations.ts` and one in `vite.config.ts`.
+Plus a registration entry in `src/config/evaluations.ts`.
 
 ---
 
@@ -201,7 +201,7 @@ export function defineGraders() {
 
 ### Avoiding common grader mistakes
 
-- **Never use `readFileSync` to load JSON** — it breaks after Vite compilation because `__dirname` resolves to `dist/`. Use `import data from './data.json'` instead.
+- **Never use `readFileSync` to load JSON** — use `import data from './data.json'` instead.
 - **Use `notContainsInSource` (not `notContains`) for credential checks** — client IDs are allowed in `.env` files; the check should only fail for source code.
 - **Don't skip the holistic judge** — without it, there's no summary-level signal in the results.
 
@@ -226,21 +226,7 @@ Note: `id` and the `path` leaf are intentionally different. For example, `id: 'e
 
 ---
 
-## Step 5 — Register in vite.config.ts
-
-**File:** `vite.config.ts`
-
-Add an entry to the `entry` object in the Vite lib config:
-
-```typescript
-'src/evals/quickstarts/vue/graders': resolve(__dirname, 'src/evals/quickstarts/vue/graders.ts'),
-```
-
-The key is the output path (no `.js` extension); the value is the source path (with `.ts`). If this entry is missing, `loadEval()` silently falls back to raw TypeScript and may produce runtime errors.
-
----
-
-## Step 6 — Add scaffold files
+## Step 5 — Add scaffold files
 
 Scaffold files are copied into the agent's temporary workspace before execution. **Every eval must include scaffold files.** They give the agent a realistic starting point — a real project with correct dependencies already installed — so graders can check integration quality rather than project setup.
 
@@ -258,7 +244,7 @@ src/evals/<category>/<eval-dir>/scaffold/
 
 ---
 
-## Step 7 — Verify
+## Step 6 — Verify
 
 ```bash
 npm run build          # must compile without errors
@@ -273,8 +259,7 @@ npm run report
 
 If the build fails, the most common causes are:
 1. Missing `.js` extension on an import in `graders.ts`
-2. Missing entry in `vite.config.ts`
-3. `defineGraders` not exported from `graders.ts`
+2. `defineGraders` not exported from `graders.ts`
 
 ---
 
@@ -284,9 +269,8 @@ If the build fails, the most common causes are:
 - [ ] `src/evals/<category>/<eval-dir>/graders.ts` created
 - [ ] `src/evals/<category>/<eval-dir>/scaffold/` created with at least a `package.json` and placeholder source files
 - [ ] Entry added to `src/config/evaluations.ts` with `id` (snake_case config ID) and `path` (points to `src/evals/<category>/<eval-dir>`)
-- [ ] Entry added to `vite.config.ts` using the directory path (not the config ID)
 - [ ] All imports in `graders.ts` use `.js` extensions
 - [ ] All graders except the final one have a `GraderLevel`
 - [ ] Final grader is a `judge` with no level argument
-- [ ] No `readFileSync` for JSON — use static `import` instead
+- [ ] No `readFileSync` for JSON — use `import` instead
 - [ ] `npm run build && npm test` passes

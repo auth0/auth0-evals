@@ -330,29 +330,7 @@ The `id` value is what you pass to `--eval` on the CLI.
 
 ---
 
-## 5. Register in `vite.config.ts`
-
-`npm run run` executes `node dist/run.js`, which calls `loadEval()` to dynamically import `dist/<eval-path>/graders.js`. Vite only emits that file if the entry is registered in `vite.config.ts`.
-
-Add a line to the `entry` object:
-
-```typescript
-entry: {
-  // existing entries …
-  'src/evals/quickstarts/my-new-eval/graders': resolve(__dirname, 'src/evals/quickstarts/my-new-eval/graders.ts'),
-},
-```
-
-The key is the output path relative to `dist/` (no `.js` extension). The value is the source path.
-
-> **Note:** If your `graders.ts` imports a local JSON file (e.g., `graders.json`), use a static `import` rather than `readFileSync`. Vite will bundle the JSON into the compiled output, so no file-copying or path tricks are needed:
-> ```typescript
-> import gradersData from './graders.json';
-> ```
-
----
-
-## 6. Run and Iterate
+## 5. Run and Iterate
 
 ```bash
 # Run only your eval across all 4 combos with the default model
@@ -388,11 +366,10 @@ Pass `--agent-type copilot` to route the eval through the `copilot` binary. Skil
 
 ---
 
-## 7. Before Submitting
+## 6. Before Submitting
 
 - [ ] `PROMPT.md` and `graders.ts` exist in the eval directory
 - [ ] The eval is registered in `config/evaluations.ts`
-- [ ] The eval entry is added to `vite.config.ts`
 - [ ] All grader imports use the `.js` extension (required for ESM)
 - [ ] Graders are assigned `GraderLevel` values (L1–L5) with at least one holistic `judge` at the end (no level)
 - [ ] `npm run build` completes without errors
