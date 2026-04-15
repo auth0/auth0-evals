@@ -103,9 +103,11 @@ jobs:
           path: dist/
 
       - name: Install Claude Code CLI
+        if: matrix.agent_type == 'claude-code'
         run: npm install -g @anthropic-ai/claude-code
 
       - name: Install Gemini CLI
+        if: matrix.agent_type == 'gemini-cli'
         run: npm install -g @google/gemini-cli
 
       - name: Run eval
