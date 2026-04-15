@@ -250,7 +250,7 @@ Quick summary:
 1. Create `src/evals/<category>/<eval-id>/PROMPT.md` and `graders.ts`
 2. Assign every grader a `GraderLevel` (L1–L5) and include a holistic `judge` at the end — see [the grader levels guide](docs/ADDING_EVALS.md#grader-levels-l1l5) for what each level tests
 3. Optionally add starter files in `scaffold/` and declare skills in frontmatter
-4. Register the eval in `src/config/evaluations.ts` and `vite.config.ts`
+4. Register the eval in `src/config/evaluations.ts`
 
 Then rebuild: `npm run build`
 
