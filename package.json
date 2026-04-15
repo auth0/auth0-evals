@@ -16,7 +16,7 @@
     "report": "node dist/report.js"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.104",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.109",
     "@github/copilot-sdk": "^0.2.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "braintrust": "^3.7.1",
