@@ -17,14 +17,7 @@ import { Command } from 'commander';
 import nunjucks from 'nunjucks';
 import { registerFilters } from './report-filters.js';
 import { logger } from './utils/logger.js';
-import {
-  MODES,
-  resultVariant,
-  loadScores,
-  groupResults,
-  groupByVariant,
-  computeDeltas,
-} from './report/processors.js';
+import { MODES, resultVariant, loadScores, groupResults, groupByVariant, computeDeltas } from './report/processors.js';
 
 // Re-export for backward compatibility with existing consumers and tests.
 export { resultVariant, loadScores, groupResults, groupByVariant, computeDeltas } from './report/processors.js';
@@ -110,6 +103,10 @@ async function main(): Promise<void> {
   const outputPath = join(FRAMEWORK_ROOT, opts.output as string);
   writeFileSync(outputPath, html, 'utf-8');
   logger.info(`Report saved to: ${outputPath}`);
+
+  const consolidatedPath = join(FRAMEWORK_ROOT, 'scores-consolidated.json');
+  writeFileSync(consolidatedPath, JSON.stringify(results, null, 2), 'utf-8');
+  logger.info(`Consolidated JSON saved to: ${consolidatedPath}`);
 }
 
 // Skip main() when running under Vitest (process.env.VITEST is set automatically)

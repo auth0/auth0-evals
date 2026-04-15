@@ -47,4 +47,5 @@ runs:
         name: eval-report-${{ github.run_id }}
         path: |
           scores-*.json
+          scores-consolidated.json
           report.html
