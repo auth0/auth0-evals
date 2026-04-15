@@ -68,7 +68,7 @@ function eventTimeSeconds(timestamp: string | undefined): number {
  * Runs a Copilot SDK agent against an eval definition and returns a RunRecord.
  */
 export async function runCopilotAgent(
-  evalDef: Pick<EvalDefinition, 'id' | 'userPrompt' | 'agentSystemPrompt'>,
+  evalDef: Pick<EvalDefinition, 'id' | 'userPrompt'>,
   workspace: string,
   opts: CopilotRunOptions = {},
 ): Promise<RunRecord> {
@@ -100,18 +100,12 @@ export async function runCopilotAgent(
     ...(copilotBin ? { cliPath: copilotBin } : {}),
     cwd: workspace,
     env: { ...process.env, ...env },
-    ...(process.env.ATKO_API_KEY
-      ? { provider: { baseUrl: 'https://llm.atko.ai', apiKey: process.env.ATKO_API_KEY } }
-      : {}),
+    // useLoggedInUser defaults to true — the Copilot CLI picks up auth from
+    // the gh CLI's stored credentials (set via `gh auth login` in CI).
   });
 
   logger.info(`\n[Copilot] Starting task: ${evalDef.id}`);
   logger.info(`[Copilot] Workspace: ${workspace}`);
-  if (process.env.ATKO_API_KEY) {
-    logger.info('[Copilot] Routing through ATKO LiteLLM proxy (https://llm.atko.ai).');
-  } else {
-    logger.warn('[Copilot] ATKO_API_KEY not set — using default GitHub Copilot auth.');
-  }
   if (model) {
     logger.info(`[Copilot] Model: ${model}`);
   }
@@ -121,7 +115,9 @@ export async function runCopilotAgent(
   const session = await client.createSession({
     model,
     workingDirectory: workspace,
-    ...(evalDef.agentSystemPrompt ? { systemMessage: { mode: 'append', content: evalDef.agentSystemPrompt } } : {}),
+    // Do not pass agentSystemPrompt — that is a ReAct-specific prompt with
+    // tool names (list_files, write_file, finish_task) that don't exist in
+    // the Copilot CLI. The CLI manages its own system prompt.
     onPermissionRequest: approveAll,
     // Suppress ask_user to prevent eval runs from blocking on interactive input.
     excludedTools: ['ask_user'],
