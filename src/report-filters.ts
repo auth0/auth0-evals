@@ -7,6 +7,8 @@
  */
 
 import { marked, Marked } from 'marked';
+import nunjucks from 'nunjucks';
+import { MODES } from './report/processors.js';
 
 // Marked instance used for judge reasoning. Raw HTML tokens are stripped so
 // that injected <script> tags or event-handler attributes in LLM output cannot
@@ -106,6 +108,25 @@ export function judgeHtml(detail: string): string {
   );
 }
 
+// ── Template utility filters ─────────────────────────────────────────────────
+
+/** Sort result keys: baseline < agent < agent+* (then by model). */
+export function sortResultKeys(keys: string[]): string[] {
+  return [...keys].sort((a, b) => {
+    const aParts = a.split('|');
+    const bParts = b.split('|');
+    const aModel = aParts[0] ?? '';
+    const aVariant = aParts[1] ?? '';
+    const bModel = bParts[0] ?? '';
+    const bVariant = bParts[1] ?? '';
+    const aModeIdx = MODES.indexOf(aVariant) !== -1 ? MODES.indexOf(aVariant) : 99;
+    const bModeIdx = MODES.indexOf(bVariant) !== -1 ? MODES.indexOf(bVariant) : 99;
+    if (aModeIdx !== bModeIdx) return aModeIdx - bModeIdx;
+    if (aVariant !== bVariant) return aVariant.localeCompare(bVariant);
+    return aModel.localeCompare(bModel);
+  });
+}
+
 // ── Registration helper ───────────────────────────────────────────────────────
 
 export const ALL_FILTERS: Record<string, (val: unknown) => string> = {
@@ -118,3 +139,35 @@ export const ALL_FILTERS: Record<string, (val: unknown) => string> = {
   md_inline: (val) => mdInline(val as string),
   judge_html: (val) => judgeHtml(val as string),
 };
+
+/** Registers all filters on a Nunjucks environment. */
+export function registerFilters(env: nunjucks.Environment): void {
+  for (const [name, fn] of Object.entries(ALL_FILTERS)) {
+    env.addFilter(name, fn);
+  }
+  env.addFilter('sort_result_keys', (obj: Record<string, unknown>) => sortResultKeys(Object.keys(obj)));
+  env.addFilter('sort', (obj: unknown) => {
+    if (Array.isArray(obj)) return [...obj].sort();
+    if (obj && typeof obj === 'object') return Object.keys(obj as object).sort();
+    return obj;
+  });
+  env.addFilter('selectattr', (arr: unknown[], attr: string, test?: string, val?: unknown) => {
+    if (!Array.isArray(arr)) return [];
+    if (test === 'equalto') return arr.filter((item) => (item as Record<string, unknown>)[attr] === val);
+    return arr.filter((item) => !!(item as Record<string, unknown>)[attr]);
+  });
+  env.addFilter('repeat_str', (str: string, n: number) => new nunjucks.runtime.SafeString(str.repeat(Math.max(0, n))));
+  env.addFilter('truncate_str', (str: string, n: number) => (str ? str.slice(0, n) : ''));
+  env.addFilter('format', (fmt: string, ...args: unknown[]) => {
+    let i = 0;
+    return fmt.replace(/%\.(\d+)f|%\.(\d+)d|%s|%d/g, (match, decF, decD) => {
+      const val = args[i++];
+      if (match.startsWith('%.') && (decF || decD)) {
+        const decimals = parseInt(decF ?? decD, 10);
+        return Number(val).toFixed(decimals);
+      }
+      if (match === '%d') return String(Math.round(Number(val)));
+      return String(val);
+    });
+  });
+}

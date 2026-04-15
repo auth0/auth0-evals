@@ -10,96 +10,29 @@
  *   node dist/report.js --output my-report.html
  */
 
-import { readFileSync, writeFileSync, readdirSync } from 'fs';
+import { writeFileSync, readdirSync } from 'fs';
 import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
 import { Command } from 'commander';
 import nunjucks from 'nunjucks';
-import { ALL_FILTERS } from './report-filters.js';
+import { registerFilters } from './report-filters.js';
 import { logger } from './utils/logger.js';
+import {
+  MODES,
+  resultVariant,
+  loadScores,
+  groupResults,
+  groupByVariant,
+  computeDeltas,
+} from './report/processors.js';
+
+// Re-export for backward compatibility with existing consumers and tests.
+export { resultVariant, loadScores, groupResults, groupByVariant, computeDeltas } from './report/processors.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 // When running from dist/ or src/, go up one level to reach the project root.
 const FRAMEWORK_ROOT = ['dist', 'src'].includes(basename(__dirname)) ? join(__dirname, '..') : __dirname;
-
-const MODES = ['baseline', 'agent'];
-
-// Returns a stable string that identifies a result's mode+tools combination.
-// Baseline and no-tool agent runs are keyed by mode alone; agent runs with
-// tools append them: "agent+Skills" or "agent+Skills,MCP".
-export function resultVariant(r: Record<string, unknown>): string {
-  const mode = r.mode as string;
-  const tools = (r.tools as string[] | undefined) ?? [];
-  return tools.length > 0 ? `${mode}+${tools.join(',')}` : mode;
-}
-
-export function loadScores(paths: string[]): Record<string, unknown>[] {
-  const results: Record<string, unknown>[] = [];
-  for (const p of paths) {
-    const data = JSON.parse(readFileSync(p, 'utf-8')) as Record<string, unknown>[];
-    results.push(...data);
-  }
-  return results;
-}
-
-export function groupResults(
-  results: Record<string, unknown>[],
-): Record<string, Record<string, Record<string, unknown>>> {
-  const grouped: Record<string, Record<string, Record<string, unknown>>> = {};
-  for (const r of results) {
-    const eid = r.eval_id as string;
-    const key = `${r.model as string}|${resultVariant(r)}`;
-    if (!grouped[eid]) grouped[eid] = {};
-    grouped[eid][key] = r;
-  }
-  return grouped;
-}
-
-// Group results by variant (mode+tools) -> eval_id -> model -> result.
-// Each distinct tool configuration produces a separate top-level key, so
-// agent runs with different --tools values are never conflated.
-export function groupByVariant(
-  results: Record<string, unknown>[],
-): Record<string, Record<string, Record<string, Record<string, unknown>>>> {
-  const variantGrouped: Record<string, Record<string, Record<string, Record<string, unknown>>>> = {};
-  for (const r of results) {
-    const variant = resultVariant(r);
-    const eid = r.eval_id as string;
-    const model = r.model as string;
-    if (!variantGrouped[variant]) variantGrouped[variant] = {};
-    if (!variantGrouped[variant][eid]) variantGrouped[variant][eid] = {};
-    variantGrouped[variant][eid][model] = r;
-  }
-  return variantGrouped;
-}
-
-// Compute grader_pass_rate delta vs baseline for every non-baseline variant.
-export function computeDeltas(
-  variantGrouped: Record<string, Record<string, Record<string, Record<string, unknown>>>>,
-): Record<string, Record<string, Record<string, number | null>>> {
-  const deltas: Record<string, Record<string, Record<string, number | null>>> = {};
-  const baseline = variantGrouped['baseline'] ?? {};
-  for (const variant of Object.keys(variantGrouped)) {
-    if (variant === 'baseline') continue;
-    deltas[variant] = {};
-    const variantData = variantGrouped[variant] ?? {};
-    for (const [eid, models] of Object.entries(variantData)) {
-      deltas[variant][eid] = {};
-      for (const [model, result] of Object.entries(models)) {
-        const baseResult = baseline[eid]?.[model];
-        const rate = result.grader_pass_rate as number | undefined;
-        const baseRate = baseResult?.grader_pass_rate as number | undefined;
-        if (rate != null && baseRate != null) {
-          deltas[variant][eid][model] = rate - baseRate;
-        } else {
-          deltas[variant][eid][model] = null;
-        }
-      }
-    }
-  }
-  return deltas;
-}
 
 export function renderHtml(results: Record<string, unknown>[], generatedAt: string): string {
   const grouped = groupResults(results);
@@ -118,56 +51,13 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
     ...variantsRun.filter((v) => !MODES.includes(v)).sort(),
   ];
 
-  // Sort result keys for the detail section: baseline < agent < agent+* (then by model).
-  function sortResultKeys(keys: string[]): string[] {
-    return [...keys].sort((a, b) => {
-      const aParts = a.split('|');
-      const bParts = b.split('|');
-      const aModel = aParts[0] ?? '';
-      const aVariant = aParts[1] ?? '';
-      const bModel = bParts[0] ?? '';
-      const bVariant = bParts[1] ?? '';
-      const aModeIdx = MODES.indexOf(aVariant) !== -1 ? MODES.indexOf(aVariant) : 99;
-      const bModeIdx = MODES.indexOf(bVariant) !== -1 ? MODES.indexOf(bVariant) : 99;
-      if (aModeIdx !== bModeIdx) return aModeIdx - bModeIdx;
-      if (aVariant !== bVariant) return aVariant.localeCompare(bVariant);
-      return aModel.localeCompare(bModel);
-    });
-  }
   const groupedSortedKeys = Object.keys(grouped).sort();
 
   const env = nunjucks.configure(join(FRAMEWORK_ROOT, 'src', 'templates'), {
     autoescape: true,
     noCache: true,
   });
-  for (const [name, fn] of Object.entries(ALL_FILTERS)) {
-    env.addFilter(name, fn);
-  }
-  env.addFilter('sort_result_keys', (obj: Record<string, unknown>) => sortResultKeys(Object.keys(obj)));
-  env.addFilter('sort', (obj: unknown) => {
-    if (Array.isArray(obj)) return [...obj].sort();
-    if (obj && typeof obj === 'object') return Object.keys(obj as object).sort();
-    return obj;
-  });
-  env.addFilter('selectattr', (arr: unknown[], attr: string, test?: string, val?: unknown) => {
-    if (!Array.isArray(arr)) return [];
-    if (test === 'equalto') return arr.filter((item) => (item as Record<string, unknown>)[attr] === val);
-    return arr.filter((item) => !!(item as Record<string, unknown>)[attr]);
-  });
-  env.addFilter('repeat_str', (str: string, n: number) => new nunjucks.runtime.SafeString(str.repeat(Math.max(0, n))));
-  env.addFilter('truncate_str', (str: string, n: number) => (str ? str.slice(0, n) : ''));
-  env.addFilter('format', (fmt: string, ...args: unknown[]) => {
-    let i = 0;
-    return fmt.replace(/%\.(\d+)f|%\.(\d+)d|%s|%d/g, (match, decF, decD) => {
-      const val = args[i++];
-      if (match.startsWith('%.') && (decF || decD)) {
-        const decimals = parseInt(decF ?? decD, 10);
-        return Number(val).toFixed(decimals);
-      }
-      if (match === '%d') return String(Math.round(Number(val)));
-      return String(val);
-    });
-  });
+  registerFilters(env);
 
   return nunjucks.render('report.html.j2', {
     grouped,
