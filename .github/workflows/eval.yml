@@ -8,7 +8,7 @@ on:
         default: 'all'
         type: string
       modes:
-        description: 'Modes to run: "all" | "baseline" | "agent" | comma-separated labels (e.g. baseline,agent-mcp)'
+        description: 'Modes to run: "all" | "baseline" | "agent" | comma-separated labels (e.g. baseline,agent-skills,agent-mcp-skills)'
         default: 'all'
         type: string
       models:
@@ -16,7 +16,7 @@ on:
         default: 'all'
         type: string
       agent_type:
-        description: 'Agent runner (auto = Claude→claude-code, Gemini→gemini-cli, others→ReAct)'
+        description: 'Agent runner (auto = Claude→claude-code, Gemini→gemini-cli, GPT→copilot, others→ReAct)'
         default: 'auto'
         type: choice
         options:
@@ -31,27 +31,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ── Compute the matrix from inputs ────────────────────────────────────────
-  setup:
-    name: Setup matrix
-    runs-on:
-      labels: ubuntu-22.04-2cpu-8ram-75ssd
-
-    outputs:
-      matrix: ${{ steps.build.outputs.matrix }}
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Build matrix JSON
-        id: build
-        env:
-          EVALS_INPUT:  ${{ inputs.evals   || 'all' }}
-          MODES_INPUT:  ${{ inputs.modes   || 'all' }}
-          MODELS_INPUT: ${{ inputs.models  || 'all' }}
-        run: node scripts/build-matrix.js
-
-  # ── Install deps and compile — runs once, in parallel with setup ──────────
+  # ── Install deps and compile ──────────────────────────────────────────────
   build:
     name: Install & Build
     runs-on:
@@ -62,6 +42,34 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/eval-build
+
+  # ── Compute the matrix from inputs (runs after build so dist/ is available) ──
+  setup:
+    name: Setup matrix
+    needs: build
+    runs-on:
+      labels: ubuntu-22.04-2cpu-8ram-75ssd
+
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download dist
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: build-dist
+          path: dist/
+
+      - name: Build matrix JSON
+        id: build
+        env:
+          EVALS_INPUT:       ${{ inputs.evals      || 'all' }}
+          MODES_INPUT:       ${{ inputs.modes      || 'all' }}
+          MODELS_INPUT:      ${{ inputs.models     || 'all' }}
+          AGENT_TYPE_INPUT:  ${{ inputs.agent_type || 'auto' }}
+        run: node scripts/build-matrix.js
 
   # ── N parallel eval jobs (one per eval × mode × model) ────────────────────
   run-evals:
@@ -114,16 +122,13 @@ jobs:
         env:
           ATKO_API_KEY: ${{ secrets.ATKO_API_KEY }}
           CLAUDE_CODE_USE_BEDROCK_PROXY: 0
-          GH_TOKEN: ${{ inputs.agent_type == 'copilot' && secrets.GH_COPILOT_TOKEN || '' }}
+          GH_TOKEN: ${{ matrix.agent_type == 'copilot' && secrets.GH_COPILOT_TOKEN || '' }}
         run: |
-          AGENT_TYPE="${{ inputs.agent_type || 'auto' }}"
           ARGS="--eval ${{ matrix.eval }} \
                 --mode ${{ matrix.mode.mode }} \
                 --model ${{ matrix.model }} \
+                --agent-type ${{ matrix.agent_type }} \
                 --output scores-${{ matrix.eval }}-${{ matrix.mode.label }}-${{ matrix.model }}.json"
-          if [ "$AGENT_TYPE" != "auto" ]; then
-            ARGS="$ARGS --agent-type $AGENT_TYPE"
-          fi
           if [ -n "${{ matrix.mode.tools }}" ]; then
             ARGS="$ARGS --tools ${{ matrix.mode.tools }}"
           fi

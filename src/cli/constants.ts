@@ -26,7 +26,7 @@ export const KNOWN_TOOLS = ['skills', 'mcp'];
  * Each entry is a sorted list of tool names. Baseline always runs without tools
  * and is not represented here.
  */
-export const MATRIX_TOOL_SETS: string[][] = [[], ['skills'], ['mcp', 'skills']];
+export const MATRIX_TOOL_SETS: string[][] = [['skills'], ['mcp', 'skills']];
 
 /** Agent runner types accepted by the `--agent-type` flag. */
 export const KNOWN_AGENT_TYPES = ['auth0-ReAct-agent', 'claude-code', 'copilot', 'gemini-cli'] as const;
