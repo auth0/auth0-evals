@@ -1,26 +1,22 @@
 /**
- * CLI argument parsing and validation for the eval runner.
+ * CLI argument parsing for the eval runner.
  *
- * Parses argv, validates values, and exits on error.
+ * Defines the Commander program, parses argv, delegates validation to
+ * `./validators.js`, and returns a fully-resolved `RunConfig`.
  */
 
 import { Command } from 'commander';
-import { EVALUATIONS } from '../config/evaluations.js';
 import { logger } from '../utils/logger.js';
+import { DEFAULT_MODEL, KNOWN_TOOLS, KNOWN_AGENT_TYPES, DEFAULT_AGENT_TYPE, type Mode, type AgentType } from './constants.js';
 import {
-  ALL_MODES,
-  DEFAULT_MODEL,
-  KNOWN_TOOLS,
-  KNOWN_WORKING_MODELS,
-  parseToolsArg,
-  KNOWN_AGENT_TYPES,
-  DEFAULT_AGENT_TYPE,
-  type Mode,
-  type AgentType,
-} from './constants.js';
-
-/** Valid meta-values accepted by `--mode` in addition to the concrete Mode values. */
-const META_MODES = ['all'] as const;
+  validateApiKey,
+  validateModels,
+  validateModes,
+  validateEvalIds,
+  validateTools,
+  validateWorkers,
+  validateAgentType,
+} from './validators.js';
 
 /** Validated, fully-resolved configuration derived from the CLI flags. */
 export interface RunConfig {
@@ -101,88 +97,19 @@ export function parseRunConfig(argv: string[]): RunConfig {
   program.parse(argv);
   const opts = program.opts();
 
-  const apiKey = process.env.ATKO_API_KEY;
-  if (!apiKey) {
-    logger.error('Error: ATKO_API_KEY environment variable not set.');
-    process.exit(1);
-  }
-
+  const apiKey = validateApiKey();
   const matrix = opts.matrix as boolean;
-
-  // Model selection — --matrix defaults to all models, explicit --model narrows
-  const rawModels = opts.model as string[];
-  let models: string[];
-  if (rawModels.length > 0 && rawModels.includes('all')) {
-    models = KNOWN_WORKING_MODELS;
-    logger.info(`Using all known working models: ${models.join(', ')}`);
-  } else if (rawModels.length > 0) {
-    models = rawModels;
-  } else if (matrix) {
-    models = KNOWN_WORKING_MODELS;
-    logger.info(`Using all known working models: ${models.join(', ')}`);
-  } else {
-    models = [DEFAULT_MODEL];
-  }
-
-  // Mode selection — --matrix defaults to all modes, explicit --mode narrows
-  const modeArg = opts.mode as string | undefined;
-  let modes: Mode[];
-  if (modeArg == null) {
-    // No explicit --mode: use all modes in matrix, baseline otherwise
-    modes = matrix ? ALL_MODES : ['baseline'];
-  } else if (modeArg === 'all') {
-    modes = ALL_MODES;
-    logger.info(`Running all modes: ${modes.join(', ')}`);
-  } else if (modeArg === 'matrix') {
-    logger.error(`'--mode matrix' has been replaced. Use the standalone --matrix flag instead.`);
-    process.exit(1);
-  } else if (!ALL_MODES.includes(modeArg as Mode)) {
-    if (modeArg === 'agent+skills') {
-      logger.error(`'agent+skills' mode has been replaced. Use: --mode agent --tools skills`);
-    } else {
-      const validValues = [...ALL_MODES, ...META_MODES].join(', ');
-      logger.error(`Invalid mode: ${modeArg}. Choose from: ${validValues}`);
-    }
-    process.exit(1);
-  } else {
-    modes = [modeArg as Mode];
-  }
+  const models = validateModels(opts.model as string[], matrix);
+  const modes = validateModes(opts.mode as string | undefined, matrix);
 
   if (matrix) {
     logger.info(`Running matrix: ${modes.join(', ')} × ${['none', 'skills', 'mcp+skills'].join(', ')}`);
   }
 
-  // Eval filtering
-  const evalIds = opts.eval as string[];
-  if (evalIds.length > 0) {
-    const unknown = evalIds.filter((id) => !EVALUATIONS.some((e) => e.id === id));
-    if (unknown.length > 0) {
-      logger.error(`Unknown eval(s): ${unknown.join(', ')}`);
-      process.exit(1);
-    }
-  }
-
-  // Tool validation
-  const tools = parseToolsArg(opts.tools as string);
-  const unknownTools = tools.filter((t) => !KNOWN_TOOLS.some((k) => k.toLowerCase() === t.toLowerCase()));
-  if (unknownTools.length > 0) {
-    logger.error(`Unknown tool(s): ${unknownTools.join(', ')}. Known tools: ${KNOWN_TOOLS.join(', ')}`);
-    process.exit(1);
-  }
-
-  // Workers validation — matrix defaults to 20, otherwise 4
-  const workers = parseInt((opts.workers as string | undefined) ?? (matrix ? '20' : '4'), 10);
-  if (!Number.isInteger(workers) || workers < 1) {
-    logger.error(`Invalid --workers value: ${JSON.stringify(opts.workers)}. Must be a positive integer.`);
-    process.exit(1);
-  }
-
-  // Agent type validation
-  const agentType = opts.agentType as AgentType | undefined;
-  if (agentType !== undefined && !(KNOWN_AGENT_TYPES as readonly string[]).includes(agentType)) {
-    logger.error(`Invalid --agent-type: ${agentType}. Choose from: ${KNOWN_AGENT_TYPES.join(', ')}`);
-    process.exit(1);
-  }
+  const evalIds = validateEvalIds(opts.eval as string[]);
+  const tools = validateTools(opts.tools as string);
+  const workers = validateWorkers(opts.workers as string | undefined, matrix);
+  const agentType = validateAgentType(opts.agentType as string | undefined);
 
   return {
     models,
