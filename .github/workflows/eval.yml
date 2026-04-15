@@ -112,6 +112,7 @@ jobs:
         env:
           ATKO_API_KEY: ${{ secrets.ATKO_API_KEY }}
           CLAUDE_CODE_USE_BEDROCK_PROXY: 0
+          GH_TOKEN: ${{ inputs.agent_type == 'copilot' && secrets.GH_COPILOT_TOKEN || '' }}
         run: |
           AGENT_TYPE="${{ inputs.agent_type || 'auto' }}"
           ARGS="--eval ${{ matrix.eval }} \
