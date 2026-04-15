@@ -72,4 +72,10 @@ export const EVALUATIONS: EvalConfig[] = [
     category: 'quickstarts',
     path: 'src/evals/quickstarts/angular',
   },
+  {
+    id: 'spa_js_quickstart',
+    name: 'SPA JS Quickstart',
+    category: 'quickstarts',
+    path: 'src/evals/quickstarts/spa-js',
+  },
 ];
