@@ -283,6 +283,18 @@ describe('score - Hallucination', () => {
     const result = score(makeRecord({ workspace: dir }));
     expect(getDim(result, 'Hallucination').rawScore).toBe(100.0);
   });
+
+  it('ignores hallucinations inside node_modules', () => {
+    const dir = tmpDir();
+    mkdirSync(join(dir, 'node_modules', 'some-pkg', 'src'), { recursive: true });
+    writeFileSync(
+      join(dir, 'node_modules', 'some-pkg', 'src', 'index.js'),
+      "import @auth0/auth0-sdk\n",
+    );
+    writeFileSync(join(dir, 'app.js'), 'console.log("clean")');
+    const result = score(makeRecord({ workspace: dir }));
+    expect(getDim(result, 'Hallucination').rawScore).toBe(100.0);
+  });
 });
 
 // ── Security tests ────────────────────────────────────────────────────────────
@@ -316,6 +328,18 @@ describe('score - Security', () => {
 
   it('empty workspace = 100', () => {
     const dir = tmpDir();
+    const result = score(makeRecord({ workspace: dir }));
+    expect(getDim(result, 'Security').rawScore).toBe(100.0);
+  });
+
+  it('ignores credentials inside node_modules', () => {
+    const dir = tmpDir();
+    mkdirSync(join(dir, 'node_modules', 'some-pkg', 'src'), { recursive: true });
+    writeFileSync(
+      join(dir, 'node_modules', 'some-pkg', 'src', 'auth.ts'),
+      "const password = 'hunter2';",
+    );
+    writeFileSync(join(dir, 'app.ts'), 'console.log("clean")');
     const result = score(makeRecord({ workspace: dir }));
     expect(getDim(result, 'Security').rawScore).toBe(100.0);
   });
@@ -429,6 +453,18 @@ describe('collectFiles - skill file exclusion', () => {
     const paths = Object.keys(files);
     expect(paths).toContain('app.ts');
     expect(paths.every((p) => !p.startsWith('.gemini/'))).toBe(true);
+  });
+
+  it('excludes node_modules/ directory from grading corpus', () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'app.ts'), 'import { Auth0Provider } from "@auth0/auth0-react"');
+    mkdirSync(join(dir, 'node_modules', 'some-pkg'), { recursive: true });
+    writeFileSync(join(dir, 'node_modules', 'some-pkg', 'index.js'), "password = 'secret'");
+
+    const files = collectFiles(dir);
+    const paths = Object.keys(files);
+    expect(paths).toContain('app.ts');
+    expect(paths.every((p) => !p.startsWith('node_modules/'))).toBe(true);
   });
 
   it('excludes GEMINI.md from grading corpus', () => {
