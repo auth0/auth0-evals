@@ -10,10 +10,12 @@
  * Overall score = weighted sum across all 8 dimensions.
  */
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join, basename } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { basename } from 'node:path';
 import type { RunRecord } from './agent-types.js';
-import { passRate as graderPassRateFn, EXCLUDED_EVAL_DIRS, EXCLUDED_EVAL_FILES, type GraderResult } from './graders.js';
+import { passRate as graderPassRateFn, walkFiles, type GraderResult } from './graders.js';
+import { formatToolSummary } from './tool-display-names.js';
+import { FAKE_API_PATTERNS, CREDENTIAL_PATTERNS, HALLUCINATION_PENALTY } from './vulnerability-patterns.js';
 
 // ── Scoring constants ─────────────────────────────────────────────────────────
 
@@ -34,11 +36,6 @@ const ERROR_RECOVERY_PENALTY = 20.0;
 
 const DOCS_FEATURE_POINTS = 20.0;
 
-const HALLUCINATION_PENALTY = 20.0;
-
-const SECURITY_PENALTY_HARDCODED_SECRET = 30.0;
-const SECURITY_PENALTY_INSECURE_STORAGE = 20.0;
-const SECURITY_PENALTY_EXPOSED_SECRET = 25.0;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -124,17 +121,7 @@ function scoreEfficiency(record: RunRecord): [number, string] {
   for (const tc of record.toolCalls) {
     counts[tc.name] = (counts[tc.name] ?? 0) + 1;
   }
-  const labelMap: Record<string, string> = {
-    read_file: 'Read',
-    list_files: 'List',
-    write_file: 'Write',
-    run_command: 'Bash',
-    fetch_url: 'Fetch',
-    ask_user: 'Ask',
-  };
-  const summary = Object.entries(counts)
-    .map(([n, c]) => `${labelMap[n] ?? n}×${c}`)
-    .join(' ');
+  const summary = formatToolSummary(counts);
   return [Math.round(s * 10) / 10, `${total} tool calls — ${summary}`];
 }
 
@@ -173,19 +160,12 @@ function scoreHallucination(workspace: string): [number, string] {
   let s = 100.0;
   const issues: string[] = [];
 
-  const fakePatterns: [RegExp, string][] = [
-    [/from\s+auth0\s+import\s+Auth0Client/i, "Auth0Client doesn't exist in auth0 package"],
-    [/import\s+@auth0\/auth0-sdk/i, "@auth0/auth0-sdk doesn't exist"],
-    [/Auth0\.configure\(/i, 'Auth0.configure() not a real method'],
-    // loginWithRedirect is a real method in @auth0/auth0-react and @auth0/auth0-vue — not a hallucination.
-  ];
-
   for (const filePath of walkFiles(workspace)) {
     if (!/\.(js|jsx|ts|tsx|swift|py)$/.test(filePath)) continue;
     try {
       const content = readFileSync(filePath, 'utf-8');
       const fileName = basename(filePath);
-      for (const [pattern, description] of fakePatterns) {
+      for (const [pattern, description] of FAKE_API_PATTERNS) {
         if (pattern.test(content)) {
           issues.push(`${fileName}: ${description}`);
           s -= HALLUCINATION_PENALTY;
@@ -211,24 +191,12 @@ function scoreSecurity(workspace: string): [number, string] {
   let s = 100.0;
   const issues: string[] = [];
 
-  const vulnPatterns: [RegExp, string, number][] = [
-    [/client_secret\s*[=:]\s*['"][^'"]+['"]/i, 'Hardcoded client_secret', SECURITY_PENALTY_HARDCODED_SECRET],
-    [
-      /localStorage\.setItem\(['"'].*token/i,
-      'Token in localStorage (use secure cookie)',
-      SECURITY_PENALTY_INSECURE_STORAGE,
-    ],
-    [/api_key\s*[=:]\s*['"][^'"]+['"]/i, 'Hardcoded API key', SECURITY_PENALTY_HARDCODED_SECRET],
-    [/password\s*[=:]\s*['"][^'"]+['"]/i, 'Hardcoded password', SECURITY_PENALTY_HARDCODED_SECRET],
-    [/client_secret.*process\.env/i, 'client_secret exposed in frontend', SECURITY_PENALTY_EXPOSED_SECRET],
-  ];
-
   for (const filePath of walkFiles(workspace)) {
     if (!/\.(js|jsx|ts|tsx|swift|py)$/.test(filePath)) continue;
     try {
       const content = readFileSync(filePath, 'utf-8');
       const fileName = basename(filePath);
-      for (const [pattern, description, penalty] of vulnPatterns) {
+      for (const [pattern, description, penalty] of CREDENTIAL_PATTERNS) {
         if (pattern.test(content)) {
           issues.push(`${fileName}: ${description}`);
           s -= penalty;
@@ -248,20 +216,6 @@ function scoreSecurity(workspace: string): [number, string] {
     if (issues.length > 3) notes += ` (+${issues.length - 3} more)`;
   }
   return [Math.round(s * 10) / 10, notes];
-}
-
-function* walkFiles(dir: string): Generator<string> {
-  if (!existsSync(dir)) return;
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (!EXCLUDED_EVAL_DIRS.has(entry.name)) {
-        yield* walkFiles(full);
-      }
-    } else if (!EXCLUDED_EVAL_FILES.has(entry.name)) {
-      yield full;
-    }
-  }
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────

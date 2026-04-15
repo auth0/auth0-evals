@@ -12,7 +12,7 @@
  *   judge(question, framework) — LLM-as-judge yes/no question about the code
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BASE_URL, JUDGE_MAX_TOKENS, JUDGE_MODEL } from '../config/settings.js';
@@ -85,6 +85,24 @@ export function collectFiles(workspace: string): Record<string, string> {
     }
   }
   return files;
+}
+
+/**
+ * Recursively yields absolute file paths under `dir`, respecting exclusion sets.
+ * Used by the scorer for hallucination and security scanning.
+ */
+export function* walkFiles(dir: string): Generator<string> {
+  if (!existsSync(dir)) return;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (!EXCLUDED_EVAL_DIRS.has(entry.name)) {
+        yield* walkFiles(full);
+      }
+    } else if (!EXCLUDED_EVAL_FILES.has(entry.name)) {
+      yield full;
+    }
+  }
 }
 
 function combined(files: Record<string, string>): string {
