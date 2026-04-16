@@ -2,7 +2,10 @@ export const BASE_URL = '<LLM_PROXY_URL>/v1';
 
 export const JUDGE_MODEL = 'claude-4-5-sonnet';
 
-export const JUDGE_MAX_TOKENS = 300;
+export const JUDGE_MAX_TOKENS = 1024;
+
+/** Maximum characters of combined source code sent to the LLM judge. */
+export const JUDGE_MAX_CODE_CHARS = 8192;
 
 export const MAX_TURNS = 30;
 

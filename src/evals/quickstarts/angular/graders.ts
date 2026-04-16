@@ -26,7 +26,11 @@ export function defineGraders() {
       'Route protected with AuthGuard or authGuardFn',
       GraderLevel.L4,
     ),
-    contains('getAccessTokenSilently', 'Uses getAccessTokenSilently to retrieve access token', GraderLevel.L4),
+    matches(
+      String.raw`getAccessTokenSilently|httpInterceptor`,
+      'Uses getAccessTokenSilently or httpInterceptor for authenticated API calls',
+      GraderLevel.L4,
+    ),
 
     // ── L5: Version-specific API correctness ──────────────────────────────────
     contains(
@@ -44,7 +48,9 @@ export function defineGraders() {
     judge(
       'Does the solution correctly integrate Auth0 into an Angular SPA using @auth0/auth0-angular, ' +
         'with provideAuth0 setup, AuthService for login/logout, user profile display, ' +
-        'route protection via a guard, and getAccessTokenSilently to make authenticated API calls?',
+        'route protection via a guard, and authenticated API calls (either by configuring ' +
+        'authHttpInterceptorFn with an allowedList matching the API base URL, or by calling ' +
+        'getAccessTokenSilently to retrieve tokens manually)?',
     ),
   ];
 }
