@@ -133,7 +133,7 @@ export async function runCopilotAgent(
   // Capture the resolved model once Copilot reports it.
   session.on('session.tools_updated', (ev) => {
     if (ev.data.model) {
-      record.model = `${COPILOT_MODEL_ID}/${ev.data.model}`;
+      record.model = ev.data.model;
       logger.info(`[Copilot] Model resolved: ${record.model}`);
     }
   });
@@ -182,9 +182,7 @@ export async function runCopilotAgent(
     record.inputTokens += inputTokens;
     record.outputTokens += outputTokens;
 
-    // Strip "copilot/" prefix to look up the model in the cost table.
-    const modelKey = record.model.replace(/^copilot\//, '');
-    const callCost = estimateCost(modelKey, inputTokens, outputTokens);
+    const callCost = estimateCost(record.model, inputTokens, outputTokens);
     record.costUsd += callCost;
 
     // assistant.usage fires after assistant.message — backfill the latest TurnMetric
@@ -217,7 +215,7 @@ export async function runCopilotAgent(
       if (pend) pending.delete(ev.data.toolCallId);
 
       if (ev.data.model && record.model === COPILOT_MODEL_ID) {
-        record.model = `${COPILOT_MODEL_ID}/${ev.data.model}`;
+        record.model = ev.data.model;
       }
 
       if (!pend) {
