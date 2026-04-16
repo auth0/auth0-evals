@@ -169,6 +169,7 @@ const COPILOT_TOOL_MAP: Record<string, string> = {
   apply_patch: 'write_file',
   glob: 'list_files',
   grep: 'list_files',
+  rg: 'list_files',
   web_fetch: 'fetch_url',
   web_search: 'fetch_url',
   ask_user: 'ask_user',
