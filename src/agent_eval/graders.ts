@@ -15,10 +15,11 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BASE_URL, JUDGE_MAX_TOKENS, JUDGE_MODEL } from '../config/settings.js';
+import { BASE_URL, JUDGE_MAX_CODE_CHARS, JUDGE_MAX_TOKENS, JUDGE_MODEL } from '../config/settings.js';
 import { LlmApiError } from '../errors.js';
 import { collectFiles as collectFilePaths } from './tools/utils.js';
 import { withRetry } from '../utils/retry.js';
+import { logger } from '../utils/logger.js';
 
 function resolveProjectRoot(): string {
   let dir = dirname(fileURLToPath(import.meta.url));
@@ -86,6 +87,9 @@ export const EXCLUDED_EVAL_DIRS = new Set([
   'out-tsc'
 ]);
 export const EXCLUDED_EVAL_FILES = new Set(['package-lock.json', 'GEMINI.md']);
+
+/** File patterns excluded from the LLM judge input to save token budget. */
+const JUDGE_EXCLUDED_PATTERNS = [/^tsconfig(\.\w+)?\.json$/, /^angular\.json$/];
 
 export function collectFiles(workspace: string): Record<string, string> {
   const files: Record<string, string> = {};
@@ -260,7 +264,19 @@ export async function runGraders(
       }
       results.push({ name, kind, passed, detail, level: g.level });
     } else if (kind === 'judge') {
-      const { passed, detail } = await llmJudge(g.question!, combinedText, apiKey, judgeModel, g.framework);
+      const judgeEntries = Object.entries(files)
+        .filter(([k]) => !JUDGE_EXCLUDED_PATTERNS.some((p) => p.test(k.split('/').pop()!)));
+      const judgeText = judgeEntries
+        .map(([k, v]) => `// FILE: ${k}\n${v}`)
+        .join('\n\n');
+      logger.info(`[judge] ${judgeEntries.length} files, ${judgeText.length} chars total (limit: ${JUDGE_MAX_CODE_CHARS})`);
+      for (const [k, v] of judgeEntries) {
+        logger.info(`[judge]   ${k} (${v.length} chars)`);
+      }
+      if (judgeText.length > JUDGE_MAX_CODE_CHARS) {
+        logger.warn(`[judge] WARNING: content will be truncated from ${judgeText.length} to ${JUDGE_MAX_CODE_CHARS} chars`);
+      }
+      const { passed, detail } = await llmJudge(g.question!, judgeText, apiKey, judgeModel, g.framework);
       results.push({ name, kind, passed, detail, level: g.level });
     } else {
       results.push({ name, kind, passed: false, detail: `Unknown grader kind: ${kind}`, level: g.level });
@@ -281,7 +297,7 @@ export async function llmJudge(
   const system =
     `${base} Provide 1-3 short sentences of reasoning, ` +
     "then on the FINAL line write your verdict as exactly 'yes' or 'no' (nothing else on that line).";
-  const user = loadUserTemplate().replace('{question}', question).replace('{code}', code.slice(0, 6000));
+  const user = loadUserTemplate().replace('{question}', question).replace('{code}', code.slice(0, JUDGE_MAX_CODE_CHARS));
 
   const payload = JSON.stringify({
     model,
