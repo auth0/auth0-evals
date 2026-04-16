@@ -52,8 +52,8 @@ export function defineGraders() {
 
     // ── L5: Version-specific API correctness ──────────────────────────────────
     matches(
-      String.raw`Auth0\s*\(\s*this\s*\)`,
-      'Uses Auth0(context) constructor for auto-configuration from string resources',
+      String.raw`Auth0\s*(\.\s*getInstance\s*)?\(\s*(?:this(?:@[A-Za-z_][A-Za-z0-9_]*)?|context|applicationContext|requireContext\(\))\s*\)`,
+      'Uses Auth0(context) or Auth0.getInstance(context) for auto-configuration from string resources',
       GraderLevel.L5,
     ),
     judge(
