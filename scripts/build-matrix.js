@@ -13,7 +13,7 @@ const ALL_MODELS = [
   'gpt-5.4',
   'claude-4-6-sonnet',
   'claude-4-6-opus',
-  'gemini-3-pro-preview',
+  'gemini-3.1-pro-preview',
 ];
 
 const evalsIn     = process.env.EVALS_INPUT;
