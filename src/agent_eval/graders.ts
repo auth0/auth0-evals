@@ -274,7 +274,7 @@ export async function runGraders(
         logger.info(`[judge]   ${k} (${v.length} chars)`);
       }
       if (judgeText.length > JUDGE_MAX_CODE_CHARS) {
-        logger.warn(`[judge] WARNING: content will be truncated from ${judgeText.length} to ${JUDGE_MAX_CODE_CHARS} chars`);
+        logger.warn(`[judge] WARNING: content exceeds limit (${judgeText.length} > ${JUDGE_MAX_CODE_CHARS} chars) — judge will fail`);
       }
       const { passed, detail } = await llmJudge(g.question!, judgeText, apiKey, judgeModel, g.framework);
       results.push({ name, kind, passed, detail, level: g.level });
@@ -297,7 +297,13 @@ export async function llmJudge(
   const system =
     `${base} Provide 1-3 short sentences of reasoning, ` +
     "then on the FINAL line write your verdict as exactly 'yes' or 'no' (nothing else on that line).";
-  const user = loadUserTemplate().replace('{question}', question).replace('{code}', code.slice(0, JUDGE_MAX_CODE_CHARS));
+  if (code.length > JUDGE_MAX_CODE_CHARS) {
+    throw new Error(
+      `[judge] Code corpus exceeds limit: ${code.length} chars > ${JUDGE_MAX_CODE_CHARS}. ` +
+        `Increase JUDGE_MAX_CODE_CHARS or reduce the number or size of files being judged.`,
+    );
+  }
+  const user = loadUserTemplate().replace('{question}', question).replace('{code}', code);
 
   const payload = JSON.stringify({
     model,

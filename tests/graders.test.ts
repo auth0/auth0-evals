@@ -17,7 +17,7 @@ import {
   GraderLevel,
   type GraderResult,
 } from '../src/agent_eval/graders.js';
-import { JUDGE_MAX_TOKENS } from '../src/config/settings.js';
+import { JUDGE_MAX_CODE_CHARS, JUDGE_MAX_TOKENS } from '../src/config/settings.js';
 
 const tmpDir = makeTmpDir('graders_test_');
 
@@ -477,5 +477,41 @@ describe('runGraders - allowedLevels', () => {
 
     expect(results.length).toBe(1);
     expect(results[0].name).toBe('holistic check');
+  });
+});
+
+// ── llmJudge — overflow protection ──────────────────────────────────────────
+
+describe('llmJudge - code corpus overflow', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('throws when code exceeds JUDGE_MAX_CODE_CHARS', async () => {
+    const oversized = 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1);
+    await expect(llmJudge('question', oversized, 'key', 'model')).rejects.toThrow(
+      /Code corpus exceeds limit/,
+    );
+  });
+
+  it('does not throw when code is exactly at the limit', async () => {
+    vi.stubGlobal('fetch', mockFetchResponse('Looks good.\n\nyes'));
+    const exact = 'x'.repeat(JUDGE_MAX_CODE_CHARS);
+    const { passed } = await llmJudge('question', exact, 'key', 'model');
+    expect(passed).toBe(true);
+  });
+});
+
+// ── runGraders — judge overflow propagation ─────────────────────────────────
+
+describe('runGraders - judge overflow propagation', () => {
+  it('propagates overflow error from judge grader', async () => {
+    const dir = tmpDir();
+    // Write a single file that exceeds the limit
+    writeFileSync(join(dir, 'App.js'), 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1));
+    const { judge } = await import('../src/agent_eval/graders.js');
+    const graders = [judge('Does the code work?')];
+
+    await expect(runGraders(graders, dir, 'unused')).rejects.toThrow(
+      /Code corpus exceeds limit/,
+    );
   });
 });
