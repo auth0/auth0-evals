@@ -196,6 +196,7 @@ export async function runClaudeCodeAgent(
       prompt: evalDef.userPrompt,
       options: {
         cwd: workspace,
+        pathToClaudeCodeExecutable: process.env.CLAUDE_CLI_PATH || undefined,
         model: resolvedModel,
         tools: toolList,
         permissionMode: 'bypassPermissions',
