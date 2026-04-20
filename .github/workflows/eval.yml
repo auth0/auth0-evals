@@ -122,7 +122,7 @@ jobs:
 
       - name: Run eval
         env:
-          ATKO_API_KEY: ${{ secrets.ATKO_API_KEY_ALL_MODELS }}
+          ATKO_API_KEY: ${{ secrets.ATKO_API_KEY }}
           CLAUDE_CODE_USE_BEDROCK_PROXY: 0
           CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: 1
           GH_TOKEN: ${{ matrix.agent_type == 'copilot' && secrets.GH_COPILOT_TOKEN || '' }}
