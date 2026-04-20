@@ -10,12 +10,9 @@
  * Overall score = weighted sum across all 8 dimensions.
  */
 
-import { readFileSync } from 'node:fs';
-import { basename } from 'node:path';
 import type { RunRecord } from './agent-types.js';
-import { passRate as graderPassRateFn, walkFiles, type GraderResult } from './graders.js';
+import { passRate as graderPassRateFn, GraderLevel, type GraderResult } from './graders.js';
 import { formatToolSummary } from './tool-display-names.js';
-import { FAKE_API_PATTERNS, CREDENTIAL_PATTERNS, HALLUCINATION_PENALTY } from './vulnerability-patterns.js';
 
 // ── Scoring constants ─────────────────────────────────────────────────────────
 
@@ -35,7 +32,6 @@ const EFFICIENCY_IDEAL_CALLS = 10;
 const ERROR_RECOVERY_PENALTY = 20.0;
 
 const DOCS_FEATURE_POINTS = 20.0;
-
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -156,65 +152,19 @@ function scoreCorrectness(graderResults: GraderResult[]): [number, string] {
   return [Math.round(s * 10) / 10, `${passed}/${total} graders passed (${s.toFixed(0)}%)`];
 }
 
-function scoreHallucination(workspace: string): [number, string] {
-  let s = 100.0;
-  const issues: string[] = [];
-
-  for (const filePath of walkFiles(workspace)) {
-    if (!/\.(js|jsx|ts|tsx|swift|py)$/.test(filePath)) continue;
-    try {
-      const content = readFileSync(filePath, 'utf-8');
-      const fileName = basename(filePath);
-      for (const [pattern, description] of FAKE_API_PATTERNS) {
-        if (pattern.test(content)) {
-          issues.push(`${fileName}: ${description}`);
-          s -= HALLUCINATION_PENALTY;
-        }
-      }
-    } catch {
-      // skip
-    }
-  }
-
-  s = Math.max(0, s);
-  let notes: string;
-  if (!issues.length) {
-    notes = 'No hallucinations detected';
-  } else {
-    notes = issues.slice(0, 3).join('; ');
-    if (issues.length > 3) notes += ` (+${issues.length - 3} more)`;
-  }
-  return [Math.round(s * 10) / 10, notes];
-}
-
-function scoreSecurity(workspace: string): [number, string] {
-  let s = 100.0;
-  const issues: string[] = [];
-
-  for (const filePath of walkFiles(workspace)) {
-    if (!/\.(js|jsx|ts|tsx|swift|py)$/.test(filePath)) continue;
-    try {
-      const content = readFileSync(filePath, 'utf-8');
-      const fileName = basename(filePath);
-      for (const [pattern, description, penalty] of CREDENTIAL_PATTERNS) {
-        if (pattern.test(content)) {
-          issues.push(`${fileName}: ${description}`);
-          s -= penalty;
-        }
-      }
-    } catch {
-      // skip
-    }
-  }
-
-  s = Math.max(0, s);
-  let notes: string;
-  if (!issues.length) {
-    notes = 'No security vulnerabilities detected';
-  } else {
-    notes = issues.slice(0, 3).join('; ');
-    if (issues.length > 3) notes += ` (+${issues.length - 3} more)`;
-  }
+function scoreFromGraders(graderResults: GraderResult[], level: GraderLevel, emptyNote: string): [number, string] {
+  const relevant = graderResults.filter((g) => g.level === level);
+  if (!relevant.length) return [100.0, emptyNote];
+  const passed = relevant.filter((g) => g.passed).length;
+  const failed = relevant.filter((g) => !g.passed);
+  const s = (100.0 * passed) / relevant.length;
+  const notes =
+    failed.length === 0
+      ? `All ${passed} graders passed`
+      : failed
+          .slice(0, 3)
+          .map((g) => g.detail)
+          .join('; ') + (failed.length > 3 ? ` (+${failed.length - 3} more)` : '');
   return [Math.round(s * 10) / 10, notes];
 }
 
@@ -242,8 +192,12 @@ export function score(
   const [errScore, errNotes] = scoreErrors(record);
   const [docScore, docNotes] = scoreDocs(df);
   const [correctnessScore, correctnessNotes] = scoreCorrectness(gr);
-  const [hallucinationScore, hallucinationNotes] = scoreHallucination(record.workspace);
-  const [securityScore, securityNotes] = scoreSecurity(record.workspace);
+  const [hallucinationScore, hallucinationNotes] = scoreFromGraders(
+    gr,
+    GraderLevel.L2,
+    'No hallucination graders defined',
+  );
+  const [securityScore, securityNotes] = scoreFromGraders(gr, GraderLevel.L3, 'No security graders defined');
 
   // Zero out process dimensions when the agent never actually executed.
   // Without this gate, a broken run (0 tool calls) scores 48/50 on process
