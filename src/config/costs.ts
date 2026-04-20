@@ -3,6 +3,7 @@ export const COST_TABLE: Record<string, [number, number]> = {
   'gpt-4.1': [2.0, 8.0],
   'claude-4-6-sonnet': [3.0, 15.0],
   'claude-4-6-opus': [5.0, 25.0],
+  'claude-opus-4-7': [5.0, 25.0],
   'gemini-3.1-pro-preview': [2.0, 12.0],
 };
 

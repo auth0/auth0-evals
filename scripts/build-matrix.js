@@ -13,6 +13,7 @@ const ALL_MODELS = [
   'gpt-5.4',
   'claude-4-6-sonnet',
   'claude-4-6-opus',
+  'claude-opus-4-7',
   'gemini-3.1-pro-preview',
 ];
 
