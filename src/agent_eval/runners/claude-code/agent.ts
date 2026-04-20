@@ -48,6 +48,7 @@ const BEDROCK_MODEL_ALIAS_MAP: Record<string, string> = {
   'claude-4-6-sonnet': 'global.anthropic.claude-sonnet-4-6',
   'claude-4-6-opus': 'global.anthropic.claude-opus-4-6-v1',
   'claude-4-5-sonnet': 'global.anthropic.claude-sonnet-4-5-20250929-v1:0',
+  'claude-opus-4-7': 'global.anthropic.claude-opus-4-7',
   'claude-4-5-opus': 'global.anthropic.claude-opus-4-5-20251101-v1:0',
   'claude-4-5-haiku': 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
 };
