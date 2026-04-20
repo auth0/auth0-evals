@@ -7,12 +7,12 @@
 
 import type { AgentRunner, RunParams, RunResult } from '../../agent-runner.js';
 import type { EvalDefinition } from '../../../runners/loader.js';
-import { CopilotSdkSkillsStrategy } from '../../skills/strategy.js';
+import { CopySkillsStrategy } from '../../skills/strategy.js';
 import type { SkillsStrategy } from '../../skills/strategy.js';
 import { runCopilotAgent, COPILOT_MODEL_ID, COPILOT_DEFAULT_MODEL } from './agent.js';
 
 export class CopilotCliRunner implements AgentRunner {
-  private readonly skillsStrategy: SkillsStrategy = new CopilotSdkSkillsStrategy();
+  private readonly skillsStrategy: SkillsStrategy = new CopySkillsStrategy('.github/skills');
 
   async prepareSkills(evalDef: EvalDefinition, workspace: string): Promise<EvalDefinition> {
     return this.skillsStrategy.apply(evalDef, workspace);

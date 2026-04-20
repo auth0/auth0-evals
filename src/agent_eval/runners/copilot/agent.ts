@@ -10,7 +10,7 @@
  *   4. Clean up.
  *
  * Skills are delivered via the SDK's `skillDirectories` config option —
- * files are pre-copied to `.github/skills/` by CopilotSdkSkillsStrategy
+ * files are pre-copied to `.github/skills/` by CopySkillsStrategy
  * in strategy.ts, and the SDK's native discovery picks them up.
  */
 
@@ -122,7 +122,7 @@ export async function runCopilotAgent(
     // Suppress ask_user to prevent eval runs from blocking on interactive input.
     excludedTools: ['ask_user'],
     ...(tools.includes('mcp') ? { mcpServers: getMcpServers() } : {}),
-    // Skill files are pre-copied to .github/skills/ by CopilotSdkSkillsStrategy.
+    // Skill files are pre-copied to .github/skills/ by CopySkillsStrategy.
     ...(tools.includes('skills') ? { skillDirectories: [join(workspace, '.github', 'skills')] } : {}),
     // Disable infinite sessions — each eval run is a clean, isolated session.
     infiniteSessions: { enabled: false },

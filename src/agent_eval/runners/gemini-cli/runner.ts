@@ -4,12 +4,12 @@
 
 import type { AgentRunner, RunParams, RunResult } from '../../agent-runner.js';
 import type { EvalDefinition } from '../../../runners/loader.js';
-import { GeminiCliSkillsStrategy } from '../../skills/strategy.js';
+import { CopySkillsStrategy } from '../../skills/strategy.js';
 import type { SkillsStrategy } from '../../skills/strategy.js';
 import { runGeminiCliAgent, GEMINI_CLI_MODEL_ID } from './agent.js';
 
 export class GeminiCliRunner implements AgentRunner {
-  private readonly skillsStrategy: SkillsStrategy = new GeminiCliSkillsStrategy();
+  private readonly skillsStrategy: SkillsStrategy = new CopySkillsStrategy('.gemini/skills');
 
   async prepareSkills(evalDef: EvalDefinition, workspace: string): Promise<EvalDefinition> {
     return this.skillsStrategy.apply(evalDef, workspace);

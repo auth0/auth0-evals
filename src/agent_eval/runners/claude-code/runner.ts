@@ -12,7 +12,7 @@ import type { SkillsStrategy } from '../../skills/strategy.js';
 import { runClaudeCodeAgent, CLAUDE_CODE_MODEL_ID } from './agent.js';
 
 export class ClaudeCodeRunner implements AgentRunner {
-  private readonly skillsStrategy: SkillsStrategy = new CopySkillsStrategy();
+  private readonly skillsStrategy: SkillsStrategy = new CopySkillsStrategy('.claude/skills');
 
   async prepareSkills(evalDef: EvalDefinition, workspace: string): Promise<EvalDefinition> {
     return this.skillsStrategy.apply(evalDef, workspace);

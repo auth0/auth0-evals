@@ -86,7 +86,7 @@ export const EXCLUDED_EVAL_DIRS = new Set([
   '.angular',
   'out-tsc'
 ]);
-export const EXCLUDED_EVAL_FILES = new Set(['package-lock.json', 'GEMINI.md']);
+export const EXCLUDED_EVAL_FILES = new Set(['package-lock.json']);
 
 /** File patterns excluded from the LLM judge input to save token budget. */
 const JUDGE_EXCLUDED_PATTERNS = [/^tsconfig(\.\w+)?\.json$/, /^angular\.json$/];
