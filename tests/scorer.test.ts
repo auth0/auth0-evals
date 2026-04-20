@@ -7,8 +7,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmpDir } from './tmp.js';
 import type { RunRecord, ToolCallRecord } from '../src/agent_eval/agent-types.js';
+import { GraderLevel, collectFiles } from '../src/agent_eval/graders.js';
 import type { GraderResult } from '../src/agent_eval/graders.js';
-import { collectFiles } from '../src/agent_eval/graders.js';
 import { score, scoreToGrade, type ScoredResult, type DimensionScore } from '../src/agent_eval/scorer.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -264,8 +264,16 @@ describe('score - Hallucination', () => {
 
   it('detects fake python import', () => {
     const dir = tmpDir();
-    writeFileSync(join(dir, 'app.py'), 'from auth0 import Auth0Client\n');
-    const result = score(makeRecord({ workspace: dir }));
+    const graders: GraderResult[] = [
+      {
+        name: 'no-fake-client',
+        kind: 'notContains',
+        passed: false,
+        detail: "app.py: Auth0Client doesn't exist in auth0 package",
+        level: GraderLevel.L2,
+      },
+    ];
+    const result = score(makeRecord({ workspace: dir }), undefined, graders);
     const dim = getDim(result, 'Hallucination');
     expect(dim.rawScore).toBeLessThan(100.0);
     expect(dim.notes).toContain('app.py');
@@ -273,8 +281,16 @@ describe('score - Hallucination', () => {
 
   it('detects fake js package', () => {
     const dir = tmpDir();
-    writeFileSync(join(dir, 'app.js'), 'import @auth0/auth0-sdk\n');
-    const result = score(makeRecord({ workspace: dir }));
+    const graders: GraderResult[] = [
+      {
+        name: 'no-fake-sdk',
+        kind: 'notContains',
+        passed: false,
+        detail: "@auth0/auth0-sdk doesn't exist",
+        level: GraderLevel.L2,
+      },
+    ];
+    const result = score(makeRecord({ workspace: dir }), undefined, graders);
     expect(getDim(result, 'Hallucination').rawScore).toBeLessThan(100.0);
   });
 
@@ -287,10 +303,7 @@ describe('score - Hallucination', () => {
   it('ignores hallucinations inside node_modules', () => {
     const dir = tmpDir();
     mkdirSync(join(dir, 'node_modules', 'some-pkg', 'src'), { recursive: true });
-    writeFileSync(
-      join(dir, 'node_modules', 'some-pkg', 'src', 'index.js'),
-      "import @auth0/auth0-sdk\n",
-    );
+    writeFileSync(join(dir, 'node_modules', 'some-pkg', 'src', 'index.js'), 'import @auth0/auth0-sdk\n');
     writeFileSync(join(dir, 'app.js'), 'console.log("clean")');
     const result = score(makeRecord({ workspace: dir }));
     expect(getDim(result, 'Hallucination').rawScore).toBe(100.0);
@@ -312,8 +325,16 @@ describe('score - Security', () => {
 
   it('detects hardcoded client_secret', () => {
     const dir = tmpDir();
-    writeFileSync(join(dir, 'auth.js'), "const client_secret = 'my-super-secret-value';");
-    const result = score(makeRecord({ workspace: dir }));
+    const graders: GraderResult[] = [
+      {
+        name: 'no-client-secret',
+        kind: 'notContains',
+        passed: false,
+        detail: 'auth.js: Hardcoded client_secret',
+        level: GraderLevel.L3,
+      },
+    ];
+    const result = score(makeRecord({ workspace: dir }), undefined, graders);
     const dim = getDim(result, 'Security');
     expect(dim.rawScore).toBeLessThan(100.0);
     expect(dim.notes).toContain('auth.js');
@@ -321,8 +342,16 @@ describe('score - Security', () => {
 
   it('detects hardcoded api_key', () => {
     const dir = tmpDir();
-    writeFileSync(join(dir, 'config.js'), "const api_key = 'sk-abc123';");
-    const result = score(makeRecord({ workspace: dir }));
+    const graders: GraderResult[] = [
+      {
+        name: 'no-api-key',
+        kind: 'notContains',
+        passed: false,
+        detail: 'config.js: Hardcoded API key',
+        level: GraderLevel.L3,
+      },
+    ];
+    const result = score(makeRecord({ workspace: dir }), undefined, graders);
     expect(getDim(result, 'Security').rawScore).toBeLessThan(100.0);
   });
 
@@ -335,10 +364,7 @@ describe('score - Security', () => {
   it('ignores credentials inside node_modules', () => {
     const dir = tmpDir();
     mkdirSync(join(dir, 'node_modules', 'some-pkg', 'src'), { recursive: true });
-    writeFileSync(
-      join(dir, 'node_modules', 'some-pkg', 'src', 'auth.ts'),
-      "const password = 'hunter2';",
-    );
+    writeFileSync(join(dir, 'node_modules', 'some-pkg', 'src', 'auth.ts'), "const password = 'hunter2';");
     writeFileSync(join(dir, 'app.ts'), 'console.log("clean")');
     const result = score(makeRecord({ workspace: dir }));
     expect(getDim(result, 'Security').rawScore).toBe(100.0);
