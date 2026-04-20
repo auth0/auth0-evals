@@ -9,13 +9,14 @@
  *       Augments the system prompt with skill names and tool hints. The agent
  *       accesses skill files via `list_skill_files` / `read_skill_file` tools.
  *
- *   - CopySkillsStrategy  (filesystem-native agents: Claude Code, etc.)
- *       Copies skill files into the workspace under `.claude/skills/<skill>/`
- *       so Claude Code auto-loads them as context.
+ *   - CopySkillsStrategy  (filesystem-native agents: Claude Code, Copilot, Gemini, etc.)
+ *       Copies skill files into the workspace under a configurable directory.
+ *       Some CLIs auto-discover the directory (e.g. `.claude/skills/`), while
+ *       others require explicit runner configuration (e.g. Copilot's `skillDirectories`).
  */
 
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
 import { logger } from '../../utils/logger.js';
@@ -63,10 +64,14 @@ async function doEnsureCloned(): Promise<boolean> {
 // ── Public functions ──────────────────────────────────────────────────────────
 
 /**
- * Copies skill files into `.claude/skills/<skill>/` in the workspace so Claude Code
- * auto-loads them as persistent context. No prompt augmentation is needed.
+ * Copies skill files into `<skillsDir>/<skill>/` in the workspace.
+ * @param skillsDir — dot-directory path relative to the workspace (e.g. `.claude/skills`).
  */
-export async function copySkillsToWorkspace(evalDef: EvalDefinition, workspace: string): Promise<EvalDefinition> {
+export async function copySkillsToWorkspace(
+  evalDef: EvalDefinition,
+  workspace: string,
+  skillsDir = '.claude/skills',
+): Promise<EvalDefinition> {
   await ensureCloned();
 
   for (const skill of evalDef.skills) {
@@ -76,14 +81,13 @@ export async function copySkillsToWorkspace(evalDef: EvalDefinition, workspace: 
     }
     const files = collectFiles(skillDir, skillDir, Infinity);
     for (const relPath of files) {
-      const dest = join(workspace, '.claude', 'skills', skill, relPath);
+      const dest = join(workspace, skillsDir, skill, relPath);
       mkdirSync(dirname(dest), { recursive: true });
       copyFileSync(join(skillDir, relPath), dest);
     }
-    logger.info(`  [skills] Copied ${files.length} file(s) for '${skill}' → .claude/skills/${skill}/`);
+    logger.info(`  [skills] Copied ${files.length} file(s) for '${skill}' → ${skillsDir}/${skill}/`);
   }
 
-  // No prompt augmentation needed — Claude Code auto-loads .claude/skills/ as context.
   return evalDef;
 }
 
@@ -121,9 +125,10 @@ export async function augmentWithSkills(evalDef: EvalDefinition): Promise<EvalDe
  *       The agent accesses skills via the `list_skill_files` / `read_skill_file`
  *       custom tools.
  *
- *   - CopySkillsStrategy  (filesystem-native agents such as Claude Code)
- *       Copies skill files into the workspace under `.claude/skills/<skill>/`
- *       so Claude Code auto-loads them as context.
+ *   - CopySkillsStrategy  (filesystem-native agents such as Claude Code, Copilot, Gemini)
+ *       Copies skill files into the workspace under a configurable directory.
+ *       Auto-discovered by some CLIs (Claude Code, Gemini); explicitly configured
+ *       in the runner for others (Copilot).
  *
  * When adding a new agent, pick the strategy that matches how it reads context
  * — no need to re-implement the injection logic.
@@ -162,88 +167,16 @@ export class InjectSkillsStrategy implements SkillsStrategy {
 // ── CopySkillsStrategy ────────────────────────────────────────────────────────
 
 /**
- * Delivers skills by copying files into `.claude/skills/` in the workspace.
- * Claude Code auto-loads this directory as persistent context.
+ * Delivers skills by copying files into a configurable directory in the workspace.
+ * Some CLIs auto-discover specific directories (e.g. `.claude/skills/` for Claude Code,
+ * `.gemini/skills/` for Gemini), while others require explicit configuration in the
+ * runner (e.g. Copilot reads `.github/skills/` only because `skillDirectories` is set
+ * in `runners/copilot/agent.ts`).
  */
 export class CopySkillsStrategy implements SkillsStrategy {
+  constructor(private readonly skillsDir: string) {}
+
   async apply(evalDef: EvalDefinition, workspace: string): Promise<EvalDefinition> {
-    return copySkillsToWorkspace(evalDef, workspace);
-  }
-}
-
-// ── CopilotSdkSkillsStrategy ──────────────────────────────────────────────────
-
-/**
- * Delivers skills for the Copilot SDK runner.
- *
- * Copies skill files into `.github/skills/<skill>/` in the workspace.
- * The SDK's `skillDirectories` session config option then points at
- * `.github/skills/` so the Copilot CLI discovers each SKILL.md automatically
- * — no prompt modification needed.
- */
-export class CopilotSdkSkillsStrategy implements SkillsStrategy {
-  async apply(evalDef: EvalDefinition, workspace: string): Promise<EvalDefinition> {
-    await ensureCloned();
-
-    for (const skill of evalDef.skills) {
-      const skillDir = resolveSkillDir(skill);
-      if (!skillDir) {
-        throw new Error(`Skill '${skill}' not found in cloned repo — cannot run agent+skills without it`);
-      }
-      const files = collectFiles(skillDir, skillDir, Infinity);
-      for (const relPath of files) {
-        const dest = join(workspace, '.github', 'skills', skill, relPath);
-        mkdirSync(dirname(dest), { recursive: true });
-        copyFileSync(join(skillDir, relPath), dest);
-      }
-      logger.info(`  [skills] Copied ${files.length} file(s) for '${skill}' → .github/skills/${skill}/`);
-    }
-
-    // No prompt modification — the SDK uses skillDirectories config to discover skills.
-    return evalDef;
-  }
-}
-
-// ── GeminiCliSkillsStrategy ───────────────────────────────────────────────────
-
-/**
- * Delivers skills for the Gemini CLI runner.
- *
- * Copies skill files into `.gemini/skills/<skill>/` in the workspace and writes
- * a `GEMINI.md` at the workspace root. The Gemini CLI auto-loads `GEMINI.md`
- * as persistent context (same convention as Claude Code's `CLAUDE.md`), so the
- * model sees the skill instructions without any prompt modification.
- */
-export class GeminiCliSkillsStrategy implements SkillsStrategy {
-  async apply(evalDef: EvalDefinition, workspace: string): Promise<EvalDefinition> {
-    await ensureCloned();
-
-    const skillLines: string[] = [];
-
-    for (const skill of evalDef.skills) {
-      const skillDir = resolveSkillDir(skill);
-      if (!skillDir) {
-        throw new Error(`Skill '${skill}' not found in cloned repo — cannot run agent+skills without it`);
-      }
-      const files = collectFiles(skillDir, skillDir, Infinity);
-      for (const relPath of files) {
-        const dest = join(workspace, '.gemini', 'skills', skill, relPath);
-        mkdirSync(dirname(dest), { recursive: true });
-        copyFileSync(join(skillDir, relPath), dest);
-      }
-      logger.info(`  [skills] Copied ${files.length} file(s) for '${skill}' → .gemini/skills/${skill}/`);
-      skillLines.push(`- .gemini/skills/${skill}/SKILL.md`);
-    }
-
-    // Write GEMINI.md so the Gemini CLI auto-loads skill instructions as context.
-    const geminiMd =
-      `# Skills\n\n` +
-      `The following Auth0 SDK skills are available. Read each SKILL.md before starting:\n\n` +
-      skillLines.join('\n') +
-      '\n';
-    writeFileSync(join(workspace, 'GEMINI.md'), geminiMd, 'utf-8');
-    logger.info(`  [skills] Wrote GEMINI.md with ${evalDef.skills.length} skill(s)`);
-
-    return evalDef;
+    return copySkillsToWorkspace(evalDef, workspace, this.skillsDir);
   }
 }
