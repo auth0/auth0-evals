@@ -12,7 +12,7 @@ on:
         default: 'all'
         type: string
       models:
-        description: 'Models to run: "all" or comma-separated (e.g. gpt-5.2,claude-4-6-sonnet)'
+        description: 'Models to run: "all" or comma-separated (e.g. gpt-5.4,claude-4-6-sonnet)'
         default: 'all'
         type: string
       agent_type:
