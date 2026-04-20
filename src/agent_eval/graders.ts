@@ -355,6 +355,6 @@ export async function llmJudge(
 // ── Summary helpers ───────────────────────────────────────────────────────────
 
 export function passRate(results: GraderResult[]): number {
-  if (!results.length) return 1.0;
+  if (!results.length) return 0.0;
   return results.filter((r) => r.passed).length / results.length;
 }

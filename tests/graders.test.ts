@@ -308,8 +308,8 @@ describe('passRate', () => {
     expect(passRate(results)).toBe(0.5);
   });
 
-  it('empty list returns 1.0', () => {
-    expect(passRate([])).toBe(1.0);
+  it('empty list returns 0.0', () => {
+    expect(passRate([])).toBe(0.0);
   });
 });
 
