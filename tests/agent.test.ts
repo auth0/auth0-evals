@@ -906,7 +906,7 @@ describe('ToolExecutor.list_skill_files', () => {
 
   beforeEach(() => {
     const remoteDir = tmpDir();
-    skillsBaseDir = join(remoteDir, 'auth0-skills', 'plugins', 'auth0-sdks', 'skills');
+    skillsBaseDir = join(remoteDir, 'auth0-skills', 'plugins', 'auth0', 'skills');
     mkdirSync(skillsBaseDir, { recursive: true });
     vi.stubEnv('SKILLS_REMOTE_DIR', remoteDir);
   });
@@ -964,7 +964,7 @@ describe('ToolExecutor.read_skill_file', () => {
 
   beforeEach(() => {
     const remoteDir = tmpDir();
-    skillsBaseDir = join(remoteDir, 'auth0-skills', 'plugins', 'auth0-sdks', 'skills');
+    skillsBaseDir = join(remoteDir, 'auth0-skills', 'plugins', 'auth0', 'skills');
     mkdirSync(skillsBaseDir, { recursive: true });
     vi.stubEnv('SKILLS_REMOTE_DIR', remoteDir);
   });

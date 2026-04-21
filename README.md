@@ -184,7 +184,7 @@ skills: auth0-react
 The runner fetches the corresponding `SKILL.md` from [auth0/agent-skills](https://github.com/auth0/agent-skills) on GitHub at runtime:
 
 ```
-https://raw.githubusercontent.com/auth0/agent-skills/main/plugins/auth0-sdks/skills/<name>/SKILL.md
+https://raw.githubusercontent.com/auth0/agent-skills/main/plugins/auth0/skills/<name>/SKILL.md
 ```
 
 Fetched skills are cached in memory across parallel workers to avoid redundant HTTP calls. If an eval has no `skills:` declared, agent+skills mode runs identically to agent mode.
