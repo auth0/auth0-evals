@@ -12,7 +12,7 @@
 | `agent+mcp` | `--mode agent --tools mcp` | Agent + Auth0 MCP server tools | L1-L5 |
 | `agent+mcp+skills` | `--mode agent --tools mcp,skills` | Agent + MCP + skills (full investment) | L1-L5 |
 
-Each eval lives in `src/evals/<category>/<eval-dir>/` and consists of a `PROMPT.md` (task description) and a `graders.ts` (acceptance criteria). The framework runs the eval and grades the output. Agent-mode runs are scored across 8 dimensions into a JSON results file; baseline runs only produce grader pass rates (no 8-dimension scoring). Each eval also has a snake_case config ID (e.g. `react_quickstart`) registered in `src/config/evaluations.ts` — this ID is used with `--eval` and is separate from the on-disk directory name (e.g. `src/evals/quickstarts/react`).
+Each eval lives in `src/evals/<category>/<eval-dir>/` and consists of a `PROMPT.md` (task description) and a `graders.ts` (acceptance criteria). The framework runs the eval and grades the output. Agent-mode runs are scored across 7 dimensions into a JSON results file; baseline runs only produce grader pass rates (no 7-dimension scoring). Each eval also has a snake_case config ID (e.g. `react_quickstart`) registered in `src/config/evaluations.ts` — this ID is used with `--eval` and is separate from the on-disk directory name (e.g. `src/evals/quickstarts/react`).
 
 Full guide for adding evals: [docs/ADDING_EVALS.md](docs/ADDING_EVALS.md)
 
@@ -128,7 +128,7 @@ The project uses ESLint and Prettier. Run `npm run lint` and `npm run format` be
 
 ### Overview
 
-8 dimensions, each scored 0–100, combined by weighted sum into an overall score. Process dimensions (50%) measure *how* the agent worked. Output dimensions (50%) measure *what* it produced. Process dimensions are **zeroed when the agent didn't execute** (0 tool calls) — this prevents broken runs from scoring high on "efficiency" by doing nothing.
+7 dimensions, each scored 0–100, combined by weighted sum into an overall score. Process dimensions (50%) measure *how* the agent worked. Output dimensions (50%) measure *what* it produced. Process dimensions are **zeroed when the agent didn't execute** (0 tool calls) — this prevents broken runs from scoring high on "efficiency" by doing nothing.
 
 ### Grade thresholds
 
@@ -142,7 +142,7 @@ The project uses ESLint and Prettier. Run `npm run lint` and `npm run format` be
 
 ### Process dimensions (50%)
 
-#### Setup Friction — 15%
+#### Setup Friction — 14%
 
 Measures how cleanly the agent completed the task without needing human help or hitting infrastructure errors.
 
@@ -157,7 +157,7 @@ score = max(0, score)
 - **Provider errors**: LLM API failures (rate limits, timeouts, malformed responses). Each costs 10 points.
 - A clean run with no interruptions and no errors scores **100**.
 
-#### Setup Speed — 10%
+#### Setup Speed — 14%
 
 Measures how quickly the agent completed tool execution, using **active tool time** (sum of individual tool call durations), not wall time.
 
@@ -171,7 +171,7 @@ score = max(0, 100 - excess × 0.4)
 - **Degradation**: 0.4 points per excess second (`SPEED_DEGRADATION_RATE`). At 310s active time, score hits 0.
 - Notes include both active and wall time for comparison, plus doc lookup count.
 
-#### Efficiency — 10%
+#### Efficiency — 14%
 
 Measures whether the agent solved the task in a focused way or thrashed — reading files it didn't need, retrying failed writes, overwriting its own output.
 
@@ -184,7 +184,7 @@ score = min(100, 100 × 10 / max(10, total_calls))
 - When `total_calls == 0`, the scorer function returns 100 but the process-dimension gate (see Overview) zeroes it — a run with no tool calls scores 0 on all process dimensions.
 - Notes include a breakdown of tool calls by name.
 
-#### Error Recovery — 5%
+#### Error Recovery — 8%
 
 Measures how many provider errors the agent encountered.
 
@@ -194,24 +194,6 @@ score = max(0, 100 - provider_errors × 20)
 
 - Each provider error costs 20 points (`ERROR_RECOVERY_PENALTY`). 5+ errors = score 0.
 - Notes show up to 3 error messages.
-
-#### Docs Quality — 10%
-
-Measures the presence of AI discoverability features in the Auth0 ecosystem. Currently **static** — hardcoded to the same values for all frameworks via `AUTH0_SWIFT_DOC_FEATURES`.
-
-```
-score = min(100, features_present × 20)
-```
-
-| Feature | Present | Points |
-|---------|---------|--------|
-| `llms_txt` | yes | 20 |
-| `context7` | yes | 20 |
-| `mcp_server` | yes | 20 |
-| `typed_sdk` | yes | 20 |
-| `openapi_spec` | no | 0 |
-
-**Every run with ≥1 tool call scores 80.** Runs with 0 tool calls receive 0 (process-dimension gate — see Overview).
 
 ### Output dimensions (50%)
 

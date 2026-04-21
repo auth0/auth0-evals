@@ -37,6 +37,9 @@ Scores must match what a developer actually experiences. If we publish a score o
 
 Guiding principle #5: "The journey matters as much as the destination." A perfect output produced through 50 retries and 10 interruptions isn't a good developer experience. The 50/50 split ensures process quality can't be ignored even when the final code is correct.
 
+Process dimensions: Setup Friction (14%) + Setup Speed (14%) + Efficiency (14%) + Error Recovery (8%) = 50%.
+Output dimensions: Correctness (25%) + Hallucination (15%) + Security (10%) = 50%.
+
 ---
 
 ## Grade thresholds
@@ -55,7 +58,7 @@ Calibrated to match developer intuition. When we show engineers a run scored 91,
 
 ## Dimension weights — rationale
 
-### Setup Friction — 15% (heaviest process weight)
+### Setup Friction — 14%
 
 Interruptions are the single biggest friction point in agent-assisted development. If the agent stops to ask "what's your domain?" or "what framework do you want?", the entire value prop of autonomous setup breaks. A developer who has to answer 5 questions might as well have read the quickstart docs.
 
@@ -63,7 +66,7 @@ Interruptions are the single biggest friction point in agent-assisted developmen
 
 **Constant: provider error penalty = 10 (less than interruptions).** Provider errors are infrastructure problems, not agent behavior — they're frustrating but not the agent's fault. Still penalized because they affect the developer experience regardless of cause.
 
-### Setup Speed — 10%
+### Setup Speed — 14%
 
 Speed matters but less than friction — a slow clean run beats a fast messy one. And speed is partially outside the agent's control (API latency, model inference time).
 
@@ -73,23 +76,17 @@ Speed matters but less than friction — a slow clean run beats a fast messy one
 
 **Constant: degradation rate = 0.4 (ceiling at 310s).** 5+ minutes of active tool execution for a quickstart means the agent is thrashing — retrying failed commands, reading unnecessary files, or going in circles.
 
-### Efficiency — 10%
+### Efficiency — 14%
 
 Tool call count correlates with cost and complexity, but it's a blunt instrument — some frameworks legitimately need more steps than others. Equal weight with Speed so neither dominates process scoring alone.
 
 **Constant: ideal = 10 calls.** A focused quickstart implementation: read 2–3 scaffold files, write 3–4 files, run 1–2 commands, finish. More than 10 suggests the agent explored unnecessarily, retried operations, or wrote files it later overwrote. The curve is intentionally steep — doubling the ideal call count halves the score.
 
-### Error Recovery — 5% (lowest process weight)
+### Error Recovery — 8%
 
-Provider errors are infrastructure failures (rate limits, timeouts), not agent quality signals. They affect developer experience but the agent can't prevent them. Low weight ensures a flaky API day doesn't tank an otherwise good run, while still penalizing repeated failures that suggest a systemic problem.
+Provider errors are infrastructure failures (rate limits, timeouts), not agent quality signals. They affect developer experience but the agent can't prevent them. Lower weight than the other process dimensions ensures a flaky API day doesn't tank an otherwise good run, while still penalizing repeated failures that suggest a systemic problem.
 
 **Constant: penalty = 20 per error.** Stricter per-error than Friction's 10-per-error because this dimension only measures errors — it needs to differentiate sharply between 1 transient failure (acceptable) and 5 repeated failures (systemic problem).
-
-### Docs Quality — 10%
-
-This dimension measures Auth0's ecosystem investment, not the agent's behavior. It's included because discoverability directly affects whether agents can find the right docs — but it's weighted modestly because it doesn't vary per-run today.
-
-**Why keep a static dimension?** It tracks Auth0's AI discoverability posture as a leading indicator. When `openapi_spec` ships, the score goes to 100. When a new discoverability channel matters (e.g., Cursor rules), it can be added.
 
 ### Correctness — 25% (heaviest single dimension)
 
@@ -118,3 +115,13 @@ Hardcoded secrets are serious but relatively rare in quickstart contexts — mos
 **Alternatives considered:**
 - *Remove Hallucination/Security as separate dimensions and fold into Correctness.* Rejected — dedicated dimensions give clearer signal on specific failure modes and align with principle #3 (every score must point to a fix).
 - *Keep double-counting but reduce weights.* Rejected — weight tuning is fragile and obscures what each dimension measures.
+
+### Remove Docs Quality dimension; rebalance process weights (2026-04-21)
+
+**Problem:** Docs Quality was a static 80/100 for every agent run — it measured Auth0's ecosystem posture, not the agent's behavior. A dimension that can't vary per-run gives no signal for which runs are better or worse, violating principle #3 (every score must point to a fix).
+
+**Decision:** Docs Quality (10%) removed. Its weight redistributed across the three highest-signal process dimensions: Setup Friction 15%→14%, Setup Speed 10%→14%, Efficiency 10%→14%, Error Recovery 5%→8%. Total process weight remains 50%. Scorer is now 7 dimensions.
+
+**Alternatives considered:**
+- *Make Docs Quality dynamic (per-framework lookup).* Rejected — the per-framework data doesn't exist yet and the static value was masking the problem rather than solving it.
+- *Keep Docs Quality at a lower weight (e.g. 5%).* Rejected — a static dimension at any weight still can't differentiate runs, so the weight would be dead weight in the scoring formula.
