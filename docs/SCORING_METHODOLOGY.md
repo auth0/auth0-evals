@@ -95,16 +95,26 @@ This dimension measures Auth0's ecosystem investment, not the agent's behavior. 
 
 Correctness is the bottom line — did the generated code actually work? It gets the single largest weight because everything else is secondary if the output doesn't import real packages, call real methods, and wire components correctly.
 
+**L2/L3 exclusion.** Correctness excludes L2 (hallucination) and L3 (security) graders because those failures are already captured in their own dedicated dimensions. Including them in Correctness would double-count: a single hallucinated import would penalize both Correctness and Hallucination, over-weighting that failure relative to its actual severity. With the exclusion, Correctness measures L1 (presence), L4 (structural), L5 (version), and the holistic judge — the dimensions that don't have their own scoring category.
+
 ### Hallucination — 15%
 
-Hallucinations are the most dangerous failure mode for developer trust. A wrong import or invented package wastes hours of debugging time because the error messages don't point to the real problem — the dependency doesn't exist. Weighted higher than Security because hallucinations are far more common in practice.
+Hallucinations are the most dangerous failure mode for developer trust. A wrong import or invented package wastes hours of debugging time because the error messages don't point to the real problem — the dependency doesn't exist. Weighted higher than Security because hallucinations are far more common in practice. L2 graders are scored exclusively here — they are excluded from Correctness to prevent double-counting.
 
 ### Security — 10%
 
-Hardcoded secrets are serious but relatively rare in quickstart contexts — most agents know not to commit credentials. Weighted lower than Hallucination because the failure rate is lower, but still significant because a single leaked secret is a real security incident, not just a bad developer experience.
+Hardcoded secrets are serious but relatively rare in quickstart contexts — most agents know not to commit credentials. Weighted lower than Hallucination because the failure rate is lower, but still significant because a single leaked secret is a real security incident, not just a bad developer experience. L3 graders are scored exclusively here — they are excluded from Correctness to prevent double-counting.
 
 ---
 
 ## Decisions
 
-No decisions recorded yet. Use this section to document the rationale behind future methodology changes.
+### Exclude L2/L3 graders from Correctness (2026-04-20)
+
+**Problem:** L2 (hallucination) and L3 (security) graders were counted in both Correctness and their dedicated dimensions (Hallucination, Security). A single failing L2 grader would penalize two dimensions simultaneously, over-weighting that failure relative to its actual severity.
+
+**Decision:** Correctness now filters out graders with level L2 or L3. Those graders are scored exclusively in their own dimensions. Correctness covers L1 (positive presence), L4 (structural), L5 (version correctness), and the holistic judge.
+
+**Alternatives considered:**
+- *Remove Hallucination/Security as separate dimensions and fold into Correctness.* Rejected — dedicated dimensions give clearer signal on specific failure modes and align with principle #3 (every score must point to a fix).
+- *Keep double-counting but reduce weights.* Rejected — weight tuning is fragile and obscures what each dimension measures.
