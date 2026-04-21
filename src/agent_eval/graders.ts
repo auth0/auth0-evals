@@ -86,10 +86,10 @@ export const EXCLUDED_EVAL_DIRS = new Set([
   '.angular',
   'out-tsc',
 ]);
-export const EXCLUDED_EVAL_FILES = new Set(['package-lock.json']);
+export const EXCLUDED_EVAL_FILES = new Set(['package-lock.json', 'tsconfig.tsbuildinfo']);
 
 /** File patterns excluded from the LLM judge input to save token budget. */
-const JUDGE_EXCLUDED_PATTERNS = [/^tsconfig(\.\w+)?\.json$/, /^angular\.json$/];
+const JUDGE_EXCLUDED_PATTERNS = [/^tsconfig(\.\w+)?\.json$/, /^angular\.json$/, /^tsconfig\.tsbuildinfo$/];
 
 export function collectFiles(workspace: string): Record<string, string> {
   const files: Record<string, string> = {};
