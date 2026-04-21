@@ -18,7 +18,7 @@ vi.mock('node:fs', () => ({
 vi.mock('../src/agent_eval/skills/config.js', () => ({
   SKILLS_REMOTE_DIR: '/tmp/skills-remote',
   SKILLS_CLONE_DIR: '/tmp/skills-remote/auth0-skills',
-  resolveSkillDir: vi.fn().mockReturnValue('/tmp/skills-remote/auth0-skills/plugins/auth0-sdks/skills/auth0-react'),
+  resolveSkillDir: vi.fn().mockReturnValue('/tmp/skills-remote/auth0-skills/plugins/auth0/skills/auth0-react'),
 }));
 vi.mock('../src/agent_eval/tools/utils.js', () => ({
   collectFiles: vi.fn().mockReturnValue(['SKILL.md']),

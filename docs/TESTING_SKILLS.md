@@ -102,7 +102,7 @@ If your skill files live outside the default `skills/` directory (for example, i
 ```bash
 # .env
 SKILLS_SOURCE=local
-SKILLS_LOCAL_DIR=/path/to/agent-skills/plugins/auth0-sdks/skills
+SKILLS_LOCAL_DIR=/path/to/agent-skills/plugins/auth0/skills
 ```
 
 `SKILLS_LOCAL_DIR` accepts both absolute paths and paths relative to where you run the command.
