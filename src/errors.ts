@@ -40,6 +40,13 @@ export class EvalConfigError extends EvalFrameworkError {
   }
 }
 
+export class JudgeError extends EvalFrameworkError {
+  constructor(model: string, reason: string) {
+    super(`Judge (${model}) failed: ${reason}`, 'JUDGE_ERROR', { model, reason });
+    this.name = 'JudgeError';
+  }
+}
+
 export class BedrockToolConfigError extends EvalFrameworkError {
   constructor(model: string) {
     super(

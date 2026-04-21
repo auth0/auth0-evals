@@ -16,7 +16,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BASE_URL, JUDGE_MAX_CODE_CHARS, JUDGE_MAX_TOKENS, JUDGE_MODEL } from '../config/settings.js';
-import { LlmApiError } from '../errors.js';
+import { JudgeError, LlmApiError } from '../errors.js';
 import { collectFiles as collectFilePaths } from './tools/utils.js';
 import { withRetry } from '../utils/retry.js';
 import { logger } from '../utils/logger.js';
@@ -338,7 +338,7 @@ export async function llmJudge(
     const message = choices?.[0]?.message as Record<string, unknown> | undefined;
     const answer = ((message?.content as string | undefined) ?? '').trim();
     if (!answer) {
-      return { passed: false, detail: `Judge (${model}) error: empty response` };
+      throw new JudgeError(model, 'empty response from LLM');
     }
     const lines = answer
       .split('\n')
@@ -347,14 +347,12 @@ export async function llmJudge(
     const lastLine = lines[lines.length - 1]!.toLowerCase();
     const m = /^(yes|no)\b/.exec(lastLine);
     if (!m) {
-      return {
-        passed: false,
-        detail: `Judge (${model}) error: unexpected verdict ${JSON.stringify(lastLine)}: ${answer}`,
-      };
+      throw new JudgeError(model, `unexpected verdict ${JSON.stringify(lastLine)}: ${answer}`);
     }
     return { passed: m[1] === 'yes', detail: `Judge (${model}): ${answer}` };
   } catch (e) {
-    return { passed: false, detail: `Judge (${model}) error: ${e}` };
+    if (e instanceof JudgeError) throw e;
+    throw new JudgeError(model, String(e));
   }
 }
 

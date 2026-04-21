@@ -359,9 +359,7 @@ describe('llmJudge', () => {
 
   it('rejects words that merely start with yes (word boundary)', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('The code was correct.\n\nyesterday'));
-    const { passed, detail } = await llmJudge('question', 'code', 'key', 'model');
-    expect(passed).toBe(false);
-    expect(detail).toContain('unexpected verdict');
+    await expect(llmJudge('question', 'code', 'key', 'model')).rejects.toThrow('unexpected verdict');
   });
 
   it('passes when yes has trailing punctuation', async () => {
@@ -387,12 +385,9 @@ describe('llmJudge', () => {
     expect(detail).not.toContain('unexpected verdict');
   });
 
-  it('unexpected token returns error detail', async () => {
+  it('unexpected token throws JudgeError', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('maybe'));
-    const { passed, detail } = await llmJudge('question', 'code', 'key', 'model');
-    expect(passed).toBe(false);
-    expect(detail).toContain('unexpected verdict');
-    expect(detail).toContain('maybe');
+    await expect(llmJudge('question', 'code', 'key', 'model')).rejects.toThrow('unexpected verdict');
   });
 });
 
