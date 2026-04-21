@@ -495,6 +495,22 @@ describe('llmJudge - code corpus overflow', () => {
   });
 });
 
+// ── llmJudge — enforceMaxChars=false (non-enforcing path) ───────────────────
+
+describe('llmJudge - enforceMaxChars=false', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('does not throw and still calls fetch when code exceeds limit', async () => {
+    const fetchMock = mockFetchResponse('Oversized but still judged.\n\nyes');
+    vi.stubGlobal('fetch', fetchMock);
+    const oversized = 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1);
+    const { passed, detail } = await llmJudge('question', oversized, 'key', 'model', undefined, false);
+    expect(passed).toBe(true);
+    expect(detail).toContain('Oversized but still judged.');
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+});
+
 // ── runGraders — judge overflow propagation ─────────────────────────────────
 
 describe('runGraders - judge overflow propagation', () => {
@@ -508,5 +524,23 @@ describe('runGraders - judge overflow propagation', () => {
     await expect(runGraders(graders, dir, 'unused')).rejects.toThrow(
       /Code corpus exceeds limit/,
     );
+  });
+});
+
+// ── runGraders — enforceMaxChars=false propagation ──────────────────────────
+
+describe('runGraders - enforceMaxChars=false propagation', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('does not throw and grades judge when workspace exceeds limit', async () => {
+    vi.stubGlobal('fetch', mockFetchResponse('Code looks reasonable.\n\nyes'));
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'App.js'), 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1));
+    const { judge } = await import('../src/agent_eval/graders.js');
+    const graders = [judge('Does the code work?')];
+
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, false);
+    expect(results.length).toBe(1);
+    expect(results[0].passed).toBe(true);
   });
 });

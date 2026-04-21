@@ -122,7 +122,7 @@ export async function gradeText(
   const tmp = mkdtempSync(join(tmpdir(), 'auth0_eval_grade_'));
   try {
     writeFileSync(join(tmp, 'llm_response.txt'), code, 'utf-8');
-    return await runGraders(evalDef.graders, tmp, apiKey, undefined, allowedLevels);
+    return await runGraders(evalDef.graders, tmp, apiKey, undefined, allowedLevels, false);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

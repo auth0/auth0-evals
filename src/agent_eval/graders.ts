@@ -196,6 +196,7 @@ export async function runGraders(
   apiKey: string,
   judgeModel: string = JUDGE_MODEL,
   allowedLevels?: Set<GraderLevel>,
+  enforceMaxChars: boolean = true,
 ): Promise<GraderResult[]> {
   const active = allowedLevels
     ? graderDefs.filter((g) => g.level === undefined || allowedLevels.has(g.level))
@@ -274,9 +275,9 @@ export async function runGraders(
         logger.info(`[judge]   ${k} (${v.length} chars)`);
       }
       if (judgeText.length > JUDGE_MAX_CODE_CHARS) {
-        logger.warn(`[judge] WARNING: content exceeds limit (${judgeText.length} > ${JUDGE_MAX_CODE_CHARS} chars) — judge will fail`);
+        logger.warn(`[judge] WARNING: content exceeds limit (${judgeText.length} > ${JUDGE_MAX_CODE_CHARS} chars)`);
       }
-      const { passed, detail } = await llmJudge(g.question!, judgeText, apiKey, judgeModel, g.framework);
+      const { passed, detail } = await llmJudge(g.question!, judgeText, apiKey, judgeModel, g.framework, enforceMaxChars);
       results.push({ name, kind, passed, detail, level: g.level });
     } else {
       results.push({ name, kind, passed: false, detail: `Unknown grader kind: ${kind}`, level: g.level });
@@ -292,15 +293,21 @@ export async function llmJudge(
   apiKey: string,
   model: string,
   framework?: string,
+  enforceMaxChars: boolean = true,
 ): Promise<{ passed: boolean; detail: string }> {
   const base = loadFrameworkPrompt(framework);
   const system =
     `${base} Provide 1-3 short sentences of reasoning, ` +
     "then on the FINAL line write your verdict as exactly 'yes' or 'no' (nothing else on that line).";
   if (code.length > JUDGE_MAX_CODE_CHARS) {
-    throw new Error(
-      `[judge] Code corpus exceeds limit: ${code.length} chars > ${JUDGE_MAX_CODE_CHARS}. ` +
-        `Increase JUDGE_MAX_CODE_CHARS or reduce the number or size of files being judged.`,
+    if (enforceMaxChars) {
+      throw new Error(
+        `[judge] Code corpus exceeds limit: ${code.length} chars > ${JUDGE_MAX_CODE_CHARS}. ` +
+          `Increase JUDGE_MAX_CODE_CHARS or reduce the number or size of files being judged.`,
+      );
+    }
+    logger.warn(
+      `[judge] Code corpus exceeds limit (${code.length} > ${JUDGE_MAX_CODE_CHARS} chars) — proceeding anyway`,
     );
   }
   const user = loadUserTemplate().replace('{question}', question).replace('{code}', code);

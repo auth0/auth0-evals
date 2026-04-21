@@ -2,9 +2,12 @@
  * Happy path tests for src/runners/baseline.ts
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { estimateCost } from '../src/config/costs.js';
-import { runBaseline } from '../src/runners/baseline.js';
+import { runBaseline, gradeText } from '../src/runners/baseline.js';
+import { judge } from '../src/agent_eval/graders.js';
+import { JUDGE_MAX_CODE_CHARS } from '../src/config/settings.js';
+import type { EvalDefinition } from '../src/runners/loader.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -177,5 +180,28 @@ describe('runBaseline', () => {
     const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
     expect(typeof result.wallTime).toBe('number');
     expect(result.wallTime).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ── gradeText — oversized baseline response ─────────────────────────────────
+
+describe('gradeText - enforceMaxChars=false', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('does not throw when extracted code exceeds JUDGE_MAX_CODE_CHARS', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: 'Looks correct.\n\nyes' } }] }),
+    } as unknown as Response);
+
+    const oversizedCode = 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1);
+    const text = '```js\n' + oversizedCode + '\n```';
+    const evalDef = {
+      graders: [judge('Does the code work?')],
+    } as unknown as EvalDefinition;
+
+    const results = await gradeText(evalDef, text, 'key');
+    expect(results.length).toBe(1);
+    expect(results[0].passed).toBe(true);
   });
 });
