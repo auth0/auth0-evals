@@ -124,7 +124,7 @@ async function runAgentJob(
       graderResults = await runGraders(evalDef.graders, workspace, apiKey, undefined, agentLevels);
     }
 
-    const scored = score(record, undefined, graderResults);
+    const scored = score(record, graderResults);
     return {
       ...serialiseAgent(evalDef, record, scored, graderResults, resolvedModel, mode, tools),
       agent_type: agentType,

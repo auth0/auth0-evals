@@ -1,13 +1,13 @@
 /**
- * 8-dimension scorer.
+ * 7-dimension scorer.
  *
- * Process dimensions (50%): Setup Friction (15%), Setup Speed (10%), Efficiency (10%),
- * Error Recovery (5%), Docs Quality (10%)
+ * Process dimensions (50%): Setup Friction (14%), Setup Speed (14%), Efficiency (14%),
+ * Error Recovery (8%)
  *
  * Output dimensions (50%): Correctness (25%), Hallucination (15%), Security (10%)
  *
  * Each dimension is scored 0–100 and maps to a letter grade.
- * Overall score = weighted sum across all 8 dimensions.
+ * Overall score = weighted sum across all 7 dimensions.
  */
 
 import type { RunRecord } from './agent-types.js';
@@ -31,8 +31,6 @@ const EFFICIENCY_IDEAL_CALLS = 10;
 
 const ERROR_RECOVERY_PENALTY = 20.0;
 
-const DOCS_FEATURE_POINTS = 20.0;
-
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface DimensionScore {
@@ -49,7 +47,6 @@ export interface ScoredResult {
   dimensions: DimensionScore[];
   overallScore: number;
   overallGrade: string;
-  docFeatures: Record<string, boolean>;
   graderResults: GraderResult[];
   graderPassRate: number;
 }
@@ -129,28 +126,11 @@ function scoreErrors(record: RunRecord): [number, string] {
   return [Math.round(s * 10) / 10, notes];
 }
 
-function scoreDocs(docFeatures: Record<string, boolean>): [number, string] {
-  const presentCount = Object.values(docFeatures).filter(Boolean).length;
-  const s = Math.min(100.0, presentCount * DOCS_FEATURE_POINTS);
-  const present = Object.entries(docFeatures)
-    .filter(([, v]) => v)
-    .map(([k]) => k);
-  const missing = Object.entries(docFeatures)
-    .filter(([, v]) => !v)
-    .map(([k]) => k);
-  const notes =
-    `${present.length}/${Object.keys(docFeatures).length} AI discoverability: ${present.join(', ') || 'none'}. ` +
-    `Missing: ${missing.join(', ') || 'none'}.`;
-  return [Math.round(s * 10) / 10, notes];
-}
-
 function scoreCorrectness(graderResults: GraderResult[]): [number, string] {
   // Exclude L2 (hallucination) and L3 (security) graders — they are scored
   // in their own dedicated dimensions. Including them here would double-count
   // their failures (once in Correctness and again in Hallucination/Security).
-  const relevant = graderResults.filter(
-    (g) => g.level !== GraderLevel.L2 && g.level !== GraderLevel.L3,
-  );
+  const relevant = graderResults.filter((g) => g.level !== GraderLevel.L2 && g.level !== GraderLevel.L3);
   if (!relevant.length) return [0.0, 'No graders run'];
   const passed = relevant.filter((g) => g.passed).length;
   const total = relevant.length;
@@ -176,27 +156,13 @@ function scoreFromGraders(graderResults: GraderResult[], level: GraderLevel, emp
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-export const AUTH0_SWIFT_DOC_FEATURES: Record<string, boolean> = {
-  llms_txt: true,
-  context7: true,
-  mcp_server: true,
-  typed_sdk: true,
-  openapi_spec: false,
-};
-
-export function score(
-  record: RunRecord,
-  docFeatures?: Record<string, boolean>,
-  graderResults?: GraderResult[],
-): ScoredResult {
-  const df = docFeatures ?? AUTH0_SWIFT_DOC_FEATURES;
+export function score(record: RunRecord, graderResults?: GraderResult[]): ScoredResult {
   const gr = graderResults ?? [];
 
   const [frictionScore, frictionNotes] = scoreFriction(record);
   const [speedScore, speedNotes] = scoreSpeed(record);
   const [effScore, effNotes] = scoreEfficiency(record);
   const [errScore, errNotes] = scoreErrors(record);
-  const [docScore, docNotes] = scoreDocs(df);
   const [correctnessScore, correctnessNotes] = scoreCorrectness(gr);
   const [hallucinationScore, hallucinationNotes] = scoreFromGraders(
     gr,
@@ -213,33 +179,27 @@ export function score(
   const dimensions: DimensionScore[] = [
     makeDim(
       'Setup Friction',
-      0.15,
+      0.14,
       hasToolCalls ? frictionScore : 0,
       hasToolCalls ? frictionNotes : 'Agent did not execute (0 tool calls)',
     ),
     makeDim(
       'Setup Speed',
-      0.1,
+      0.14,
       hasToolCalls ? speedScore : 0,
       hasToolCalls ? speedNotes : 'Agent did not execute (0 tool calls)',
     ),
     makeDim(
       'Efficiency',
-      0.1,
+      0.14,
       hasToolCalls ? effScore : 0,
       hasToolCalls ? effNotes : 'Agent did not execute (0 tool calls)',
     ),
     makeDim(
       'Error Recovery',
-      0.05,
+      0.08,
       hasToolCalls ? errScore : 0,
       hasToolCalls ? errNotes : 'Agent did not execute (0 tool calls)',
-    ),
-    makeDim(
-      'Docs Quality',
-      0.1,
-      hasToolCalls ? docScore : 0,
-      hasToolCalls ? docNotes : 'Agent did not execute (0 tool calls)',
     ),
     makeDim('Correctness', 0.25, correctnessScore, correctnessNotes),
     makeDim('Hallucination', 0.15, hallucinationScore, hallucinationNotes),
@@ -253,7 +213,6 @@ export function score(
     dimensions,
     overallScore: overall,
     overallGrade: scoreToGrade(overall),
-    docFeatures: df,
     graderResults: gr,
     graderPassRate: graderPassRateFn(gr),
   };

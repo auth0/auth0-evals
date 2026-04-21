@@ -482,9 +482,7 @@ describe('llmJudge - code corpus overflow', () => {
 
   it('throws when code exceeds JUDGE_MAX_CODE_CHARS', async () => {
     const oversized = 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1);
-    await expect(llmJudge('question', oversized, 'key', 'model')).rejects.toThrow(
-      /Code corpus exceeds limit/,
-    );
+    await expect(llmJudge('question', oversized, 'key', 'model')).rejects.toThrow(/Code corpus exceeds limit/);
   });
 
   it('does not throw when code is exactly at the limit', async () => {
@@ -521,9 +519,7 @@ describe('runGraders - judge overflow propagation', () => {
     const { judge } = await import('../src/agent_eval/graders.js');
     const graders = [judge('Does the code work?')];
 
-    await expect(runGraders(graders, dir, 'unused')).rejects.toThrow(
-      /Code corpus exceeds limit/,
-    );
+    await expect(runGraders(graders, dir, 'unused')).rejects.toThrow(/Code corpus exceeds limit/);
   });
 });
 

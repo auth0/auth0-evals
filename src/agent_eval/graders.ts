@@ -84,7 +84,7 @@ export const EXCLUDED_EVAL_DIRS = new Set([
   '.output',
   '.build',
   '.angular',
-  'out-tsc'
+  'out-tsc',
 ]);
 export const EXCLUDED_EVAL_FILES = new Set(['package-lock.json']);
 
@@ -265,17 +265,20 @@ export async function runGraders(
       }
       results.push({ name, kind, passed, detail, level: g.level });
     } else if (kind === 'judge') {
-      const judgeEntries = Object.entries(files)
-        .filter(([k]) => !JUDGE_EXCLUDED_PATTERNS.some((p) => p.test(k.split('/').pop()!)));
-      const judgeText = judgeEntries
-        .map(([k, v]) => `// FILE: ${k}\n${v}`)
-        .join('\n\n');
-      logger.info(`[judge] ${judgeEntries.length} files, ${judgeText.length} chars total (limit: ${JUDGE_MAX_CODE_CHARS})`);
+      const judgeEntries = Object.entries(files).filter(
+        ([k]) => !JUDGE_EXCLUDED_PATTERNS.some((p) => p.test(k.split('/').pop()!)),
+      );
+      const judgeText = judgeEntries.map(([k, v]) => `// FILE: ${k}\n${v}`).join('\n\n');
+      logger.info(
+        `[judge] ${judgeEntries.length} files, ${judgeText.length} chars total (limit: ${JUDGE_MAX_CODE_CHARS})`,
+      );
       for (const [k, v] of judgeEntries) {
         logger.info(`[judge]   ${k} (${v.length} chars)`);
       }
       if (judgeText.length > JUDGE_MAX_CODE_CHARS) {
-        logger.warn(`[judge] WARNING: content exceeds limit (${judgeText.length} > ${JUDGE_MAX_CODE_CHARS} chars)`);
+        logger.warn(
+          `[judge] WARNING: content exceeds limit (${judgeText.length} > ${JUDGE_MAX_CODE_CHARS} chars)`,
+        );
       }
       const { passed, detail } = await llmJudge(g.question!, judgeText, apiKey, judgeModel, g.framework, enforceMaxChars);
       results.push({ name, kind, passed, detail, level: g.level });
