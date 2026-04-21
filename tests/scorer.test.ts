@@ -247,6 +247,44 @@ describe('score - Correctness', () => {
     const result = score(makeRecord({ workspace: dir }), undefined, []);
     expect(getDim(result, 'Correctness').rawScore).toBe(0.0);
   });
+
+  it('excludes L2 graders from correctness (no double-counting with Hallucination)', () => {
+    const dir = tmpDir();
+    const graderResults: GraderResult[] = [
+      { name: 'l1-pass', kind: 'contains', passed: true, detail: '', level: GraderLevel.L1 },
+      { name: 'l2-fail', kind: 'notContains', passed: false, detail: 'hallucinated pkg', level: GraderLevel.L2 },
+    ];
+    const result = score(makeRecord({ workspace: dir }), undefined, graderResults);
+    // Only the L1 grader should count toward Correctness
+    expect(getDim(result, 'Correctness').rawScore).toBe(100.0);
+    // The L2 failure should only appear in Hallucination
+    expect(getDim(result, 'Hallucination').rawScore).toBe(0.0);
+  });
+
+  it('excludes L3 graders from correctness (no double-counting with Security)', () => {
+    const dir = tmpDir();
+    const graderResults: GraderResult[] = [
+      { name: 'l1-pass', kind: 'contains', passed: true, detail: '', level: GraderLevel.L1 },
+      { name: 'l3-fail', kind: 'notContains', passed: false, detail: 'hardcoded secret', level: GraderLevel.L3 },
+    ];
+    const result = score(makeRecord({ workspace: dir }), undefined, graderResults);
+    // Only the L1 grader should count toward Correctness
+    expect(getDim(result, 'Correctness').rawScore).toBe(100.0);
+    // The L3 failure should only appear in Security
+    expect(getDim(result, 'Security').rawScore).toBe(0.0);
+  });
+
+  it('includes L4 and L5 graders in correctness', () => {
+    const dir = tmpDir();
+    const graderResults: GraderResult[] = [
+      { name: 'l1-pass', kind: 'contains', passed: true, detail: '', level: GraderLevel.L1 },
+      { name: 'l4-fail', kind: 'contains', passed: false, detail: 'structural issue', level: GraderLevel.L4 },
+      { name: 'l5-pass', kind: 'contains', passed: true, detail: '', level: GraderLevel.L5 },
+    ];
+    const result = score(makeRecord({ workspace: dir }), undefined, graderResults);
+    // 2 of 3 non-L2/L3 graders passed
+    expect(getDim(result, 'Correctness').rawScore).toBeCloseTo(66.7, 0);
+  });
 });
 
 // ── Hallucination tests ───────────────────────────────────────────────────────

@@ -217,14 +217,16 @@ score = min(100, features_present × 20)
 
 #### Correctness — 25%
 
-Pass rate of **all** graders active for the current configuration. Which graders are active depends on the configuration's level filter (see Grader Levels table) — baseline runs L1–L3, agent+mcp runs L1–L5, etc. The holistic `judge` (no level) always runs.
+Pass rate of graders active for the current configuration, **excluding L2 (hallucination) and L3 (security) graders**. L2 and L3 are excluded because they have their own dedicated scoring dimensions — including them here would double-count their failures.
 
 ```
-score = 100 × passed_graders / total_graders
+relevant = graders where level ∉ {L2, L3}
+score = 100 × passed_relevant / total_relevant
 ```
 
-- Includes graders at all active levels (L1–L5) plus the holistic judge.
-- If no graders run, score is 0.
+- Includes L1, L4, L5 graders (per configuration level filter) plus the holistic judge.
+- L2 and L3 graders are scored exclusively in the Hallucination and Security dimensions.
+- If no relevant graders run, score is 0.
 
 #### Hallucination — 15%
 
@@ -236,7 +238,7 @@ if none: score = 100
 else: score = 100 × passed / relevant.length
 ```
 
-- Scored independently from Correctness (L2 graders contribute to both today).
+- L2 graders are scored exclusively here — they are excluded from Correctness to prevent double-counting.
 - Notes show up to 3 failure details.
 
 #### Security — 10%
@@ -249,7 +251,7 @@ if none: score = 100
 else: score = 100 × passed / relevant.length
 ```
 
-- Same formula as Hallucination but filtering for L3.
+- L3 graders are scored exclusively here — they are excluded from Correctness to prevent double-counting.
 - Notes show up to 3 failure details.
 
 ---

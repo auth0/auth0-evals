@@ -145,9 +145,15 @@ function scoreDocs(docFeatures: Record<string, boolean>): [number, string] {
 }
 
 function scoreCorrectness(graderResults: GraderResult[]): [number, string] {
-  if (!graderResults.length) return [0.0, 'No graders run'];
-  const passed = graderResults.filter((g) => g.passed).length;
-  const total = graderResults.length;
+  // Exclude L2 (hallucination) and L3 (security) graders — they are scored
+  // in their own dedicated dimensions. Including them here would double-count
+  // their failures (once in Correctness and again in Hallucination/Security).
+  const relevant = graderResults.filter(
+    (g) => g.level !== GraderLevel.L2 && g.level !== GraderLevel.L3,
+  );
+  if (!relevant.length) return [0.0, 'No graders run'];
+  const passed = relevant.filter((g) => g.passed).length;
+  const total = relevant.length;
   const s = (100.0 * passed) / total;
   return [Math.round(s * 10) / 10, `${passed}/${total} graders passed (${s.toFixed(0)}%)`];
 }
