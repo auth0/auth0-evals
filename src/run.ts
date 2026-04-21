@@ -312,7 +312,7 @@ async function main(): Promise<void> {
 
     const tempFiles: string[] = [];
     const subLimit = pLimit(workers);
-    await Promise.all(
+    const settled = await Promise.allSettled(
       jobs.map(([evalCfg, model, mode, jobTools, jobAgentType]) =>
         subLimit(async () => {
           const toolsSuffix = jobTools.length > 0 ? `-${jobTools.join('+')}` : '';
@@ -334,8 +334,18 @@ async function main(): Promise<void> {
       ),
     );
 
-    mergeIntoOutput(tempFiles, outputPath);
+    const failures = settled.filter((s) => s.status === 'rejected');
+    for (const f of failures) {
+      logger.error(`  [Subprocess] ${(f as PromiseRejectedResult).reason}`);
+    }
+
+    const merged = mergeIntoOutput(tempFiles, outputPath);
     logger.info(`\n[Output] Results saved to: ${outputPath}`);
+
+    const hasErrors = failures.length > 0 || merged.some((r) => r.status === 'error');
+    if (hasErrors) {
+      process.exit(1);
+    }
     return;
   }
 
@@ -397,6 +407,11 @@ async function main(): Promise<void> {
   const merged = mergeResults(existing, results);
   saveResults(outputPath, merged);
   logger.info(`\n[Output] Results saved to: ${outputPath}`);
+
+  const errorResults = results.filter((r) => r.status === 'error');
+  if (errorResults.length > 0) {
+    process.exit(1);
+  }
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
