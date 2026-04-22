@@ -53,6 +53,14 @@ const BEDROCK_MODEL_ALIAS_MAP: Record<string, string> = {
   'claude-4-5-haiku': 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
 };
 
+/**
+ * Maps short ATKO aliases to model IDs used by the LiteLLM proxy.
+ * Only used when CLAUDE_CODE_USE_BEDROCK_PROXY === '0'.
+ */
+const LITELLM_MODEL_ALIAS_MAP: Record<string, string> = {
+  'claude-opus-4-7': 'frank-the-llm-model',
+};
+
 /** Reverse lookup: full Bedrock model ID → friendly ATKO alias. */
 const BEDROCK_MODEL_REVERSE_MAP: Record<string, string> = Object.fromEntries(
   Object.entries(BEDROCK_MODEL_ALIAS_MAP).map(([alias, full]) => [full, alias]),
@@ -150,7 +158,7 @@ export async function runClaudeCodeAgent(
   // In Bedrock mode, resolve short ATKO alias to the full Bedrock model ID
   // (e.g. claude-4-6-sonnet → global.anthropic.claude-sonnet-4-6).
   // In LiteLLM mode, pass the alias directly — the proxy handles resolution.
-  const resolvedModel = model ? (USE_BEDROCK ? (BEDROCK_MODEL_ALIAS_MAP[model] ?? model) : model) : undefined;
+  const resolvedModel = model ? (USE_BEDROCK ? (BEDROCK_MODEL_ALIAS_MAP[model] ?? model) : (LITELLM_MODEL_ALIAS_MAP[model] ?? model)) : undefined;
 
   // Build environment variables for the SDK process.
   // Route through the ATKO proxy's Anthropic pass-through endpoint.
