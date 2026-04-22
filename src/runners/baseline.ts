@@ -2,19 +2,14 @@
  * Baseline runner — pure LLM, no tools.
  *
  * Sends the eval prompt directly to the LLM as a single chat completion.
- * Graders run against the text of the LLM response (treated as a virtual file).
  * No workspace, no tool execution, no agentic loop.
  */
 
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { estimateCost } from '../config/costs.js';
 import { BASE_URL } from '../config/settings.js';
 import { makeSessionId } from '../utils/session.js';
 import { LlmApiError } from '../errors.js';
 import { withRetry } from '../utils/retry.js';
-import { runGraders, GraderLevel } from '../agent_eval/graders.js';
 import type { EvalDefinition } from './loader.js';
 
 export interface BaselineResult {
@@ -76,56 +71,6 @@ export async function runBaseline(
 
   result.wallTime = (Date.now() - tStart) / 1000;
   return result;
-}
-
-// ── Baseline grading ──────────────────────────────────────────────────────────
-
-export const BASELINE_LEVELS = new Set([GraderLevel.L1, GraderLevel.L2, GraderLevel.L3]);
-
-/** Agent without MCP: L1-L4. No version-correctness without docs access. */
-export const AGENT_LEVELS = new Set([GraderLevel.L1, GraderLevel.L2, GraderLevel.L3, GraderLevel.L4]);
-
-/** Agent with MCP: L1-L5. Model has docs access, so version drift is a real failure. */
-export const AGENT_MCP_LEVELS = new Set([
-  GraderLevel.L1,
-  GraderLevel.L2,
-  GraderLevel.L3,
-  GraderLevel.L4,
-  GraderLevel.L5,
-]);
-
-/**
- * Extracts fenced code blocks from an LLM response.
- * If multiple blocks exist they are joined with a blank line.
- * Falls back to the text after the opening fence if the block is unclosed,
- * or the raw text if no fence is present at all.
- */
-export function extractCodeBlocks(text: string): string {
-  const blocks = [...text.matchAll(/^[ \t]{0,3}```[^\r\n]*\r?\n([\s\S]*?)^[ \t]{0,3}```[ \t]*\r?$/gm)].map((m) => m[1]);
-  if (blocks.length > 0) {
-    return blocks.join('\n\n');
-  }
-  const openingFenceMatch = /^[ \t]{0,3}```[^\r\n]*\r?\n/m.exec(text);
-  if (openingFenceMatch) {
-    return text.slice(openingFenceMatch.index + openingFenceMatch[0].length);
-  }
-  return text;
-}
-
-export async function gradeText(
-  evalDef: EvalDefinition,
-  text: string,
-  apiKey: string,
-  allowedLevels?: Set<GraderLevel>,
-): Promise<Awaited<ReturnType<typeof runGraders>>> {
-  const code = extractCodeBlocks(text);
-  const tmp = mkdtempSync(join(tmpdir(), 'auth0_eval_grade_'));
-  try {
-    writeFileSync(join(tmp, 'llm_response.txt'), code, 'utf-8');
-    return await runGraders(evalDef.graders, tmp, apiKey, undefined, allowedLevels, false);
-  } finally {
-    rmSync(tmp, { recursive: true, force: true });
-  }
 }
 
 // ── LLM call ──────────────────────────────────────────────────────────────────

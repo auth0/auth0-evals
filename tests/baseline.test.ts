@@ -4,7 +4,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { estimateCost } from '../src/config/costs.js';
-import { runBaseline, gradeText } from '../src/runners/baseline.js';
+import { runBaseline } from '../src/runners/baseline.js';
+import { gradeText } from '../src/agent_eval/grade-text.js';
 import { judge } from '../src/agent_eval/graders.js';
 import { JUDGE_MAX_CODE_CHARS } from '../src/config/settings.js';
 import type { EvalDefinition } from '../src/runners/loader.js';
