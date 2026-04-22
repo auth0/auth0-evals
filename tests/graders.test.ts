@@ -47,10 +47,20 @@ describe('runGraders - contains', () => {
     expect(results[0].passed).toBe(false);
   });
 
-  it('is case insensitive', async () => {
+  it('is case sensitive by default', async () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'app.js'), 'auth0provider is used here');
     const graders = [contains('Auth0Provider')];
+
+    const results = await runGraders(graders, dir, 'unused');
+
+    expect(results[0].passed).toBe(false);
+  });
+
+  it('is case insensitive when caseSensitive is false', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'app.js'), 'auth0provider is used here');
+    const graders = [contains('Auth0Provider', undefined, undefined, { caseSensitive: false })];
 
     const results = await runGraders(graders, dir, 'unused');
 
@@ -123,10 +133,20 @@ describe('runGraders - notContains', () => {
     expect(results[0].passed).toBe(false);
   });
 
-  it('is case insensitive', async () => {
+  it('is case sensitive by default', async () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'app.js'), 'auth0provider is used here');
     const graders = [notContains('Auth0Provider')];
+
+    const results = await runGraders(graders, dir, 'unused');
+
+    expect(results[0].passed).toBe(true);
+  });
+
+  it('is case insensitive when caseSensitive is false', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'app.js'), 'auth0provider is used here');
+    const graders = [notContains('Auth0Provider', undefined, undefined, { caseSensitive: false })];
 
     const results = await runGraders(graders, dir, 'unused');
 
@@ -198,6 +218,26 @@ describe('runGraders - notContainsInSource', () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'auth.js'), "const secret = 'supersecret';");
     const graders = [notContainsInSource('supersecret')];
+
+    const results = await runGraders(graders, dir, 'unused');
+
+    expect(results[0].passed).toBe(false);
+  });
+
+  it('is case sensitive by default', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'auth.ts'), "const secret = 'SuperSecret';");
+    const graders = [notContainsInSource('supersecret')];
+
+    const results = await runGraders(graders, dir, 'unused');
+
+    expect(results[0].passed).toBe(true);
+  });
+
+  it('is case insensitive when caseSensitive is false', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'auth.ts'), "const secret = 'SuperSecret';");
+    const graders = [notContainsInSource('supersecret', undefined, undefined, { caseSensitive: false })];
 
     const results = await runGraders(graders, dir, 'unused');
 
