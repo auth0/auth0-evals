@@ -7,7 +7,14 @@
 
 import { Command } from 'commander';
 import { logger } from '../utils/logger.js';
-import { DEFAULT_MODEL, KNOWN_TOOLS, KNOWN_AGENT_TYPES, DEFAULT_AGENT_TYPE, type Mode, type AgentType } from './constants.js';
+import {
+  DEFAULT_MODEL,
+  KNOWN_TOOLS,
+  KNOWN_AGENT_TYPES,
+  DEFAULT_AGENT_TYPE,
+  type Mode,
+  type AgentType,
+} from './constants.js';
 import {
   validateApiKey,
   validateModels,

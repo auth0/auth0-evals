@@ -306,11 +306,16 @@ export async function runGraders(
         logger.info(`[judge]   ${k} (${v.length} chars)`);
       }
       if (judgeText.length > JUDGE_MAX_CODE_CHARS) {
-        logger.warn(
-          `[judge] WARNING: content exceeds limit (${judgeText.length} > ${JUDGE_MAX_CODE_CHARS} chars)`,
-        );
+        logger.warn(`[judge] WARNING: content exceeds limit (${judgeText.length} > ${JUDGE_MAX_CODE_CHARS} chars)`);
       }
-      const { passed, detail } = await llmJudge(g.question!, judgeText, apiKey, judgeModel, g.framework, enforceMaxChars);
+      const { passed, detail } = await llmJudge(
+        g.question!,
+        judgeText,
+        apiKey,
+        judgeModel,
+        g.framework,
+        enforceMaxChars,
+      );
       results.push({ name, kind, passed, detail, level: g.level });
     } else {
       results.push({ name, kind, passed: false, detail: `Unknown grader kind: ${kind}`, level: g.level });
