@@ -7,7 +7,13 @@
  */
 
 /** Models known to work reliably across all eval modes. Used when `--model all` is passed. */
-export const KNOWN_WORKING_MODELS = ['gpt-5.4', 'claude-4-6-sonnet', 'claude-4-6-opus', 'claude-opus-4-7', 'gemini-3.1-pro-preview'];
+export const KNOWN_WORKING_MODELS = [
+  'gpt-5.4',
+  'claude-4-6-sonnet',
+  'claude-4-6-opus',
+  'claude-opus-4-7',
+  'gemini-3.1-pro-preview',
+];
 
 /** Model used when no `--model` flag is provided. */
 export const DEFAULT_MODEL = 'gpt-5.4';

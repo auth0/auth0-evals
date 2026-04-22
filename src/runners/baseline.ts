@@ -26,7 +26,6 @@ export interface BaselineResult {
   error: string;
 }
 
-
 export async function runBaseline(
   apiKey: string,
   model: string,
