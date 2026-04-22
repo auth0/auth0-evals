@@ -173,7 +173,7 @@ export function judge(question: string, framework?: string, level?: GraderLevel)
     kind: 'judge',
     question,
     framework,
-    name: question.slice(0, 80),
+    name: question,
     level,
   };
 }
