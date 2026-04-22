@@ -19,7 +19,7 @@
     "@anthropic-ai/claude-agent-sdk": "^0.2.109",
     "@github/copilot-sdk": "^0.2.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "braintrust": "^3.7.1",
+    "braintrust": "^3.9.0",
     "commander": "^14.0.3",
     "dotenv": "^17.4.2",
     "marked": "^17.0.5",
