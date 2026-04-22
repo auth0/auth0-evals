@@ -132,21 +132,37 @@ function combined(files: Record<string, string>): string {
 
 // ── Grader factories ──────────────────────────────────────────────────────────
 
-export function contains(needle: string, description?: string, level?: GraderLevel): GraderDef {
+export interface GraderOptions {
+  caseSensitive?: boolean;
+}
+
+export function contains(
+  needle: string,
+  description?: string,
+  level?: GraderLevel,
+  options: GraderOptions = {},
+): GraderDef {
   return {
     kind: 'contains',
     needle,
     name: description ?? `contains '${needle}'`,
     level,
+    caseSensitive: options.caseSensitive ?? true,
   };
 }
 
-export function notContains(needle: string, description?: string, level?: GraderLevel): GraderDef {
+export function notContains(
+  needle: string,
+  description?: string,
+  level?: GraderLevel,
+  options: GraderOptions = {},
+): GraderDef {
   return {
     kind: 'not_contains',
     needle,
     name: description ?? `not_contains '${needle}'`,
     level,
+    caseSensitive: options.caseSensitive ?? true,
   };
 }
 
@@ -159,12 +175,18 @@ export function matches(pattern: string, description?: string, level?: GraderLev
   };
 }
 
-export function notContainsInSource(needle: string, description?: string, level?: GraderLevel): GraderDef {
+export function notContainsInSource(
+  needle: string,
+  description?: string,
+  level?: GraderLevel,
+  options: GraderOptions = {},
+): GraderDef {
   return {
     kind: 'not_contains_in_source',
     needle,
     name: description ?? `not_contains_in_source '${needle}'`,
     level,
+    caseSensitive: options.caseSensitive ?? true,
   };
 }
 
@@ -186,6 +208,7 @@ export interface GraderDef {
   question?: string;
   framework?: string;
   level?: GraderLevel;
+  caseSensitive?: boolean;
 }
 
 // ── Runner ────────────────────────────────────────────────────────────────────
@@ -212,7 +235,9 @@ export async function runGraders(
 
     if (kind === 'contains') {
       const needle = g.needle!;
-      const passed = combinedLower.includes(needle.toLowerCase());
+      const passed = (g.caseSensitive ?? true)
+        ? combinedText.includes(needle)
+        : combinedLower.includes(needle.toLowerCase());
       results.push({
         name,
         kind,
@@ -222,7 +247,9 @@ export async function runGraders(
       });
     } else if (kind === 'not_contains') {
       const needle = g.needle!;
-      const passed = !combinedLower.includes(needle.toLowerCase());
+      const passed = (g.caseSensitive ?? true)
+        ? !combinedText.includes(needle)
+        : !combinedLower.includes(needle.toLowerCase());
       results.push({
         name,
         kind,
@@ -240,7 +267,10 @@ export async function runGraders(
       for (const [filePath, content] of Object.entries(files)) {
         const base = filePath.split('/').pop() ?? filePath;
         if (NON_SOURCE_EXTS.test(base) || NON_SOURCE_PREFIXES.test(base)) continue;
-        if (content.toLowerCase().includes(needleLower)) {
+        const hit = (g.caseSensitive ?? true)
+          ? content.includes(needle)
+          : content.toLowerCase().includes(needleLower);
+        if (hit) {
           found = true;
           break;
         }
