@@ -38,14 +38,19 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
     judge(
-      'Does the code properly handle the login and logout callback flows with error handling ' +
-        'for AuthenticationException? Does it update UI state after a successful or failed authentication?',
+      'Does the code implement both onSuccess and onFailure callbacks for WebAuthProvider.login(...) ' +
+        'and WebAuthProvider.logout(...), with AuthenticationException handled in onFailure?',
       'android',
       GraderLevel.L4,
     ),
     judge(
-      'Is the Auth0 redirect activity or manifestPlaceholders correctly configured so the callback URL ' +
-        '(com.auth0.android:auth0 redirect scheme) is handled by the app after the browser returns?',
+      'Is the Auth0 callback URL scheme correctly handled? Check that the Gradle configuration defines/provides ' +
+        'manifestPlaceholders with auth0Domain and auth0Scheme keys, regardless of whether they are set in ' +
+        'defaultConfig, buildTypes, productFlavors, or merged at the android level. ' +
+        'IMPORTANT: using @string/ resource references (e.g. auth0Domain: "@string/com_auth0_domain") is the CORRECT ' +
+        'and recommended Auth0 pattern — do NOT mark this as wrong. ' +
+        'Also check that WebAuthProvider.login(...) and WebAuthProvider.logout(...) call withScheme(). ' +
+        'Note: SDK v2+ does NOT require a manual redirect activity in AndroidManifest.xml.',
       'android',
       GraderLevel.L4,
     ),
@@ -69,8 +74,10 @@ export function defineGraders() {
     judge(
       'Does the solution correctly integrate Auth0 into an Android app with ' +
         'WebAuthProvider login and logout, CredentialsManager for secure token storage, ' +
-        'Auth0 credentials configured via string resources, manifestPlaceholders for callback URL ' +
-        'handling, and appropriate UI state management after authentication?',
+        'Auth0 credentials configured via string resources, and manifestPlaceholders for callback URL handling? ' +
+        'IMPORTANT correct patterns to accept: (1) manifestPlaceholders using @string/ resource references is correct and recommended; ' +
+        '(2) Auth0(context) or Auth0.getInstance(context) auto-reads from strings.xml — no explicit client ID/domain constructor args needed; ' +
+        '(3) SDK v2+ does NOT require a manual redirect activity in AndroidManifest.xml.',
       'android',
     ),
   ];
