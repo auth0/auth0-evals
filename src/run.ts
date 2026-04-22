@@ -35,7 +35,8 @@ import { mergeResults, loadResults, saveResults, resolveOutputPath } from './per
 import { parseRunConfig } from './cli/config.js';
 import { logger } from './utils/logger.js';
 import type { JobResult } from './types/results.js';
-import { gradeText, BASELINE_LEVELS, AGENT_LEVELS, AGENT_MCP_LEVELS } from './runners/baseline.js';
+import { gradeText } from './agent_eval/grade-text.js';
+import { BASELINE_LEVELS, AGENT_LEVELS, AGENT_MCP_LEVELS } from './agent_eval/grading-levels.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
