@@ -21,7 +21,7 @@ export function defineGraders() {
 
     // ── L2: Negative / anti-pattern detection ─────────────────────────────────
     notContains('@auth0/nextjs-sdk', 'No hallucinated @auth0/nextjs-sdk package', GraderLevel.L2),
-    notContains('@auth0/nextjs', 'No hallucinated @auth0/nextjs (must be @auth0/nextjs-auth0)', GraderLevel.L2),
+    notContains('next-auth', 'No hallucinated next-auth package', GraderLevel.L2),
     notContains('@auth0/auth0-react', 'Does not use SPA SDK in server app', GraderLevel.L2),
 
     // ── L3: Security checks ──────────────────────────────────────────────────
@@ -44,13 +44,19 @@ export function defineGraders() {
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
     matches(
-      String.raw`export\s+(default\s+)?function\s+middleware`,
-      'Middleware function is exported from middleware file',
+      String.raw`export\s+(default\s+)?(async\s+)?function\s+(middleware|proxy)`,
+      'Middleware function is exported from middleware or proxy file',
       GraderLevel.L4,
     ),
     matches(String.raw`auth0\.middleware`, 'Uses auth0.middleware in middleware file', GraderLevel.L4),
     matches(String.raw`dashboard/page\.(tsx|jsx|ts|js)`, 'Dashboard page file exists', GraderLevel.L4),
     contains('/auth/login', 'Uses /auth/login for login redirect', GraderLevel.L4),
+    contains('getAccessToken', 'Uses auth0.getAccessToken() for server-side token retrieval', GraderLevel.L4),
+    contains(
+      'https://api.playground.com',
+      'Requests an access token with audience https://api.playground.com',
+      GraderLevel.L4,
+    ),
     judge(
       'Does the code set up a working authentication flow with login, logout, and a callback route? ' +
         'Is there a protected /dashboard page that checks the user session and redirects unauthenticated users to log in?',
@@ -67,6 +73,8 @@ export function defineGraders() {
     ),
     notContains('handleAuth', 'Does not use v3 handleAuth (v4 uses middleware)', GraderLevel.L5),
     notContains('/api/auth/', 'Does not use v3 route prefix /api/auth/ (v4 uses /auth/)', GraderLevel.L5),
+    notContains('withPageAuthRequired', 'Does not use v3 withPageAuthRequired (v4 uses middleware)', GraderLevel.L5),
+    notContains('withApiAuthRequired', 'Does not use v3 withApiAuthRequired (removed in v4)', GraderLevel.L5),
     judge(
       'Does the solution correctly integrate Auth0 into a Next.js App Router app ' +
         'using Auth0Client from @auth0/nextjs-auth0/server, middleware-based auth ' +

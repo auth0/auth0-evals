@@ -100,6 +100,7 @@ Graders run against all workspace files (scaffold + agent edits) minus the exclu
 
 **Files:**
 - `package-lock.json` — noise
+- `tsconfig.tsbuildinfo` — TypeScript incremental build cache
 - `GEMINI.md` — injected agent context
 
 Additionally, the LLM judge excludes `tsconfig*.json` and `angular.json` from its input to save token budget.
