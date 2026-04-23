@@ -7,14 +7,14 @@ import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 
 import { join } from 'node:path';
 import * as childProcess from 'node:child_process';
 import { makeTmpDir } from './tmp.js';
-import { AskUserTool } from '../src/agent_eval/tools/ask-user.js';
-import { FetchUrlTool } from '../src/agent_eval/tools/fetch-url.js';
-import { FinishTaskTool } from '../src/agent_eval/tools/finish-task.js';
-import { ListFilesTool } from '../src/agent_eval/tools/list-files.js';
-import { ReadFileTool } from '../src/agent_eval/tools/read-file.js';
-import { RunCommandTool } from '../src/agent_eval/tools/run-command.js';
-import { collectFiles } from '../src/agent_eval/tools/utils.js';
-import { WriteFileTool } from '../src/agent_eval/tools/write-file.js';
+import { AskUserTool } from '../src/agent_eval/runners/react/tools/ask-user.js';
+import { FetchUrlTool } from '../src/agent_eval/runners/react/tools/fetch-url.js';
+import { FinishTaskTool } from '../src/agent_eval/runners/react/tools/finish-task.js';
+import { ListFilesTool } from '../src/agent_eval/runners/react/tools/list-files.js';
+import { ReadFileTool } from '../src/agent_eval/runners/react/tools/read-file.js';
+import { RunCommandTool } from '../src/agent_eval/runners/react/tools/run-command.js';
+import { collectFiles } from '../src/agent_eval/file-utils.js';
+import { WriteFileTool } from '../src/agent_eval/runners/react/tools/write-file.js';
 
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>();
@@ -482,7 +482,7 @@ describe('ListSkillFilesTool', () => {
 
   async function importTool() {
     vi.resetModules();
-    const { ListSkillFilesTool } = await import('../src/agent_eval/tools/list-skill-files.js');
+    const { ListSkillFilesTool } = await import('../src/agent_eval/runners/react/tools/list-skill-files.js');
     return ListSkillFilesTool;
   }
 
@@ -558,7 +558,7 @@ describe('ReadSkillFileTool', () => {
 
   async function importTool() {
     vi.resetModules();
-    const { ReadSkillFileTool } = await import('../src/agent_eval/tools/read-skill-file.js');
+    const { ReadSkillFileTool } = await import('../src/agent_eval/runners/react/tools/read-skill-file.js');
     return ReadSkillFileTool;
   }
 

@@ -22,7 +22,7 @@ import { COPILOT_TASK_TIMEOUT_MS } from '../../../config/settings.js';
 import { estimateCost } from '../../../config/costs.js';
 import type { RunRecord, ToolCallRecord, TurnMetric } from '../../agent-types.js';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '../../agent-types.js';
-import { CopilotCliTranslator } from '../../tool-translator.js';
+import { CopilotCliTranslator } from './translator.js';
 import { logger } from '../../../utils/logger.js';
 import { makeSessionId } from '../../../utils/session.js';
 

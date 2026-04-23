@@ -1,7 +1,7 @@
 import { Dirent, readdirSync, realpathSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
-import { isPathInside } from './../path-utils.js';
-import { EXCLUDED_DIRS, MAX_LISTED_FILES } from './../../config/settings.js';
+import { isPathInside } from './path-utils.js';
+import { EXCLUDED_DIRS, MAX_LISTED_FILES } from '../config/settings.js';
 
 /**
  * Recursively collects file paths under a given root directory, relative to a specified base directory.

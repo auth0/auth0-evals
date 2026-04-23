@@ -25,7 +25,7 @@ import { classifyActionType, classifyErrorCategory, detectRetry } from '../../ag
 import type { EvalDefinition } from '../../../runners/loader.js';
 import { BASE_URL, CLAUDE_CODE_TASK_TIMEOUT_MS } from '../../../config/settings.js';
 import { estimateCost } from '../../../config/costs.js';
-import { ClaudeCodeTranslator } from '../../tool-translator.js';
+import { ClaudeCodeTranslator } from './translator.js';
 import { logger } from '../../../utils/logger.js';
 import { makeSessionId } from '../../../utils/session.js';
 

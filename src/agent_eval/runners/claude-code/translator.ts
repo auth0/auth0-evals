@@ -1,0 +1,88 @@
+import type { ToolTranslator } from '../../tool-translator.js';
+import { logger } from '../../../utils/logger.js';
+
+const CC_TOOL_MAP: Record<string, string> = {
+  Bash: 'run_command',
+  Read: 'read_file',
+  Write: 'write_file',
+  Edit: 'write_file',
+  MultiEdit: 'write_file',
+  Glob: 'list_files',
+  Grep: 'list_files',
+  LS: 'list_files',
+  WebFetch: 'fetch_url',
+  WebSearch: 'fetch_url',
+  AskUserQuestion: 'ask_user',
+  TodoRead: 'read_file',
+  Skill: 'skill',
+};
+
+const CC_DOC_LOOKUP_TOOLS = new Set(['WebFetch', 'WebSearch']);
+const CC_INTERRUPTION_TOOLS = new Set(['AskUserQuestion']);
+
+/**
+ * Translator for the Claude Code CLI agent.
+ * Maps Claude Code's native tool names and argument shapes to the internal
+ * taxonomy expected by the scorer and report pipeline.
+ */
+export class ClaudeCodeTranslator implements ToolTranslator {
+  private readonly internalTools = new Set([
+    'TodoWrite',
+    'TodoRead',
+    'Task',
+    'TaskOutput',
+    'KillShell',
+    'EnterPlanMode',
+    'ExitPlanMode',
+  ]);
+
+  mapName(ccName: string): string {
+    if (ccName in CC_TOOL_MAP) return CC_TOOL_MAP[ccName]!;
+    if (ccName.startsWith('mcp__')) return ccName.toLowerCase();
+    logger.warn(`[ClaudeCodeTranslator] Unknown tool "${ccName}" — falling back to "${ccName.toLowerCase()}"`);
+    return ccName.toLowerCase();
+  }
+
+  normalizeArgs(ccName: string, input: Record<string, unknown>): Record<string, unknown> {
+    switch (ccName) {
+      case 'Bash':
+        return { command: input.command ?? input.cmd ?? '' };
+      case 'Read':
+        return { path: input.file_path ?? input.path ?? '' };
+      case 'Write':
+        return { path: input.file_path ?? input.path ?? '', content: input.content ?? '' };
+      case 'Edit':
+        return { path: input.file_path ?? input.path ?? '', content: input.new_string ?? input.content ?? '' };
+      case 'MultiEdit':
+        return { path: input.file_path ?? input.path ?? '' };
+      case 'Glob':
+        return { path: input.pattern ?? input.path ?? '' };
+      case 'Grep':
+        return { path: input.path ?? '.', command: `grep "${String(input.pattern ?? '')}"` };
+      case 'LS':
+        return { path: input.path ?? '.' };
+      case 'WebFetch':
+        return { url: input.url ?? '' };
+      case 'WebSearch':
+        return { url: input.query ?? '' };
+      case 'AskUserQuestion':
+        return { question: input.question ?? '' };
+      case 'Skill':
+        return { name: input.skill ?? '' };
+      default:
+        return input;
+    }
+  }
+
+  isDocLookup(ccName: string): boolean {
+    return CC_DOC_LOOKUP_TOOLS.has(ccName) || ccName.startsWith('mcp__');
+  }
+
+  isInterruption(ccName: string): boolean {
+    return CC_INTERRUPTION_TOOLS.has(ccName);
+  }
+
+  isInternalTool(ccName: string): boolean {
+    return this.internalTools.has(ccName);
+  }
+}

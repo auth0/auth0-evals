@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { resolveInside, validatePathFormat } from './../path-utils.js';
+import { resolveInside, validatePathFormat } from '../../../path-utils.js';
 import { collectFiles } from './utils.js';
 import { Tool, ToolContext, ToolName, ToolResult } from './base.js';
 

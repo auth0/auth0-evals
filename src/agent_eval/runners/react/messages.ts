@@ -5,9 +5,9 @@
  * workspace context, MCP context, and tool result messages.
  */
 
-import { collectFiles } from './tools/utils.js';
-import { isGeminiModel } from './agent-model.js';
-import type { TaskDefinition } from './runners/react/agent.js';
+import { collectFiles } from '../../file-utils.js';
+import { isGeminiModel } from '../../agent-model.js';
+import type { TaskDefinition } from './agent.js';
 
 /**
  * Builds a structured XML block describing the current workspace state.

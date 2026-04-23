@@ -27,13 +27,13 @@ vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
 import { extractTokens, summariseArgs, llmCall, runAgent } from '../src/agent_eval/runners/react/agent.js';
 import { isGeminiModel } from '../src/agent_eval/agent-model.js';
 import { detectRetry, type ToolCallRecord } from '../src/agent_eval/agent-types.js';
-import { TOOL_DEFINITIONS, buildToolDefinitions } from '../src/agent_eval/tools/index.js';
-import { collectFiles } from '../src/agent_eval/tools/utils.js';
+import { TOOL_DEFINITIONS, buildToolDefinitions } from '../src/agent_eval/runners/react/tools/index.js';
+import { collectFiles } from '../src/agent_eval/file-utils.js';
 
-import { ToolExecutor } from '../src/agent_eval/tools-executor/index.js';
+import { ToolExecutor } from '../src/agent_eval/runners/react/tools-executor/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { EXCLUDED_DIRS, MAX_LISTED_FILES } from '../src/config/settings.js';
-import { buildMcpContext } from '../src/agent_eval/agent-messages.js';
+import { buildMcpContext } from '../src/agent_eval/runners/react/messages.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -900,7 +900,7 @@ describe('ToolExecutor.list_skill_files', () => {
 
   async function importExecutor() {
     vi.resetModules();
-    const { ToolExecutor } = await import('../src/agent_eval/tools-executor/index.js');
+    const { ToolExecutor } = await import('../src/agent_eval/runners/react/tools-executor/index.js');
     return ToolExecutor;
   }
 
@@ -958,7 +958,7 @@ describe('ToolExecutor.read_skill_file', () => {
 
   async function importExecutor() {
     vi.resetModules();
-    const { ToolExecutor } = await import('../src/agent_eval/tools-executor/index.js');
+    const { ToolExecutor } = await import('../src/agent_eval/runners/react/tools-executor/index.js');
     return ToolExecutor;
   }
 
