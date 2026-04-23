@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ClaudeCodeTranslator } from '../src/agent_eval/tool-translator.js';
+import { ClaudeCodeTranslator } from '../src/agent_eval/runners/claude-code/translator.js';
 
 // ── Mock for @anthropic-ai/claude-agent-sdk ───────────────────────────────────
 

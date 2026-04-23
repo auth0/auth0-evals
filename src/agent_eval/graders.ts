@@ -17,7 +17,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BASE_URL, JUDGE_MAX_CODE_CHARS, JUDGE_MAX_TOKENS, JUDGE_MODEL } from '../config/settings.js';
 import { JudgeError, LlmApiError } from '../errors.js';
-import { collectFiles as collectFilePaths } from './tools/utils.js';
+import { collectFiles as collectFilePaths } from './file-utils.js';
 import { withRetry } from '../utils/retry.js';
 import { logger } from '../utils/logger.js';
 

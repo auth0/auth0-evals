@@ -3,7 +3,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { IdentityTranslator, ClaudeCodeTranslator, CopilotCliTranslator } from '../src/agent_eval/tool-translator.js';
+import { IdentityTranslator } from '../src/agent_eval/runners/react/identity-translator.js';
+import { ClaudeCodeTranslator } from '../src/agent_eval/runners/claude-code/translator.js';
+import { CopilotCliTranslator } from '../src/agent_eval/runners/copilot/translator.js';
 
 describe('IdentityTranslator', () => {
   const translator = new IdentityTranslator();

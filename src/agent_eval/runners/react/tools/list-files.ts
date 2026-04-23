@@ -1,6 +1,6 @@
 import { existsSync, statSync } from 'node:fs';
 import { Tool, ToolContext, ToolName, ToolResult } from './base.js';
-import { resolveInside, validatePathFormat } from '../path-utils.js';
+import { resolveInside, validatePathFormat } from '../../../path-utils.js';
 import { collectFiles } from './utils.js';
 
 function wrapResult(message: string, isError: boolean = false): ToolResult {

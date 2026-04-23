@@ -13,10 +13,10 @@ import { BedrockToolConfigError, LlmApiError } from '../../../errors.js';
 import { withRetry } from '../../../utils/retry.js';
 import { BASE_URL, CLAUDE_EFFORT_MODELS, MAX_TURNS } from '../../../config/settings.js';
 import { isBedrockModel, isGeminiModel } from '../../agent-model.js';
-import { buildToolDefinitions } from '../../tools/index.js';
-import { McpConfig, ToolExecutor } from '../../tools-executor/index.js';
-import { ToolName } from '../../tools/base.js';
-import { buildInitialMessages, buildToolResultMessage } from '../../agent-messages.js';
+import { buildToolDefinitions } from './tools/index.js';
+import { McpConfig, ToolExecutor } from './tools-executor/index.js';
+import { ToolName } from './tools/base.js';
+import { buildInitialMessages, buildToolResultMessage } from './messages.js';
 import {
   type FinishReason,
   type RunRecord,

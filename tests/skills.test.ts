@@ -21,7 +21,7 @@ vi.mock('../src/agent_eval/skills/config.js', () => ({
   SKILLS_CLONE_DIR: '/tmp/skills-remote/auth0-skills',
   resolveSkillDir: vi.fn(),
 }));
-vi.mock('../src/agent_eval/tools/utils.js', () => ({
+vi.mock('../src/agent_eval/file-utils.js', () => ({
   collectFiles: vi.fn(),
 }));
 
@@ -68,7 +68,7 @@ beforeEach(async () => {
   // Default: resolveSkillDir returns a valid path, collectFiles returns two files
   const skillsConfig = vi.mocked(await import('../src/agent_eval/skills/config.js'));
   vi.mocked(skillsConfig.resolveSkillDir).mockReturnValue('/tmp/skills-remote/auth0-skills/auth0-react');
-  const utils = vi.mocked(await import('../src/agent_eval/tools/utils.js'));
+  const utils = vi.mocked(await import('../src/agent_eval/file-utils.js'));
   vi.mocked(utils.collectFiles).mockReturnValue(['README.md', 'SKILL.md']);
 });
 

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 
-import { resolveSkillDir } from '../skills/config.js';
-import { resolveInside } from '../path-utils.js';
+import { resolveSkillDir } from '../../../skills/config.js';
+import { resolveInside } from '../../../path-utils.js';
 import { Tool, ToolContext, ToolName, ToolResult } from './base.js';
 
 function wrapResult(message: string): ToolResult {
