@@ -25,6 +25,9 @@ import { CLAUDE_CODE_TASK_TIMEOUT_MS } from '../../../config/settings.js';
 import { estimateCost } from '../../../config/costs.js';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '../../agent-types.js';
 import { logger } from '../../../utils/logger.js';
+import { GeminiCliTranslator } from './translator.js';
+
+const translator = new GeminiCliTranslator();
 
 /** Model identifier written to RunRecord when Gemini CLI runner is used. */
 export const GEMINI_CLI_MODEL_ID = 'gemini-cli';
@@ -58,44 +61,6 @@ function writeMcpSettings(workspace: string, mcpHttpUrl: string): void {
     },
   };
   writeFileSync(join(geminiDir, 'settings.json'), JSON.stringify(settings, null, 2), 'utf-8');
-}
-
-/**
- * Maps Gemini CLI tool names to the canonical names used across all runners.
- * Any unmapped name is passed through as-is.
- */
-const TOOL_NAME_MAP: Record<string, string> = {
-  list_directory: 'bash',
-  run_shell_command: 'bash',
-  create_directory: 'bash',
-  move_file: 'bash',
-  copy_file: 'bash',
-  delete_file: 'bash',
-  read_file: 'read',
-  write_file: 'write',
-  edit_file: 'edit',
-  replace_in_file: 'edit',
-  glob: 'glob',
-  grep: 'grep',
-  web_fetch: 'webfetch',
-  web_search: 'webfetch',
-};
-
-function mapToolName(name: string): string {
-  // MCP tool calls use the format mcp_<serverName>_<toolName> — map to 'mcp'
-  // so they show up as a canonical action type in logs and scoring.
-  if (name.startsWith('mcp_')) return 'mcp';
-  return TOOL_NAME_MAP[name] ?? name;
-}
-
-function isDocLookup(name: string): boolean {
-  return (
-    name === 'web_fetch' ||
-    name === 'web_search' ||
-    name.startsWith('mcp_') ||
-    name.includes('search') ||
-    name.includes('doc')
-  );
 }
 
 export interface GeminiCliRunOptions {
@@ -222,8 +187,8 @@ export async function runGeminiCliAgent(
             const isError = event.status !== 'success';
             const output = (event.output as string) ?? '';
             const rawName = pend?.name ?? 'unknown';
-            const mappedName = mapToolName(rawName);
-            const toolArgs = pend?.args ?? {};
+            const mappedName = translator.mapName(rawName);
+            const toolArgs = translator.normalizeArgs(rawName, pend?.args ?? {});
             const startTime = pend?.startTime ?? Date.now() / 1000;
             const endTime = Date.now() / 1000;
             const elapsed = ((endTime - startTime) * 1000).toFixed(0);
@@ -242,8 +207,8 @@ export async function runGeminiCliAgent(
               result: output,
               startTime,
               endTime,
-              isDocLookup: isDocLookup(rawName),
-              isInterruption: false,
+              isDocLookup: translator.isDocLookup(rawName),
+              isInterruption: translator.isInterruption(rawName),
               causedError: isError,
               actionType: classifyActionType(mappedName, isError),
               isRetry,
@@ -343,16 +308,17 @@ export async function runGeminiCliAgent(
       // Drain tool_use events that never received a tool_result (e.g. on timeout
       // or unexpected exit) so we don't silently lose tool-call metrics.
       for (const [, pend] of pending) {
+        const mappedName = translator.mapName(pend.name);
         const tc: ToolCallRecord = {
-          name: mapToolName(pend.name),
-          args: pend.args,
+          name: mappedName,
+          args: translator.normalizeArgs(pend.name, pend.args),
           result: '',
           startTime: pend.startTime,
           endTime: Date.now() / 1000,
-          isDocLookup: isDocLookup(pend.name),
-          isInterruption: false,
+          isDocLookup: translator.isDocLookup(pend.name),
+          isInterruption: translator.isInterruption(pend.name),
           causedError: true,
-          actionType: classifyActionType(mapToolName(pend.name), true),
+          actionType: classifyActionType(mappedName, true),
           isRetry: false,
           recoveredFromError: false,
           errorCategory: 'unknown',
