@@ -22,7 +22,7 @@
     "braintrust": "^3.9.0",
     "commander": "^14.0.3",
     "dotenv": "^17.4.2",
-    "marked": "^17.0.5",
+    "marked": "^18.0.2",
     "nunjucks": "^3.2.4",
     "p-limit": "^7.3.0"
   },
