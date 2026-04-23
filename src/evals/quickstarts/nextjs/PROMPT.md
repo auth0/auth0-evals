@@ -11,5 +11,7 @@ Client Secret: barkbook_secret_def456uvw
 
 The /dashboard page should be behind a login — if the user is not authenticated, redirect them to log in.
 
+Also get an Access Token to call an external API with audience https://api.playground.com and include a function that makes an authenticated API request using that token.
+
 Do not prompt for permissions to create any .env or .env.local files.
 
