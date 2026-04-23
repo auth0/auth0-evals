@@ -5,7 +5,7 @@
  * in. Shared by all agent runners — not specific to any one agent type.
  */
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { logger } from '../utils/logger.js';
@@ -20,6 +20,9 @@ export function setupWorkspace(scaffold: Record<string, string>): string {
     const dest = join(workspace, relPath);
     mkdirSync(join(dest, '..'), { recursive: true });
     writeFileSync(dest, content, 'utf-8');
+    if (relPath === 'gradlew' || relPath.endsWith('/gradlew')) {
+      chmodSync(dest, 0o755);
+    }
   }
   return workspace;
 }

@@ -9,6 +9,7 @@
  *   - runners/react/identity-translator.ts
  *   - runners/claude-code/translator.ts
  *   - runners/copilot/translator.ts
+ *   - runners/gemini-cli/translator.ts
  *
  * To add a new agent with different tool names:
  *   1. Implement ToolTranslator for that agent's vocabulary.

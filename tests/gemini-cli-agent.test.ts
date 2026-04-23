@@ -114,7 +114,7 @@ describe('tool events', () => {
     expect(tc.name).toBe('read');
     expect(tc.result).toBe('file contents');
     expect(tc.causedError).toBe(false);
-    expect(tc.args).toEqual({ file_path: 'src/app.ts' });
+    expect(tc.args).toEqual({ path: 'src/app.ts' });
   });
 
   it('marks tool_result with error status as causedError', async () => {
@@ -321,7 +321,7 @@ describe('orphaned tool calls', () => {
     );
 
     const record = await runGeminiCliAgent(evalDef, workspace);
-    const orphaned = record.toolCalls.find((tc) => tc.args?.file_path === 'out.ts');
+    const orphaned = record.toolCalls.find((tc) => tc.args?.path === 'out.ts');
     expect(orphaned).toBeDefined();
     expect(orphaned?.causedError).toBe(true);
     expect(orphaned?.result).toBe('');
