@@ -216,6 +216,7 @@ describe('mapResult', () => {
 // ── createBraintrustReporter ─────────────────────────────────────────────────
 
 describe('createBraintrustReporter', () => {
+  const TEST_PROJECT_ID = 'test-project-id';
   let savedKey: string | undefined;
 
   beforeEach(() => {
@@ -232,7 +233,7 @@ describe('createBraintrustReporter', () => {
   it('returns null when BRAINTRUST_API_KEY is not set', async () => {
     delete process.env.BRAINTRUST_API_KEY;
     const { createBraintrustReporter } = await import('../src/reporters/braintrust.js');
-    const reporter = await createBraintrustReporter('baseline', []);
+    const reporter = await createBraintrustReporter('baseline', [], { projectId: TEST_PROJECT_ID });
     expect(reporter).toBeNull();
   });
 
@@ -246,7 +247,7 @@ describe('createBraintrustReporter', () => {
       }),
     }));
     const { createBraintrustReporter } = await import('../src/reporters/braintrust.js');
-    const reporter = await createBraintrustReporter('baseline', []);
+    const reporter = await createBraintrustReporter('baseline', [], { projectId: TEST_PROJECT_ID });
     expect(reporter).not.toBeNull();
   });
 
@@ -261,7 +262,7 @@ describe('createBraintrustReporter', () => {
       }),
     }));
     const { createBraintrustReporter } = await import('../src/reporters/braintrust.js');
-    const reporter = await createBraintrustReporter('baseline', []);
+    const reporter = await createBraintrustReporter('baseline', [], { projectId: TEST_PROJECT_ID });
     const errResult: ErrorJobResult = {
       eval_id: 'test',
       model: 'gpt-5.2',
@@ -292,7 +293,7 @@ describe('createBraintrustReporter', () => {
       }),
     }));
     const { createBraintrustReporter } = await import('../src/reporters/braintrust.js');
-    const reporter = await createBraintrustReporter('baseline', []);
+    const reporter = await createBraintrustReporter('baseline', [], { projectId: TEST_PROJECT_ID });
     expect(reporter).toBeNull();
   });
 });

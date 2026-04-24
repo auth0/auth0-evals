@@ -358,15 +358,18 @@ async function main(): Promise<void> {
   logger.info();
 
   // Braintrust experiment tracking (opt-in via --braintrust flag)
-  let btReporter: Awaited<ReturnType<typeof import('./reporters/braintrust.js').createBraintrustReporter>> = null;
-  if (braintrust) {
-    const { createBraintrustReporter } = await import('./reporters/braintrust.js');
-    const modeLabel = matrix ? 'matrix' : modes.join(',');
-    btReporter = await createBraintrustReporter(modeLabel, tools);
+  const BT_PROJECT_ID = '38395851-dd41-46ec-a971-a30402db6921';
+  const BT_DATASET_NAME = 'auth0-evals';
 
-    const { syncDataset, toEvalSummaries } = await import('./reporters/braintrust-dataset.js');
+  let btReporter: Awaited<ReturnType<typeof import('@a0/eval-reporter').createBraintrustReporter>> = null;
+  if (braintrust) {
+    const { createBraintrustReporter } = await import('@a0/eval-reporter');
+    const modeLabel = matrix ? 'matrix' : modes.join(',');
+    btReporter = await createBraintrustReporter(modeLabel, tools, { projectId: BT_PROJECT_ID });
+
+    const { syncDataset, toEvalSummaries } = await import('@a0/eval-reporter');
     Promise.all(registry.map((cfg) => loadEval(cfg, FRAMEWORK_ROOT)))
-      .then((evalDefs) => syncDataset(toEvalSummaries(evalDefs)))
+      .then((evalDefs) => syncDataset(toEvalSummaries(evalDefs), { projectId: BT_PROJECT_ID, datasetName: BT_DATASET_NAME }))
       .catch((e) => logger.error(`[Braintrust] Dataset sync error: ${e}`));
   }
 

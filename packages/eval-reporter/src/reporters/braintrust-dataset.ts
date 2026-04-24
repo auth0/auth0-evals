@@ -8,8 +8,10 @@
 import { initDataset } from 'braintrust';
 import { logger } from '../utils/logger.js';
 
-const PROJECT_ID = '38395851-dd41-46ec-a971-a30402db6921';
-const DATASET_NAME = 'auth0-evals';
+export interface DatasetSyncOptions {
+  projectId?: string;
+  datasetName?: string;
+}
 
 interface EvalSummary {
   id: string;
@@ -25,12 +27,23 @@ interface EvalSummary {
  * Creates the dataset if it doesn't exist. Inserts one record per evaluation.
  * Returns true on success, null on failure.
  */
-export async function syncDataset(summaries: EvalSummary[]): Promise<boolean | null> {
+export async function syncDataset(summaries: EvalSummary[], opts?: DatasetSyncOptions): Promise<boolean | null> {
   const apiKey = process.env.BRAINTRUST_API_KEY;
   if (!apiKey) return null;
 
+  const projectId = opts?.projectId ?? process.env.BRAINTRUST_PROJECT_ID;
+  if (!projectId) {
+    logger.error('[Braintrust] No projectId provided and BRAINTRUST_PROJECT_ID not set.');
+    return null;
+  }
+  const datasetName = opts?.datasetName ?? process.env.BRAINTRUST_DATASET_NAME;
+  if (!datasetName) {
+    logger.error('[Braintrust] No datasetName provided and BRAINTRUST_DATASET_NAME not set.');
+    return null;
+  }
+
   try {
-    const dataset = initDataset(PROJECT_ID, { dataset: DATASET_NAME, apiKey });
+    const dataset = initDataset(projectId, { dataset: datasetName, apiKey });
 
     for (const ev of summaries) {
       dataset.insert({
@@ -50,7 +63,7 @@ export async function syncDataset(summaries: EvalSummary[]): Promise<boolean | n
 
     await dataset.flush();
     await dataset.close();
-    logger.info(`[Braintrust] Dataset synced: ${summaries.length} evaluation(s) to ${DATASET_NAME}`);
+    logger.info(`[Braintrust] Dataset synced: ${summaries.length} evaluation(s) to ${datasetName}`);
     return true;
   } catch (e) {
     logger.error(`[Braintrust] Dataset sync failed: ${e}`);

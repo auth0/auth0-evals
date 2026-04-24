@@ -14,19 +14,16 @@
     "report": "node dist/report.js"
   },
   "dependencies": {
+    "@a0/eval-reporter": "*",
     "@anthropic-ai/claude-agent-sdk": "^0.2.117",
     "@github/copilot-sdk": "^0.2.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "braintrust": "^3.9.0",
     "commander": "^14.0.3",
     "dotenv": "^17.4.2",
-    "marked": "^18.0.2",
-    "nunjucks": "^3.2.4",
     "p-limit": "^7.3.0"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
-    "@types/nunjucks": "^3.2.6",
     "@vitest/coverage-v8": "^4.1.5",
     "vitest": "^4.1.0"
   }

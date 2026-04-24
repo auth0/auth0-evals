@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 /**
- * Report generator.
- *
- * Reads scores-*.json files and produces a single HTML report.
+ * Report CLI — thin wrapper around @a0/eval-reporter.
  *
  * Usage:
  *   node dist/report.js                        # auto-discovers scores-*.json
@@ -14,59 +12,12 @@ import { writeFileSync, readdirSync } from 'fs';
 import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
 import { Command } from 'commander';
-import nunjucks from 'nunjucks';
-import { registerFilters } from './report-filters.js';
+import { renderHtml, loadScores } from '@a0/eval-reporter';
 import { logger } from './utils/logger.js';
-import { MODES, resultVariant, loadScores, groupResults, groupByVariant, computeDeltas } from './report/processors.js';
-
-// Re-export for backward compatibility with existing consumers and tests.
-export { resultVariant, loadScores, groupResults, groupByVariant, computeDeltas } from './report/processors.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-// When running from dist/ or src/, go up one level to reach the project root.
 const FRAMEWORK_ROOT = ['dist', 'src'].includes(basename(__dirname)) ? join(__dirname, '..') : __dirname;
-
-export function renderHtml(results: Record<string, unknown>[], generatedAt: string): string {
-  const grouped = groupResults(results);
-  const variantGrouped = groupByVariant(results);
-  const deltas = computeDeltas(variantGrouped);
-
-  const totalRuns = results.length;
-  const totalCost = results.reduce((sum, r) => sum + Number(r.cost_usd ?? 0), 0);
-  const modelsRun = [...new Set(results.map((r) => r.model as string))].sort();
-  const variantsRun = [...new Set(results.map(resultVariant))];
-  const evalsRun = [...new Set(results.map((r) => r.eval_id as string))].sort();
-
-  // Known base modes come first (in MODES order), then any extra variants alphabetically.
-  const variantsPresent = [
-    ...MODES.filter((m) => variantsRun.includes(m)),
-    ...variantsRun.filter((v) => !MODES.includes(v)).sort(),
-  ];
-
-  const groupedSortedKeys = Object.keys(grouped).sort();
-
-  const env = nunjucks.configure(join(FRAMEWORK_ROOT, 'src', 'templates'), {
-    autoescape: true,
-    noCache: true,
-  });
-  registerFilters(env);
-
-  return nunjucks.render('report.html.j2', {
-    grouped,
-    grouped_sorted_keys: groupedSortedKeys,
-    variant_grouped: variantGrouped,
-    deltas,
-    total_runs: totalRuns,
-    total_cost: totalCost,
-    models_run: modelsRun,
-    variants_run: variantsRun,
-    variants_present: variantsPresent,
-    evals_run: evalsRun,
-    generated_at: generatedAt,
-    MODES,
-  });
-}
 
 async function main(): Promise<void> {
   const program = new Command();
