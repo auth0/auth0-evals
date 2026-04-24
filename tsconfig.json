@@ -4,8 +4,6 @@
     "module": "Node16",
     "moduleResolution": "node16",
     "lib": ["ES2024"],
-    "rootDir": "src",
-    "outDir": "dist",
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": false,
@@ -16,7 +14,5 @@
     "declarationMap": true,
     "sourceMap": true,
     "types": ["node", "nunjucks"]
-  },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "src/**/scaffold"]
+  }
 }

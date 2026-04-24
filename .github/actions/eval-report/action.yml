@@ -23,18 +23,18 @@ runs:
       uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
       with:
         name: build-dist
-        path: dist/
+        path: apps/auth0-evals/dist/
 
     - name: Download all results
       uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
       with:
         pattern: result-*
         merge-multiple: true
-        path: .
+        path: apps/auth0-evals
 
     - name: Generate HTML report
       shell: bash
-      run: node dist/report.js
+      run: node apps/auth0-evals/dist/report.js
 
     - name: Write step summary
       shell: bash
@@ -46,6 +46,6 @@ runs:
       with:
         name: eval-report-${{ github.run_id }}
         path: |
-          scores-*.json
-          scores-consolidated.json
-          report.html
+          apps/auth0-evals/scores-*.json
+          apps/auth0-evals/scores-consolidated.json
+          apps/auth0-evals/report.html
