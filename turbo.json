@@ -1,0 +1,33 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "outputs": ["dist/**"],
+      "outputLogs": "new-only"
+    },
+    "run": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "passThroughEnv": ["*"],
+      "outputLogs": "new-only"
+    },
+    "report": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "passThroughEnv": ["*"],
+      "outputLogs": "new-only"
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "outputLogs": "new-only"
+    },
+    "lint": {
+      "outputLogs": "new-only"
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "outputLogs": "new-only"
+    }
+  }
+}

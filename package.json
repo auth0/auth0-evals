@@ -1,43 +1,29 @@
 {
-  "name": "auth0-evals",
-  "version": "1.0.0",
+  "name": "auth0-evals-monorepo",
+  "private": true,
   "type": "module",
+  "packageManager": "npm@11.7.0",
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
-    "build": "tsc",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest",
-    "lint": "eslint \"./**/*.ts\"",
+    "build": "turbo run build",
+    "run": "turbo run run --",
+    "report": "turbo run report --",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
     "format": "prettier --write \"./**/*.ts\"",
-    "prepare": "husky",
-    "prerun": "npm run build",
-    "run": "node dist/run.js",
-    "prereport": "npm run build",
-    "report": "node dist/report.js"
-  },
-  "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.117",
-    "@github/copilot-sdk": "^0.2.2",
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "braintrust": "^3.9.0",
-    "commander": "^14.0.3",
-    "dotenv": "^17.4.2",
-    "marked": "^18.0.2",
-    "nunjucks": "^3.2.4",
-    "p-limit": "^7.3.0"
+    "prepare": "husky"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "^25.6.0",
-    "@types/nunjucks": "^3.2.6",
-    "@vitest/coverage-v8": "^4.1.5",
     "eslint": "^10.2.1",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
     "prettier": "^3.8.3",
+    "turbo": "^2.9.3",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.59.0",
-    "vitest": "^4.1.0"
+    "typescript-eslint": "^8.59.0"
   },
   "lint-staged": {
     "*.ts": [

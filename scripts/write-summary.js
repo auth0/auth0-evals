@@ -1,10 +1,12 @@
 import { readFileSync, readdirSync, appendFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const ALL_MODES = ['baseline', 'agent', 'agent+mcp', 'agent+skills'];
 
-const files = readdirSync('.').filter(f => /^scores-.*\.json$/.test(f));
+const scoresDir = join('apps', 'auth0-evals');
+const files = readdirSync(scoresDir).filter(f => /^scores-.*\.json$/.test(f));
 const results = files.flatMap(f => {
-  try { return JSON.parse(readFileSync(f, 'utf-8')); }
+  try { return JSON.parse(readFileSync(join(scoresDir, f), 'utf-8')); }
   catch { return []; }
 });
 
