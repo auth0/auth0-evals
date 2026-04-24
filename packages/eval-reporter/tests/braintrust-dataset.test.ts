@@ -66,6 +66,8 @@ describe('toEvalSummaries', () => {
 
 // ── syncDataset ──────────────────────────────────────────────────────────────
 
+const SYNC_OPTS = { projectId: 'test-project-id', datasetName: 'test-dataset' };
+
 describe('syncDataset', () => {
   let savedKey: string | undefined;
 
@@ -83,7 +85,7 @@ describe('syncDataset', () => {
   it('returns null when BRAINTRUST_API_KEY is not set', async () => {
     delete process.env.BRAINTRUST_API_KEY;
     const { syncDataset } = await import('../src/reporters/braintrust-dataset.js');
-    const result = await syncDataset([]);
+    const result = await syncDataset([], SYNC_OPTS);
     expect(result).toBeNull();
   });
 
@@ -101,9 +103,10 @@ describe('syncDataset', () => {
     }));
 
     const { syncDataset } = await import('../src/reporters/braintrust-dataset.js');
-    const result = await syncDataset([
-      { id: 'test', category: 'cat', prompt: 'p', scaffoldFiles: ['a.ts'], graderCount: 5, skills: ['s1'] },
-    ]);
+    const result = await syncDataset(
+      [{ id: 'test', category: 'cat', prompt: 'p', scaffoldFiles: ['a.ts'], graderCount: 5, skills: ['s1'] }],
+      SYNC_OPTS,
+    );
 
     expect(result).toBe(true);
     expect(mockInsert).toHaveBeenCalledTimes(1);
@@ -125,7 +128,7 @@ describe('syncDataset', () => {
     }));
 
     const { syncDataset } = await import('../src/reporters/braintrust-dataset.js');
-    const result = await syncDataset([]);
+    const result = await syncDataset([], SYNC_OPTS);
     expect(result).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 import { appendFileSync } from 'node:fs';
-import { EVALUATIONS } from '../dist/config/evaluations.js';
+import { EVALUATIONS } from '../apps/auth0-evals/dist/config/evaluations.js';
 
 const ALL_EVALS = EVALUATIONS.map(e => e.id);
 

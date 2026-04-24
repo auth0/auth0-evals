@@ -11,7 +11,9 @@ import { init as btInit, type Experiment } from 'braintrust';
 import type { JobResult } from '../types/results.js';
 import { logger } from '../utils/logger.js';
 
-const PROJECT_ID = '38395851-dd41-46ec-a971-a30402db6921';
+export interface BraintrustReporterOptions {
+  projectId?: string;
+}
 
 export interface BraintrustReporter {
   log(result: JobResult): void;
@@ -105,17 +107,27 @@ function mapResult(result: JobResult): {
  * Create a Braintrust reporter bound to a single experiment.
  * Returns null if BRAINTRUST_API_KEY is not set.
  */
-export async function createBraintrustReporter(mode: string, tools: string[]): Promise<BraintrustReporter | null> {
+export async function createBraintrustReporter(
+  mode: string,
+  tools: string[],
+  opts?: BraintrustReporterOptions,
+): Promise<BraintrustReporter | null> {
   const apiKey = process.env.BRAINTRUST_API_KEY;
   if (!apiKey) {
     logger.info('[Braintrust] BRAINTRUST_API_KEY not set — skipping.');
     return null;
   }
 
+  const projectId = opts?.projectId ?? process.env.BRAINTRUST_PROJECT_ID;
+  if (!projectId) {
+    logger.error('[Braintrust] No projectId provided and BRAINTRUST_PROJECT_ID not set.');
+    return null;
+  }
+
   const name = experimentName(mode, tools);
   let experiment: Experiment;
   try {
-    experiment = btInit(PROJECT_ID, {
+    experiment = btInit(projectId, {
       experiment: name,
       apiKey,
     });
