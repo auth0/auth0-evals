@@ -64,23 +64,24 @@ The delta between configurations tells you where to invest:
 
 | Model | ID |
 |-------|----|
-| GPT-5.2 | `gpt-5.2` |
-| Claude Sonnet 4.6 | `claude-4-6-sonnet` |
-| Claude Opus 4.6 | `claude-4-6-opus` |
-| Gemini 3 Pro | `gemini-3-pro-preview` |
+| GPT-5.4 | `gpt-5.4` |
+| Claude Sonnet 4.6 | `claude-sonnet-4-6` |
+| Claude Opus 4.6 | `claude-opus-4-6` |
+| Claude Opus 4.7 | `claude-opus-4-7` |
+| Gemini 3.1 Pro | `gemini-3.1-pro-preview` |
 
 ```bash
 # Run with a specific model
-npm run run -- --model gpt-5.2
-npm run run -- --model claude-4-6-sonnet
-npm run run -- --model claude-4-6-opus
-npm run run -- --model gemini-3-pro-preview
+npm run run -- --model gpt-5.4
+npm run run -- --model claude-sonnet-4-6
+npm run run -- --model claude-opus-4-6
+npm run run -- --model gemini-3.1-pro-preview
 
 # Run with multiple models
-npm run run -- --model claude-4-6-sonnet --model claude-4-6-opus
+npm run run -- --model claude-sonnet-4-6 --model claude-opus-4-6
 
 # Run with a specific model and mode
-npm run run -- --model gpt-5.2 --mode agent
+npm run run -- --model gpt-5.4 --mode agent
 ```
 
 Results are merged into the output file by `(eval_id, model, mode)` key. Re-running a single model updates only its entries — scores for all other models are preserved.
@@ -90,14 +91,14 @@ Results are merged into the output file by `(eval_id, model, mode)` key. Re-runn
 npm run run -- --model all
 
 # Later, re-run only one model without losing the rest
-npm run run -- --model gpt-5.2
+npm run run -- --model gpt-5.4
 ```
 
 ## Options
 
 ```
 --eval      Eval ID to run (default: all). Can be repeated.
---model     Model to use (default: gpt-5.2). Can be repeated for multiple models.
+--model     Model to use (default: gpt-5.4). Can be repeated for multiple models.
             Use 'all' to run all known working models.
 --mode      baseline | agent | all (default: baseline)
             Use 'all' to run both modes in parallel.
@@ -114,14 +115,15 @@ npm run run -- --model gpt-5.2
 The framework maintains a list of models that work reliably across all modes:
 
 **OpenAI:**
-- `gpt-5.2` (default)
+- `gpt-5.4` (default)
 
 **Anthropic:**
-- `claude-4-6-sonnet`
-- `claude-4-6-opus`
+- `claude-sonnet-4-6`
+- `claude-opus-4-6`
+- `claude-opus-4-7`
 
 **Google:**
-- `gemini-3-pro-preview`
+- `gemini-3.1-pro-preview`
 
 **Note:** GPT and Gemini use the ATKO LiteLLM proxy (`ATKO_API_KEY`). Claude models use the `claude` CLI routed through the ATKO proxy's Bedrock pass-through endpoint by default. Set `CLAUDE_CODE_USE_BEDROCK_PROXY=0` to route through the LiteLLM proxy instead.
 

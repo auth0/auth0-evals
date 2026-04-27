@@ -21,10 +21,10 @@ const EVAL = makeEvalCfg('test_eval');
 
 describe('buildJobList — baseline mode', () => {
   it('creates one job per model', () => {
-    const jobs = buildJobList([EVAL], ['gpt-5.2', 'claude-4-6-sonnet'], ['baseline'], [], undefined);
+    const jobs = buildJobList([EVAL], ['gpt-5.2', 'claude-sonnet-4-6'], ['baseline'], [], undefined);
     expect(jobs).toHaveLength(2);
     expect(jobs[0][1]).toBe('gpt-5.2');
-    expect(jobs[1][1]).toBe('claude-4-6-sonnet');
+    expect(jobs[1][1]).toBe('claude-sonnet-4-6');
   });
 
   it('baseline jobs always have empty tools', () => {
@@ -47,10 +47,10 @@ describe('buildJobList — baseline mode', () => {
 
 describe('buildJobList — agent mode auto-routing', () => {
   it('claude- model with no explicit agent type → routes to claude-code', () => {
-    const jobs = buildJobList([EVAL], ['claude-4-6-sonnet'], ['agent'], [], undefined);
+    const jobs = buildJobList([EVAL], ['claude-sonnet-4-6'], ['agent'], [], undefined);
     expect(jobs).toHaveLength(1);
     expect(jobs[0][4]).toBe('claude-code');
-    expect(jobs[0][1]).toBe('claude-4-6-sonnet');
+    expect(jobs[0][1]).toBe('claude-sonnet-4-6');
   });
 
   it('gpt- model with no explicit agent type → routes to copilot', () => {
@@ -68,7 +68,7 @@ describe('buildJobList — agent mode auto-routing', () => {
   });
 
   it('explicit --agent-type auth0-ReAct-agent with claude model → respects explicit type', () => {
-    const jobs = buildJobList([EVAL], ['claude-4-6-sonnet'], ['agent'], [], 'auth0-ReAct-agent');
+    const jobs = buildJobList([EVAL], ['claude-sonnet-4-6'], ['agent'], [], 'auth0-ReAct-agent');
     expect(jobs).toHaveLength(1);
     expect(jobs[0][4]).toBe('auth0-ReAct-agent');
   });

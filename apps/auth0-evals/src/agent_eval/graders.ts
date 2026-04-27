@@ -15,7 +15,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BASE_URL, JUDGE_MAX_CODE_CHARS, JUDGE_MAX_TOKENS, JUDGE_MODEL } from '../config/settings.js';
+import { BASE_URL, JUDGE_MAX_CODE_CHARS, JUDGE_MAX_TOKENS, JUDGE_MODEL, LITELLM_MODEL_MAP } from '../config/settings.js';
 import { JudgeError, LlmApiError } from '../errors.js';
 import { collectFiles as collectFilePaths } from './file-utils.js';
 import { withRetry } from '../utils/retry.js';
@@ -347,9 +347,10 @@ export async function llmJudge(
     );
   }
   const user = loadUserTemplate().replace('{question}', question).replace('{code}', code);
+  const apiModel = LITELLM_MODEL_MAP[model] ?? model;
 
   const payload = JSON.stringify({
-    model,
+    model: apiModel,
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: user },

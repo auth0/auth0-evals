@@ -63,12 +63,12 @@ describe('renderHtml', () => {
   });
 
   it('includes all evals and models', () => {
-    const results = [makeResult('react_quickstart', 'gpt-5.2'), makeResult('swift_quickstart', 'claude-4-6-sonnet')];
+    const results = [makeResult('react_quickstart', 'gpt-5.2'), makeResult('swift_quickstart', 'claude-sonnet-4-6')];
     const html = renderHtml(results, '2024-01-01 00:00');
     expect(html).toContain('react_quickstart');
     expect(html).toContain('swift_quickstart');
     expect(html).toContain('gpt-5.2');
-    expect(html).toContain('claude-4-6-sonnet');
+    expect(html).toContain('claude-sonnet-4-6');
   });
 });
 

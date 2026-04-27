@@ -58,7 +58,7 @@ describe('mapResult', () => {
       category: 'quickstarts',
       prompt: 'Add Auth0 login to the Next.js app.',
       response_text: 'Auth0 integration complete.',
-      model: 'claude-4-6-sonnet',
+      model: 'claude-sonnet-4-6',
       mode: 'agent',
       tools: ['Skills'],
       session_id: 'sess-456',

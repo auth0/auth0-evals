@@ -53,7 +53,7 @@ export function normalizeToolArgs(name: string, args: Record<string, unknown>): 
  * Format 1 — JSON body wrapped in <tool_call>:
  *   <tool_call>{"name":"read_file","input":{"path":"foo.ts"}}</tool_call>
  *
- * Format 2 — Anthropic <invoke> / <parameter> tags (used by claude-4-6-sonnet via litellm):
+ * Format 2 — Anthropic <invoke> / <parameter> tags (used by claude-sonnet-4-6 via litellm):
  *   <function_calls>
  *     <invoke name="read_file">
  *       <parameter name="path">foo.ts</parameter>

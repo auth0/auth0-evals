@@ -11,7 +11,7 @@ import { makeSessionId } from '../../../utils/session.js';
 import { estimateCost } from '../../../config/costs.js';
 import { BedrockToolConfigError, LlmApiError } from '../../../errors.js';
 import { withRetry } from '../../../utils/retry.js';
-import { BASE_URL, CLAUDE_EFFORT_MODELS, MAX_TURNS } from '../../../config/settings.js';
+import { BASE_URL, CLAUDE_EFFORT_MODELS, LITELLM_MODEL_MAP, MAX_TURNS } from '../../../config/settings.js';
 import { isBedrockModel, isGeminiModel } from '../../agent-model.js';
 import { buildToolDefinitions } from './tools/index.js';
 import { McpConfig, ToolExecutor } from './tools-executor/index.js';
@@ -57,8 +57,12 @@ export async function llmCall(
   const inputText = JSON.stringify(messages);
   const inputSizeKb = Buffer.byteLength(inputText, 'utf-8') / 1024;
 
+  // Resolve to the LiteLLM proxy model ID (e.g. claude-sonnet-4-6 → _claude-sonnet-4-6).
+  // The friendly alias is kept in RunRecord; only the API call uses the resolved name.
+  const apiModel = LITELLM_MODEL_MAP[model] ?? model;
+
   logger.info(`\n[LLM API] Calling remote API: ${BASE_URL}/chat/completions`);
-  logger.info(`[LLM API] Model: ${model}`);
+  logger.info(`[LLM API] Model: ${apiModel}${apiModel !== model ? ` (alias: ${model})` : ''}`);
   logger.info(`[LLM API] Messages: ${messages.length} in history (~${inputSizeKb.toFixed(1)} KB)`);
   logger.info('[LLM API] Waiting for response...');
 
@@ -69,12 +73,12 @@ export async function llmCall(
     // output_config.effort: medium is only supported by specific Claude models (Opus 4.6, Sonnet 4.6, Opus 4.5).
     // For other Claude/Bedrock models, omit it to avoid unexpected behaviour.
     const outputConfig = CLAUDE_EFFORT_MODELS.has(model) ? { output_config: { effort: 'medium' } } : {};
-    body = { model, messages, tools, tool_choice: 'auto', temperature: 0.0, ...outputConfig };
+    body = { model: apiModel, messages, tools, tool_choice: 'auto', temperature: 0.0, ...outputConfig };
   } else if (isGeminiModel(model)) {
     const functions = (tools as { function: unknown }[]).map((t) => t.function);
-    body = { model, messages, functions, function_call: 'auto', temperature: 0.0 };
+    body = { model: apiModel, messages, functions, function_call: 'auto', temperature: 0.0 };
   } else {
-    body = { model, messages, tools, tool_choice: 'required', temperature: 0.0 };
+    body = { model: apiModel, messages, tools, tool_choice: 'required', temperature: 0.0 };
   }
 
   const responseData = await withRetry(async () => {

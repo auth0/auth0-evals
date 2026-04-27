@@ -340,7 +340,7 @@ npm run run -- --eval my_new_eval --mode matrix
 npm run run -- --eval my_new_eval --mode agent --tools skills
 
 # Run with a specific model
-npm run run -- --eval my_new_eval --model claude-4-6-sonnet --mode agent
+npm run run -- --eval my_new_eval --model claude-sonnet-4-6 --mode agent
 
 # Keep the temporary workspace after the run for inspection
 npm run run -- --eval my_new_eval --mode agent --keep-workspace

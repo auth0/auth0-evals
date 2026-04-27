@@ -109,7 +109,7 @@ describe('resultKey', () => {
 
   it('differs when model changes', () => {
     expect(resultKey(makeBaseline({ model: 'gpt-5.2' }))).not.toBe(
-      resultKey(makeBaseline({ model: 'claude-4-6-sonnet' })),
+      resultKey(makeBaseline({ model: 'claude-sonnet-4-6' })),
     );
   });
 
@@ -188,7 +188,7 @@ describe('mergeResults', () => {
   });
 
   it('unmatched existing entries are preserved alongside incoming', () => {
-    const other = makeBaseline({ model: 'claude-4-6-sonnet' });
+    const other = makeBaseline({ model: 'claude-sonnet-4-6' });
     const updated = makeBaseline({ model: 'gpt-5.2' });
     const merged = mergeResults([other, makeBaseline()], [updated]);
     expect(merged).toContainEqual(other);
@@ -205,7 +205,7 @@ describe('mergeResults', () => {
 
   it('preserves results for different models as separate entries', () => {
     const a = makeBaseline({ model: 'gpt-5.2' });
-    const b = makeBaseline({ model: 'claude-4-6-sonnet' });
+    const b = makeBaseline({ model: 'claude-sonnet-4-6' });
     expect(mergeResults([a], [b])).toHaveLength(2);
   });
 
