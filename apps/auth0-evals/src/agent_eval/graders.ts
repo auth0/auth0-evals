@@ -77,6 +77,8 @@ export const EXCLUDED_EVAL_DIRS = new Set([
   '.gemini',
   // Npm directory
   'node_modules',
+  // Package manager directories
+  '.pkgs',
   // Build output directories
   'dist',
   '.next',

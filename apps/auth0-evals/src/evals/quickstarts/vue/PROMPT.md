@@ -1,5 +1,6 @@
 ---
 skills: auth0-vue
+setup_command: npm install
 ---
 
 ## Task

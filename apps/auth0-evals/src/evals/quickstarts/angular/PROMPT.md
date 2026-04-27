@@ -1,5 +1,6 @@
 ---
 skills: auth0-angular
+setup_command: npm install
 ---
 
 ## Task
