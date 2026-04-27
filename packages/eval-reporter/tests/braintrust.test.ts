@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { experimentName, mapResult } from '../src/reporters/braintrust.js';
-import type { AgentJobResult, BaselineJobResult, ErrorJobResult } from '../src/types/results.js';
+import type { AgentJobResult, BaselineJobResult, ErrorJobResult } from '@a0/eval';
 
 // ── experimentName ───────────────────────────────────────────────────────────
 

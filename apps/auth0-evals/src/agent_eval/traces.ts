@@ -5,7 +5,11 @@
  * JSON-serialisable objects for post-run analysis and report rendering.
  */
 
-import type { ErrorCategory, RunRecord, ToolCallRecord } from './agent-types.js';
+import type { RunRecord, ToolCallRecord } from './agent-types.js';
+
+// Re-exported from @a0/eval — canonical source
+export type { TraceStep, TurnMetricEntry } from '@a0/eval';
+import type { TraceStep, TurnMetricEntry } from '@a0/eval';
 
 export function formatStep(tc: ToolCallRecord): string {
   const action = tc.actionType;
@@ -15,24 +19,6 @@ export function formatStep(tc: ToolCallRecord): string {
     .join(', ');
   const outcome = tc.causedError ? ' → failed' : '';
   return `${tc.name}(${args})${outcome} [${action}, ${duration.toFixed(1)}s]`;
-}
-
-export interface TraceStep {
-  step: number;
-  actionType: string;
-  tool: string;
-  narrative: string;
-  args: Record<string, unknown>;
-  resultPreview: string;
-  resultSizeBytes: number;
-  resultLines: number;
-  duration: number;
-  causedError: boolean;
-  isDocLookup: boolean;
-  isInterruption: boolean;
-  isRetry: boolean;
-  recoveredFromError: boolean;
-  errorCategory: ErrorCategory | undefined;
 }
 
 export function serialiseTrace(record: RunRecord): TraceStep[] {
@@ -53,16 +39,6 @@ export function serialiseTrace(record: RunRecord): TraceStep[] {
     recoveredFromError: tc.recoveredFromError,
     errorCategory: tc.errorCategory,
   }));
-}
-
-export interface TurnMetricEntry {
-  turn: number;
-  input_tokens: number;
-  output_tokens: number;
-  llm_latency: number;
-  finish_reason: string;
-  tool_call_count: number;
-  cost_usd: number;
 }
 
 export function serialiseTurnMetrics(record: RunRecord): TurnMetricEntry[] {

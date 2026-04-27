@@ -8,8 +8,8 @@
  */
 
 import { init as btInit, type Experiment } from 'braintrust';
-import type { JobResult } from '../types/results.js';
-import { logger } from '../utils/logger.js';
+import type { JobResult } from '@a0/eval';
+import { logger } from '@a0/eval';
 
 export interface BraintrustReporterOptions {
   projectId?: string;

@@ -9,7 +9,9 @@
 // ── Data model ────────────────────────────────────────────────────────────────
 
 export type FinishReason = 'tool_calls' | 'stop' | 'max_tokens' | 'length' | 'error' | 'unknown';
-export type ErrorCategory = 'not_found' | 'timeout' | 'syntax' | 'auth' | 'network' | 'permission' | 'unknown';
+// Re-exported from @a0/eval — canonical source
+export type { ErrorCategory } from '@a0/eval';
+import type { ErrorCategory } from '@a0/eval';
 export type ActionType = 'Implementation' | 'Discovery' | 'Error' | 'Interruption' | 'Skill' | 'unknown';
 
 /** Per-LLM-call metrics captured during the agent loop. */
