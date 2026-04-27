@@ -23,7 +23,6 @@ export type {
 // Scorer
 export { score, scoreToGrade } from './scorer.js';
 
-
 // Types — results
 export type {
   JobResult,

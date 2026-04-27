@@ -13,7 +13,6 @@ const C0_CONTROLS = '\\x01-\\x1f'; // SOH through US (ASCII 1–31)
 const DEL = '\\x7f'; // ASCII 127
 const C1_CONTROLS = '\\x80-\\x9f'; // Legacy terminal escapes (128–159)
 
-// eslint-disable-next-line no-control-regex
 const INVALID_PATH_CHARS = new RegExp(`[${NULL}${C0_CONTROLS}${DEL}${C1_CONTROLS}]`);
 
 /**

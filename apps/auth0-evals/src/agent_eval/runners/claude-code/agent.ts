@@ -23,7 +23,12 @@ import { join } from 'node:path';
 import type { RunRecord, ToolCallRecord, TurnMetric, FinishReason } from '../../agent-types.js';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '../../agent-types.js';
 import type { EvalDefinition } from '../../../runners/loader.js';
-import { BASE_URL, CLAUDE_CODE_TASK_TIMEOUT_MS, LITELLM_MODEL_MAP, LITELLM_MODEL_REVERSE_MAP } from '../../../config/settings.js';
+import {
+  BASE_URL,
+  CLAUDE_CODE_TASK_TIMEOUT_MS,
+  LITELLM_MODEL_MAP,
+  LITELLM_MODEL_REVERSE_MAP,
+} from '../../../config/settings.js';
 import { estimateCost } from '../../../config/costs.js';
 import { ClaudeCodeTranslator } from './translator.js';
 import { logger } from '../../../utils/logger.js';
@@ -149,7 +154,11 @@ export async function runClaudeCodeAgent(
   // In Bedrock mode, resolve short ATKO alias to the full Bedrock model ID
   // (e.g. claude-sonnet-4-6 → global.anthropic.claude-sonnet-4-6).
   // In LiteLLM mode, resolve via LITELLM_MODEL_MAP (adds underscore prefix).
-  const resolvedModel = model ? (USE_BEDROCK ? (BEDROCK_MODEL_ALIAS_MAP[model] ?? model) : (LITELLM_MODEL_MAP[model] ?? model)) : undefined;
+  const resolvedModel = model
+    ? USE_BEDROCK
+      ? (BEDROCK_MODEL_ALIAS_MAP[model] ?? model)
+      : (LITELLM_MODEL_MAP[model] ?? model)
+    : undefined;
 
   // Build environment variables for the SDK process.
   // Route through the ATKO proxy's Anthropic pass-through endpoint.

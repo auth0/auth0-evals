@@ -379,7 +379,9 @@ async function main(): Promise<void> {
 
     const { syncDataset, toEvalSummaries } = await import('@a0/eval-reporter');
     Promise.all(registry.map((cfg) => loadEval(cfg, FRAMEWORK_ROOT)))
-      .then((evalDefs) => syncDataset(toEvalSummaries(evalDefs), { projectId: BT_PROJECT_ID, datasetName: BT_DATASET_NAME }))
+      .then((evalDefs) =>
+        syncDataset(toEvalSummaries(evalDefs), { projectId: BT_PROJECT_ID, datasetName: BT_DATASET_NAME }),
+      )
       .catch((e) => logger.error(`[Braintrust] Dataset sync error: ${e}`));
   }
 

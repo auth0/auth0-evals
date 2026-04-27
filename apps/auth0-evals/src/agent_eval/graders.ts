@@ -10,7 +10,13 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BASE_URL, JUDGE_MAX_CODE_CHARS, JUDGE_MAX_TOKENS, JUDGE_MODEL, LITELLM_MODEL_MAP } from '../config/settings.js';
+import {
+  BASE_URL,
+  JUDGE_MAX_CODE_CHARS,
+  JUDGE_MAX_TOKENS,
+  JUDGE_MODEL,
+  LITELLM_MODEL_MAP,
+} from '../config/settings.js';
 import { JudgeError, LlmApiError } from '../errors.js';
 import { collectFiles as collectFilePaths } from './file-utils.js';
 import { withRetry } from '../utils/retry.js';
@@ -133,9 +139,8 @@ export async function runGraders(
 
     if (kind === 'contains') {
       const needle = g.needle!;
-      const passed = (g.caseSensitive ?? true)
-        ? combinedText.includes(needle)
-        : combinedLower.includes(needle.toLowerCase());
+      const passed =
+        (g.caseSensitive ?? true) ? combinedText.includes(needle) : combinedLower.includes(needle.toLowerCase());
       results.push({
         name,
         kind,
@@ -145,9 +150,8 @@ export async function runGraders(
       });
     } else if (kind === 'not_contains') {
       const needle = g.needle!;
-      const passed = (g.caseSensitive ?? true)
-        ? !combinedText.includes(needle)
-        : !combinedLower.includes(needle.toLowerCase());
+      const passed =
+        (g.caseSensitive ?? true) ? !combinedText.includes(needle) : !combinedLower.includes(needle.toLowerCase());
       results.push({
         name,
         kind,
@@ -165,9 +169,7 @@ export async function runGraders(
       for (const [filePath, content] of Object.entries(files)) {
         const base = filePath.split('/').pop() ?? filePath;
         if (NON_SOURCE_EXTS.test(base) || NON_SOURCE_PREFIXES.test(base)) continue;
-        const hit = (g.caseSensitive ?? true)
-          ? content.includes(needle)
-          : content.toLowerCase().includes(needleLower);
+        const hit = (g.caseSensitive ?? true) ? content.includes(needle) : content.toLowerCase().includes(needleLower);
         if (hit) {
           found = true;
           break;

@@ -33,13 +33,7 @@ export const DEFAULT_FRAMEWORK_CONFIG: Required<FrameworkConfig> = {
   },
 
   models: {
-    known: [
-      'gpt-5.4',
-      'claude-4-6-sonnet',
-      'claude-4-6-opus',
-      'claude-opus-4-7',
-      'gemini-3.1-pro-preview',
-    ],
+    known: ['gpt-5.4', 'claude-4-6-sonnet', 'claude-4-6-opus', 'claude-opus-4-7', 'gemini-3.1-pro-preview'],
     default: 'gpt-5.4',
     bedrock: {
       'claude-4-6-sonnet': 'global.anthropic.claude-sonnet-4-6',
