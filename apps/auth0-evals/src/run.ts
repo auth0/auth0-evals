@@ -107,7 +107,7 @@ async function runAgentJob(
   agentType: AgentType,
 ): Promise<JobResult> {
   const { setupWorkspace, runSetupCommand, cleanupWorkspace } = await import('./agent_eval/workspace.js');
-  const { score } = await import('./agent_eval/scorer.js');
+  const { score } = await import('@a0/eval');
   const { initAgentRegistry, getRunner } = await import('./agent_eval/agent-registry.js');
   initAgentRegistry();
 

@@ -8,7 +8,7 @@
 import type { GraderResult } from '@a0/eval-graders';
 import { serialiseTrace, serialiseTurnMetrics } from '../agent_eval/traces.js';
 import type { RunRecord } from '../agent_eval/agent-types.js';
-import type { ScoredResult } from '../agent_eval/scorer.js';
+import type { ScoredResult } from '@a0/eval';
 import type { BaselineResult } from './baseline.js';
 import type { EvalDefinition } from './loader.js';
 import type { AgentJobResult, BaselineJobResult, ErrorJobResult, GraderSummary } from '../types/results.js';

@@ -6,6 +6,24 @@
 export type { AgentType, ErrorCategory, TraceStep, TurnMetricEntry } from './types/agents.js';
 export { KNOWN_AGENT_TYPES } from './types/agents.js';
 
+// Types — graders
+export { GraderLevel } from './types/graders.js';
+
+// Types — scorer
+export type {
+  GraderResult,
+  RunRecord,
+  ToolCallRecord,
+  DimensionScore,
+  ScoredResult,
+  ScoringOptions,
+  DimensionWeights,
+} from './types/scorer.js';
+
+// Scorer
+export { score, scoreToGrade } from './scorer.js';
+
+
 // Types — results
 export type {
   JobResult,
