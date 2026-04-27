@@ -27,4 +27,5 @@ export type {
   ErrorCategory,
   Logger,
 } from '@a0/eval';
-export { GraderLevel, logger, setLogger } from '@a0/eval';
+export { logger, setLogger } from '@a0/eval';
+export { GraderLevel } from '@a0/eval-graders';

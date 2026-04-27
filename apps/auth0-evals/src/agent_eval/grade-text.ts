@@ -8,7 +8,8 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { runGraders, type GraderLevel } from './graders.js';
+import type { GraderLevel } from '@a0/eval-graders';
+import { runGraders } from './graders.js';
 import type { EvalDefinition } from '../runners/loader.js';
 
 /**

@@ -5,7 +5,7 @@
  * result object and duplicated the `graderResults.map()` projection.
  */
 
-import type { GraderResult } from '../agent_eval/graders.js';
+import type { GraderResult } from '@a0/eval-graders';
 import { serialiseTrace, serialiseTurnMetrics } from '../agent_eval/traces.js';
 import type { RunRecord } from '../agent_eval/agent-types.js';
 import type { ScoredResult } from '../agent_eval/scorer.js';

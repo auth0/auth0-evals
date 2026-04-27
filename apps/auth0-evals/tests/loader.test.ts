@@ -12,8 +12,8 @@ import { EvalConfigError, EvalNotFoundError } from '../src/errors.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-// Absolute path to graders module so dynamically-created graders.ts in tmpdir can import it
-const GRADERS_ABS_PATH = resolve(__dirname, '../src/agent_eval/graders.js');
+// Absolute path to graders package so dynamically-created graders.ts in tmpdir can import it
+const GRADERS_ABS_PATH = resolve(__dirname, '../../../node_modules/@a0/eval-graders/dist/index.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

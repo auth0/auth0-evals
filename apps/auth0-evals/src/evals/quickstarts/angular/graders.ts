@@ -1,4 +1,4 @@
-import { contains, notContains, matches, judge, GraderLevel } from '../../../agent_eval/graders.js';
+import { contains, notContains, matches, judge, GraderLevel } from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
