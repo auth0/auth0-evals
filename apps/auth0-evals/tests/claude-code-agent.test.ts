@@ -194,7 +194,7 @@ describe('handleMessage — system', () => {
     } as unknown as SDKSystemMessage;
     const result = handleMessage(msg, record, makePending(), 0, 0);
     expect(result).toBeNull();
-    expect(record.model).toBe('claude-code/claude-sonnet-4-5');
+    expect(record.model).toBe('claude-sonnet-4-5');
     expect(record.sessionId).toBe('sess_abc');
   });
 

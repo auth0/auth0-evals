@@ -79,7 +79,7 @@ Use `notContainsInSource` (not `notContains`) when a value like a client ID is a
 | `notContains(needle)` | Substring must NOT appear in any non-excluded workspace file |
 | `notContainsInSource(needle)` | Substring must NOT appear in source files (allowed in config) |
 | `matches(pattern)` | Regex match in any non-excluded workspace file |
-| `judge(question, framework?)` | LLM-as-judge yes/no question — uses `claude-4-5-sonnet` |
+| `judge(question, framework?)` | LLM-as-judge yes/no question — uses `claude-sonnet-4-5` |
 
 ## Grading exclusions
 
@@ -263,14 +263,13 @@ Explicit `--agent-type` overrides auto-routing for runner selection. Exception: 
 Uses `@anthropic-ai/claude-agent-sdk` `query()` function (not CLI subprocess). Routes through ATKO proxy.
 
 By default uses the Bedrock proxy (`CLAUDE_CODE_USE_BEDROCK_PROXY` != `0`), which maps supported short aliases to full Bedrock model IDs:
-- `claude-4-6-sonnet` → `global.anthropic.claude-sonnet-4-6`
-- `claude-4-6-opus` → `global.anthropic.claude-opus-4-6-v1`
+- `claude-sonnet-4-6` → `global.anthropic.claude-sonnet-4-6`
+- `claude-opus-4-6` → `global.anthropic.claude-opus-4-6-v1`
 - `claude-opus-4-7` → `global.anthropic.claude-opus-4-7`
-- `claude-4-5-sonnet` → `global.anthropic.claude-sonnet-4-5-20250929-v1:0`
-- `claude-4-5-opus` → `global.anthropic.claude-opus-4-5-20251101-v1:0`
-- `claude-4-5-haiku` → `global.anthropic.claude-haiku-4-5-20251001-v1:0`
+- `claude-sonnet-4-5` → `global.anthropic.claude-sonnet-4-5-20250929-v1:0`
+- `claude-opus-4-5` → `global.anthropic.claude-opus-4-5-20251101-v1:0`
 
-Set `CLAUDE_CODE_USE_BEDROCK_PROXY=0` to route through the LiteLLM proxy instead — aliases are passed directly and the proxy handles resolution.
+Set `CLAUDE_CODE_USE_BEDROCK_PROXY=0` to route through the LiteLLM proxy instead — aliases are resolved via `LITELLM_MODEL_MAP` (underscore-prefixed, e.g. `_claude-opus-4-7`).
 
 ---
 
@@ -301,21 +300,21 @@ When MCP tools are enabled (`--tools mcp`), MCP server tool definitions are appe
 Used when `--model all` is passed:
 
 - `gpt-5.4` (default when no `--model` flag)
-- `claude-4-6-sonnet`
-- `claude-4-6-opus`
+- `claude-sonnet-4-6`
+- `claude-opus-4-6`
 - `claude-opus-4-7`
 - `gemini-3.1-pro-preview`
 
 ### Judge model
 
-All LLM-as-judge graders use `claude-4-5-sonnet` via the ATKO proxy (`https://llm.atko.ai/v1`).
+All LLM-as-judge graders use `claude-sonnet-4-5` via the ATKO proxy (`https://llm.atko.ai/v1`).
 
 ### Settings
 
 | Setting | Value |
 |---|---|
 | Base URL | `https://llm.atko.ai/v1` |
-| Judge model | `claude-4-5-sonnet` |
+| Judge model | `claude-sonnet-4-5` |
 | Judge max tokens | 1024 |
 | Judge max code chars | 16,384 |
 | Max agent turns | 30 |

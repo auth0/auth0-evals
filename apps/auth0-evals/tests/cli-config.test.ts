@@ -130,13 +130,13 @@ describe('defaults', () => {
 
 describe('--model', () => {
   it('uses the specified model', () => {
-    const config = parseRunConfig(argv('--model', 'claude-4-6-sonnet'));
-    expect(config.models).toEqual(['claude-4-6-sonnet']);
+    const config = parseRunConfig(argv('--model', 'claude-sonnet-4-6'));
+    expect(config.models).toEqual(['claude-sonnet-4-6']);
   });
 
   it('accumulates multiple --model flags', () => {
-    const config = parseRunConfig(argv('--model', 'gpt-5.2', '--model', 'claude-4-6-sonnet'));
-    expect(config.models).toEqual(['gpt-5.2', 'claude-4-6-sonnet']);
+    const config = parseRunConfig(argv('--model', 'gpt-5.2', '--model', 'claude-sonnet-4-6'));
+    expect(config.models).toEqual(['gpt-5.2', 'claude-sonnet-4-6']);
   });
 
   it('--model all expands to every known working model', () => {

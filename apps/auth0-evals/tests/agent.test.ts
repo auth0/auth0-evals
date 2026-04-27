@@ -622,7 +622,7 @@ describe('isGeminiModel', () => {
 
   it('returns false for non-gemini', () => {
     expect(isGeminiModel('gpt-4o')).toBe(false);
-    expect(isGeminiModel('claude-4-6-sonnet')).toBe(false);
+    expect(isGeminiModel('claude-sonnet-4-6')).toBe(false);
   });
 });
 

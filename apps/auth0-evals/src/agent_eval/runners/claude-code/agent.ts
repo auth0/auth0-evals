@@ -23,7 +23,7 @@ import { join } from 'node:path';
 import type { RunRecord, ToolCallRecord, TurnMetric, FinishReason } from '../../agent-types.js';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '../../agent-types.js';
 import type { EvalDefinition } from '../../../runners/loader.js';
-import { BASE_URL, CLAUDE_CODE_TASK_TIMEOUT_MS } from '../../../config/settings.js';
+import { BASE_URL, CLAUDE_CODE_TASK_TIMEOUT_MS, LITELLM_MODEL_MAP, LITELLM_MODEL_REVERSE_MAP } from '../../../config/settings.js';
 import { estimateCost } from '../../../config/costs.js';
 import { ClaudeCodeTranslator } from './translator.js';
 import { logger } from '../../../utils/logger.js';
@@ -42,23 +42,14 @@ const USE_BEDROCK = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY !== '0';
  * expected by the claude CLI when routing through the ATKO Anthropic pass-through endpoint.
  *
  * Only used when CLAUDE_CODE_USE_BEDROCK_PROXY !== '0'; in LiteLLM proxy mode the aliases are
- * passed through directly.
+ * resolved via LITELLM_MODEL_MAP (underscore-prefixed) instead.
  */
 const BEDROCK_MODEL_ALIAS_MAP: Record<string, string> = {
-  'claude-4-6-sonnet': 'global.anthropic.claude-sonnet-4-6',
-  'claude-4-6-opus': 'global.anthropic.claude-opus-4-6-v1',
-  'claude-4-5-sonnet': 'global.anthropic.claude-sonnet-4-5-20250929-v1:0',
+  'claude-sonnet-4-6': 'global.anthropic.claude-sonnet-4-6',
+  'claude-opus-4-6': 'global.anthropic.claude-opus-4-6-v1',
+  'claude-sonnet-4-5': 'global.anthropic.claude-sonnet-4-5-20250929-v1:0',
   'claude-opus-4-7': 'global.anthropic.claude-opus-4-7',
-  'claude-4-5-opus': 'global.anthropic.claude-opus-4-5-20251101-v1:0',
-  'claude-4-5-haiku': 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
-};
-
-/**
- * Maps short ATKO aliases to model IDs used by the LiteLLM proxy.
- * Only used when CLAUDE_CODE_USE_BEDROCK_PROXY === '0'.
- */
-const LITELLM_MODEL_ALIAS_MAP: Record<string, string> = {
-  'claude-opus-4-7': 'frank-the-llm-model',
+  'claude-opus-4-5': 'global.anthropic.claude-opus-4-5-20251101-v1:0',
 };
 
 /** Reverse lookup: full Bedrock model ID → friendly ATKO alias. */
@@ -107,7 +98,7 @@ export interface ClaudeCodeRunOptions {
    * Claude model identifier to pass via `model` option.
    * When omitted the SDK uses its own default model.
    * Use the Anthropic model ID format (e.g. `claude-sonnet-4-5-20251101`) or
-   * an ATKO proxy alias (e.g. `claude-4-6-sonnet`) when routing through the proxy.
+   * an ATKO proxy alias (e.g. `claude-sonnet-4-6`) when routing through the proxy.
    */
   model?: string;
 }
@@ -156,9 +147,9 @@ export async function runClaudeCodeAgent(
   };
 
   // In Bedrock mode, resolve short ATKO alias to the full Bedrock model ID
-  // (e.g. claude-4-6-sonnet → global.anthropic.claude-sonnet-4-6).
-  // In LiteLLM mode, pass the alias directly — the proxy handles resolution.
-  const resolvedModel = model ? (USE_BEDROCK ? (BEDROCK_MODEL_ALIAS_MAP[model] ?? model) : (LITELLM_MODEL_ALIAS_MAP[model] ?? model)) : undefined;
+  // (e.g. claude-sonnet-4-6 → global.anthropic.claude-sonnet-4-6).
+  // In LiteLLM mode, resolve via LITELLM_MODEL_MAP (adds underscore prefix).
+  const resolvedModel = model ? (USE_BEDROCK ? (BEDROCK_MODEL_ALIAS_MAP[model] ?? model) : (LITELLM_MODEL_MAP[model] ?? model)) : undefined;
 
   // Build environment variables for the SDK process.
   // Route through the ATKO proxy's Anthropic pass-through endpoint.
@@ -317,6 +308,7 @@ export function handleMessage(
     // In LiteLLM mode the CLI reports the alias directly — validate and use as-is.
     record.model = sys.model
       ? (BEDROCK_MODEL_REVERSE_MAP[sys.model] ??
+        LITELLM_MODEL_REVERSE_MAP[sys.model] ??
         (ATKO_KNOWN_MODELS.has(sys.model) ? sys.model : `claude-code/${sys.model}`))
       : CLAUDE_CODE_MODEL_ID;
     record.sessionId = sys.session_id;
