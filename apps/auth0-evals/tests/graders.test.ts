@@ -11,12 +11,10 @@ import {
   notContains,
   notContainsInSource,
   matches,
-  passRate,
-  runGraders,
-  llmJudge,
   GraderLevel,
   type GraderResult,
-} from '../src/agent_eval/graders.js';
+} from '@a0/eval-graders';
+import { passRate, runGraders, llmJudge } from '../src/agent_eval/graders.js';
 import { JUDGE_MAX_CODE_CHARS, JUDGE_MAX_TOKENS } from '../src/config/settings.js';
 
 const tmpDir = makeTmpDir('graders_test_');
@@ -556,7 +554,7 @@ describe('runGraders - judge overflow propagation', () => {
     const dir = tmpDir();
     // Write a single file that exceeds the limit
     writeFileSync(join(dir, 'App.js'), 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1));
-    const { judge } = await import('../src/agent_eval/graders.js');
+    const { judge } = await import('@a0/eval-graders');
     const graders = [judge('Does the code work?')];
 
     await expect(runGraders(graders, dir, 'unused')).rejects.toThrow(/Code corpus exceeds limit/);
@@ -572,7 +570,7 @@ describe('runGraders - enforceMaxChars=false propagation', () => {
     vi.stubGlobal('fetch', mockFetchResponse('Code looks reasonable.\n\nyes'));
     const dir = tmpDir();
     writeFileSync(join(dir, 'App.js'), 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1));
-    const { judge } = await import('../src/agent_eval/graders.js');
+    const { judge } = await import('@a0/eval-graders');
     const graders = [judge('Does the code work?')];
 
     const results = await runGraders(graders, dir, 'unused', undefined, undefined, false);

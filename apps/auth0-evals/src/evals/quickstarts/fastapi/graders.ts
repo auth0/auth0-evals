@@ -5,7 +5,7 @@ import {
   matches,
   judge,
   GraderLevel,
-} from '../../../agent_eval/graders.js';
+} from '@a0/eval-graders';
 
 export function defineGraders() {
   return [

@@ -1,5 +1,5 @@
 {
-  "name": "@a0/eval",
+  "name": "@a0/eval-graders",
   "version": "0.1.0",
   "type": "module",
   "main": "dist/index.js",
@@ -10,12 +10,9 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "dependencies": {
-    "@a0/eval-graders": "*"
-  },
   "scripts": {
     "build": "tsc",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "test:watch": "vitest"
   },
   "devDependencies": {

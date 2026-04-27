@@ -1,15 +1,10 @@
 /**
- * Grader primitives.
+ * Grader execution engine.
  *
- * Each eval task defines a list of graders. After the agent finishes,
- * runGraders() evaluates all written files against them and returns
- * pass/fail per grader.
- *
- * Primitives:
- *   contains(needle)          — substring present in any written file
- *   notContains(needle)       — substring must NOT appear in any written file
- *   matches(pattern)          — regex match in any written file
- *   judge(question, framework) — LLM-as-judge yes/no question about the code
+ * Primitives (contains, notContains, matches, etc.) and types (GraderDef,
+ * GraderResult, GraderLevel) are defined in @a0/eval-graders.
+ * This file provides the execution engine that evaluates graders against
+ * workspace files and runs the LLM judge.
  */
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -20,6 +15,10 @@ import { JudgeError, LlmApiError } from '../errors.js';
 import { collectFiles as collectFilePaths } from './file-utils.js';
 import { withRetry } from '../utils/retry.js';
 import { logger } from '../utils/logger.js';
+import type { GraderDef, GraderResult } from '@a0/eval-graders';
+import { GraderLevel } from '@a0/eval-graders';
+
+// ── Project root & prompt loading ─────────────────────────────────────────────
 
 function resolveProjectRoot(): string {
   let dir = dirname(fileURLToPath(import.meta.url));
@@ -43,22 +42,6 @@ function loadUserTemplate(): string {
   return readFileSync(join(JUDGE_PROMPTS_DIR, 'user_template.md'), 'utf-8').trim();
 }
 
-// ── Level enum ────────────────────────────────────────────────────────────────
-
-// Re-exported from @a0/eval — canonical source
-export { GraderLevel } from '@a0/eval';
-import { GraderLevel } from '@a0/eval';
-
-// ── Result type ───────────────────────────────────────────────────────────────
-
-export interface GraderResult {
-  name: string;
-  kind: string;
-  passed: boolean;
-  detail: string;
-  level?: GraderLevel;
-}
-
 // ── Workspace helpers ─────────────────────────────────────────────────────────
 
 /**
@@ -73,8 +56,6 @@ export const EXCLUDED_EVAL_DIRS = new Set([
   '.gemini',
   // Npm directory
   'node_modules',
-  // Package manager directories
-  '.pkgs',
   // Build output directories
   'dist',
   '.next',
@@ -126,87 +107,6 @@ function combined(files: Record<string, string>): string {
   return Object.entries(files)
     .map(([k, v]) => `// FILE: ${k}\n${v}`)
     .join('\n\n');
-}
-
-// ── Grader factories ──────────────────────────────────────────────────────────
-
-export interface GraderOptions {
-  caseSensitive?: boolean;
-}
-
-export function contains(
-  needle: string,
-  description?: string,
-  level?: GraderLevel,
-  options: GraderOptions = {},
-): GraderDef {
-  return {
-    kind: 'contains',
-    needle,
-    name: description ?? `contains '${needle}'`,
-    level,
-    caseSensitive: options.caseSensitive ?? true,
-  };
-}
-
-export function notContains(
-  needle: string,
-  description?: string,
-  level?: GraderLevel,
-  options: GraderOptions = {},
-): GraderDef {
-  return {
-    kind: 'not_contains',
-    needle,
-    name: description ?? `not_contains '${needle}'`,
-    level,
-    caseSensitive: options.caseSensitive ?? true,
-  };
-}
-
-export function matches(pattern: string, description?: string, level?: GraderLevel): GraderDef {
-  return {
-    kind: 'matches',
-    pattern,
-    name: description ?? `matches /${pattern}/`,
-    level,
-  };
-}
-
-export function notContainsInSource(
-  needle: string,
-  description?: string,
-  level?: GraderLevel,
-  options: GraderOptions = {},
-): GraderDef {
-  return {
-    kind: 'not_contains_in_source',
-    needle,
-    name: description ?? `not_contains_in_source '${needle}'`,
-    level,
-    caseSensitive: options.caseSensitive ?? true,
-  };
-}
-
-export function judge(question: string, framework?: string, level?: GraderLevel): GraderDef {
-  return {
-    kind: 'judge',
-    question,
-    framework,
-    name: question,
-    level,
-  };
-}
-
-export interface GraderDef {
-  kind: string;
-  name: string;
-  needle?: string;
-  pattern?: string;
-  question?: string;
-  framework?: string;
-  level?: GraderLevel;
-  caseSensitive?: boolean;
 }
 
 // ── Runner ────────────────────────────────────────────────────────────────────

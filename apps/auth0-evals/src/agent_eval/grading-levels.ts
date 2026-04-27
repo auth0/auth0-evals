@@ -5,7 +5,7 @@
  * agent, and agent+MCP enables the full suite including version correctness.
  */
 
-import { GraderLevel } from './graders.js';
+import { GraderLevel } from '@a0/eval-graders';
 
 /** Baseline mode: L1-L3 — presence, hallucination, security. */
 export const BASELINE_LEVELS = new Set([GraderLevel.L1, GraderLevel.L2, GraderLevel.L3]);

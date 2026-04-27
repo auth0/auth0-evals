@@ -6,9 +6,6 @@
 export type { AgentType, ErrorCategory, TraceStep, TurnMetricEntry } from './types/agents.js';
 export { KNOWN_AGENT_TYPES } from './types/agents.js';
 
-// Types — graders
-export { GraderLevel } from './types/graders.js';
-
 // Types — results
 export type {
   JobResult,

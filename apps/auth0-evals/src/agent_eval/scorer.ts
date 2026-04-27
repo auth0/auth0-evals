@@ -11,7 +11,8 @@
  */
 
 import type { RunRecord } from './agent-types.js';
-import { passRate as graderPassRateFn, GraderLevel, type GraderResult } from './graders.js';
+import { GraderLevel, type GraderResult } from '@a0/eval-graders';
+import { passRate as graderPassRateFn } from './graders.js';
 import { formatToolSummary } from './tool-display-names.js';
 
 // ── Scoring constants ─────────────────────────────────────────────────────────
