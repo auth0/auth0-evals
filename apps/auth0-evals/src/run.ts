@@ -33,6 +33,7 @@ import { runGraders } from './agent_eval/graders.js';
 import { serialiseBaseline, serialiseAgent, serialiseError } from './runners/serializers.js';
 import { mergeResults, loadResults, saveResults, resolveOutputPath } from './persistence/results.js';
 import { parseRunConfig } from './cli/config.js';
+import { loadConfig, type FrameworkConfig } from '@a0/eval';
 import { logger } from './utils/logger.js';
 import type { JobResult } from './types/results.js';
 import { gradeText } from './agent_eval/grade-text.js';
@@ -185,6 +186,7 @@ function printSummary(results: JobResult[], elapsed: number): void {
  *
  * Flags with paired values that are stripped: --eval, --output, --model,
  * --mode, --tools, --agent-type.
+ * Flags that pass through: --config, --workers, --keep-workspace, etc.
  * Boolean flags stripped: --matrix (already expanded into individual jobs).
  */
 export function buildSubprocessArgs(argv: string[] = process.argv.slice(2)): string[] {
@@ -286,7 +288,12 @@ async function main(): Promise<void> {
     braintrust,
     apiKey,
     agentType,
+    configPath,
   } = config;
+
+  // Load the framework configuration (eval.config.js) — auto-discovered or via --config.
+  const frameworkConfig: FrameworkConfig = await loadConfig({ configPath });
+  logger.info(`[Config] evalsDir=${frameworkConfig.evalsDir}`);
 
   const registry = evalIds.length > 0 ? EVALUATIONS.filter((e) => evalIds.includes(e.id)) : EVALUATIONS;
 

@@ -60,6 +60,8 @@ export interface RunConfig {
    * `"copilot"` spawns GitHub Copilot CLI and parses its JSONL stream.
    */
   agentType: AgentType | undefined;
+  /** Explicit path to an `eval.config.js` file. Overrides auto-discovery when set. */
+  configPath: string | undefined;
 }
 
 /**
@@ -99,7 +101,8 @@ export function parseRunConfig(argv: string[]): RunConfig {
     .option('--workers <n>', 'Parallel workers (default: 4; default in matrix mode: 20)')
     .option('--output <path>', 'JSON output path')
     .option('--keep-workspace', '(agent mode) Keep temp workspace after run', false)
-    .option('--braintrust', 'Log results to Braintrust experiment', false);
+    .option('--braintrust', 'Log results to Braintrust experiment', false)
+    .option('--config <path>', 'Path to eval.config.js (overrides auto-discovery)');
 
   program.parse(argv);
   const opts = program.opts();
@@ -130,5 +133,6 @@ export function parseRunConfig(argv: string[]): RunConfig {
     braintrust: opts.braintrust as boolean,
     apiKey,
     agentType,
+    configPath: opts.config as string | undefined,
   };
 }

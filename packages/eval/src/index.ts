@@ -37,3 +37,18 @@ export type { RetryOptions } from './utils/retry.js';
 
 // Costs
 export { COST_TABLE, estimateCost } from './config/costs.js';
+
+// Framework config
+export type {
+  FrameworkConfig,
+  ProxyConfig,
+  MCPConfig,
+  MCPServerConfig,
+  SkillsConfig,
+  RemoteSkillRepo,
+  JudgeConfig,
+  ModelsConfig,
+} from './config/framework.js';
+export { DEFAULT_FRAMEWORK_CONFIG } from './config/defaults.js';
+export { defineConfig, loadConfig, deepMerge } from './config/loader.js';
+export type { LoadConfigOptions } from './config/loader.js';
