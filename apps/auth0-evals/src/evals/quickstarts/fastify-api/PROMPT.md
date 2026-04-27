@@ -1,5 +1,6 @@
 ---
 skills: auth0-fastify-api
+setup_command: npm install
 ---
 
 ## Task

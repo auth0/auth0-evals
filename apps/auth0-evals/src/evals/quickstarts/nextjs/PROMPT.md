@@ -1,5 +1,6 @@
 ---
 skills: auth0-nextjs
+setup_command: npm install
 ---
 
 ## Task

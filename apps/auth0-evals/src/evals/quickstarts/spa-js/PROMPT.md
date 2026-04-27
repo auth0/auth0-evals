@@ -1,5 +1,6 @@
 ---
 skills: auth0-spa-js
+setup_command: npm install
 ---
 
 ## Task

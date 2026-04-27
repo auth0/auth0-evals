@@ -131,6 +131,26 @@ describe('loadEval - PROMPT.md parsing', () => {
   });
 });
 
+// ── setup_command frontmatter tests ──────────────────────────────────────────
+
+describe('loadEval - setupCommand', () => {
+  it('parses setup_command from frontmatter', async () => {
+    makeEvalDir(tmpBase, '---\nskills: auth0-react\nsetup_command: npm install\n---\n\n## Task\nDo the task.\n');
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.setupCommand).toBe('npm install');
+  });
+
+  it('returns undefined when setup_command is absent', async () => {
+    makeEvalDir(tmpBase, '---\nskills: auth0-react\n---\n\n## Task\nDo the task.\n');
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.setupCommand).toBeUndefined();
+  });
+});
+
 // ── Agent System prompt tests ─────────────────────────────────────────────────
 
 describe('loadEval - Agent System prompt', () => {

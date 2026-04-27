@@ -105,13 +105,16 @@ async function runAgentJob(
   keepWorkspace: boolean,
   agentType: AgentType,
 ): Promise<JobResult> {
-  const { setupWorkspace, cleanupWorkspace } = await import('./agent_eval/workspace.js');
+  const { setupWorkspace, runSetupCommand, cleanupWorkspace } = await import('./agent_eval/workspace.js');
   const { score } = await import('./agent_eval/scorer.js');
   const { initAgentRegistry, getRunner } = await import('./agent_eval/agent-registry.js');
   initAgentRegistry();
 
   const workspace = setupWorkspace(evalDef.scaffold);
   try {
+    if (evalDef.setupCommand) {
+      runSetupCommand(workspace, evalDef.setupCommand);
+    }
     const runner = getRunner(agentType);
     const preparedEval = tools.includes('skills') ? await runner.prepareSkills(evalDef, workspace) : evalDef;
     const { record, resolvedModel } = await runner.run({ evalDef: preparedEval, workspace, model, tools, apiKey });

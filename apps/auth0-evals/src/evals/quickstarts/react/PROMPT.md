@@ -1,5 +1,6 @@
 ---
 skills: auth0-react
+setup_command: npm install
 ---
 
 ## Task

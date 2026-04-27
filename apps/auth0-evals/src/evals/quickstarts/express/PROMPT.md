@@ -1,5 +1,6 @@
 ---
 skills: auth0-express
+setup_command: npm install
 ---
 
 ## Task

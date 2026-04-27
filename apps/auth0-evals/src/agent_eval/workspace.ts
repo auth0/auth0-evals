@@ -6,6 +6,7 @@
  */
 
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { logger } from '../utils/logger.js';
@@ -25,6 +26,35 @@ export function setupWorkspace(scaffold: Record<string, string>): string {
     }
   }
   return workspace;
+}
+
+/**
+ * Runs a setup command inside the workspace (e.g. `npm install`).
+ * Called after scaffold files are written and before the agent starts.
+ *
+ * Only simple commands are supported — no quoting, escaping, or shell
+ * operators. The command string is split on whitespace into argv tokens.
+ * This is intentional: setup commands come from our own PROMPT.md
+ * frontmatter, not from user input.
+ */
+export function runSetupCommand(workspace: string, command: string): void {
+  logger.info(`  [Setup] Running: ${command}`);
+  const args = command.trim().split(/\s+/);
+  const cmd = args.shift();
+  if (!cmd) {
+    throw new Error('Setup command is empty');
+  }
+  const result = spawnSync(cmd, args, { cwd: workspace, stdio: 'inherit', timeout: 120_000 });
+  if (result.error) {
+    throw new Error(`Setup command failed: ${command}`, { cause: result.error });
+  }
+  if (result.signal) {
+    const timeoutNote = result.signal === 'SIGTERM' ? ' (possibly timed out after 120000ms)' : '';
+    throw new Error(`Setup command failed with signal ${result.signal}${timeoutNote}: ${command}`);
+  }
+  if (result.status !== 0) {
+    throw new Error(`Setup command failed with exit code ${result.status}: ${command}`);
+  }
 }
 
 /**

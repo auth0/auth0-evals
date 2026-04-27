@@ -1,5 +1,6 @@
 ---
 skills: auth0-nuxt
+setup_command: npm install
 ---
 
 ## Task

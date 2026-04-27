@@ -23,6 +23,7 @@ export interface EvalDefinition {
   agentSystemPrompt: string;
   graders: GraderDef[];
   scaffold: Record<string, string>;
+  setupCommand?: string;
   skills: string[];
   metadata: Record<string, string>;
 }
@@ -65,6 +66,8 @@ export async function loadEval(evalConfig: EvalConfig, frameworkRoot: string): P
     .map((s: string) => s.trim())
     .filter(Boolean);
 
+  const setupCommand = meta.setup_command || undefined;
+
   return {
     id: evalConfig.id,
     name: evalConfig.name ?? meta.name ?? evalConfig.id,
@@ -75,6 +78,7 @@ export async function loadEval(evalConfig: EvalConfig, frameworkRoot: string): P
     agentSystemPrompt,
     graders,
     scaffold,
+    setupCommand,
     skills,
     metadata: {
       provider_name: meta.provider_name ?? 'Auth0',
