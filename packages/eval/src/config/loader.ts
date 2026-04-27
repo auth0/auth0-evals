@@ -135,10 +135,7 @@ export function deepMerge<T extends Record<string, unknown>>(target: T, source: 
       typeof tgtVal === 'object' &&
       !Array.isArray(tgtVal)
     ) {
-      result[key] = deepMerge(
-        tgtVal as Record<string, unknown>,
-        srcVal as Record<string, unknown>,
-      ) as T[keyof T];
+      result[key] = deepMerge(tgtVal as Record<string, unknown>, srcVal as Record<string, unknown>) as T[keyof T];
     } else {
       result[key] = structuredClone(srcVal) as T[keyof T];
     }

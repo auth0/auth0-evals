@@ -70,4 +70,3 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
     MODES,
   });
 }
-

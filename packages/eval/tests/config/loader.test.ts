@@ -90,26 +90,24 @@ describe('loadConfig', () => {
   });
 
   it('throws EvalConfigError when configPath does not exist', async () => {
-    await expect(
-      loadConfig({ configPath: join(FIXTURES_DIR, 'does-not-exist.js') }),
-    ).rejects.toThrow(EvalConfigError);
+    await expect(loadConfig({ configPath: join(FIXTURES_DIR, 'does-not-exist.js') })).rejects.toThrow(EvalConfigError);
   });
 
   it('throws EvalConfigError when config file has syntax errors', async () => {
-    await expect(
-      loadConfig({ configPath: join(FIXTURES_DIR, 'broken', 'eval.config.js') }),
-    ).rejects.toThrow(EvalConfigError);
+    await expect(loadConfig({ configPath: join(FIXTURES_DIR, 'broken', 'eval.config.js') })).rejects.toThrow(
+      EvalConfigError,
+    );
   });
 
   it('throws EvalConfigError when config has no default export', async () => {
-    await expect(
-      loadConfig({ configPath: join(FIXTURES_DIR, 'no-default', 'eval.config.js') }),
-    ).rejects.toThrow('must have a default export');
+    await expect(loadConfig({ configPath: join(FIXTURES_DIR, 'no-default', 'eval.config.js') })).rejects.toThrow(
+      'must have a default export',
+    );
   });
 
   it('throws EvalConfigError when export is not an object', async () => {
-    await expect(
-      loadConfig({ configPath: join(FIXTURES_DIR, 'non-object', 'eval.config.js') }),
-    ).rejects.toThrow(EvalConfigError);
+    await expect(loadConfig({ configPath: join(FIXTURES_DIR, 'non-object', 'eval.config.js') })).rejects.toThrow(
+      EvalConfigError,
+    );
   });
 });
