@@ -13,7 +13,7 @@ export type { BraintrustReporter, BraintrustReporterOptions } from './reporters/
 export { syncDataset, toEvalSummaries } from './reporters/braintrust-dataset.js';
 export type { EvalSummary, DatasetSyncOptions } from './reporters/braintrust-dataset.js';
 
-// Types
+// Re-export types from @a0/eval for convenience
 export type {
   JobResult,
   BaselineJobResult,
@@ -25,9 +25,6 @@ export type {
   TurnMetricEntry,
   AgentType,
   ErrorCategory,
-} from './types/results.js';
-export { GraderLevel } from './types/results.js';
-
-// Logger
-export { logger, setLogger } from './utils/logger.js';
-export type { Logger } from './utils/logger.js';
+  Logger,
+} from '@a0/eval';
+export { GraderLevel, logger, setLogger } from '@a0/eval';

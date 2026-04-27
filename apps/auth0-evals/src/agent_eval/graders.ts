@@ -45,13 +45,9 @@ function loadUserTemplate(): string {
 
 // ── Level enum ────────────────────────────────────────────────────────────────
 
-export enum GraderLevel {
-  L1 = 'positive_presence',
-  L2 = 'hallucination',
-  L3 = 'security',
-  L4 = 'structural',
-  L5 = 'version_correctness',
-}
+// Re-exported from @a0/eval — canonical source
+export { GraderLevel } from '@a0/eval';
+import { GraderLevel } from '@a0/eval';
 
 // ── Result type ───────────────────────────────────────────────────────────────
 

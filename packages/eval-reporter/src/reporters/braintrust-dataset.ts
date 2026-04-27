@@ -6,7 +6,7 @@
  */
 
 import { initDataset } from 'braintrust';
-import { logger } from '../utils/logger.js';
+import { logger } from '@a0/eval';
 
 export interface DatasetSyncOptions {
   projectId?: string;
