@@ -9,7 +9,7 @@ import { makeTmpDir } from './tmp.js';
 import type { RunRecord, ToolCallRecord } from '../src/agent_eval/agent-types.js';
 import { GraderLevel, type GraderResult } from '@a0/eval-graders';
 import { collectFiles } from '../src/agent_eval/graders.js';
-import { score, scoreToGrade, type ScoredResult, type DimensionScore } from '../src/agent_eval/scorer.js';
+import { score, scoreToGrade, type ScoredResult, type DimensionScore } from '@a0/eval';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
