@@ -1,4 +1,4 @@
-import { contains, notContains, notContainsInSource, judge, GraderLevel } from '@a0/eval-graders';
+import { contains, notContains, notContainsInSource, matches, judge, GraderLevel } from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
@@ -29,8 +29,8 @@ export function defineGraders() {
     ),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
-    contains('read:messages', 'GET /api/messages protected with read:messages scope', GraderLevel.L4),
-    contains('write:messages', 'POST /api/messages protected with write:messages scope', GraderLevel.L4),
+    matches(String.raw`requiredScopes\s*\(\s*.*read:messages`, 'GET /api/messages protected with read:messages scope', GraderLevel.L4),
+    matches(String.raw`requiredScopes\s*\(\s*.*write:messages`, 'POST /api/messages protected with write:messages scope', GraderLevel.L4),
     judge(
       'Does the API correctly protect all three routes? ' +
         'GET /api/messages requires read:messages, POST /api/messages requires write:messages, ' +
