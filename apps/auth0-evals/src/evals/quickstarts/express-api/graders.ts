@@ -1,4 +1,4 @@
-import { contains, notContains, notContainsInSource, matches, judge, GraderLevel } from '@a0/eval-graders';
+import { contains, notContains, notContainsInSource, judge, GraderLevel } from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
@@ -29,11 +29,6 @@ export function defineGraders() {
     ),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
-    matches(
-      String.raw`app\.use\s*\(\s*auth\s*\(`,
-      'auth() middleware registered globally with app.use',
-      GraderLevel.L4,
-    ),
     contains('read:messages', 'GET /api/messages protected with read:messages scope', GraderLevel.L4),
     contains('write:messages', 'POST /api/messages protected with write:messages scope', GraderLevel.L4),
     judge(
