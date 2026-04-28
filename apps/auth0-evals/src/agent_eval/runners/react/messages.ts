@@ -5,7 +5,7 @@
  * workspace context, MCP context, and tool result messages.
  */
 
-import { collectFiles } from '../../file-utils.js';
+import { collectFiles } from '@a0/eval';
 import { isGeminiModel } from '../../agent-model.js';
 import type { TaskDefinition } from './agent.js';
 

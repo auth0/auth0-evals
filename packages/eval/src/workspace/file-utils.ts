@@ -1,7 +1,17 @@
 import { Dirent, readdirSync, realpathSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { isPathInside } from './path-utils.js';
-import { EXCLUDED_DIRS, MAX_LISTED_FILES } from '../config/settings.js';
+import { DEFAULT_FRAMEWORK_CONFIG } from '../config/defaults.js';
+
+export interface CollectFilesOptions {
+  /** Directory names to skip during traversal. Defaults to {@link DEFAULT_FRAMEWORK_CONFIG}.workspace.excludedDirs. */
+  excludedDirs?: Set<string>;
+  /** Maximum number of files to return. Defaults to {@link DEFAULT_FRAMEWORK_CONFIG}.workspace.maxListedFiles. */
+  maxFiles?: number;
+}
+
+const defaultExcluded = new Set(DEFAULT_FRAMEWORK_CONFIG.workspace.excludedDirs!);
+const defaultMaxFiles = DEFAULT_FRAMEWORK_CONFIG.workspace.maxListedFiles!;
 
 /**
  * Recursively collects file paths under a given root directory, relative to a specified base directory.
@@ -9,9 +19,14 @@ import { EXCLUDED_DIRS, MAX_LISTED_FILES } from '../config/settings.js';
  * The function returns a sorted list of relative file paths, truncated to a maximum number if necessary.
  * @param root The root directory to start collecting files from.
  * @param relativeTo The base directory to which the collected file paths should be relative.
+ * @param options Optional overrides for excluded dirs and max file count.
  * @returns An array of relative file paths.
  */
-export function collectFiles(root: string, relativeTo: string, maxFiles = MAX_LISTED_FILES): string[] {
+export function collectFiles(root: string, relativeTo: string, options?: CollectFilesOptions): string[] {
+  const opts: CollectFilesOptions = options ?? {};
+  const excludedDirs: Set<string> = opts.excludedDirs ?? defaultExcluded;
+  const maxFiles: number = opts.maxFiles ?? defaultMaxFiles;
+
   // Use realpathSync to resolve symlinks in the workspace root itself (e.g. /var -> /private/var on macOS)
   let workspaceRoot: string;
   try {
@@ -53,7 +68,7 @@ export function collectFiles(root: string, relativeTo: string, maxFiles = MAX_LI
       }
 
       if (entry.isDirectory()) {
-        if (!EXCLUDED_DIRS.has(entry.name)) {
+        if (!excludedDirs.has(entry.name)) {
           walk(fullPath);
         }
       } else if (entry.isFile()) {

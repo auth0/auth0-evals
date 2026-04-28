@@ -28,11 +28,12 @@ import { extractTokens, summariseArgs, llmCall, runAgent } from '../src/agent_ev
 import { isGeminiModel } from '../src/agent_eval/agent-model.js';
 import { detectRetry, type ToolCallRecord } from '../src/agent_eval/agent-types.js';
 import { TOOL_DEFINITIONS, buildToolDefinitions } from '../src/agent_eval/runners/react/tools/index.js';
-import { collectFiles } from '../src/agent_eval/file-utils.js';
+import { collectFiles, DEFAULT_FRAMEWORK_CONFIG } from '@a0/eval';
 
 import { ToolExecutor } from '../src/agent_eval/runners/react/tools-executor/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { EXCLUDED_DIRS, MAX_LISTED_FILES } from '../src/config/settings.js';
+const EXCLUDED_DIRS = new Set(DEFAULT_FRAMEWORK_CONFIG.workspace.excludedDirs!);
+const MAX_LISTED_FILES = DEFAULT_FRAMEWORK_CONFIG.workspace.maxListedFiles!;
 import { buildMcpContext } from '../src/agent_eval/runners/react/messages.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

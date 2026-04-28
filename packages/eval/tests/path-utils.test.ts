@@ -1,12 +1,12 @@
 /**
- * Tests for agent_eval/path-utils.ts
+ * Tests for workspace/path-utils.ts
  */
 
 import { describe, it, expect } from 'vitest';
 import { symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmpDir } from './tmp.js';
-import { isPathInside, resolveInside, validatePathFormat } from '../src/agent_eval/path-utils.js';
+import { isPathInside, resolveInside, validatePathFormat } from '../src/workspace/path-utils.js';
 
 const tmpDir = makeTmpDir('path_utils_test_');
 

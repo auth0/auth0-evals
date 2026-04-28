@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolveInside, validatePathFormat } from '../../../path-utils.js';
+import { resolveInside, validatePathFormat } from '@a0/eval';
 import { Tool, ToolContext, ToolName, ToolResult } from './base.js';
 
 function wrapResult(message: string, isError: boolean = false): ToolResult {

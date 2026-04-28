@@ -32,6 +32,13 @@ export const DEFAULT_FRAMEWORK_CONFIG: Required<FrameworkConfig> = {
     maxCodeChars: 16_384,
   },
 
+  workspace: {
+    excludedDirs: ['node_modules', '.git', 'dist', '.next', '.nuxt', '__pycache__', '.venv', 'venv', '.build'],
+    maxListedFiles: 200,
+    tempDirPrefix: 'auth0_eval_',
+    setupCommandTimeoutMs: 120_000,
+  },
+
   models: {
     known: ['gpt-5.4', 'claude-4-6-sonnet', 'claude-4-6-opus', 'claude-opus-4-7', 'gemini-3.1-pro-preview'],
     default: 'gpt-5.4',

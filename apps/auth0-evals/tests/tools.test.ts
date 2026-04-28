@@ -13,7 +13,7 @@ import { FinishTaskTool } from '../src/agent_eval/runners/react/tools/finish-tas
 import { ListFilesTool } from '../src/agent_eval/runners/react/tools/list-files.js';
 import { ReadFileTool } from '../src/agent_eval/runners/react/tools/read-file.js';
 import { RunCommandTool } from '../src/agent_eval/runners/react/tools/run-command.js';
-import { collectFiles } from '../src/agent_eval/file-utils.js';
+import { collectFiles } from '@a0/eval';
 import { WriteFileTool } from '../src/agent_eval/runners/react/tools/write-file.js';
 
 vi.mock('node:child_process', async (importOriginal) => {
