@@ -64,6 +64,17 @@ export interface ModelsConfig {
   bedrock?: Record<string, string>;
 }
 
+export interface WorkspaceConfig {
+  /** Directory names to exclude from file collection (e.g. node_modules, dist). */
+  excludedDirs?: string[];
+  /** Maximum number of files returned by collectFiles(). */
+  maxListedFiles?: number;
+  /** Prefix for temporary workspace directories. */
+  tempDirPrefix?: string;
+  /** Timeout (ms) for setup commands like `npm install`. */
+  setupCommandTimeoutMs?: number;
+}
+
 // ── Root config ──────────────────────────────────────────────────────────────
 
 export interface FrameworkConfig {
@@ -79,4 +90,6 @@ export interface FrameworkConfig {
   judge?: JudgeConfig;
   /** Model registry and defaults. */
   models?: ModelsConfig;
+  /** Workspace lifecycle settings (temp dirs, file collection, excluded dirs). */
+  workspace?: WorkspaceConfig;
 }

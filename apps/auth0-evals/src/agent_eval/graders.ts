@@ -18,7 +18,7 @@ import {
   LITELLM_MODEL_MAP,
 } from '../config/settings.js';
 import { JudgeError, LlmApiError } from '../errors.js';
-import { collectFiles as collectFilePaths } from './file-utils.js';
+import { collectFiles as collectFilePaths } from '@a0/eval';
 import { withRetry } from '../utils/retry.js';
 import { logger } from '../utils/logger.js';
 import type { GraderDef, GraderResult } from '@a0/eval-graders';

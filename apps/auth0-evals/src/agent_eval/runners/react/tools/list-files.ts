@@ -1,7 +1,6 @@
 import { existsSync, statSync } from 'node:fs';
 import { Tool, ToolContext, ToolName, ToolResult } from './base.js';
-import { resolveInside, validatePathFormat } from '../../../path-utils.js';
-import { collectFiles } from './utils.js';
+import { resolveInside, validatePathFormat, collectFiles } from '@a0/eval';
 
 function wrapResult(message: string, isError: boolean = false): ToolResult {
   return [message, false, false, isError];

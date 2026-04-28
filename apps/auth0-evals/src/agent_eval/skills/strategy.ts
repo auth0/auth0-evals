@@ -13,7 +13,7 @@ import { join, dirname } from 'node:path';
 
 import { logger } from '../../utils/logger.js';
 import { SKILLS_REMOTE_DIR, SKILLS_CLONE_DIR, resolveSkillDir } from './config.js';
-import { collectFiles } from '../file-utils.js';
+import { collectFiles } from '@a0/eval';
 import type { EvalDefinition } from '../../runners/loader.js';
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ export async function copySkillsToWorkspace(
     if (!skillDir) {
       throw new Error(`Skill '${skill}' not found in cloned repo — cannot run agent+skills without it`);
     }
-    const files = collectFiles(skillDir, skillDir, Infinity);
+    const files = collectFiles(skillDir, skillDir, { maxFiles: Infinity });
     for (const relPath of files) {
       const dest = join(workspace, skillsDir, skill, relPath);
       mkdirSync(dirname(dest), { recursive: true });

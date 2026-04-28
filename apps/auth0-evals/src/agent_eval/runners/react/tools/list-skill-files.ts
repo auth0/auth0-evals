@@ -1,5 +1,5 @@
 import { resolveSkillDir } from '../../../skills/config.js';
-import { collectFiles } from './utils.js';
+import { collectFiles } from '@a0/eval';
 import { Tool, ToolContext, ToolName, ToolResult } from './base.js';
 
 function wrapResult(message: string): ToolResult {

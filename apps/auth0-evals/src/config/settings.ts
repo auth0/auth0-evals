@@ -47,19 +47,6 @@ export const LITELLM_MODEL_REVERSE_MAP: Record<string, string> = Object.fromEntr
   Object.entries(LITELLM_MODEL_MAP).map(([alias, litellm]) => [litellm, alias]),
 );
 
-export const MAX_LISTED_FILES = 200;
-export const EXCLUDED_DIRS = new Set([
-  'node_modules',
-  '.git',
-  'dist',
-  '.next',
-  '.nuxt',
-  '__pycache__',
-  '.venv',
-  'venv',
-  '.build',
-]);
-
 /** Maximum wall-clock time for a single Claude Code subprocess task (~6.9 hours). */
 export const CLAUDE_CODE_TASK_TIMEOUT_MS = 50 * 300_000;
 

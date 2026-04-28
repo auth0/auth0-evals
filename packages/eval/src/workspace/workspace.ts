@@ -10,13 +10,25 @@ import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { logger } from '../utils/logger.js';
+import { DEFAULT_FRAMEWORK_CONFIG } from '../config/defaults.js';
+
+export interface SetupWorkspaceOptions {
+  /** Prefix for the temp directory name. Defaults to {@link DEFAULT_FRAMEWORK_CONFIG}.workspace.tempDirPrefix. */
+  tempDirPrefix?: string;
+}
+
+export interface RunSetupCommandOptions {
+  /** Timeout in ms for the setup command. Defaults to {@link DEFAULT_FRAMEWORK_CONFIG}.workspace.setupCommandTimeoutMs. */
+  timeoutMs?: number;
+}
 
 /**
  * Creates a fresh temp directory and seeds it with the scaffold files from the
  * eval definition. Returns the absolute path to the workspace.
  */
-export function setupWorkspace(scaffold: Record<string, string>): string {
-  const workspace = mkdtempSync(join(tmpdir(), 'auth0_eval_'));
+export function setupWorkspace(scaffold: Record<string, string>, options?: SetupWorkspaceOptions): string {
+  const prefix: string = options?.tempDirPrefix ?? DEFAULT_FRAMEWORK_CONFIG.workspace.tempDirPrefix!;
+  const workspace = mkdtempSync(join(tmpdir(), prefix));
   for (const [relPath, content] of Object.entries(scaffold)) {
     const dest = join(workspace, relPath);
     mkdirSync(join(dest, '..'), { recursive: true });
@@ -37,19 +49,20 @@ export function setupWorkspace(scaffold: Record<string, string>): string {
  * This is intentional: setup commands come from our own PROMPT.md
  * frontmatter, not from user input.
  */
-export function runSetupCommand(workspace: string, command: string): void {
+export function runSetupCommand(workspace: string, command: string, options?: RunSetupCommandOptions): void {
+  const timeout = options?.timeoutMs ?? DEFAULT_FRAMEWORK_CONFIG.workspace.setupCommandTimeoutMs!;
   logger.info(`  [Setup] Running: ${command}`);
   const args = command.trim().split(/\s+/);
   const cmd = args.shift();
   if (!cmd) {
     throw new Error('Setup command is empty');
   }
-  const result = spawnSync(cmd, args, { cwd: workspace, stdio: 'inherit', timeout: 120_000 });
+  const result = spawnSync(cmd, args, { cwd: workspace, stdio: 'inherit', timeout });
   if (result.error) {
     throw new Error(`Setup command failed: ${command}`, { cause: result.error });
   }
   if (result.signal) {
-    const timeoutNote = result.signal === 'SIGTERM' ? ' (possibly timed out after 120000ms)' : '';
+    const timeoutNote = result.signal === 'SIGTERM' ? ` (possibly timed out after ${timeout}ms)` : '';
     throw new Error(`Setup command failed with signal ${result.signal}${timeoutNote}: ${command}`);
   }
   if (result.status !== 0) {
