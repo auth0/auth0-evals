@@ -2,7 +2,7 @@
  * Model detection utilities.
  */
 
-import { BEDROCK_MODELS, GEMINI_MODELS } from '../config/settings.js';
+import { BEDROCK_MODELS, GEMINI_MODELS, GPT_MODELS } from '../config/settings.js';
 
 /**
  * Checks if the given model name corresponds to a Bedrock model by looking for known Bedrock model name patterns.
@@ -14,10 +14,27 @@ export function isBedrockModel(model: string): boolean {
 }
 
 /**
+ * Checks if the given model name corresponds to a Claude model.
+ * Claude models are also Bedrock models — this is an alias for readability.
+ */
+export function isClaudeModel(model: string): boolean {
+  return isBedrockModel(model);
+}
+
+/**
  * Checks if the given model name corresponds to a Gemini model by looking for known Gemini model name patterns.
  * @param model The name of the model to check.
  * @returns True if the model name starts with any of the known Gemini model prefixes, false otherwise.
  */
 export function isGeminiModel(model: string): boolean {
   return GEMINI_MODELS.some((prefix) => model.startsWith(prefix));
+}
+
+/**
+ * Checks if the given model name corresponds to a GPT model routed through the Copilot SDK.
+ * @param model The name of the model to check.
+ * @returns True if the model name starts with any of the known GPT model prefixes, false otherwise.
+ */
+export function isGptModel(model: string): boolean {
+  return GPT_MODELS.some((prefix) => model.startsWith(prefix));
 }
