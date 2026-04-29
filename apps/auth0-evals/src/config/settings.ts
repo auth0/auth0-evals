@@ -26,6 +26,9 @@ export const CLAUDE_EFFORT_MODELS = new Set([
 // instead of tools/tool_choice.
 export const GEMINI_MODELS = ['gemini-'];
 
+// Model name prefixes for GPT models routed through the Copilot SDK.
+export const GPT_MODELS = ['gpt-'];
+
 /**
  * Maps the friendly ATKO model aliases to the LiteLLM proxy model IDs.
  * LiteLLM requires an underscore prefix to route to the correct deployment

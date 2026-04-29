@@ -38,6 +38,7 @@ import { logger } from './utils/logger.js';
 import type { JobResult } from './types/results.js';
 import { gradeText } from './agent_eval/grade-text.js';
 import { BASELINE_LEVELS, AGENT_LEVELS, AGENT_MCP_LEVELS } from './agent_eval/grading-levels.js';
+import { isClaudeModel, isGeminiModel, isGptModel } from './agent_eval/agent-model.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -231,9 +232,6 @@ export function buildJobList(
   agentType: AgentType | undefined,
   matrix = false,
 ): Array<[EvalConfig, string, Mode, string[], AgentType]> {
-  const isClaudeModel = (m: string) => m.startsWith('claude-');
-  const isGeminiModel = (m: string) => m.startsWith('gemini-');
-  const isGptModel = (m: string) => m.startsWith('gpt-');
   const jobs: Array<[EvalConfig, string, Mode, string[], AgentType]> = [];
   const claudeCodeEvalsSeen = new Set<string>();
   // In matrix mode iterate over all tool-set combinations for agent jobs (skills, mcp+skills).
