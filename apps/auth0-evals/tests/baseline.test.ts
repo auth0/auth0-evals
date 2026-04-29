@@ -7,8 +7,10 @@ import { estimateCost } from '../src/config/costs.js';
 import { runBaseline } from '../src/runners/baseline.js';
 import { gradeText } from '../src/agent_eval/grade-text.js';
 import { judge } from '@a0/eval-graders';
-import { JUDGE_MAX_CODE_CHARS } from '../src/config/settings.js';
+import { TEST_CONFIG } from './setup-config.js';
 import type { EvalDefinition } from '../src/runners/loader.js';
+
+const JUDGE_MAX_CODE_CHARS = TEST_CONFIG.judge.maxCodeChars!;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

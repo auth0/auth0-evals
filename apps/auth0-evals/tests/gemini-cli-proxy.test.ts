@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SpawnOptionsWithoutStdio } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
+import './setup-config.js';
 import { runGeminiCliAgent } from '../src/agent_eval/runners/gemini-cli/agent.js';
 
 vi.mock('node:child_process', () => ({

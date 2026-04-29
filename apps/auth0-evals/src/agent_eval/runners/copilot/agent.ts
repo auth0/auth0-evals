@@ -19,6 +19,7 @@ import { CopilotClient, approveAll } from '@github/copilot-sdk';
 import type { MCPRemoteServerConfig } from '@github/copilot-sdk';
 import type { EvalDefinition } from '../../../runners/loader.js';
 import { COPILOT_TASK_TIMEOUT_MS } from '../../../config/settings.js';
+import { getFrameworkConfig } from '../../../config/framework-config.js';
 import { estimateCost } from '../../../config/costs.js';
 import type { RunRecord, ToolCallRecord, TurnMetric } from '../../agent-types.js';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '../../agent-types.js';
@@ -47,9 +48,14 @@ export interface CopilotRunOptions {
 
 /** Returns MCP server config for the Auth0 docs server. */
 export function getMcpServers(): Record<string, MCPRemoteServerConfig> {
-  return {
-    'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp', tools: ['*'] },
-  };
+  const servers = getFrameworkConfig().mcp.servers;
+  const result: Record<string, MCPRemoteServerConfig> = {};
+  for (const [name, server] of Object.entries(servers)) {
+    if (server.type === 'http') {
+      result[name] = { type: 'http', url: server.url, tools: ['*'] };
+    }
+  }
+  return result;
 }
 
 interface PendingToolCall {
@@ -109,7 +115,7 @@ export async function runCopilotAgent(
   if (model) {
     logger.info(`[Copilot] Model: ${model}`);
   }
-  if (tools.includes('mcp')) logger.info('[Copilot] MCP: https://auth0.com/docs/mcp');
+  if (tools.includes('mcp')) logger.info(`[Copilot] MCP: ${Object.keys(getMcpServers()).join(', ')}`);
   if (tools.includes('skills')) logger.info('[Copilot] Skills: .github/skills/');
 
   const session = await client.createSession({

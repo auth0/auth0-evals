@@ -10,13 +10,8 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  BASE_URL,
-  JUDGE_MAX_CODE_CHARS,
-  JUDGE_MAX_TOKENS,
-  JUDGE_MODEL,
-  LITELLM_MODEL_MAP,
-} from '../config/settings.js';
+import { getLitellmModelMap } from '../config/settings.js';
+import { getFrameworkConfig } from '../config/framework-config.js';
 import { JudgeError, LlmApiError } from '../errors.js';
 import { collectFiles as collectFilePaths } from '@a0/eval';
 import { withRetry } from '../utils/retry.js';
@@ -26,10 +21,15 @@ import { GraderLevel } from '@a0/eval-graders';
 
 // ── Project root & prompt loading ─────────────────────────────────────────────
 
+let _projectRoot: string | undefined;
 function resolveProjectRoot(): string {
+  if (_projectRoot) return _projectRoot;
   let dir = dirname(fileURLToPath(import.meta.url));
   while (true) {
-    if (existsSync(join(dir, 'package.json'))) return dir;
+    if (existsSync(join(dir, 'package.json'))) {
+      _projectRoot = dir;
+      return dir;
+    }
     const parent = dirname(dir);
     if (parent === dir) break;
     dir = parent;
@@ -37,15 +37,23 @@ function resolveProjectRoot(): string {
   throw new Error('Could not find project root (no package.json found)');
 }
 
-const JUDGE_PROMPTS_DIR = join(resolveProjectRoot(), 'src', 'prompts', 'judge');
+let _judgePromptsDir: string | undefined;
+function getJudgePromptsDir(): string {
+  if (_judgePromptsDir) return _judgePromptsDir;
+  const config = getFrameworkConfig();
+  const dir = config.judge.promptsDir;
+  _judgePromptsDir = dir ? join(resolveProjectRoot(), dir) : join(resolveProjectRoot(), 'src', 'prompts', 'judge');
+  return _judgePromptsDir;
+}
 
 function loadFrameworkPrompt(framework?: string): string {
-  const name = framework && existsSync(join(JUDGE_PROMPTS_DIR, `${framework}.md`)) ? framework : 'default';
-  return readFileSync(join(JUDGE_PROMPTS_DIR, `${name}.md`), 'utf-8').trim();
+  const dir = getJudgePromptsDir();
+  const name = framework && existsSync(join(dir, `${framework}.md`)) ? framework : 'default';
+  return readFileSync(join(dir, `${name}.md`), 'utf-8').trim();
 }
 
 function loadUserTemplate(): string {
-  return readFileSync(join(JUDGE_PROMPTS_DIR, 'user_template.md'), 'utf-8').trim();
+  return readFileSync(join(getJudgePromptsDir(), 'user_template.md'), 'utf-8').trim();
 }
 
 // ── Workspace helpers ─────────────────────────────────────────────────────────
@@ -121,10 +129,13 @@ export async function runGraders(
   graderDefs: GraderDef[],
   workspace: string,
   apiKey: string,
-  judgeModel: string = JUDGE_MODEL,
+  judgeModel?: string,
   allowedLevels?: Set<GraderLevel>,
   enforceMaxChars: boolean = true,
 ): Promise<GraderResult[]> {
+  const config = getFrameworkConfig();
+  const resolvedJudgeModel = judgeModel ?? config.judge.model ?? '';
+  const judgeMaxCodeChars = config.judge.maxCodeChars ?? 16_384;
   const active = allowedLevels
     ? graderDefs.filter((g) => g.level === undefined || allowedLevels.has(g.level))
     : graderDefs;
@@ -200,19 +211,19 @@ export async function runGraders(
       );
       const judgeText = judgeEntries.map(([k, v]) => `// FILE: ${k}\n${v}`).join('\n\n');
       logger.info(
-        `[judge] ${judgeEntries.length} files, ${judgeText.length} chars total (limit: ${JUDGE_MAX_CODE_CHARS})`,
+        `[judge] ${judgeEntries.length} files, ${judgeText.length} chars total (limit: ${judgeMaxCodeChars})`,
       );
       for (const [k, v] of judgeEntries) {
         logger.info(`[judge]   ${k} (${v.length} chars)`);
       }
-      if (judgeText.length > JUDGE_MAX_CODE_CHARS) {
-        logger.warn(`[judge] WARNING: content exceeds limit (${judgeText.length} > ${JUDGE_MAX_CODE_CHARS} chars)`);
+      if (judgeText.length > judgeMaxCodeChars) {
+        logger.warn(`[judge] WARNING: content exceeds limit (${judgeText.length} > ${judgeMaxCodeChars} chars)`);
       }
       const { passed, detail } = await llmJudge(
         g.question!,
         judgeText,
         apiKey,
-        judgeModel,
+        resolvedJudgeModel,
         g.framework,
         enforceMaxChars,
       );
@@ -233,23 +244,33 @@ export async function llmJudge(
   framework?: string,
   enforceMaxChars: boolean = true,
 ): Promise<{ passed: boolean; detail: string }> {
+  const config = getFrameworkConfig();
+  const judgeMaxCodeChars = config.judge.maxCodeChars ?? 16_384;
+  const judgeMaxTokens = config.judge.maxTokens ?? 1024;
+  const baseUrl = config.proxy.baseUrl;
+
+  if (!model) {
+    throw new JudgeError('(none)', 'No judge model configured. Set judge.model in eval.config.js or pass judgeModel.');
+  }
+  if (!baseUrl) {
+    throw new JudgeError(model, 'No proxy base URL configured. Set proxy.baseUrl in eval.config.js.');
+  }
+
   const base = loadFrameworkPrompt(framework);
   const system =
     `${base} Provide 1-3 short sentences of reasoning, ` +
     "then on the FINAL line write your verdict as exactly 'yes' or 'no' (nothing else on that line).";
-  if (code.length > JUDGE_MAX_CODE_CHARS) {
+  if (code.length > judgeMaxCodeChars) {
     if (enforceMaxChars) {
       throw new Error(
-        `[judge] Code corpus exceeds limit: ${code.length} chars > ${JUDGE_MAX_CODE_CHARS}. ` +
-          `Increase JUDGE_MAX_CODE_CHARS or reduce the number or size of files being judged.`,
+        `[judge] Code corpus exceeds limit: ${code.length} chars > ${judgeMaxCodeChars}. ` +
+          `Increase judge.maxCodeChars or reduce the number or size of files being judged.`,
       );
     }
-    logger.warn(
-      `[judge] Code corpus exceeds limit (${code.length} > ${JUDGE_MAX_CODE_CHARS} chars) — proceeding anyway`,
-    );
+    logger.warn(`[judge] Code corpus exceeds limit (${code.length} > ${judgeMaxCodeChars} chars) — proceeding anyway`);
   }
   const user = loadUserTemplate().replace('{question}', question).replace('{code}', code);
-  const apiModel = LITELLM_MODEL_MAP[model] ?? model;
+  const apiModel = getLitellmModelMap()[model] ?? model;
 
   const payload = JSON.stringify({
     model: apiModel,
@@ -258,12 +279,12 @@ export async function llmJudge(
       { role: 'user', content: user },
     ],
     temperature: 0.0,
-    max_tokens: JUDGE_MAX_TOKENS,
+    max_tokens: judgeMaxTokens,
   });
 
   try {
     const data = await withRetry(async () => {
-      const resp = await fetch(`${BASE_URL}/chat/completions`, {
+      const resp = await fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,

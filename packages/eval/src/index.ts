@@ -61,6 +61,8 @@ export type {
   ProxyConfig,
   MCPConfig,
   MCPServerConfig,
+  MCPStdioServerConfig,
+  MCPHttpServerConfig,
   SkillsConfig,
   RemoteSkillRepo,
   JudgeConfig,

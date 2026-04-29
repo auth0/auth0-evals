@@ -14,6 +14,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
+import './setup-config.js';
 
 // ── Mock spawn ────────────────────────────────────────────────────────────────
 

@@ -11,14 +11,11 @@ import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
-import { logger } from '../../utils/logger.js';
-import { SKILLS_REMOTE_DIR, SKILLS_CLONE_DIR, resolveSkillDir } from './config.js';
 import { collectFiles } from '@a0/eval';
+import { logger } from '../../utils/logger.js';
+import { getSkillsDirs, resolveSkillDir } from './config.js';
+import { getFrameworkConfig } from '../../config/framework-config.js';
 import type { EvalDefinition } from '../../runners/loader.js';
-
-// ── Config ────────────────────────────────────────────────────────────────────
-
-const REMOTE_REPO_URL = 'https://github.com/auth0/agent-skills.git';
 
 // ── Clone / pull (runs once per process) ─────────────────────────────────────
 
@@ -35,16 +32,22 @@ export function ensureCloned(): Promise<boolean> {
 }
 
 async function doEnsureCloned(): Promise<boolean> {
+  const { SKILLS_CLONE_DIR } = getSkillsDirs();
+  const config = getFrameworkConfig();
+  const remoteRepo = config.skills.remoteRepos?.[0];
+  if (!remoteRepo?.url) {
+    logger.warn('[skills] No remote skill repo configured — skipping clone');
+    return false;
+  }
   try {
     if (existsSync(join(SKILLS_CLONE_DIR, '.git'))) {
       execFileSync('git', ['pull'], { cwd: SKILLS_CLONE_DIR, stdio: 'pipe' });
     } else {
       if (existsSync(SKILLS_CLONE_DIR)) {
-        // Directory exists but is not a git repo (e.g. partial/corrupt clone) — remove it
         rmSync(SKILLS_CLONE_DIR, { recursive: true, force: true });
       }
-      mkdirSync(SKILLS_REMOTE_DIR, { recursive: true });
-      execFileSync('git', ['clone', '--depth', '1', REMOTE_REPO_URL, SKILLS_CLONE_DIR], { stdio: 'pipe' });
+      mkdirSync(dirname(SKILLS_CLONE_DIR), { recursive: true });
+      execFileSync('git', ['clone', '--depth', '1', remoteRepo.url, SKILLS_CLONE_DIR], { stdio: 'pipe' });
     }
     return true;
   } catch (e) {

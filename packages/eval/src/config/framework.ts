@@ -16,7 +16,9 @@ export interface ProxyConfig {
   apiKey?: string;
 }
 
-export interface MCPServerConfig {
+export interface MCPStdioServerConfig {
+  /** Command-based MCP server. */
+  type: 'stdio';
   /** Executable command to start the MCP server. */
   command: string;
   /** Arguments passed to the command. */
@@ -24,6 +26,16 @@ export interface MCPServerConfig {
   /** Environment variables injected into the server process. */
   env?: Record<string, string>;
 }
+
+export interface MCPHttpServerConfig {
+  /** URL-based MCP server. */
+  type: 'http';
+  /** HTTP URL for the remote MCP server. */
+  url: string;
+}
+
+/** Discriminated union — either a stdio (command-based) or http (URL-based) MCP server. */
+export type MCPServerConfig = MCPStdioServerConfig | MCPHttpServerConfig;
 
 export interface MCPConfig {
   /** Named MCP server definitions. Keys are server names. */
@@ -33,8 +45,10 @@ export interface MCPConfig {
 export interface RemoteSkillRepo {
   /** Git clone URL for the skills repository. */
   url: string;
-  /** Local directory to clone into (relative to cwd). */
+  /** Local directory to clone into (relative to cwd). Defaults to `'skills-remote'`. */
   localPath?: string;
+  /** Subdirectory within the cloned repo that contains skill folders. Defaults to `'.'` (repo root). */
+  skillsPath?: string;
 }
 
 export interface SkillsConfig {
@@ -62,6 +76,8 @@ export interface ModelsConfig {
   default?: string;
   /** Maps short model aliases to full Bedrock model IDs. */
   bedrock?: Record<string, string>;
+  /** Maps friendly model aliases to LiteLLM proxy model IDs. */
+  litellm?: Record<string, string>;
 }
 
 export interface WorkspaceConfig {
