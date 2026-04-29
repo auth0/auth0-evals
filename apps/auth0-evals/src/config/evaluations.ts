@@ -78,4 +78,10 @@ export const EVALUATIONS: EvalConfig[] = [
     category: 'quickstarts',
     path: 'src/evals/quickstarts/spa-js',
   },
+  {
+    id: 'flask_quickstart',
+    name: 'Flask Quickstart',
+    category: 'quickstarts',
+    path: 'src/evals/quickstarts/flask',
+  },
 ];
