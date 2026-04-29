@@ -1,11 +1,4 @@
-export const BASE_URL = '<LLM_PROXY_URL>/v1';
-
-export const JUDGE_MODEL = 'claude-sonnet-4-5';
-
-export const JUDGE_MAX_TOKENS = 1024;
-
-/** Maximum characters of combined source code sent to the LLM judge. */
-export const JUDGE_MAX_CODE_CHARS = 16384;
+import { getFrameworkConfig } from './framework-config.js';
 
 export const MAX_TURNS = 30;
 
@@ -37,18 +30,14 @@ export const GPT_MODELS = ['gpt-'];
  * IMPORTANT: These prefixed names must ONLY be used when sending requests to the LiteLLM proxy.
  * Reports, score files, and RunRecords must always use the friendly alias (without underscore).
  */
-export const LITELLM_MODEL_MAP: Record<string, string> = {
-  'claude-sonnet-4-6': '_claude-sonnet-4-6',
-  'claude-opus-4-6': '_claude-opus-4-6',
-  'claude-opus-4-7': '_claude-opus-4-7',
-  'claude-sonnet-4-5': '_claude-sonnet-4-5',
-  'claude-opus-4-5': '_claude-opus-4-5',
-};
+export function getLitellmModelMap(): Record<string, string> {
+  return getFrameworkConfig().models.litellm ?? {};
+}
 
 /** Reverse lookup: LiteLLM model ID → friendly ATKO alias. */
-export const LITELLM_MODEL_REVERSE_MAP: Record<string, string> = Object.fromEntries(
-  Object.entries(LITELLM_MODEL_MAP).map(([alias, litellm]) => [litellm, alias]),
-);
+export function getLitellmModelReverseMap(): Record<string, string> {
+  return Object.fromEntries(Object.entries(getLitellmModelMap()).map(([alias, litellm]) => [litellm, alias]));
+}
 
 /** Maximum wall-clock time for a single Claude Code subprocess task (~6.9 hours). */
 export const CLAUDE_CODE_TASK_TIMEOUT_MS = 50 * 300_000;

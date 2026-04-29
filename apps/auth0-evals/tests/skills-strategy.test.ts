@@ -7,6 +7,7 @@
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import type { EvalDefinition } from '../src/runners/loader.js';
+import './setup-config.js';
 
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
 vi.mock('node:fs', () => ({
@@ -16,8 +17,11 @@ vi.mock('node:fs', () => ({
   copyFileSync: vi.fn(),
 }));
 vi.mock('../src/agent_eval/skills/config.js', () => ({
-  SKILLS_REMOTE_DIR: '/tmp/skills-remote',
-  SKILLS_CLONE_DIR: '/tmp/skills-remote/auth0-skills',
+  getSkillsDirs: vi.fn().mockReturnValue({
+    SKILLS_CLONE_DIR: '/tmp/skills-remote/auth0-skills',
+    SKILLS_BASE_DIR: '/tmp/skills-remote/auth0-skills/plugins/auth0/skills',
+    SKILLS_LOCAL_DIR: '/tmp/skills',
+  }),
   resolveSkillDir: vi.fn().mockReturnValue('/tmp/skills-remote/auth0-skills/plugins/auth0/skills/auth0-react'),
 }));
 vi.mock('@a0/eval', async (importOriginal) => {

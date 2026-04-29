@@ -2,19 +2,28 @@
  * Tests for all tools in src/agent_eval/tools/
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as childProcess from 'node:child_process';
 import { makeTmpDir } from './tmp.js';
-import { AskUserTool } from '../src/agent_eval/runners/react/tools/ask-user.js';
-import { FetchUrlTool } from '../src/agent_eval/runners/react/tools/fetch-url.js';
-import { FinishTaskTool } from '../src/agent_eval/runners/react/tools/finish-task.js';
-import { ListFilesTool } from '../src/agent_eval/runners/react/tools/list-files.js';
-import { ReadFileTool } from '../src/agent_eval/runners/react/tools/read-file.js';
-import { RunCommandTool } from '../src/agent_eval/runners/react/tools/run-command.js';
-import { collectFiles } from '@a0/eval';
-import { WriteFileTool } from '../src/agent_eval/runners/react/tools/write-file.js';
+
+// Some describe blocks use vi.resetModules() — must mock framework-config so the singleton
+// survives re-imports. Async vi.mock factories deadlock with resetModules, so inline the config.
+vi.mock('../src/config/framework-config.js', () => ({
+  getFrameworkConfig: vi.fn().mockReturnValue({
+    evalsDir: 'src/evals',
+    proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+    mcp: { servers: { 'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' } } },
+    skills: {
+      remoteRepos: [{ url: 'https://github.com/auth0/agent-skills.git', localPath: 'skills-remote/auth0-skills' }],
+      localDirs: ['skills'],
+    },
+    judge: { model: 'claude-sonnet-4-5', maxTokens: 1024, maxCodeChars: 16384, promptsDir: 'src/prompts/judge' },
+    models: { known: [], default: 'gpt-5.4', bedrock: {}, litellm: {} },
+  }),
+  setFrameworkConfig: vi.fn(),
+}));
 
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>();
@@ -23,6 +32,15 @@ vi.mock('node:child_process', async (importOriginal) => {
     execSync: vi.fn().mockImplementation(actual.execSync),
   };
 });
+
+import { AskUserTool } from '../src/agent_eval/runners/react/tools/ask-user.js';
+import { FetchUrlTool } from '../src/agent_eval/runners/react/tools/fetch-url.js';
+import { FinishTaskTool } from '../src/agent_eval/runners/react/tools/finish-task.js';
+import { ListFilesTool } from '../src/agent_eval/runners/react/tools/list-files.js';
+import { ReadFileTool } from '../src/agent_eval/runners/react/tools/read-file.js';
+import { RunCommandTool } from '../src/agent_eval/runners/react/tools/run-command.js';
+import { collectFiles } from '@a0/eval';
+import { WriteFileTool } from '../src/agent_eval/runners/react/tools/write-file.js';
 
 const tmpDir = makeTmpDir('tools_test_');
 
@@ -487,10 +505,8 @@ describe('ListSkillFilesTool', () => {
   }
 
   beforeEach(() => {
-    const remoteDir = tmpDir();
-    skillsBaseDir = join(remoteDir, 'auth0-skills', 'plugins', 'auth0', 'skills');
-    mkdirSync(skillsBaseDir, { recursive: true });
-    vi.stubEnv('SKILLS_REMOTE_DIR', remoteDir);
+    skillsBaseDir = tmpDir();
+    vi.stubEnv('SKILLS_REMOTE_DIR', skillsBaseDir);
   });
 
   afterEach(() => {
@@ -563,10 +579,8 @@ describe('ReadSkillFileTool', () => {
   }
 
   beforeEach(() => {
-    const remoteDir = tmpDir();
-    skillsBaseDir = join(remoteDir, 'auth0-skills', 'plugins', 'auth0', 'skills');
-    mkdirSync(skillsBaseDir, { recursive: true });
-    vi.stubEnv('SKILLS_REMOTE_DIR', remoteDir);
+    skillsBaseDir = tmpDir();
+    vi.stubEnv('SKILLS_REMOTE_DIR', skillsBaseDir);
   });
 
   afterEach(() => {

@@ -24,11 +24,11 @@ import type { RunRecord, ToolCallRecord, TurnMetric, FinishReason } from '../../
 import { classifyActionType, classifyErrorCategory, detectRetry } from '../../agent-types.js';
 import type { EvalDefinition } from '../../../runners/loader.js';
 import {
-  BASE_URL,
   CLAUDE_CODE_TASK_TIMEOUT_MS,
-  LITELLM_MODEL_MAP,
-  LITELLM_MODEL_REVERSE_MAP,
+  getLitellmModelMap,
+  getLitellmModelReverseMap,
 } from '../../../config/settings.js';
+import { getFrameworkConfig } from '../../../config/framework-config.js';
 import { estimateCost } from '../../../config/costs.js';
 import { ClaudeCodeTranslator } from './translator.js';
 import { logger } from '../../../utils/logger.js';
@@ -42,28 +42,17 @@ const translator = new ClaudeCodeTranslator();
 /** Whether the runner should use Bedrock model IDs (via the ATKO /anthropic proxy endpoint). */
 const USE_BEDROCK = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY !== '0';
 
-/**
- * Maps the short ATKO OpenAI-compat model aliases to the full Bedrock model IDs
- * expected by the claude CLI when routing through the ATKO Anthropic pass-through endpoint.
- *
- * Only used when CLAUDE_CODE_USE_BEDROCK_PROXY !== '0'; in LiteLLM proxy mode the aliases are
- * resolved via LITELLM_MODEL_MAP (underscore-prefixed) instead.
- */
-const BEDROCK_MODEL_ALIAS_MAP: Record<string, string> = {
-  'claude-sonnet-4-6': 'global.anthropic.claude-sonnet-4-6',
-  'claude-opus-4-6': 'global.anthropic.claude-opus-4-6-v1',
-  'claude-sonnet-4-5': 'global.anthropic.claude-sonnet-4-5-20250929-v1:0',
-  'claude-opus-4-7': 'global.anthropic.claude-opus-4-7',
-  'claude-opus-4-5': 'global.anthropic.claude-opus-4-5-20251101-v1:0',
-};
+function getBedrockModelAliasMap(): Record<string, string> {
+  return getFrameworkConfig().models.bedrock ?? {};
+}
 
-/** Reverse lookup: full Bedrock model ID → friendly ATKO alias. */
-const BEDROCK_MODEL_REVERSE_MAP: Record<string, string> = Object.fromEntries(
-  Object.entries(BEDROCK_MODEL_ALIAS_MAP).map(([alias, full]) => [full, alias]),
-);
+function getBedrockModelReverseMap(): Record<string, string> {
+  return Object.fromEntries(Object.entries(getBedrockModelAliasMap()).map(([alias, full]) => [full, alias]));
+}
 
-/** Set of known ATKO proxy model aliases — used to validate model IDs in reports. */
-const ATKO_KNOWN_MODELS = new Set(Object.keys(BEDROCK_MODEL_ALIAS_MAP));
+function getAtkoKnownModels(): Set<string> {
+  return new Set(Object.keys(getBedrockModelAliasMap()));
+}
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
@@ -77,7 +66,10 @@ export const CLAUDE_CODE_MODEL_ID = 'claude-code';
  * The Agent SDK honours ANTHROPIC_BASE_URL, routing all requests through the proxy
  * instead of hitting api.anthropic.com directly.
  */
-const ANTHROPIC_PROXY_URL = USE_BEDROCK ? BASE_URL.replace(/\/v1\/?$/, '/anthropic') : BASE_URL.replace(/\/v1\/?$/, '');
+function getAnthropicProxyUrl(): string {
+  const baseUrl = getFrameworkConfig().proxy.baseUrl;
+  return USE_BEDROCK ? baseUrl.replace(/\/v1\/?$/, '/anthropic') : baseUrl.replace(/\/v1\/?$/, '');
+}
 
 /**
  * Tools available during eval runs.
@@ -153,26 +145,34 @@ export async function runClaudeCodeAgent(
 
   // In Bedrock mode, resolve short ATKO alias to the full Bedrock model ID
   // (e.g. claude-sonnet-4-6 → global.anthropic.claude-sonnet-4-6).
-  // In LiteLLM mode, resolve via LITELLM_MODEL_MAP (adds underscore prefix).
+  // In LiteLLM mode, resolve via getLitellmModelMap() (adds underscore prefix).
   const resolvedModel = model
     ? USE_BEDROCK
-      ? (BEDROCK_MODEL_ALIAS_MAP[model] ?? model)
-      : (LITELLM_MODEL_MAP[model] ?? model)
+      ? (getBedrockModelAliasMap()[model] ?? model)
+      : (getLitellmModelMap()[model] ?? model)
     : undefined;
 
   // Build environment variables for the SDK process.
   // Route through the ATKO proxy's Anthropic pass-through endpoint.
   const proxyEnv: Record<string, string> = {
-    ANTHROPIC_BASE_URL: ANTHROPIC_PROXY_URL,
+    ANTHROPIC_BASE_URL: getAnthropicProxyUrl(),
   };
   if (process.env.ATKO_API_KEY) {
     proxyEnv.ANTHROPIC_API_KEY = process.env.ATKO_API_KEY;
   }
 
   // Build MCP server config when --tools mcp is requested.
-  const mcpServers = tools.includes('mcp')
-    ? { 'auth0-docs': { type: 'http' as const, url: 'https://auth0.com/docs/mcp' } }
-    : undefined;
+  let mcpServers: Record<string, { type: 'http'; url: string }> | undefined;
+  if (tools.includes('mcp')) {
+    const configServers = getFrameworkConfig().mcp.servers;
+    const httpServers: Record<string, { type: 'http'; url: string }> = {};
+    for (const [name, server] of Object.entries(configServers)) {
+      if (server.type === 'http') {
+        httpServers[name] = { type: 'http' as const, url: server.url };
+      }
+    }
+    if (Object.keys(httpServers).length > 0) mcpServers = httpServers;
+  }
 
   logger.info(`\n[ClaudeCode] Starting task: ${evalDef.id}`);
   logger.info(`[ClaudeCode] Workspace: ${workspace}`);
@@ -181,8 +181,8 @@ export async function runClaudeCodeAgent(
     const modelLabel = resolvedModel !== model ? `${model} → ${resolvedModel}` : resolvedModel;
     logger.info(`[ClaudeCode] Model: ${modelLabel}`);
   }
-  if (tools.includes('mcp')) logger.info(`[ClaudeCode] MCP: https://auth0.com/docs/mcp`);
-  logger.info(`[ClaudeCode] Proxy: ${ANTHROPIC_PROXY_URL}`);
+  if (mcpServers) logger.info(`[ClaudeCode] MCP: ${Object.keys(mcpServers).join(', ')}`);
+  logger.info(`[ClaudeCode] Proxy: ${getAnthropicProxyUrl()}`);
 
   // Set up abort controller for timeout
   const abortController = new AbortController();
@@ -316,9 +316,9 @@ export function handleMessage(
     // In Bedrock mode the CLI reports full Bedrock IDs — reverse-map to friendly aliases.
     // In LiteLLM mode the CLI reports the alias directly — validate and use as-is.
     record.model = sys.model
-      ? (BEDROCK_MODEL_REVERSE_MAP[sys.model] ??
-        LITELLM_MODEL_REVERSE_MAP[sys.model] ??
-        (ATKO_KNOWN_MODELS.has(sys.model) ? sys.model : `claude-code/${sys.model}`))
+      ? (getBedrockModelReverseMap()[sys.model] ??
+        getLitellmModelReverseMap()[sys.model] ??
+        (getAtkoKnownModels().has(sys.model) ? sys.model : `claude-code/${sys.model}`))
       : CLAUDE_CODE_MODEL_ID;
     record.sessionId = sys.session_id;
     logger.info(`[ClaudeCode] Session ${sys.session_id} model=${sys.model}`);

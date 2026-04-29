@@ -8,7 +8,22 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { EvalDefinition } from '../src/runners/loader.js';
 
-// Top-level mocks — hoisted by Vitest before any imports
+// Uses vi.resetModules() in beforeEach — must mock framework-config so the singleton
+// survives re-imports. Async vi.mock factories deadlock with resetModules, so inline the config.
+vi.mock('../src/config/framework-config.js', () => ({
+  getFrameworkConfig: vi.fn().mockReturnValue({
+    evalsDir: 'src/evals',
+    proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+    mcp: { servers: { 'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' } } },
+    skills: {
+      remoteRepos: [{ url: 'https://github.com/auth0/agent-skills.git', localPath: 'skills-remote/auth0-skills' }],
+      localDirs: ['skills'],
+    },
+    judge: { model: 'claude-sonnet-4-5', maxTokens: 1024, maxCodeChars: 16384, promptsDir: 'src/prompts/judge' },
+    models: { known: [], default: 'gpt-5.4', bedrock: {}, litellm: {} },
+  }),
+  setFrameworkConfig: vi.fn(),
+}));
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
 vi.mock('node:fs', () => ({
   existsSync: vi.fn().mockReturnValue(true),
@@ -17,8 +32,11 @@ vi.mock('node:fs', () => ({
   copyFileSync: vi.fn(),
 }));
 vi.mock('../src/agent_eval/skills/config.js', () => ({
-  SKILLS_REMOTE_DIR: '/tmp/skills-remote',
-  SKILLS_CLONE_DIR: '/tmp/skills-remote/auth0-skills',
+  getSkillsDirs: vi.fn().mockReturnValue({
+    SKILLS_CLONE_DIR: '/tmp/skills-remote/auth0-skills',
+    SKILLS_BASE_DIR: '/tmp/skills-remote/auth0-skills/plugins/auth0/skills',
+    SKILLS_LOCAL_DIR: '/tmp/skills',
+  }),
   resolveSkillDir: vi.fn(),
 }));
 vi.mock('@a0/eval', async (importOriginal) => {

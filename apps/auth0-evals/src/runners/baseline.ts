@@ -6,7 +6,8 @@
  */
 
 import { estimateCost } from '../config/costs.js';
-import { BASE_URL, LITELLM_MODEL_MAP } from '../config/settings.js';
+import { getLitellmModelMap } from '../config/settings.js';
+import { getFrameworkConfig } from '../config/framework-config.js';
 import { makeSessionId } from '../utils/session.js';
 import { LlmApiError } from '../errors.js';
 import { withRetry } from '../utils/retry.js';
@@ -79,11 +80,12 @@ export async function llmCall(
   model: string,
   messages: { role: string; content: string }[],
 ): Promise<Record<string, unknown>> {
-  const apiModel = LITELLM_MODEL_MAP[model] ?? model;
+  const apiModel = getLitellmModelMap()[model] ?? model;
   const payload = JSON.stringify({ model: apiModel, messages, temperature: 0.0 });
 
   return withRetry(async () => {
-    const resp = await fetch(`${BASE_URL}/chat/completions`, {
+    const baseUrl = getFrameworkConfig().proxy.baseUrl;
+    const resp = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,

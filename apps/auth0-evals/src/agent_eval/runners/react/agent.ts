@@ -11,7 +11,8 @@ import { makeSessionId } from '../../../utils/session.js';
 import { estimateCost } from '../../../config/costs.js';
 import { BedrockToolConfigError, LlmApiError } from '../../../errors.js';
 import { withRetry } from '../../../utils/retry.js';
-import { BASE_URL, CLAUDE_EFFORT_MODELS, LITELLM_MODEL_MAP, MAX_TURNS } from '../../../config/settings.js';
+import { CLAUDE_EFFORT_MODELS, getLitellmModelMap, MAX_TURNS } from '../../../config/settings.js';
+import { getFrameworkConfig } from '../../../config/framework-config.js';
 import { isBedrockModel, isGeminiModel } from '../../agent-model.js';
 import { buildToolDefinitions } from './tools/index.js';
 import { McpConfig, ToolExecutor } from './tools-executor/index.js';
@@ -59,9 +60,10 @@ export async function llmCall(
 
   // Resolve to the LiteLLM proxy model ID (e.g. claude-sonnet-4-6 → _claude-sonnet-4-6).
   // The friendly alias is kept in RunRecord; only the API call uses the resolved name.
-  const apiModel = LITELLM_MODEL_MAP[model] ?? model;
+  const apiModel = getLitellmModelMap()[model] ?? model;
 
-  logger.info(`\n[LLM API] Calling remote API: ${BASE_URL}/chat/completions`);
+  const baseUrl = getFrameworkConfig().proxy.baseUrl;
+  logger.info(`\n[LLM API] Calling remote API: ${baseUrl}/chat/completions`);
   logger.info(`[LLM API] Model: ${apiModel}${apiModel !== model ? ` (alias: ${model})` : ''}`);
   logger.info(`[LLM API] Messages: ${messages.length} in history (~${inputSizeKb.toFixed(1)} KB)`);
   logger.info('[LLM API] Waiting for response...');
@@ -83,7 +85,7 @@ export async function llmCall(
 
   const responseData = await withRetry(async () => {
     const attemptStart = Date.now();
-    const resp = await fetch(`${BASE_URL}/chat/completions`, {
+    const resp = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -133,11 +135,12 @@ export async function llmCall(
 
 // ── Agent runner ──────────────────────────────────────────────────────────────
 
-const AUTH0_MCP: McpConfig = {
-  url: 'https://auth0.com/docs/mcp',
-  name: 'auth0-eval-agent',
-  version: '1.0.0',
-};
+function getMcpConfig(): McpConfig | null {
+  const servers = getFrameworkConfig().mcp.servers;
+  const firstHttp = Object.values(servers).find((s) => s.type === 'http');
+  if (!firstHttp || firstHttp.type !== 'http') return null;
+  return { url: firstHttp.url, name: 'auth0-eval-agent', version: '1.0.0' };
+}
 
 export interface TaskDefinition {
   name: string;
@@ -165,10 +168,13 @@ export async function runAgent(
   try {
     let mcpToolDefs: unknown[] = [];
     if (tools.includes('mcp')) {
-      const { tools: toolDefs, toolNames } = await executor.initMcp(AUTH0_MCP);
-      mcpToolDefs = toolDefs;
-      if (toolNames.length > 0) {
-        logger.info(`[Agent] MCP tools registered with LLM: ${toolNames.join(', ')}`);
+      const mcpConfig = getMcpConfig();
+      if (mcpConfig) {
+        const { tools: toolDefs, toolNames } = await executor.initMcp(mcpConfig);
+        mcpToolDefs = toolDefs;
+        if (toolNames.length > 0) {
+          logger.info(`[Agent] MCP tools registered with LLM: ${toolNames.join(', ')}`);
+        }
       }
     }
 

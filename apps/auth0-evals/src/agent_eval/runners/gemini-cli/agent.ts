@@ -22,6 +22,7 @@ import { join } from 'node:path';
 import type { RunRecord, ToolCallRecord, TurnMetric } from '../../agent-types.js';
 import type { EvalDefinition } from '../../../runners/loader.js';
 import { CLAUDE_CODE_TASK_TIMEOUT_MS } from '../../../config/settings.js';
+import { getFrameworkConfig } from '../../../config/framework-config.js';
 import { estimateCost } from '../../../config/costs.js';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '../../agent-types.js';
 import { logger } from '../../../utils/logger.js';
@@ -38,9 +39,6 @@ export const GEMINI_CLI_DEFAULT_MODEL = 'gemini-3.1-pro-preview';
 /** Reuse the Claude Code timeout budget. */
 const GEMINI_CLI_TIMEOUT_MS = CLAUDE_CODE_TASK_TIMEOUT_MS;
 
-/** Auth0 docs MCP server HTTP URL — same endpoint used by Claude Code runner. */
-const AUTH0_MCP_URL = 'https://auth0.com/docs/mcp';
-
 /**
  * Writes .gemini/settings.json into the workspace so the Gemini CLI picks up
  * the Auth0 docs MCP server for the duration of the eval run.
@@ -49,18 +47,20 @@ const AUTH0_MCP_URL = 'https://auth0.com/docs/mcp';
  * MCP tool calls appear in the stream-json output as tool_use events with names
  * using the format `mcp__<serverName>__<toolName>` (e.g. `mcp__auth0-docs__search_auth0_docs`).
  */
-function writeMcpSettings(workspace: string, mcpHttpUrl: string): void {
+function writeMcpSettings(workspace: string): string[] {
+  const configServers = getFrameworkConfig().mcp.servers;
+  const mcpServers: Record<string, { httpUrl: string; timeout: number }> = {};
+  for (const [name, server] of Object.entries(configServers)) {
+    if (server.type === 'http') {
+      mcpServers[name] = { httpUrl: server.url, timeout: 30000 };
+    }
+  }
+  const names = Object.keys(mcpServers);
+  if (names.length === 0) return names;
   const geminiDir = join(workspace, '.gemini');
   mkdirSync(geminiDir, { recursive: true });
-  const settings = {
-    mcpServers: {
-      'auth0-docs': {
-        httpUrl: mcpHttpUrl,
-        timeout: 30000,
-      },
-    },
-  };
-  writeFileSync(join(geminiDir, 'settings.json'), JSON.stringify(settings, null, 2), 'utf-8');
+  writeFileSync(join(geminiDir, 'settings.json'), JSON.stringify({ mcpServers }, null, 2), 'utf-8');
+  return names;
 }
 
 export interface GeminiCliRunOptions {
@@ -102,8 +102,8 @@ export async function runGeminiCliAgent(
   logger.info(`[GeminiCLI] Workspace: ${workspace}`);
   logger.info(`[GeminiCLI] Model: ${model}`);
   if (tools.includes('mcp')) {
-    writeMcpSettings(workspace, AUTH0_MCP_URL);
-    logger.info(`[GeminiCLI] MCP: ${AUTH0_MCP_URL}`);
+    const mcpNames = writeMcpSettings(workspace);
+    if (mcpNames.length > 0) logger.info(`[GeminiCLI] MCP: ${mcpNames.join(', ')}`);
   }
 
   const args: string[] = ['-p', evalDef.userPrompt, '--approval-mode', 'yolo', '-o', 'stream-json', '-m', model];
@@ -114,7 +114,7 @@ export async function runGeminiCliAgent(
     if (v !== undefined) geminiEnv[k] = v;
   }
   if (process.env.ATKO_API_KEY) {
-    geminiEnv.GOOGLE_GEMINI_BASE_URL = '<LLM_PROXY_URL>';
+    geminiEnv.GOOGLE_GEMINI_BASE_URL = getFrameworkConfig().proxy.baseUrl.replace(/\/v1\/?$/, '');
     geminiEnv.GEMINI_API_KEY = process.env.ATKO_API_KEY;
   } else {
     logger.warn('[GeminiCLI] ATKO_API_KEY not set — requests will fail.');

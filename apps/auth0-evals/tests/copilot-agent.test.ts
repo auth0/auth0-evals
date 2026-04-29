@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import './setup-config.js';
 import { COPILOT_MODEL_ID, getMcpServers } from '../src/agent_eval/runners/copilot/agent.js';
 
 describe('COPILOT_MODEL_ID', () => {

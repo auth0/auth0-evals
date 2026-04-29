@@ -73,7 +73,7 @@ describe('loadConfig', () => {
     const config = await loadConfig({ searchDir: join(FIXTURES_DIR, 'valid') });
     expect(config.evalsDir).toBe('custom/evals');
     // Defaults are preserved for fields not in the config file.
-    expect(config.judge.model).toBe('claude-4-5-sonnet');
+    expect(config.judge.model).toBe('');
   });
 
   it('uses configPath override instead of auto-discovery', async () => {

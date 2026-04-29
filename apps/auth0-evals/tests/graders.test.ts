@@ -8,7 +8,10 @@ import { join } from 'node:path';
 import { makeTmpDir } from './tmp.js';
 import { contains, notContains, notContainsInSource, matches, GraderLevel, type GraderResult } from '@a0/eval-graders';
 import { passRate, runGraders, llmJudge } from '../src/agent_eval/graders.js';
-import { JUDGE_MAX_CODE_CHARS, JUDGE_MAX_TOKENS } from '../src/config/settings.js';
+import { TEST_CONFIG } from './setup-config.js';
+
+const JUDGE_MAX_CODE_CHARS = TEST_CONFIG.judge.maxCodeChars!;
+const JUDGE_MAX_TOKENS = TEST_CONFIG.judge.maxTokens!;
 
 const tmpDir = makeTmpDir('graders_test_');
 

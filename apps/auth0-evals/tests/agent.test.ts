@@ -7,6 +7,23 @@ import { mkdirSync, writeFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmpDir } from './tmp.js';
 
+// Some describe blocks use vi.resetModules() — must mock framework-config so the singleton
+// survives re-imports. Async vi.mock factories deadlock with resetModules, so inline the config.
+vi.mock('../src/config/framework-config.js', () => ({
+  getFrameworkConfig: vi.fn().mockReturnValue({
+    evalsDir: 'src/evals',
+    proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+    mcp: { servers: { 'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' } } },
+    skills: {
+      remoteRepos: [{ url: 'https://github.com/auth0/agent-skills.git', localPath: 'skills-remote/auth0-skills' }],
+      localDirs: ['skills'],
+    },
+    judge: { model: 'claude-sonnet-4-5', maxTokens: 1024, maxCodeChars: 16384, promptsDir: 'src/prompts/judge' },
+    models: { known: [], default: 'gpt-5.4', bedrock: {}, litellm: {} },
+  }),
+  setFrameworkConfig: vi.fn(),
+}));
+
 const mockClient = vi.hoisted(() => ({
   connect: vi.fn().mockResolvedValue(undefined),
   callTool: vi.fn(),
@@ -906,10 +923,8 @@ describe('ToolExecutor.list_skill_files', () => {
   }
 
   beforeEach(() => {
-    const remoteDir = tmpDir();
-    skillsBaseDir = join(remoteDir, 'auth0-skills', 'plugins', 'auth0', 'skills');
-    mkdirSync(skillsBaseDir, { recursive: true });
-    vi.stubEnv('SKILLS_REMOTE_DIR', remoteDir);
+    skillsBaseDir = tmpDir();
+    vi.stubEnv('SKILLS_REMOTE_DIR', skillsBaseDir);
   });
 
   afterEach(() => {
@@ -964,10 +979,8 @@ describe('ToolExecutor.read_skill_file', () => {
   }
 
   beforeEach(() => {
-    const remoteDir = tmpDir();
-    skillsBaseDir = join(remoteDir, 'auth0-skills', 'plugins', 'auth0', 'skills');
-    mkdirSync(skillsBaseDir, { recursive: true });
-    vi.stubEnv('SKILLS_REMOTE_DIR', remoteDir);
+    skillsBaseDir = tmpDir();
+    vi.stubEnv('SKILLS_REMOTE_DIR', skillsBaseDir);
   });
 
   afterEach(() => {

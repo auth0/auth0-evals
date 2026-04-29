@@ -33,7 +33,8 @@ import { runGraders } from './agent_eval/graders.js';
 import { serialiseBaseline, serialiseAgent, serialiseError } from './runners/serializers.js';
 import { mergeResults, loadResults, saveResults, resolveOutputPath } from './persistence/results.js';
 import { parseRunConfig } from './cli/config.js';
-import { loadConfig, type FrameworkConfig } from '@a0/eval';
+import { loadConfig } from '@a0/eval';
+import { setFrameworkConfig } from './config/framework-config.js';
 import { logger } from './utils/logger.js';
 import type { JobResult } from './types/results.js';
 import { gradeText } from './agent_eval/grade-text.js';
@@ -290,7 +291,23 @@ async function main(): Promise<void> {
   } = config;
 
   // Load the framework configuration (eval.config.js) — auto-discovered or via --config.
-  const frameworkConfig: FrameworkConfig = await loadConfig({ configPath });
+  const frameworkConfig = await loadConfig({ configPath });
+  setFrameworkConfig(frameworkConfig);
+
+  // Validate required runtime fields — empty values typically mean eval.config.js
+  // was not found (e.g. running from the wrong directory).
+  const missing: string[] = [];
+  if (!frameworkConfig.proxy.baseUrl) missing.push('proxy.baseUrl');
+  if (!frameworkConfig.judge.model) missing.push('judge.model');
+  if (!frameworkConfig.models.default) missing.push('models.default');
+  if (missing.length > 0) {
+    logger.error(
+      `[Config] Missing required config: ${missing.join(', ')}. ` +
+        `Check your eval.config.js or pass --config <path>.`,
+    );
+    process.exit(1);
+  }
+
   logger.info(`[Config] evalsDir=${frameworkConfig.evalsDir}`);
 
   const registry = evalIds.length > 0 ? EVALUATIONS.filter((e) => evalIds.includes(e.id)) : EVALUATIONS;
