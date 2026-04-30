@@ -25,7 +25,7 @@ import {
   classifyActionType,
   classifyErrorCategory,
   detectRetry,
-} from '../../agent-types.js';
+} from '@a0/eval';
 import { type ToolCallEntry, extractTokens, normalizeToolArgs, parseXmlToolCalls, summariseArgs } from './helpers.js';
 
 function makeRunRecord(taskName: string, model: string, workspace: string): RunRecord {

@@ -13,29 +13,9 @@ import { pathToFileURL } from 'node:url';
 import type { EvalConfig } from '../config/evaluations.js';
 import { EvalConfigError, EvalNotFoundError } from '../errors.js';
 
-export interface EvalDefinition {
-  id: string;
-  name: string;
-  category: string;
-  path: string;
-  baselineSystemPrompt: string;
-  userPrompt: string;
-  agentSystemPrompt: string;
-  graders: GraderDef[];
-  scaffold: Record<string, string>;
-  setupCommand?: string;
-  skills: string[];
-  metadata: Record<string, string>;
-}
-
-export interface GraderDef {
-  kind: string;
-  name: string;
-  needle?: string;
-  pattern?: string;
-  question?: string;
-  framework?: string;
-}
+// Types are canonical in @a0/eval; re-export for backwards compatibility.
+export type { EvalDefinition, GraderDef } from '@a0/eval';
+import type { EvalDefinition, GraderDef } from '@a0/eval';
 
 export async function loadEval(evalConfig: EvalConfig, frameworkRoot: string): Promise<EvalDefinition> {
   const evalPath = join(frameworkRoot, evalConfig.path);

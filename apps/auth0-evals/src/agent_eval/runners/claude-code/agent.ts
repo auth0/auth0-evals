@@ -20,9 +20,9 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { RunRecord, ToolCallRecord, TurnMetric, FinishReason } from '../../agent-types.js';
-import { classifyActionType, classifyErrorCategory, detectRetry } from '../../agent-types.js';
-import type { EvalDefinition } from '../../../runners/loader.js';
+import type { RunRecord, ToolCallRecord, TurnMetric, FinishReason } from '@a0/eval';
+import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/eval';
+import type { EvalDefinition } from '@a0/eval';
 import {
   CLAUDE_CODE_TASK_TIMEOUT_MS,
   getLitellmModelMap,

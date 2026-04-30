@@ -43,7 +43,7 @@ vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
 
 import { extractTokens, summariseArgs, llmCall, runAgent } from '../src/agent_eval/runners/react/agent.js';
 import { isGeminiModel } from '../src/agent_eval/agent-model.js';
-import { detectRetry, type ToolCallRecord } from '../src/agent_eval/agent-types.js';
+import { detectRetry, type ToolCallRecord } from '@a0/eval';
 import { TOOL_DEFINITIONS, buildToolDefinitions } from '../src/agent_eval/runners/react/tools/index.js';
 import { collectFiles, DEFAULT_FRAMEWORK_CONFIG } from '@a0/eval';
 

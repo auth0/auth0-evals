@@ -14,6 +14,9 @@ export type {
   GraderResult,
   RunRecord,
   ToolCallRecord,
+  TurnMetric,
+  FinishReason,
+  ActionType,
   DimensionScore,
   ScoredResult,
   ScoringOptions,
@@ -84,3 +87,40 @@ export {
   validatePathFormat,
 } from './workspace/index.js';
 export type { SetupWorkspaceOptions, RunSetupCommandOptions, CollectFilesOptions } from './workspace/index.js';
+
+// Types — eval definition
+export type { EvalDefinition, GraderDef } from './types/eval.js';
+
+// Framework config singleton
+export { getFrameworkConfig, setFrameworkConfig } from './config/framework-config.js';
+
+// Settings
+export {
+  MAX_TURNS,
+  BEDROCK_MODELS,
+  CLAUDE_EFFORT_MODELS,
+  GEMINI_MODELS,
+  GPT_MODELS,
+  getLitellmModelMap,
+  getLitellmModelReverseMap,
+  CLAUDE_CODE_TASK_TIMEOUT_MS,
+  COPILOT_TASK_TIMEOUT_MS,
+} from './config/settings.js';
+
+// Session
+export { makeSessionId } from './utils/session.js';
+
+// Runner infrastructure
+export type { AgentRunner, RunParams, RunResult } from './runners/agent-runner.js';
+export { registerRunner, getRunner } from './runners/agent-runner.js';
+export type { ToolTranslator } from './runners/tool-translator.js';
+export { classifyActionType, primaryArg, detectRetry, classifyErrorCategory } from './runners/classify.js';
+export type { SkillsStrategy } from './runners/skills/strategy.js';
+export {
+  ensureCloned,
+  copySkillsToWorkspace,
+  augmentWithSkills,
+  InjectSkillsStrategy,
+  CopySkillsStrategy,
+} from './runners/skills/strategy.js';
+export { getSkillsDirs, resolveSkillDir } from './runners/skills/config.js';

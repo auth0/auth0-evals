@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { GraderLevel } from '@a0/eval-graders';
 import { runGraders } from './graders.js';
-import type { EvalDefinition } from '../runners/loader.js';
+import type { EvalDefinition } from '@a0/eval';
 
 /**
  * Extracts fenced code blocks from an LLM response.

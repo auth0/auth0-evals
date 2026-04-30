@@ -19,12 +19,12 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { RunRecord, ToolCallRecord, TurnMetric } from '../../agent-types.js';
-import type { EvalDefinition } from '../../../runners/loader.js';
+import type { RunRecord, ToolCallRecord, TurnMetric } from '@a0/eval';
+import type { EvalDefinition } from '@a0/eval';
 import { CLAUDE_CODE_TASK_TIMEOUT_MS } from '../../../config/settings.js';
 import { getFrameworkConfig } from '../../../config/framework-config.js';
 import { estimateCost } from '../../../config/costs.js';
-import { classifyActionType, classifyErrorCategory, detectRetry } from '../../agent-types.js';
+import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/eval';
 import { logger } from '../../../utils/logger.js';
 import { GeminiCliTranslator } from './translator.js';
 

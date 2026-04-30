@@ -1,4 +1,4 @@
-import type { ToolTranslator } from '../../tool-translator.js';
+import type { ToolTranslator } from '@a0/eval';
 import { logger } from '../../../utils/logger.js';
 
 const CC_TOOL_MAP: Record<string, string> = {
