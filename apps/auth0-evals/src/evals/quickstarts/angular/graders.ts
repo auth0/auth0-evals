@@ -1,4 +1,4 @@
-import { contains, notContains, matches, judge, ranCommand, GraderLevel } from '@a0/eval-graders';
+import { contains, notContains, matches, judge, ranCommand, ranCommandOneOf, GraderLevel } from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
@@ -21,7 +21,11 @@ export function defineGraders() {
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
     ranCommand('npm install', '@auth0/auth0-angular', 'Ran npm install for @auth0/auth0-angular', GraderLevel.L4),
-    ranCommand('npm run', 'build', 'Ran build to verify compilation', GraderLevel.L4),
+    ranCommandOneOf(
+      ['npm run build', 'ng build'],
+      'Ran build to verify compilation (npm run build, ng build, or npx ng build)',
+      GraderLevel.L4,
+    ),
     matches(String.raw`provideAuth0\s*\(`, 'Auth0 configured via provideAuth0()', GraderLevel.L4),
     matches(
       String.raw`canActivate\s*:\s*\[?\s*(AuthGuard|authGuardFn)`,

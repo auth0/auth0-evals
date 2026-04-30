@@ -104,6 +104,21 @@ export function ranCommand(
 }
 
 /**
+ * Asserts that the agent ran at least one command from a list of alternatives.
+ * Each entry is matched as a substring against executed commands.
+ */
+export function ranCommandOneOf(commands: string[], description?: string, level?: GraderLevel): GraderDef {
+  const label = commands.join(' | ');
+  return {
+    kind: 'event',
+    name: description ?? `ran one of [${label}]`,
+    level,
+    predicate: (toolCalls: EventToolCall[]) =>
+      getRunCommands(toolCalls).some((cmd) => commands.some((c) => cmd.includes(c))),
+  };
+}
+
+/**
  * Asserts that the agent did NOT run a shell command containing the given command substring
  * (with optional args).
  */

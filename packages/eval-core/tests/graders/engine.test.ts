@@ -12,6 +12,7 @@ import {
   notContainsInSource,
   matches,
   ranCommand,
+  ranCommandOneOf,
   didNotRunCommand,
   usedTool,
   toolCalledWithArg,
@@ -742,6 +743,23 @@ describe('runGraders - event graders', () => {
     const graders = [ranCommand('npm run build', undefined, 'ran build successfully', GraderLevel.L4)];
     const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
     expect(results[0]!.passed).toBe(false);
+  });
+
+  it('ranCommandOneOf passes when one of the commands matches', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [ranCommandOneOf(['ng build', 'npm run build'], 'ran build', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    // sampleToolCalls doesn't have ng build or npm run build (npm run build causedError)
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('ranCommandOneOf passes when at least one alternative matches', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [ranCommandOneOf(['yarn add', 'npm install'], 'installed packages', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(true);
   });
 
   it('didNotRunCommand passes when command was not executed', async () => {

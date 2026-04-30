@@ -12,6 +12,7 @@ export {
   matches,
   judge,
   ranCommand,
+  ranCommandOneOf,
   didNotRunCommand,
   usedTool,
   toolCalledWithArg,
