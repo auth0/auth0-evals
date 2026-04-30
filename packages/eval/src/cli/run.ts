@@ -20,6 +20,7 @@
  */
 
 import { join, dirname } from 'node:path';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import pLimit from 'p-limit';
 import { config as loadDotenv } from 'dotenv';
@@ -112,6 +113,31 @@ export async function runJob(
   }
 }
 
+// ── Agent workspace instructions ──────────────────────────────────────────────
+
+const AGENT_INSTRUCTIONS = `
+- Always install dependencies explicitly using the CLI (e.g. \`npm install <package>\`, \`pip install <package>\`) rather than editing the dependency file (e.g. \`package.json\`, \`requirements.txt\`) and then running the install command.
+- Always verify compilation by running the project's build command (e.g. \`npm run build\`) before finishing.
+`.trim();
+
+/**
+ * Write lightweight behavioral instructions to the workspace in a format
+ * each non-ReAct agent can pick up via its native config file convention.
+ * The ReAct agent already receives these via system_default.md.
+ */
+function writeAgentInstructions(workspace: string, agentType: AgentType): void {
+  if (agentType === 'auth0-ReAct-agent') return; // already in system_default.md
+
+  if (agentType === 'claude-code') {
+    writeFileSync(join(workspace, 'CLAUDE.md'), AGENT_INSTRUCTIONS, 'utf-8');
+  } else if (agentType === 'gemini-cli') {
+    writeFileSync(join(workspace, 'GEMINI.md'), AGENT_INSTRUCTIONS, 'utf-8');
+  } else if (agentType === 'copilot') {
+    mkdirSync(join(workspace, '.github'), { recursive: true });
+    writeFileSync(join(workspace, '.github', 'copilot-instructions.md'), AGENT_INSTRUCTIONS, 'utf-8');
+  }
+}
+
 async function runAgentJob(
   evalDef: EvalDefinition,
   model: string,
@@ -127,6 +153,7 @@ async function runAgentJob(
 
   const workspace = setupWorkspace(evalDef.scaffold);
   try {
+    writeAgentInstructions(workspace, agentType);
     if (!sandbox && evalDef.setupCommand) {
       runSetupCommand(workspace, evalDef.setupCommand);
     }
