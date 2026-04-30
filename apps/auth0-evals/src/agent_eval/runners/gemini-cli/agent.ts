@@ -63,6 +63,19 @@ function writeMcpSettings(workspace: string): string[] {
   return names;
 }
 
+/**
+ * Writes a trustedFolders.json that trusts only the given workspace directory.
+ * Callers must set GEMINI_CLI_TRUSTED_FOLDERS_PATH in the subprocess env to
+ * the returned path so Gemini CLI picks it up instead of ~/.gemini/trustedFolders.json.
+ */
+function writeTrustedFolders(workspace: string): string {
+  const geminiDir = join(workspace, '.gemini');
+  mkdirSync(geminiDir, { recursive: true });
+  const filePath = join(geminiDir, 'trustedFolders.json');
+  writeFileSync(filePath, JSON.stringify({ [workspace]: 'TRUST_FOLDER' }, null, 2), 'utf-8');
+  return filePath;
+}
+
 export interface GeminiCliRunOptions {
   /** Tool flags (e.g. ['mcp', 'skills']). */
   tools?: string[];
@@ -106,6 +119,9 @@ export async function runGeminiCliAgent(
     if (mcpNames.length > 0) logger.info(`[GeminiCLI] MCP: ${mcpNames.join(', ')}`);
   }
 
+  // Trust only this workspace so YOLO mode isn't overridden in CI/headless environments.
+  const trustedFoldersPath = writeTrustedFolders(workspace);
+
   const args: string[] = ['-p', evalDef.userPrompt, '--approval-mode', 'yolo', '-o', 'stream-json', '-m', model];
 
   // Route through the ATKO LiteLLM proxy — same pattern as the Claude Code runner.
@@ -113,6 +129,7 @@ export async function runGeminiCliAgent(
   for (const [k, v] of Object.entries(process.env)) {
     if (v !== undefined) geminiEnv[k] = v;
   }
+  geminiEnv.GEMINI_CLI_TRUSTED_FOLDERS_PATH = trustedFoldersPath;
   if (process.env.ATKO_API_KEY) {
     geminiEnv.GOOGLE_GEMINI_BASE_URL = getFrameworkConfig().proxy.baseUrl.replace(/\/v1\/?$/, '');
     geminiEnv.GEMINI_API_KEY = process.env.ATKO_API_KEY;
