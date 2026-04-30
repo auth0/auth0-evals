@@ -13,6 +13,9 @@ export interface GraderDef {
   pattern?: string;
   question?: string;
   framework?: string;
+  predicate?: (
+    toolCalls: Array<{ name: string; args: Record<string, unknown>; result: string; causedError: boolean }>,
+  ) => boolean;
 }
 
 export interface EvalDefinition {

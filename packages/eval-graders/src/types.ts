@@ -10,6 +10,14 @@ export enum GraderLevel {
   L5 = 'version_correctness',
 }
 
+/** Minimal tool call record for event-based graders (subset of the full ToolCallRecord from @a0/eval). */
+export interface EventToolCall {
+  name: string;
+  args: Record<string, unknown>;
+  result: string;
+  causedError: boolean;
+}
+
 export interface GraderResult {
   name: string;
   kind: string;
@@ -27,6 +35,7 @@ export interface GraderDef {
   framework?: string;
   level?: GraderLevel;
   caseSensitive?: boolean;
+  predicate?: (toolCalls: EventToolCall[]) => boolean;
 }
 
 export interface GraderOptions {

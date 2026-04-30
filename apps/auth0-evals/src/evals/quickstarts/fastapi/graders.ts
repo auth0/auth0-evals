@@ -1,4 +1,13 @@
-import { contains, notContains, notContainsInSource, matches, judge, GraderLevel } from '@a0/eval-graders';
+import {
+  contains,
+  notContains,
+  notContainsInSource,
+  matches,
+  judge,
+  ranCommand,
+  wroteFile,
+  GraderLevel,
+} from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
@@ -31,6 +40,8 @@ export function defineGraders() {
     ),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
+    ranCommand('pip install', 'auth0-fastapi-api', 'Ran pip install for auth0-fastapi-api', GraderLevel.L4),
+    wroteFile('.env', 'Created .env file for credentials', GraderLevel.L4),
     matches(String.raw`Auth0FastAPI\s*\(`, 'Auth0FastAPI instance is created', GraderLevel.L4),
     matches(
       String.raw`Depends\s*\(\s*\w+\.require_auth\s*\(`,

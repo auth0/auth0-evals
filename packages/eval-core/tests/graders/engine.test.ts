@@ -6,7 +6,22 @@ import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmpDir } from '../tmp.js';
-import { contains, notContains, notContainsInSource, matches, GraderLevel, type GraderResult } from '@a0/eval-graders';
+import {
+  contains,
+  notContains,
+  notContainsInSource,
+  matches,
+  ranCommand,
+  didNotRunCommand,
+  usedTool,
+  toolCalledWithArg,
+  wroteFile,
+  fetchedUrl,
+  eventMatch,
+  GraderLevel,
+  type GraderResult,
+  type EventToolCall,
+} from '@a0/eval-graders';
 import { setFrameworkConfig } from '../../src/config/framework-config.js';
 import type { FrameworkConfig } from '../../src/config/framework.js';
 
@@ -663,5 +678,191 @@ describe('runGraders - enforceMaxChars=false propagation', () => {
     const results = await runGraders(graders, dir, 'unused', undefined, undefined, false);
     expect(results.length).toBe(1);
     expect(results[0].passed).toBe(true);
+  });
+});
+
+// ── runGraders — event-based graders ──────────────────────────────────────────
+
+const sampleToolCalls: EventToolCall[] = [
+  {
+    name: 'run_command',
+    args: { command: 'npm install @auth0/auth0-react' },
+    result: 'added 5 packages',
+    causedError: false,
+  },
+  { name: 'write_file', args: { path: 'src/App.tsx' }, result: 'ok', causedError: false },
+  { name: 'read_file', args: { path: 'package.json' }, result: '{}', causedError: false },
+  { name: 'run_command', args: { command: 'npm run build' }, result: 'error', causedError: true },
+];
+
+describe('runGraders - event graders', () => {
+  it('ranCommand passes when command was executed (no args)', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [ranCommand('npm install', undefined, 'ran npm install', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('ranCommand passes when command and arg match', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [ranCommand('npm install', '@auth0/auth0-react', 'installed auth0 pkg', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('ranCommand passes with multiple args', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [ranCommand('npm', ['install', '@auth0/auth0-react'], 'npm install auth0', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('ranCommand fails when command was not executed', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [ranCommand('yarn add', undefined, 'ran yarn add', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('ranCommand fails when arg does not match', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [ranCommand('npm install', 'express', 'installed express', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('ranCommand excludes commands that caused errors', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [ranCommand('npm run build', undefined, 'ran build successfully', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('didNotRunCommand passes when command was not executed', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [didNotRunCommand('rm -rf', undefined, 'no rm -rf', GraderLevel.L3)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('didNotRunCommand fails when command was executed', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [didNotRunCommand('npm install', undefined, 'no npm install', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('usedTool passes when tool was invoked', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [usedTool('write_file', 'used write_file', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('usedTool fails when tool was not invoked', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [usedTool('fetch_url', 'used fetch_url', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('toolCalledWithArg passes when arg matches', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [toolCalledWithArg('write_file', 'path', 'App.tsx', 'wrote App.tsx', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('toolCalledWithArg fails when arg does not match', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [toolCalledWithArg('write_file', 'path', 'index.html', 'wrote index.html', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('eventMatch works with custom predicate', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [
+      eventMatch(
+        (calls) => calls.filter((c) => c.name === 'run_command').length >= 2,
+        'at least 2 commands',
+        GraderLevel.L4,
+      ),
+    ];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('wroteFile passes when file was written', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [wroteFile('.env', 'Created .env', GraderLevel.L4)];
+    const toolCalls: EventToolCall[] = [
+      { name: 'write_file', args: { path: '.env' }, result: 'ok', causedError: false },
+    ];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('wroteFile fails when file was not written', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [wroteFile('.env', 'Created .env', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('wroteFile matches partial path', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [wroteFile('App.tsx', 'Wrote App.tsx', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('fetchedUrl passes when URL was fetched', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [fetchedUrl('auth0.com', 'Consulted Auth0 docs', GraderLevel.L4)];
+    const toolCalls: EventToolCall[] = [
+      {
+        name: 'fetch_url',
+        args: { url: 'https://auth0.com/docs/quickstart' },
+        result: 'doc content',
+        causedError: false,
+      },
+    ];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('fetchedUrl fails when URL was not fetched', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [fetchedUrl('auth0.com', 'Consulted Auth0 docs', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('event graders fail gracefully when no toolCalls provided', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [ranCommand('npm install', undefined, 'ran npm install', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused');
+    expect(results[0]!.passed).toBe(false);
+    expect(results[0]!.detail).toContain('No tool calls available');
   });
 });

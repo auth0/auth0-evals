@@ -1,4 +1,13 @@
-import { contains, notContains, notContainsInSource, matches, judge, GraderLevel } from '@a0/eval-graders';
+import {
+  contains,
+  notContains,
+  notContainsInSource,
+  matches,
+  judge,
+  ranCommand,
+  wroteFile,
+  GraderLevel,
+} from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
@@ -30,6 +39,13 @@ export function defineGraders() {
     ),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
+    ranCommand(
+      'npm install',
+      '@auth0/auth0-fastify-api',
+      'Ran npm install for @auth0/auth0-fastify-api',
+      GraderLevel.L4,
+    ),
+    wroteFile('.env', 'Created .env file for credentials', GraderLevel.L4),
     matches(
       String.raw`fastify\.register\s*\(\s*fastifyAuth0Api`,
       'Auth0 API plugin registered with fastify.register()',

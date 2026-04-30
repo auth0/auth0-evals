@@ -154,7 +154,15 @@ async function runAgentJob(
     let graderResults: Awaited<ReturnType<typeof runGraders>> = [];
     if (evalDef.graders.length > 0) {
       const agentLevels = tools.includes('mcp') ? AGENT_MCP_LEVELS : AGENT_LEVELS;
-      graderResults = await runGraders(evalDef.graders, workspace, apiKey, undefined, agentLevels);
+      graderResults = await runGraders(
+        evalDef.graders,
+        workspace,
+        apiKey,
+        undefined,
+        agentLevels,
+        true,
+        record.toolCalls,
+      );
     }
 
     const scored = score(record, graderResults);

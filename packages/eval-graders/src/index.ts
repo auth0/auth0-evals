@@ -2,7 +2,20 @@
 
 // Types
 export { GraderLevel } from './types.js';
-export type { GraderResult, GraderDef, GraderOptions } from './types.js';
+export type { GraderResult, GraderDef, GraderOptions, EventToolCall } from './types.js';
 
 // Grader factory functions
-export { contains, notContains, notContainsInSource, matches, judge } from './primitives.js';
+export {
+  contains,
+  notContains,
+  notContainsInSource,
+  matches,
+  judge,
+  ranCommand,
+  didNotRunCommand,
+  usedTool,
+  toolCalledWithArg,
+  wroteFile,
+  fetchedUrl,
+  eventMatch,
+} from './primitives.js';

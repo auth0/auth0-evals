@@ -1,4 +1,13 @@
-import { contains, notContains, notContainsInSource, matches, judge, GraderLevel } from '@a0/eval-graders';
+import {
+  contains,
+  notContains,
+  notContainsInSource,
+  matches,
+  judge,
+  ranCommand,
+  wroteFile,
+  GraderLevel,
+} from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
@@ -45,6 +54,9 @@ export function defineGraders() {
     notContains('sessionStorage.setItem', 'No tokens stored in sessionStorage', GraderLevel.L3),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
+    ranCommand('npm install', '@auth0/auth0-nuxt', 'Ran npm install for @auth0/auth0-nuxt', GraderLevel.L4),
+    ranCommand('npm run', 'build', 'Ran build to verify compilation', GraderLevel.L4),
+    wroteFile('.env', 'Created .env file for credentials', GraderLevel.L4),
     matches(
       String.raw`modules:\s*\[[\s\S]*['"]@auth0\/auth0-nuxt['"]`,
       'Module correctly registered in the modules array',
