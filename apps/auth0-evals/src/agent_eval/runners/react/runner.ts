@@ -5,8 +5,8 @@
  * them via the `list_skill_files` / `read_skill_file` tools.
  */
 
-import type { AgentRunner, RunParams, RunResult } from '../../agent-runner.js';
-import type { EvalDefinition } from '../../../runners/loader.js';
+import type { AgentRunner, RunParams, RunResult } from '@a0/eval';
+import type { EvalDefinition } from '@a0/eval';
 import { InjectSkillsStrategy } from '../../skills/strategy.js';
 import type { SkillsStrategy } from '../../skills/strategy.js';
 import { runAgent } from './agent.js';

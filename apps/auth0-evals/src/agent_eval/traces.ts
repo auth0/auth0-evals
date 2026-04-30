@@ -5,7 +5,7 @@
  * JSON-serialisable objects for post-run analysis and report rendering.
  */
 
-import type { RunRecord, ToolCallRecord } from './agent-types.js';
+import type { RunRecord, ToolCallRecord } from '@a0/eval';
 
 // Re-exported from @a0/eval — canonical source
 export type { TraceStep, TurnMetricEntry } from '@a0/eval';

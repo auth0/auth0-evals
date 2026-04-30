@@ -7,7 +7,7 @@ import {
   type RunRecord,
   type ToolCallRecord,
   type TurnMetric,
-} from '../src/agent_eval/agent-types.js';
+} from '@a0/eval';
 import { formatStep, serialiseTrace, serialiseTurnMetrics } from '../src/agent_eval/traces.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import type { ToolTranslator } from '../../tool-translator.js';
+import type { ToolTranslator } from '@a0/eval';
 
 /**
  * No-op translator for agents that already use the internal taxonomy.

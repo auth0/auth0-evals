@@ -28,12 +28,13 @@ import pLimit from 'p-limit';
 import { config as loadDotenv } from 'dotenv';
 import { EVALUATIONS, type EvalConfig } from './config/evaluations.js';
 import { UnknownModeError } from './errors.js';
-import { loadEval, type EvalDefinition } from './runners/loader.js';
+import { loadEval } from './runners/loader.js';
+import type { EvalDefinition } from '@a0/eval';
 import { runGraders } from './agent_eval/graders.js';
 import { serialiseBaseline, serialiseAgent, serialiseError } from './runners/serializers.js';
 import { mergeResults, loadResults, saveResults, resolveOutputPath } from './persistence/results.js';
 import { parseRunConfig } from './cli/config.js';
-import { loadConfig } from '@a0/eval';
+import { loadConfig, setFrameworkConfig as setPackageFrameworkConfig } from '@a0/eval';
 import { setFrameworkConfig } from './config/framework-config.js';
 import { logger } from './utils/logger.js';
 import type { JobResult } from './types/results.js';
@@ -293,6 +294,7 @@ async function main(): Promise<void> {
   // Load the framework configuration (eval.config.js) — auto-discovered or via --config.
   const frameworkConfig = await loadConfig({ configPath });
   setFrameworkConfig(frameworkConfig);
+  setPackageFrameworkConfig(frameworkConfig);
 
   // Validate required runtime fields — empty values typically mean eval.config.js
   // was not found (e.g. running from the wrong directory).

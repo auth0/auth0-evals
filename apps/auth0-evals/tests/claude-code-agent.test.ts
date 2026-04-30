@@ -36,7 +36,7 @@ import type {
   SDKSystemMessage,
   SDKMessage,
 } from '@anthropic-ai/claude-agent-sdk';
-import type { RunRecord } from '../src/agent_eval/agent-types.js';
+import type { RunRecord } from '@a0/eval';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
