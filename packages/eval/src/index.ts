@@ -125,6 +125,12 @@ export {
 } from './runners/skills/strategy.js';
 export { getSkillsDirs, resolveSkillDir } from './runners/skills/config.js';
 
+// Copilot runner
+export { CopilotCliRunner } from './runners/copilot/runner.js';
+export { CopilotCliTranslator } from './runners/copilot/translator.js';
+export { runCopilotAgent, getMcpServers, COPILOT_MODEL_ID, COPILOT_DEFAULT_MODEL } from './runners/copilot/agent.js';
+export type { CopilotRunOptions } from './runners/copilot/agent.js';
+
 // Runner — Gemini CLI
 export { GeminiCliRunner } from './runners/gemini-cli/runner.js';
 export { runGeminiCliAgent, GEMINI_CLI_MODEL_ID, GEMINI_CLI_DEFAULT_MODEL } from './runners/gemini-cli/agent.js';
