@@ -125,6 +125,12 @@ export {
 } from './runners/skills/strategy.js';
 export { getSkillsDirs, resolveSkillDir } from './runners/skills/config.js';
 
+// Runner — Gemini CLI
+export { GeminiCliRunner } from './runners/gemini-cli/runner.js';
+export { runGeminiCliAgent, GEMINI_CLI_MODEL_ID, GEMINI_CLI_DEFAULT_MODEL } from './runners/gemini-cli/agent.js';
+export type { GeminiCliRunOptions } from './runners/gemini-cli/agent.js';
+export { GeminiCliTranslator } from './runners/gemini-cli/translator.js';
+
 // Claude Code runner
 export { ClaudeCodeRunner } from './runners/claude-code/runner.js';
 export { ClaudeCodeTranslator } from './runners/claude-code/translator.js';

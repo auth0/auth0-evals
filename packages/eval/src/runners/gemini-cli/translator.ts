@@ -1,5 +1,5 @@
-import type { ToolTranslator } from '@a0/eval';
-import { logger } from '../../../utils/logger.js';
+import type { ToolTranslator } from '../tool-translator.js';
+import { logger } from '../../utils/logger.js';
 
 const GEMINI_TOOL_MAP: Record<string, string> = {
   list_directory: 'bash',

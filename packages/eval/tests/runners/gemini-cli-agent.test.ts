@@ -14,19 +14,26 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
-import './setup-config.js';
+
+// ── Mock framework config ────────────────────────────────────────────────────
+
+vi.mock('../../src/config/framework-config.js', () => ({
+  getFrameworkConfig: vi.fn().mockReturnValue({
+    proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+    mcp: {
+      servers: {
+        'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' },
+      },
+    },
+  }),
+}));
 
 // ── Mock spawn ────────────────────────────────────────────────────────────────
 
 const mockSpawn = vi.hoisted(() => vi.fn());
 vi.mock('node:child_process', () => ({ spawn: mockSpawn }));
 
-// Prevent actual OCM subprocess calls from proxy helpers.
-vi.mock('../src/agent_eval/runners/gemini-cli/proxy.js', () => ({
-  geminiProxyEnv: vi.fn().mockReturnValue({}),
-}));
-
-import { runGeminiCliAgent } from '../src/agent_eval/runners/gemini-cli/agent.js';
+import { runGeminiCliAgent } from '../../src/runners/gemini-cli/agent.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

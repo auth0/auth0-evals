@@ -2,10 +2,10 @@
  * AgentRunner implementation for the Gemini CLI.
  */
 
-import type { AgentRunner, RunParams, RunResult } from '@a0/eval';
-import type { EvalDefinition } from '@a0/eval';
-import { CopySkillsStrategy } from '../../skills/strategy.js';
-import type { SkillsStrategy } from '../../skills/strategy.js';
+import type { AgentRunner, RunParams, RunResult } from '../agent-runner.js';
+import type { EvalDefinition } from '../../types/eval.js';
+import { CopySkillsStrategy } from '../skills/strategy.js';
+import type { SkillsStrategy } from '../skills/strategy.js';
 import { runGeminiCliAgent, GEMINI_CLI_MODEL_ID } from './agent.js';
 
 export class GeminiCliRunner implements AgentRunner {
