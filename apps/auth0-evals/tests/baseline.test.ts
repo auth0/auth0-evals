@@ -8,7 +8,7 @@ import { runBaseline } from '../src/runners/baseline.js';
 import { gradeText } from '../src/agent_eval/grade-text.js';
 import { judge } from '@a0/eval-graders';
 import { TEST_CONFIG } from './setup-config.js';
-import type { EvalDefinition } from '../src/runners/loader.js';
+import type { EvalDefinition } from '@a0/eval';
 
 const JUDGE_MAX_CODE_CHARS = TEST_CONFIG.judge.maxCodeChars!;
 

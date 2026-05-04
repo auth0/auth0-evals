@@ -7,7 +7,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { makeTmpDir } from './tmp.js';
 import { fileURLToPath } from 'node:url';
-import { loadEval } from '../src/runners/loader.js';
+import { loadEval } from '@a0/eval';
 import { EvalConfigError, EvalNotFoundError } from '../src/errors.js';
 
 const __filename = fileURLToPath(import.meta.url);
