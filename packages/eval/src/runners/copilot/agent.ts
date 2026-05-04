@@ -17,15 +17,15 @@
 import { join } from 'node:path';
 import { CopilotClient, approveAll } from '@github/copilot-sdk';
 import type { MCPRemoteServerConfig } from '@github/copilot-sdk';
-import type { EvalDefinition } from '@a0/eval';
-import { COPILOT_TASK_TIMEOUT_MS } from '../../../config/settings.js';
-import { getFrameworkConfig } from '../../../config/framework-config.js';
-import { estimateCost } from '../../../config/costs.js';
-import type { RunRecord, ToolCallRecord, TurnMetric } from '@a0/eval';
-import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/eval';
+import type { EvalDefinition } from '../../types/eval.js';
+import { COPILOT_TASK_TIMEOUT_MS } from '../../config/settings.js';
+import { getFrameworkConfig } from '../../config/framework-config.js';
+import { estimateCost } from '../../config/costs.js';
+import type { RunRecord, ToolCallRecord, TurnMetric } from '../../types/scorer.js';
+import { classifyActionType, classifyErrorCategory, detectRetry } from '../classify.js';
 import { CopilotCliTranslator } from './translator.js';
-import { logger } from '../../../utils/logger.js';
-import { makeSessionId } from '../../../utils/session.js';
+import { logger } from '../../utils/logger.js';
+import { makeSessionId } from '../../utils/session.js';
 
 const translator = new CopilotCliTranslator();
 

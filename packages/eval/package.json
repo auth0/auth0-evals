@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@a0/eval-graders": "*",
-    "@anthropic-ai/claude-agent-sdk": "^0.2.117"
+    "@anthropic-ai/claude-agent-sdk": "^0.2.117",
+    "@github/copilot-sdk": "^0.2.2"
   },
   "scripts": {
     "build": "tsc",

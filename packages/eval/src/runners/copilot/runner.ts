@@ -5,10 +5,10 @@
  * config option picks them up automatically — no prompt modification required.
  */
 
-import type { AgentRunner, RunParams, RunResult } from '@a0/eval';
-import type { EvalDefinition } from '@a0/eval';
-import { CopySkillsStrategy } from '../../skills/strategy.js';
-import type { SkillsStrategy } from '../../skills/strategy.js';
+import type { AgentRunner, RunParams, RunResult } from '../agent-runner.js';
+import type { EvalDefinition } from '../../types/eval.js';
+import { CopySkillsStrategy } from '../skills/strategy.js';
+import type { SkillsStrategy } from '../skills/strategy.js';
 import { runCopilotAgent, COPILOT_MODEL_ID, COPILOT_DEFAULT_MODEL } from './agent.js';
 
 export class CopilotCliRunner implements AgentRunner {
