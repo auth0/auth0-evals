@@ -10,12 +10,25 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SpawnOptionsWithoutStdio } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
-import './setup-config.js';
-import { runGeminiCliAgent } from '../src/agent_eval/runners/gemini-cli/agent.js';
+
+// ── Mock framework config ────────────────────────────────────────────────────
+
+vi.mock('../../src/config/framework-config.js', () => ({
+  getFrameworkConfig: vi.fn().mockReturnValue({
+    proxy: { baseUrl: 'https://llm.atko.ai/v1' },
+    mcp: {
+      servers: {
+        'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' },
+      },
+    },
+  }),
+}));
 
 vi.mock('node:child_process', () => ({
   spawn: vi.fn(),
 }));
+
+import { runGeminiCliAgent } from '../../src/runners/gemini-cli/agent.js';
 
 let spawnMock: ReturnType<typeof vi.fn>;
 
