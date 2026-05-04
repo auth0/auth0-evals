@@ -10,8 +10,8 @@
  *   3. Import and register it inside initAgentRegistry() below — one line.
  */
 
-import { registerRunner, getRunner, ClaudeCodeRunner, GeminiCliRunner, CopilotCliRunner } from '@a0/eval';
-import { ReactAgentRunner } from './runners/react/runner.js';
+import { registerRunner, getRunner, ClaudeCodeRunner, CopilotCliRunner, GeminiCliRunner  } from '@a0/eval';
+import { ReactAgentRunner } from '@a0/eval-react-runner';
 
 export function initAgentRegistry(): void {
   registerRunner('auth0-ReAct-agent', new ReactAgentRunner());

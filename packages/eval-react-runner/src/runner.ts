@@ -7,8 +7,8 @@
 
 import type { AgentRunner, RunParams, RunResult } from '@a0/eval';
 import type { EvalDefinition } from '@a0/eval';
-import { InjectSkillsStrategy } from '../../skills/strategy.js';
-import type { SkillsStrategy } from '../../skills/strategy.js';
+import { InjectSkillsStrategy } from '@a0/eval';
+import type { SkillsStrategy } from '@a0/eval';
 import { runAgent } from './agent.js';
 
 export class ReactAgentRunner implements AgentRunner {

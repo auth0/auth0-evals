@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { IdentityTranslator } from '../src/agent_eval/runners/react/identity-translator.js';
+import { IdentityTranslator } from '@a0/eval-react-runner';
 import { ClaudeCodeTranslator, CopilotCliTranslator, GeminiCliTranslator } from '@a0/eval';
 
 describe('IdentityTranslator', () => {

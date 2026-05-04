@@ -1,5 +1,5 @@
-import { Tool, ToolContext, ToolName, ToolResult } from './base.js';
-import { logger } from '../../../../utils/logger.js';
+import { logger } from '@a0/eval';
+import type { Tool, ToolContext, ToolName, ToolResult } from './base.js';
 
 function wrapResult(message: string): ToolResult {
   return [message, false, true, false];

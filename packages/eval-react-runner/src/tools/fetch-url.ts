@@ -1,4 +1,4 @@
-import { Tool, ToolContext, ToolName, ToolResult } from './base.js';
+import type { Tool, ToolContext, ToolName, ToolResult } from './base.js';
 
 function wrapResult(message: string): ToolResult {
   return [message, true, false, false];

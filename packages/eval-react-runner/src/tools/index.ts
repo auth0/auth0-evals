@@ -1,4 +1,4 @@
-import { Tool } from './base.js';
+import type { Tool } from './base.js';
 import { AskUserTool } from './ask-user.js';
 import { FetchUrlTool } from './fetch-url.js';
 import { FinishTaskTool } from './finish-task.js';
