@@ -124,3 +124,15 @@ export {
   CopySkillsStrategy,
 } from './runners/skills/strategy.js';
 export { getSkillsDirs, resolveSkillDir } from './runners/skills/config.js';
+
+// Claude Code runner
+export { ClaudeCodeRunner } from './runners/claude-code/runner.js';
+export { ClaudeCodeTranslator } from './runners/claude-code/translator.js';
+export {
+  runClaudeCodeAgent,
+  writeAgentSystemPrompt,
+  handleMessage,
+  normaliseStopReason,
+  CLAUDE_CODE_MODEL_ID,
+} from './runners/claude-code/agent.js';
+export type { ClaudeCodeRunOptions, TurnStateUpdate } from './runners/claude-code/agent.js';

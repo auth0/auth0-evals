@@ -7,7 +7,7 @@
  * The agent system prompt is written to CLAUDE.md in the workspace so Claude Code picks it
  * up as persistent context. The user prompt is passed directly via `query()`.
  *
- * Tool names are mapped via ClaudeCodeTranslator (see tool-translator.ts).
+ * Tool names are mapped via ClaudeCodeTranslator (see translator.ts).
  */
 
 import { query } from '@anthropic-ai/claude-agent-sdk';
@@ -20,19 +20,19 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { RunRecord, ToolCallRecord, TurnMetric, FinishReason } from '@a0/eval';
-import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/eval';
-import type { EvalDefinition } from '@a0/eval';
+import type { RunRecord, ToolCallRecord, TurnMetric, FinishReason } from '../../types/scorer.js';
+import { classifyActionType, classifyErrorCategory, detectRetry } from '../classify.js';
+import type { EvalDefinition } from '../../types/eval.js';
 import {
   CLAUDE_CODE_TASK_TIMEOUT_MS,
   getLitellmModelMap,
   getLitellmModelReverseMap,
-} from '../../../config/settings.js';
-import { getFrameworkConfig } from '../../../config/framework-config.js';
-import { estimateCost } from '../../../config/costs.js';
+} from '../../config/settings.js';
+import { getFrameworkConfig } from '../../config/framework-config.js';
+import { estimateCost } from '../../config/costs.js';
 import { ClaudeCodeTranslator } from './translator.js';
-import { logger } from '../../../utils/logger.js';
-import { makeSessionId } from '../../../utils/session.js';
+import { logger } from '../../utils/logger.js';
+import { makeSessionId } from '../../utils/session.js';
 
 // Module-level translator instance — all event processing uses this.
 const translator = new ClaudeCodeTranslator();
@@ -271,10 +271,6 @@ export async function runClaudeCodeAgent(
 
   record.endTime = Date.now() / 1000;
   if (record.status === 'running') {
-    // If the SDK query completed without emitting a result message, the status
-    // is still 'running'. This can happen when the SDK process exits unexpectedly.
-    // Only treat as success if we actually received at least one turn of output;
-    // otherwise mark as failure since something likely went wrong.
     if (turnNum === 0) {
       record.status = 'failure';
       record.providerErrors.push('no result event received from SDK — query may have exited unexpectedly');
@@ -312,9 +308,6 @@ export function handleMessage(
   if (message.type === 'system') {
     const sys = message as SDKSystemMessage;
     if (sys.subtype !== 'init') return null;
-    // Enrich model identifier with the actual underlying model reported by Claude Code.
-    // In Bedrock mode the CLI reports full Bedrock IDs — reverse-map to friendly aliases.
-    // In LiteLLM mode the CLI reports the alias directly — validate and use as-is.
     record.model = sys.model
       ? (getBedrockModelReverseMap()[sys.model] ??
         getLitellmModelReverseMap()[sys.model] ??
@@ -357,8 +350,6 @@ export function handleMessage(
     }
 
     const toolUseCount = msg.content.filter((b) => b.type === 'tool_use').length;
-
-    // LLM latency = wall time from when previous turn's tool results were delivered to now
     const llmLatency = Math.max(0, now - prevTurnEndTime);
 
     const turnMetric: TurnMetric = {
@@ -368,7 +359,7 @@ export function handleMessage(
       llmLatency,
       finishReason: normaliseStopReason(stopReason),
       toolCallCount: toolUseCount,
-      costUsd: 0, // cost is not available per-turn; filled in at result event
+      costUsd: 0,
     };
     record.turnMetrics.push(turnMetric);
 
@@ -380,7 +371,6 @@ export function handleMessage(
     return { turnNum: nextTurnNum, prevTurnEndTime };
   }
 
-  // Tool results come in user-turn messages as tool_result content blocks
   if (message.type === 'user') {
     const userMsg = message as SDKUserMessage;
     const now = Date.now() / 1000;
@@ -392,7 +382,7 @@ export function handleMessage(
       if (block.type !== 'tool_result') continue;
 
       const pend = pending.get(block.tool_use_id);
-      if (!pend) continue; // orphaned result — skip
+      if (!pend) continue;
       pending.delete(block.tool_use_id);
 
       const mappedName = translator.mapName(pend.name);
@@ -410,7 +400,6 @@ export function handleMessage(
       const elapsed = ((now - pend.startTime) * 1000).toFixed(0);
       const preview = resultStr.slice(0, 80).replace(/\n/g, ' ');
 
-      // Internal Claude Code tools (TodoWrite, Task, etc.) are bookkeeping, not task actions.
       if (translator.isInternalTool(pend.name)) {
         logger.info(`  [ClaudeCode] ${pend.name} (internal, skipped) (${elapsed}ms)`);
         continue;
@@ -458,21 +447,16 @@ export function handleMessage(
   if (message.type === 'result') {
     const res = message as SDKResultMessage;
 
-    // Use the final summary from the result event if we don't already have one
     if ('result' in res && res.result && !record.finalSummary) {
       record.finalSummary = res.result;
     }
 
-    // Authoritative token counts and cost
     if (res.usage) {
       record.inputTokens = res.usage.input_tokens;
       record.outputTokens = res.usage.output_tokens;
     }
     record.costUsd = res.total_cost_usd ?? 0;
 
-    // Back-fill per-turn costs. Claude Code only reports a session-level total, so
-    // estimate each turn's share using the pricing table, then scale proportionally
-    // so per-turn values sum to the authoritative total.
     if (record.costUsd > 0 && record.turnMetrics.length > 0) {
       const rawCosts = record.turnMetrics.map((tm) => estimateCost(record.model, tm.inputTokens, tm.outputTokens));
       const rawTotal = rawCosts.reduce((s, c) => s + c, 0);
@@ -486,8 +470,6 @@ export function handleMessage(
       }
     }
 
-    // Success only when the subtype is 'success' with no error flag. Everything else
-    // is a failure — result carries the message when available, subtype otherwise.
     if (res.subtype === 'success' && !res.is_error) {
       record.status = 'success';
     } else {

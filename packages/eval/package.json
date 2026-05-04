@@ -11,7 +11,8 @@
     }
   },
   "dependencies": {
-    "@a0/eval-graders": "*"
+    "@a0/eval-graders": "*",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.117"
   },
   "scripts": {
     "build": "tsc",

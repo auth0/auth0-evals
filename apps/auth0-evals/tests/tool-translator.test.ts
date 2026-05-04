@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { IdentityTranslator } from '../src/agent_eval/runners/react/identity-translator.js';
-import { ClaudeCodeTranslator } from '../src/agent_eval/runners/claude-code/translator.js';
+import { ClaudeCodeTranslator } from '@a0/eval';
 import { CopilotCliTranslator } from '../src/agent_eval/runners/copilot/translator.js';
 import { GeminiCliTranslator } from '../src/agent_eval/runners/gemini-cli/translator.js';
 
