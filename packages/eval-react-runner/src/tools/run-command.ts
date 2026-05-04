@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process';
-import { Tool, ToolContext, ToolName, ToolResult } from './base.js';
+import type { Tool, ToolContext, ToolName, ToolResult } from './base.js';
 
 function successResult(message: string): ToolResult {
   return [message, false, false, false];

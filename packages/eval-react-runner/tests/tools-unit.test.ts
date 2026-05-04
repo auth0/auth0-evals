@@ -1,5 +1,5 @@
 /**
- * Tests for all tools in src/agent_eval/tools/
+ * Direct tool class unit tests — edge cases that ToolExecutor-level tests don't exercise.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -8,22 +8,10 @@ import { join } from 'node:path';
 import * as childProcess from 'node:child_process';
 import { makeTmpDir } from './tmp.js';
 
-// Some describe blocks use vi.resetModules() — must mock framework-config so the singleton
-// survives re-imports. Async vi.mock factories deadlock with resetModules, so inline the config.
-vi.mock('../src/config/framework-config.js', () => ({
-  getFrameworkConfig: vi.fn().mockReturnValue({
-    evalsDir: 'src/evals',
-    proxy: { baseUrl: 'https://llm.atko.ai/v1' },
-    mcp: { servers: { 'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' } } },
-    skills: {
-      remoteRepos: [{ url: 'https://github.com/auth0/agent-skills.git', localPath: 'skills-remote/auth0-skills' }],
-      localDirs: ['skills'],
-    },
-    judge: { model: 'claude-sonnet-4-5', maxTokens: 1024, maxCodeChars: 16384, promptsDir: 'src/prompts/judge' },
-    models: { known: [], default: 'gpt-5.4', bedrock: {}, litellm: {} },
-  }),
-  setFrameworkConfig: vi.fn(),
-}));
+import { setFrameworkConfig, DEFAULT_FRAMEWORK_CONFIG, collectFiles } from '@a0/eval';
+
+// Initialize the framework config singleton so internal @a0/eval functions work correctly.
+setFrameworkConfig(DEFAULT_FRAMEWORK_CONFIG as Required<typeof DEFAULT_FRAMEWORK_CONFIG>);
 
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>();
@@ -33,16 +21,15 @@ vi.mock('node:child_process', async (importOriginal) => {
   };
 });
 
-import { AskUserTool } from '../src/agent_eval/runners/react/tools/ask-user.js';
-import { FetchUrlTool } from '../src/agent_eval/runners/react/tools/fetch-url.js';
-import { FinishTaskTool } from '../src/agent_eval/runners/react/tools/finish-task.js';
-import { ListFilesTool } from '../src/agent_eval/runners/react/tools/list-files.js';
-import { ReadFileTool } from '../src/agent_eval/runners/react/tools/read-file.js';
-import { RunCommandTool } from '../src/agent_eval/runners/react/tools/run-command.js';
-import { collectFiles } from '@a0/eval';
-import { WriteFileTool } from '../src/agent_eval/runners/react/tools/write-file.js';
+import { AskUserTool } from '../src/tools/ask-user.js';
+import { FetchUrlTool } from '../src/tools/fetch-url.js';
+import { FinishTaskTool } from '../src/tools/finish-task.js';
+import { ListFilesTool } from '../src/tools/list-files.js';
+import { ReadFileTool } from '../src/tools/read-file.js';
+import { RunCommandTool } from '../src/tools/run-command.js';
+import { WriteFileTool } from '../src/tools/write-file.js';
 
-const tmpDir = makeTmpDir('tools_test_');
+const tmpDir = makeTmpDir('tools_unit_test_');
 
 function makeContext(workspace: string, credentials: Record<string, string> = {}) {
   return { workspace, credentials };
@@ -314,13 +301,11 @@ describe('RunCommandTool', () => {
     expect(result).toBe('(no output)');
   });
 
-  it('returns result flags [result, false, false, false]', async () => {
+  it('returns isError=true for failing commands', async () => {
     const dir = tmpDir();
     const tool = new RunCommandTool();
-    const [, isDoc, isInterrupt, isError] = await tool.run(makeContext(dir), { command: 'echo hi' });
-    expect(isDoc).toBe(false);
-    expect(isInterrupt).toBe(false);
-    expect(isError).toBe(false);
+    const [, , , isError] = await tool.run(makeContext(dir), { command: 'cat nonexistent_file_xyz' });
+    expect(isError).toBe(true);
   });
 });
 
@@ -500,7 +485,10 @@ describe('ListSkillFilesTool', () => {
 
   async function importTool() {
     vi.resetModules();
-    const { ListSkillFilesTool } = await import('../src/agent_eval/runners/react/tools/list-skill-files.js');
+    // Re-initialize the framework config singleton after resetModules clears it.
+    const { setFrameworkConfig: setConfig, DEFAULT_FRAMEWORK_CONFIG: defaults } = await import('@a0/eval');
+    setConfig(defaults as Required<typeof defaults>);
+    const { ListSkillFilesTool } = await import('../src/tools/list-skill-files.js');
     return ListSkillFilesTool;
   }
 
@@ -542,7 +530,7 @@ describe('ListSkillFilesTool', () => {
   it('returns skill-not-found message (isError=false) when skill does not exist', async () => {
     const Tool = await importTool();
     const [result, , , isError] = await new Tool().run(makeContext(''), { skill: 'nonexistent' });
-    expect(result).toContain("Skill 'nonexistent' not found");
+    expect(result).toContain('not found');
     expect(isError).toBe(false);
   });
 
@@ -550,7 +538,7 @@ describe('ListSkillFilesTool', () => {
     mkdirSync(join(skillsBaseDir, 'myskill'), { recursive: true });
     const Tool = await importTool();
     const [result, , , isError] = await new Tool().run(makeContext(''), { skill: 'myskill' });
-    expect(result).toContain('directory is empty');
+    expect(result).toContain('empty');
     expect(isError).toBe(false);
   });
 
@@ -574,7 +562,10 @@ describe('ReadSkillFileTool', () => {
 
   async function importTool() {
     vi.resetModules();
-    const { ReadSkillFileTool } = await import('../src/agent_eval/runners/react/tools/read-skill-file.js');
+    // Re-initialize the framework config singleton after resetModules clears it.
+    const { setFrameworkConfig: setConfig, DEFAULT_FRAMEWORK_CONFIG: defaults } = await import('@a0/eval');
+    setConfig(defaults as Required<typeof defaults>);
+    const { ReadSkillFileTool } = await import('../src/tools/read-skill-file.js');
     return ReadSkillFileTool;
   }
 

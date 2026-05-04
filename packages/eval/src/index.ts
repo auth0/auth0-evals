@@ -110,6 +110,9 @@ export {
 // Session
 export { makeSessionId } from './utils/session.js';
 
+// Model detection
+export { isBedrockModel, isClaudeModel, isGeminiModel, isGptModel } from './config/model-detect.js';
+
 // Runner infrastructure
 export type { AgentRunner, RunParams, RunResult } from './runners/agent-runner.js';
 export { registerRunner, getRunner } from './runners/agent-runner.js';

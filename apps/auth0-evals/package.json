@@ -16,6 +16,7 @@
   "dependencies": {
     "@a0/eval": "*",
     "@a0/eval-graders": "*",
+    "@a0/eval-react-runner": "*",
     "@a0/eval-reporter": "*",
     "@anthropic-ai/claude-agent-sdk": "^0.2.117",
     "@github/copilot-sdk": "^0.2.2",

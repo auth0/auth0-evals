@@ -1,6 +1,5 @@
-import { resolveSkillDir } from '../../../skills/config.js';
-import { collectFiles } from '@a0/eval';
-import { Tool, ToolContext, ToolName, ToolResult } from './base.js';
+import { resolveSkillDir, collectFiles } from '@a0/eval';
+import type { Tool, ToolContext, ToolName, ToolResult } from './base.js';
 
 function wrapResult(message: string): ToolResult {
   return [message, true, false, false];
