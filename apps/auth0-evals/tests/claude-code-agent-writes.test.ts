@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { writeAgentSystemPrompt } from '../src/agent_eval/runners/claude-code/agent.js';
+import { writeAgentSystemPrompt } from '@a0/eval';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,5 @@
 /**
- * Unit tests for handleMessage, normaliseStopReason, and runClaudeCodeAgent
- * in claude-code-agent.ts.
+ * Unit tests for handleMessage, normaliseStopReason, and runClaudeCodeAgent.
  *
  * handleMessage is pure data transformation — it takes an SDK message and
  * mutates a RunRecord / pending map. No subprocess, no filesystem, no mocking required.
@@ -9,9 +8,59 @@
  * async iterables, verifying timeout, error, orphaned-tool, and fallback logic.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import './setup-config.js';
-import { ClaudeCodeTranslator } from '../src/agent_eval/runners/claude-code/translator.js';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
+import { setFrameworkConfig } from '../../src/config/framework-config.js';
+import type { FrameworkConfig } from '../../src/config/framework.js';
+
+const TEST_CONFIG: Required<FrameworkConfig> = {
+  evalsDir: 'src/evals',
+  proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+  mcp: {
+    servers: {
+      'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' },
+    },
+  },
+  skills: {
+    remoteRepos: [
+      {
+        url: 'https://github.com/auth0/agent-skills.git',
+        localPath: 'skills-remote/auth0-skills',
+        skillsPath: 'plugins/auth0/skills',
+      },
+    ],
+    localDirs: ['skills'],
+  },
+  judge: {
+    model: 'claude-sonnet-4-5',
+    maxTokens: 1024,
+    maxCodeChars: 16_384,
+    promptsDir: 'src/prompts/judge',
+  },
+  models: {
+    known: ['gpt-5.4', 'claude-sonnet-4-6', 'claude-opus-4-6', 'claude-opus-4-7', 'gemini-3.1-pro-preview'],
+    default: 'gpt-5.4',
+    bedrock: {
+      'claude-sonnet-4-6': 'global.anthropic.claude-sonnet-4-6',
+      'claude-opus-4-6': 'global.anthropic.claude-opus-4-6-v1',
+      'claude-sonnet-4-5': 'global.anthropic.claude-sonnet-4-5-20250929-v1:0',
+      'claude-opus-4-7': 'global.anthropic.claude-opus-4-7',
+      'claude-opus-4-5': 'global.anthropic.claude-opus-4-5-20251101-v1:0',
+    },
+    litellm: {
+      'claude-sonnet-4-6': '_claude-sonnet-4-6',
+      'claude-opus-4-6': '_claude-opus-4-6',
+      'claude-opus-4-7': '_claude-opus-4-7',
+      'claude-sonnet-4-5': '_claude-sonnet-4-5',
+      'claude-opus-4-5': '_claude-opus-4-5',
+    },
+  },
+};
+
+beforeAll(() => {
+  setFrameworkConfig(TEST_CONFIG);
+});
+
+import { ClaudeCodeTranslator } from '../../src/runners/claude-code/translator.js';
 
 // ── Mock for @anthropic-ai/claude-agent-sdk ───────────────────────────────────
 
@@ -28,7 +77,7 @@ import {
   runClaudeCodeAgent,
   CLAUDE_CODE_MODEL_ID,
   type TurnStateUpdate,
-} from '../src/agent_eval/runners/claude-code/agent.js';
+} from '../../src/runners/claude-code/agent.js';
 import type {
   SDKAssistantMessage,
   SDKUserMessage,
@@ -36,7 +85,7 @@ import type {
   SDKSystemMessage,
   SDKMessage,
 } from '@anthropic-ai/claude-agent-sdk';
-import type { RunRecord } from '@a0/eval';
+import type { RunRecord } from '../../src/types/scorer.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -149,22 +198,10 @@ function makeResultMsg(
 // ── normaliseStopReason ───────────────────────────────────────────────────────
 
 describe('normaliseStopReason', () => {
-  it('maps tool_use → tool_calls', () => {
-    expect(normaliseStopReason('tool_use')).toBe('tool_calls');
-  });
-
-  it('maps end_turn → stop', () => {
-    expect(normaliseStopReason('end_turn')).toBe('stop');
-  });
-
-  it('maps max_tokens → max_tokens', () => {
-    expect(normaliseStopReason('max_tokens')).toBe('max_tokens');
-  });
-
-  it('maps stop_sequence → stop', () => {
-    expect(normaliseStopReason('stop_sequence')).toBe('stop');
-  });
-
+  it('maps tool_use → tool_calls', () => expect(normaliseStopReason('tool_use')).toBe('tool_calls'));
+  it('maps end_turn → stop', () => expect(normaliseStopReason('end_turn')).toBe('stop'));
+  it('maps max_tokens → max_tokens', () => expect(normaliseStopReason('max_tokens')).toBe('max_tokens'));
+  it('maps stop_sequence → stop', () => expect(normaliseStopReason('stop_sequence')).toBe('stop'));
   it('maps unknown value → unknown', () => {
     expect(normaliseStopReason('some_future_reason')).toBe('unknown');
     expect(normaliseStopReason('')).toBe('unknown');
@@ -177,21 +214,10 @@ describe('handleMessage — system', () => {
   it('init event enriches model and sets sessionId', () => {
     const record = makeRecord();
     const msg = {
-      type: 'system',
-      subtype: 'init',
-      uuid: 'uuid_sys',
-      session_id: 'sess_abc',
-      model: 'claude-sonnet-4-5',
-      cwd: '/tmp',
-      tools: [],
-      mcp_servers: [],
-      permissionMode: 'bypassPermissions',
-      slash_commands: [],
-      output_style: 'concise',
-      skills: [],
-      plugins: [],
-      apiKeySource: 'user',
-      claude_code_version: '1.0.0',
+      type: 'system', subtype: 'init', uuid: 'uuid_sys', session_id: 'sess_abc',
+      model: 'claude-sonnet-4-5', cwd: '/tmp', tools: [], mcp_servers: [],
+      permissionMode: 'bypassPermissions', slash_commands: [], output_style: 'concise',
+      skills: [], plugins: [], apiKeySource: 'user', claude_code_version: '1.0.0',
     } as unknown as SDKSystemMessage;
     const result = handleMessage(msg, record, makePending(), 0, 0);
     expect(result).toBeNull();
@@ -202,21 +228,10 @@ describe('handleMessage — system', () => {
   it('init with empty model falls back to CLAUDE_CODE_MODEL_ID', () => {
     const record = makeRecord();
     const msg = {
-      type: 'system',
-      subtype: 'init',
-      uuid: 'uuid_sys',
-      session_id: 'sess_xyz',
-      model: '',
-      cwd: '/tmp',
-      tools: [],
-      mcp_servers: [],
-      permissionMode: 'bypassPermissions',
-      slash_commands: [],
-      output_style: 'concise',
-      skills: [],
-      plugins: [],
-      apiKeySource: 'user',
-      claude_code_version: '1.0.0',
+      type: 'system', subtype: 'init', uuid: 'uuid_sys', session_id: 'sess_xyz',
+      model: '', cwd: '/tmp', tools: [], mcp_servers: [],
+      permissionMode: 'bypassPermissions', slash_commands: [], output_style: 'concise',
+      skills: [], plugins: [], apiKeySource: 'user', claude_code_version: '1.0.0',
     } as unknown as SDKSystemMessage;
     handleMessage(msg, record, makePending(), 0, 0);
     expect(record.model).toBe(CLAUDE_CODE_MODEL_ID);
@@ -226,10 +241,7 @@ describe('handleMessage — system', () => {
     const record = makeRecord();
     const before = { ...record };
     const msg = {
-      type: 'system',
-      subtype: 'hook_response',
-      uuid: 'uuid_sys',
-      session_id: 'sess_1',
+      type: 'system', subtype: 'hook_response', uuid: 'uuid_sys', session_id: 'sess_1',
     } as unknown as SDKMessage;
     const result = handleMessage(msg, record, makePending(), 0, 0);
     expect(result).toBeNull();
@@ -349,9 +361,9 @@ describe('handleMessage — user', () => {
     const pending = makePendingWithEntry('tu_1', 'Read', { file_path: 'src/app.ts' });
     const msg = makeUserMsg([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'file contents', is_error: false }]);
     handleMessage(msg, record, pending, 1, 0);
-    expect(pending.has('tu_1')).toBe(false); // consumed
+    expect(pending.has('tu_1')).toBe(false);
     expect(record.toolCalls).toHaveLength(1);
-    expect(record.toolCalls[0].name).toBe('read_file'); // Read → read_file
+    expect(record.toolCalls[0].name).toBe('read_file');
     expect(record.toolCalls[0].result).toBe('file contents');
     expect(record.toolCalls[0].causedError).toBe(false);
   });
@@ -572,24 +584,148 @@ describe('handleMessage — unknown event type', () => {
   });
 });
 
-// ── ClaudeCodeTranslator.mapName ──────────────────────────────────────────────
+// ── runClaudeCodeAgent ────────────────────────────────────────────────────────
+
+async function* fakeQuery(messages: SDKMessage[]): AsyncGenerator<SDKMessage, void> {
+  for (const m of messages) yield m;
+}
+
+async function* fakeQueryThatThrows(messages: SDKMessage[], error: Error): AsyncGenerator<SDKMessage, void> {
+  for (const m of messages) yield m;
+  throw error;
+}
+
+const evalDef = { id: 'test_eval', userPrompt: 'Integrate Auth0 into a React app' };
+const workspace = '/tmp/test-workspace';
+
+describe('runClaudeCodeAgent', () => {
+  beforeEach(() => {
+    mockQuery.mockReset();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('successful run with result message sets status, tokens, and cost', async () => {
+    const messages: SDKMessage[] = [
+      {
+        type: 'system', subtype: 'init', uuid: 'u1', session_id: 's1',
+        model: 'claude-sonnet-4-5', cwd: workspace, tools: [], mcp_servers: [],
+        permissionMode: 'bypassPermissions', slash_commands: [], output_style: 'concise',
+        skills: [], plugins: [], apiKeySource: 'user', claude_code_version: '1.0.0',
+      } as unknown as SDKMessage,
+      makeAssistantMsg({
+        content: [{ type: 'tool_use', id: 'tu_1', name: 'Read', input: { file_path: 'src/app.ts' } }],
+        input_tokens: 100, output_tokens: 20,
+      }) as SDKMessage,
+      makeUserMsg([
+        { type: 'tool_result', tool_use_id: 'tu_1', content: 'file contents', is_error: false },
+      ]) as SDKMessage,
+      makeAssistantMsg({
+        content: [{ type: 'text', text: 'Done integrating Auth0.' }],
+        stop_reason: 'end_turn', input_tokens: 50, output_tokens: 10,
+      }) as SDKMessage,
+      makeResultMsg({
+        subtype: 'success', result: 'Task complete.', total_cost_usd: 0.042,
+        input_tokens: 150, output_tokens: 30,
+      }) as SDKMessage,
+    ];
+
+    mockQuery.mockReturnValue(fakeQuery(messages));
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+
+    expect(record.status).toBe('success');
+    expect(record.inputTokens).toBe(150);
+    expect(record.outputTokens).toBe(30);
+    expect(record.costUsd).toBe(0.042);
+    expect(record.toolCalls).toHaveLength(1);
+    expect(record.toolCalls[0].name).toBe('read_file');
+    expect(record.finalSummary).toBe('Done integrating Auth0.');
+    expect(record.providerErrors).toHaveLength(0);
+  });
+
+  it('SDK error sets status to failure with error in providerErrors', async () => {
+    mockQuery.mockReturnValue(fakeQueryThatThrows([], new Error('connection refused')));
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+    expect(record.status).toBe('failure');
+    expect(record.providerErrors).toContain('sdk error: connection refused');
+  });
+
+  it('empty stream (zero turns, no result) sets status to failure', async () => {
+    mockQuery.mockReturnValue(fakeQuery([]));
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+    expect(record.status).toBe('failure');
+    expect(record.providerErrors.some((e) => e.includes('no result event received'))).toBe(true);
+  });
+
+  it('stream with turns but no result message falls back to success', async () => {
+    mockQuery.mockReturnValue(fakeQuery([
+      makeAssistantMsg({ content: [{ type: 'text', text: 'All done.' }], stop_reason: 'end_turn' }) as SDKMessage,
+    ]));
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+    expect(record.status).toBe('success');
+    expect(record.turnMetrics).toHaveLength(1);
+  });
+
+  it('orphaned tool_use blocks are drained into toolCalls and providerErrors', async () => {
+    mockQuery.mockReturnValue(fakeQuery([
+      makeAssistantMsg({
+        content: [{ type: 'tool_use', id: 'tu_orphan', name: 'Bash', input: { command: 'npm install' } }],
+      }) as SDKMessage,
+    ]));
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+    expect(record.toolCalls).toHaveLength(1);
+    expect(record.toolCalls[0].name).toBe('run_command');
+    expect(record.toolCalls[0].result).toBe('<orphaned: result event never received>');
+    expect(record.toolCalls[0].causedError).toBe(true);
+    expect(record.providerErrors.some((e) => e.includes('orphaned tool_use: Bash'))).toBe(true);
+  });
+
+  it('orphaned internal tools are not added to toolCalls', async () => {
+    mockQuery.mockReturnValue(fakeQuery([
+      makeAssistantMsg({
+        content: [{ type: 'tool_use', id: 'tu_internal', name: 'TodoWrite', input: {} }],
+      }) as SDKMessage,
+    ]));
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+    expect(record.toolCalls).toHaveLength(0);
+  });
+
+  it('SDK error after abort does not overwrite failure status', async () => {
+    async function* abortingQuery(): AsyncGenerator<SDKMessage, void> {
+      yield makeAssistantMsg({ content: [{ type: 'text', text: 'Working...' }] }) as SDKMessage;
+      throw new Error('aborted');
+    }
+
+    mockQuery.mockReturnValue(abortingQuery());
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+
+    expect(record.status).toBe('failure');
+    expect(record.providerErrors.some((e) => e.includes('sdk error: aborted'))).toBe(true);
+  });
+
+  it('record endTime is always set', async () => {
+    mockQuery.mockReturnValue(fakeQuery([]));
+    const before = Date.now() / 1000;
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+    const after = Date.now() / 1000;
+    expect(record.endTime).toBeGreaterThanOrEqual(before);
+    expect(record.endTime).toBeLessThanOrEqual(after + 0.01);
+  });
+});
+
+// ── ClaudeCodeTranslator ──────────────────────────────────────────────────────
 
 describe('ClaudeCodeTranslator — mapName', () => {
   const translator = new ClaudeCodeTranslator();
 
   it.each([
-    ['Bash', 'run_command'],
-    ['Read', 'read_file'],
-    ['Write', 'write_file'],
-    ['Edit', 'write_file'],
-    ['MultiEdit', 'write_file'],
-    ['Glob', 'list_files'],
-    ['Grep', 'list_files'],
-    ['LS', 'list_files'],
-    ['WebFetch', 'fetch_url'],
-    ['WebSearch', 'fetch_url'],
-    ['AskUserQuestion', 'ask_user'],
-    ['TodoRead', 'read_file'],
+    ['Bash', 'run_command'], ['Read', 'read_file'], ['Write', 'write_file'],
+    ['Edit', 'write_file'], ['MultiEdit', 'write_file'], ['Glob', 'list_files'],
+    ['Grep', 'list_files'], ['LS', 'list_files'], ['WebFetch', 'fetch_url'],
+    ['WebSearch', 'fetch_url'], ['AskUserQuestion', 'ask_user'], ['TodoRead', 'read_file'],
   ])('%s → %s', (ccName, expected) => {
     expect(translator.mapName(ccName)).toBe(expected);
   });
@@ -674,197 +810,73 @@ describe('ClaudeCodeTranslator — normalizeArgs', () => {
     });
   });
 
+  it('Skill: extracts skill as name', () => {
+    expect(translator.normalizeArgs('Skill', { skill: 'auth0-quickstart' })).toEqual({ name: 'auth0-quickstart' });
+  });
+
   it('unknown tool returns input unchanged', () => {
     const input = { custom: 'arg', value: 42 };
     expect(translator.normalizeArgs('SomeFutureTool', input)).toEqual(input);
   });
 });
 
-// ── runClaudeCodeAgent ────────────────────────────────────────────────────────
+// ── ClaudeCodeTranslator.isDocLookup ──────────────────────────────────────────
 
-/**
- * Helper: creates an async iterable that yields the given messages in order.
- */
-async function* fakeQuery(messages: SDKMessage[]): AsyncGenerator<SDKMessage, void> {
-  for (const m of messages) {
-    yield m;
-  }
-}
+describe('ClaudeCodeTranslator — isDocLookup', () => {
+  const translator = new ClaudeCodeTranslator();
 
-/**
- * Helper: creates an async iterable that throws after yielding the given messages.
- */
-async function* fakeQueryThatThrows(messages: SDKMessage[], error: Error): AsyncGenerator<SDKMessage, void> {
-  for (const m of messages) {
-    yield m;
-  }
-  throw error;
-}
-
-const evalDef = { id: 'test_eval', userPrompt: 'Integrate Auth0 into a React app' };
-const workspace = '/tmp/test-workspace';
-
-describe('runClaudeCodeAgent', () => {
-  beforeEach(() => {
-    mockQuery.mockReset();
-    // Suppress console.log noise from the function under test
-    vi.spyOn(console, 'log').mockImplementation(() => {});
+  it('returns true for WebFetch', () => {
+    expect(translator.isDocLookup('WebFetch')).toBe(true);
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  it('returns true for WebSearch', () => {
+    expect(translator.isDocLookup('WebSearch')).toBe(true);
   });
 
-  it('successful run with result message sets status, tokens, and cost', async () => {
-    const messages: SDKMessage[] = [
-      {
-        type: 'system',
-        subtype: 'init',
-        uuid: 'u1',
-        session_id: 's1',
-        model: 'claude-sonnet-4-5',
-        cwd: workspace,
-        tools: [],
-        mcp_servers: [],
-        permissionMode: 'bypassPermissions',
-        slash_commands: [],
-        output_style: 'concise',
-        skills: [],
-        plugins: [],
-        apiKeySource: 'user',
-        claude_code_version: '1.0.0',
-      } as unknown as SDKMessage,
-      makeAssistantMsg({
-        content: [{ type: 'tool_use', id: 'tu_1', name: 'Read', input: { file_path: 'src/app.ts' } }],
-        input_tokens: 100,
-        output_tokens: 20,
-      }) as SDKMessage,
-      makeUserMsg([
-        { type: 'tool_result', tool_use_id: 'tu_1', content: 'file contents', is_error: false },
-      ]) as SDKMessage,
-      makeAssistantMsg({
-        content: [{ type: 'text', text: 'Done integrating Auth0.' }],
-        stop_reason: 'end_turn',
-        input_tokens: 50,
-        output_tokens: 10,
-      }) as SDKMessage,
-      makeResultMsg({
-        subtype: 'success',
-        result: 'Task complete.',
-        total_cost_usd: 0.042,
-        input_tokens: 150,
-        output_tokens: 30,
-      }) as SDKMessage,
-    ];
-
-    mockQuery.mockReturnValue(fakeQuery(messages));
-
-    const record = await runClaudeCodeAgent(evalDef, workspace);
-
-    expect(record.status).toBe('success');
-    expect(record.inputTokens).toBe(150);
-    expect(record.outputTokens).toBe(30);
-    expect(record.costUsd).toBe(0.042);
-    expect(record.toolCalls).toHaveLength(1);
-    expect(record.toolCalls[0].name).toBe('read_file');
-    expect(record.finalSummary).toBe('Done integrating Auth0.');
-    expect(record.providerErrors).toHaveLength(0);
+  it('returns true for mcp__ prefixed tools', () => {
+    expect(translator.isDocLookup('mcp__auth0__search_auth0_docs')).toBe(true);
+    expect(translator.isDocLookup('mcp__other__tool')).toBe(true);
   });
 
-  it('SDK error sets status to failure with error in providerErrors', async () => {
-    mockQuery.mockReturnValue(fakeQueryThatThrows([], new Error('connection refused')));
+  it('returns false for non-doc tools', () => {
+    expect(translator.isDocLookup('Bash')).toBe(false);
+    expect(translator.isDocLookup('Read')).toBe(false);
+    expect(translator.isDocLookup('Write')).toBe(false);
+    expect(translator.isDocLookup('AskUserQuestion')).toBe(false);
+  });
+});
 
-    const record = await runClaudeCodeAgent(evalDef, workspace);
+// ── ClaudeCodeTranslator.isInterruption ───────────────────────────────────────
 
-    expect(record.status).toBe('failure');
-    expect(record.providerErrors).toContain('sdk error: connection refused');
+describe('ClaudeCodeTranslator — isInterruption', () => {
+  const translator = new ClaudeCodeTranslator();
+
+  it('returns true for AskUserQuestion', () => {
+    expect(translator.isInterruption('AskUserQuestion')).toBe(true);
   });
 
-  it('empty stream (zero turns, no result) sets status to failure', async () => {
-    mockQuery.mockReturnValue(fakeQuery([]));
-
-    const record = await runClaudeCodeAgent(evalDef, workspace);
-
-    expect(record.status).toBe('failure');
-    expect(record.providerErrors.some((e) => e.includes('no result event received'))).toBe(true);
+  it('returns false for non-interruption tools', () => {
+    expect(translator.isInterruption('Bash')).toBe(false);
+    expect(translator.isInterruption('Read')).toBe(false);
+    expect(translator.isInterruption('WebFetch')).toBe(false);
+    expect(translator.isInterruption('mcp__auth0__search')).toBe(false);
   });
+});
 
-  it('stream with turns but no result message falls back to success', async () => {
-    const messages: SDKMessage[] = [
-      makeAssistantMsg({
-        content: [{ type: 'text', text: 'All done.' }],
-        stop_reason: 'end_turn',
-      }) as SDKMessage,
-    ];
+// ── ClaudeCodeTranslator.isInternalTool ───────────────────────────────────────
 
-    mockQuery.mockReturnValue(fakeQuery(messages));
+describe('ClaudeCodeTranslator — isInternalTool', () => {
+  const translator = new ClaudeCodeTranslator();
 
-    const record = await runClaudeCodeAgent(evalDef, workspace);
-
-    expect(record.status).toBe('success');
-    expect(record.turnMetrics).toHaveLength(1);
-  });
-
-  it('orphaned tool_use blocks are drained into toolCalls and providerErrors', async () => {
-    // Assistant registers a tool_use, but stream ends before a user message delivers the result
-    const messages: SDKMessage[] = [
-      makeAssistantMsg({
-        content: [{ type: 'tool_use', id: 'tu_orphan', name: 'Bash', input: { command: 'npm install' } }],
-      }) as SDKMessage,
-    ];
-
-    mockQuery.mockReturnValue(fakeQuery(messages));
-
-    const record = await runClaudeCodeAgent(evalDef, workspace);
-
-    expect(record.toolCalls).toHaveLength(1);
-    expect(record.toolCalls[0].name).toBe('run_command');
-    expect(record.toolCalls[0].result).toBe('<orphaned: result event never received>');
-    expect(record.toolCalls[0].causedError).toBe(true);
-    expect(record.providerErrors.some((e) => e.includes('orphaned tool_use: Bash'))).toBe(true);
-  });
-
-  it('orphaned internal tools are not added to toolCalls', async () => {
-    const messages: SDKMessage[] = [
-      makeAssistantMsg({
-        content: [{ type: 'tool_use', id: 'tu_internal', name: 'TodoWrite', input: {} }],
-      }) as SDKMessage,
-    ];
-
-    mockQuery.mockReturnValue(fakeQuery(messages));
-
-    const record = await runClaudeCodeAgent(evalDef, workspace);
-
-    expect(record.toolCalls).toHaveLength(0);
-    expect(record.providerErrors.every((e) => !e.includes('TodoWrite'))).toBe(true);
-  });
-
-  it('SDK error after timeout does not overwrite failure status', async () => {
-    // Simulate: the abort causes the async generator to throw, but status is already 'failure' from timeout
-    async function* abortingQuery(): AsyncGenerator<SDKMessage, void> {
-      // Yield one assistant turn so there's some activity
-      yield makeAssistantMsg({ content: [{ type: 'text', text: 'Working...' }] }) as SDKMessage;
-      // Simulate the abort error that would come after timeout
-      throw new Error('aborted');
+  it('returns true for all internal tools', () => {
+    for (const tool of ['TodoWrite', 'TodoRead', 'Task', 'TaskOutput', 'KillShell', 'EnterPlanMode', 'ExitPlanMode']) {
+      expect(translator.isInternalTool(tool)).toBe(true);
     }
-
-    mockQuery.mockReturnValue(abortingQuery());
-
-    const record = await runClaudeCodeAgent(evalDef, workspace);
-
-    // The error catch should set failure + sdk error since status was 'running' (not pre-set to failure by timeout)
-    expect(record.status).toBe('failure');
-    expect(record.providerErrors.some((e) => e.includes('sdk error: aborted'))).toBe(true);
   });
 
-  it('record endTime is always set', async () => {
-    mockQuery.mockReturnValue(fakeQuery([]));
-
-    const before = Date.now() / 1000;
-    const record = await runClaudeCodeAgent(evalDef, workspace);
-    const after = Date.now() / 1000;
-
-    expect(record.endTime).toBeGreaterThanOrEqual(before);
-    expect(record.endTime).toBeLessThanOrEqual(after + 0.01);
+  it('returns false for non-internal tools', () => {
+    for (const tool of ['Bash', 'Read', 'Write', 'WebFetch', 'AskUserQuestion', 'Skill']) {
+      expect(translator.isInternalTool(tool)).toBe(false);
+    }
   });
 });

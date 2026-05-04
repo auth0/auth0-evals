@@ -12,7 +12,7 @@
 
 import { registerRunner, getRunner } from '@a0/eval';
 import { ReactAgentRunner } from './runners/react/runner.js';
-import { ClaudeCodeRunner } from './runners/claude-code/runner.js';
+import { ClaudeCodeRunner } from '@a0/eval';
 import { CopilotCliRunner } from './runners/copilot/runner.js';
 import { GeminiCliRunner } from './runners/gemini-cli/runner.js';
 
