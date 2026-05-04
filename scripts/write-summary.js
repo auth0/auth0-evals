@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const ALL_MODES = ['baseline', 'agent', 'agent+mcp', 'agent+skills'];
+const ALL_MODES = ['baseline', 'agent', 'agent+mcp', 'agent+skills', 'agent+mcp+skills'];
 
 const scoresDir = join('apps', 'auth0-evals');
 const files = readdirSync(scoresDir).filter(f => /^scores-.*\.json$/.test(f));
