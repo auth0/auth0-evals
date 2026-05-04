@@ -10,20 +10,43 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { EvalConfig } from '../config/evaluations.js';
-import { EvalConfigError, EvalNotFoundError } from '../errors.js';
+import { EvalConfigError, EvalNotFoundError } from './errors.js';
+import type { EvalDefinition, GraderDef } from './types/eval.js';
 
-// Types are canonical in @a0/eval; re-export for backwards compatibility.
-export type { EvalDefinition, GraderDef } from '@a0/eval';
-import type { EvalDefinition, GraderDef } from '@a0/eval';
+export { EvalDefinition, GraderDef } from './types/eval.js';
 
-export async function loadEval(evalConfig: EvalConfig, frameworkRoot: string): Promise<EvalDefinition> {
+/** Minimal eval registration entry — the config ID, display name, category, and path. */
+export interface EvalConfig {
+  id: string;
+  name: string;
+  category: string;
+  path: string;
+}
+
+/** Options for customising how the loader parses PROMPT.md. */
+export interface LoadEvalOptions {
+  /** Default baseline system prompt when no `## System` section is found. */
+  defaultBaselineSystemPrompt?: string;
+}
+
+const FALLBACK_BASELINE_PROMPT =
+  'Always prefer the official Auth0 SDK for the target framework. Do not use generic or third-party alternatives when an official Auth0 package exists.';
+
+export async function loadEval(
+  evalConfig: EvalConfig,
+  frameworkRoot: string,
+  options?: LoadEvalOptions,
+): Promise<EvalDefinition> {
   const evalPath = join(frameworkRoot, evalConfig.path);
   if (!existsSync(evalPath) || !statSync(evalPath).isDirectory()) {
     throw new EvalNotFoundError(evalConfig.id);
   }
 
-  const { baselineSystemPrompt, userPrompt, meta } = parsePromptMd(join(evalPath, 'PROMPT.md'));
+  const defaultBaselinePrompt = options?.defaultBaselineSystemPrompt ?? FALLBACK_BASELINE_PROMPT;
+  const { baselineSystemPrompt, userPrompt, meta } = parsePromptMd(
+    join(evalPath, 'PROMPT.md'),
+    defaultBaselinePrompt,
+  );
 
   // system_default.md is always the agent system prompt — it contains the universal
   // identity, 8-step workflow, tool guidance, and behavior rules. Individual evals
@@ -71,7 +94,10 @@ export async function loadEval(evalConfig: EvalConfig, frameworkRoot: string): P
 
 // ── PROMPT.md parser ──────────────────────────────────────────────────────────
 
-function parsePromptMd(promptPath: string): {
+function parsePromptMd(
+  promptPath: string,
+  defaultBaselinePrompt: string,
+): {
   baselineSystemPrompt: string;
   userPrompt: string;
   agentSystemPrompt: string;
@@ -104,9 +130,7 @@ function parsePromptMd(promptPath: string): {
   const agentSystemMatch = text.match(/^## Agent System\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
   const taskMatch = text.match(/^## Task\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
 
-  const DEFAULT_BASELINE =
-    'Always prefer the official Auth0 SDK for the target framework. Do not use generic or third-party alternatives when an official Auth0 package exists.';
-  const baselineSystemPrompt = systemMatch?.[1] ? systemMatch[1].trim() : DEFAULT_BASELINE;
+  const baselineSystemPrompt = systemMatch?.[1] ? systemMatch[1].trim() : defaultBaselinePrompt;
   const agentSystemPrompt = agentSystemMatch?.[1] ? agentSystemMatch[1].trim() : '';
   const userPrompt = taskMatch?.[1] ? taskMatch[1].trim() : text.trim();
 

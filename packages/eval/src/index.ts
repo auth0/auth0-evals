@@ -91,6 +91,21 @@ export type { SetupWorkspaceOptions, RunSetupCommandOptions, CollectFilesOptions
 // Types — eval definition
 export type { EvalDefinition, GraderDef } from './types/eval.js';
 
+// Loader
+export { loadEval } from './loader.js';
+export type { EvalConfig, LoadEvalOptions } from './loader.js';
+
+// Serializers
+export {
+  formatStep,
+  serialiseTrace,
+  serialiseTurnMetrics,
+  serialiseBaseline,
+  serialiseAgent,
+  serialiseError,
+} from './serializers.js';
+export type { BaselineResult, Mode } from './serializers.js';
+
 // Framework config singleton
 export { getFrameworkConfig, setFrameworkConfig } from './config/framework-config.js';
 

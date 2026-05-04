@@ -11,7 +11,7 @@ import { getFrameworkConfig } from '../config/framework-config.js';
 import { makeSessionId } from '../utils/session.js';
 import { LlmApiError } from '../errors.js';
 import { withRetry } from '../utils/retry.js';
-import type { EvalDefinition } from './loader.js';
+import type { EvalDefinition } from '@a0/eval';
 
 export interface BaselineResult {
   evalId: string;

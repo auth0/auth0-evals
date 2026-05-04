@@ -26,15 +26,21 @@ import { join, basename, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pLimit from 'p-limit';
 import { config as loadDotenv } from 'dotenv';
-import { EVALUATIONS, type EvalConfig } from './config/evaluations.js';
+import { EVALUATIONS } from './config/evaluations.js';
 import { UnknownModeError } from './errors.js';
-import { loadEval } from './runners/loader.js';
-import type { EvalDefinition } from '@a0/eval';
+import {
+  loadEval,
+  loadConfig,
+  serialiseBaseline,
+  serialiseAgent,
+  serialiseError,
+  setFrameworkConfig as setPackageFrameworkConfig,
+  type EvalConfig,
+  type EvalDefinition,
+} from '@a0/eval';
 import { runGraders } from './agent_eval/graders.js';
-import { serialiseBaseline, serialiseAgent, serialiseError } from './runners/serializers.js';
 import { mergeResults, loadResults, saveResults, resolveOutputPath } from './persistence/results.js';
 import { parseRunConfig } from './cli/config.js';
-import { loadConfig, setFrameworkConfig as setPackageFrameworkConfig } from '@a0/eval';
 import { setFrameworkConfig } from './config/framework-config.js';
 import { logger } from './utils/logger.js';
 import type { JobResult } from './types/results.js';

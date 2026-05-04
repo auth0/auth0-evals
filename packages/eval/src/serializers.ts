@@ -1,18 +1,68 @@
 /**
  * Result serialisers — converts raw runner output into typed JobResult shapes.
  *
- * Centralises the two places in run.ts that previously each built their own
- * result object and duplicated the `graderResults.map()` projection.
+ * Also includes trace serialisation helpers that convert RunRecord data into
+ * the TraceStep[] and TurnMetricEntry[] shapes stored in results.
  */
 
-import type { GraderResult } from '@a0/eval-graders';
-import { serialiseTrace, serialiseTurnMetrics } from '../agent_eval/traces.js';
-import type { RunRecord } from '@a0/eval';
-import type { ScoredResult } from '@a0/eval';
-import type { BaselineResult } from './baseline.js';
-import type { EvalDefinition } from './loader.js';
-import type { AgentJobResult, BaselineJobResult, ErrorJobResult, GraderSummary } from '../types/results.js';
-import type { Mode } from '../cli/constants.js';
+import type { GraderResult, RunRecord, ToolCallRecord, ScoredResult } from './types/scorer.js';
+import type { TraceStep, TurnMetricEntry } from './types/agents.js';
+import type {
+  AgentJobResult,
+  BaselineJobResult,
+  ErrorJobResult,
+  GraderSummary,
+} from './types/results.js';
+import type { EvalDefinition } from './types/eval.js';
+
+// ── Trace serialisation ───────────────────────────────────────────────────────
+
+/** Format a tool call into a human-readable narrative string. */
+export function formatStep(tc: ToolCallRecord): string {
+  const action = tc.actionType;
+  const duration = tc.endTime - tc.startTime;
+  const args = Object.entries(tc.args)
+    .map(([k, v]) => `${k}=${String(v).slice(0, 40)}`)
+    .join(', ');
+  const outcome = tc.causedError ? ' \u2192 failed' : '';
+  return `${tc.name}(${args})${outcome} [${action}, ${duration.toFixed(1)}s]`;
+}
+
+/** Convert a RunRecord's tool calls into serialisable TraceStep objects. */
+export function serialiseTrace(record: RunRecord): TraceStep[] {
+  return record.toolCalls.map((tc, i) => ({
+    step: i + 1,
+    actionType: tc.actionType,
+    tool: tc.name,
+    narrative: formatStep(tc),
+    args: tc.args,
+    resultPreview: tc.result.slice(0, 300),
+    resultSizeBytes: Buffer.byteLength(tc.result, 'utf-8'),
+    resultLines: tc.result ? tc.result.split('\n').length : 0,
+    duration: Math.round((tc.endTime - tc.startTime) * 1000) / 1000,
+    causedError: tc.causedError,
+    isDocLookup: tc.isDocLookup,
+    isInterruption: tc.isInterruption,
+    isRetry: tc.isRetry,
+    recoveredFromError: tc.recoveredFromError,
+    errorCategory: tc.errorCategory,
+  }));
+}
+
+/** Convert a RunRecord's turn metrics into serialisable TurnMetricEntry objects. */
+export function serialiseTurnMetrics(record: RunRecord): TurnMetricEntry[] {
+  return record.turnMetrics.map((tm) => ({
+    turn: tm.turn,
+    input_tokens: tm.inputTokens,
+    output_tokens: tm.outputTokens,
+    llm_latency: Math.round(tm.llmLatency * 1000) / 1000,
+    finish_reason: tm.finishReason,
+    tool_call_count: tm.toolCallCount,
+    cost_usd: Math.round(tm.costUsd * 1_000_000) / 1_000_000,
+  }));
+}
+
+// ── Result serialisation ──────────────────────────────────────────────────────
 
 /** Projects a `GraderResult` array to the leaner `GraderSummary` shape stored in results. */
 function mapGraders(graderResults: GraderResult[]): GraderSummary[] {
@@ -25,13 +75,26 @@ function mapGraders(graderResults: GraderResult[]): GraderSummary[] {
   }));
 }
 
+/** Shape of raw baseline runner output consumed by serialiseBaseline. */
+export interface BaselineResult {
+  evalId: string;
+  model: string;
+  mode: string;
+  sessionId: string;
+  responseText: string;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  wallTime: number;
+  status: 'success' | 'failure';
+  error: string;
+}
+
+/** Execution mode discriminant. */
+export type Mode = 'baseline' | 'agent';
+
 /**
  * Builds a `BaselineJobResult` from the raw output of a single-shot LLM call.
- *
- * @param evalDef - The eval definition providing id, category, and user prompt.
- * @param result - Raw result returned by `runBaseline()`.
- * @param graderResults - Grader outcomes (L1–L3 only for baseline mode).
- * @param responseText - The model's response text (code blocks already extracted).
  */
 export function serialiseBaseline(
   evalDef: EvalDefinition,
@@ -64,14 +127,6 @@ export function serialiseBaseline(
 
 /**
  * Builds an `AgentJobResult` from a completed agent session.
- *
- * @param evalDef - The eval definition providing id, category, and user prompt.
- * @param record - Full run record produced by the agent loop.
- * @param scored - 8-dimension scored result computed from the run record.
- * @param graderResults - All grader outcomes for the session workspace.
- * @param model - Model identifier used for the session.
- * @param mode - Always `"agent"` — reflected as a literal in the return type.
- * @param tools - Tools that were enabled (e.g. `["skills"]`).
  */
 export function serialiseAgent(
   evalDef: EvalDefinition,
@@ -116,16 +171,6 @@ export function serialiseAgent(
 
 /**
  * Builds an `ErrorJobResult` for a job that threw before producing any output.
- *
- * All numeric fields are zeroed — no timing or token data is available after
- * an unhandled crash.
- *
- * @param evalId - Eval identifier.
- * @param category - Eval category.
- * @param model - Model identifier.
- * @param mode - Execution mode that was attempted.
- * @param tools - Tools that were configured.
- * @param error - Stringified error message.
  */
 export function serialiseError(
   evalId: string,
