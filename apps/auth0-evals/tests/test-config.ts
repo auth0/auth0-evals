@@ -29,7 +29,6 @@ export const TEST_CONFIG: Required<FrameworkConfig> = {
     model: 'claude-sonnet-4-5',
     maxTokens: 1024,
     maxCodeChars: 16_384,
-    promptsDir: 'src/prompts/judge',
   },
   models: {
     known: ['gpt-5.4', 'claude-sonnet-4-6', 'claude-opus-4-6', 'claude-opus-4-7', 'gemini-3.1-pro-preview'],

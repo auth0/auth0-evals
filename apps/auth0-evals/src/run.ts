@@ -28,6 +28,8 @@ import pLimit from 'p-limit';
 import { config as loadDotenv } from 'dotenv';
 import { EVALUATIONS } from './config/evaluations.js';
 import { UnknownModeError } from './errors.js';
+import { mergeResults, loadResults, saveResults, resolveOutputPath } from './persistence/results.js';
+import { parseRunConfig } from './cli/config.js';
 import {
   loadEval,
   loadConfig,
@@ -35,18 +37,20 @@ import {
   serialiseAgent,
   serialiseError,
   setFrameworkConfig as setPackageFrameworkConfig,
+  runGraders,
+  gradeText,
+  BASELINE_LEVELS,
+  AGENT_LEVELS,
+  AGENT_MCP_LEVELS,
+  isClaudeModel,
+  isGeminiModel,
+  isGptModel,
   type EvalConfig,
   type EvalDefinition,
 } from '@a0/eval';
-import { runGraders } from './agent_eval/graders.js';
-import { mergeResults, loadResults, saveResults, resolveOutputPath } from './persistence/results.js';
-import { parseRunConfig } from './cli/config.js';
 import { setFrameworkConfig } from './config/framework-config.js';
 import { logger } from './utils/logger.js';
 import type { JobResult } from './types/results.js';
-import { gradeText } from './agent_eval/grade-text.js';
-import { BASELINE_LEVELS, AGENT_LEVELS, AGENT_MCP_LEVELS } from './agent_eval/grading-levels.js';
-import { isClaudeModel, isGeminiModel, isGptModel } from './agent_eval/agent-model.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

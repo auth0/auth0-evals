@@ -8,52 +8,45 @@
  */
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, resolve } from 'node:path';
 import { getLitellmModelMap } from '../config/settings.js';
 import { getFrameworkConfig } from '../config/framework-config.js';
 import { JudgeError, LlmApiError } from '../errors.js';
-import { collectFiles as collectFilePaths } from '@a0/eval';
+import { collectFiles as collectFilePaths } from '../workspace/index.js';
 import { withRetry } from '../utils/retry.js';
 import { logger } from '../utils/logger.js';
 import type { GraderDef, GraderResult } from '@a0/eval-graders';
 import { GraderLevel } from '@a0/eval-graders';
+import { FRAMEWORK_PROMPTS, USER_TEMPLATE } from './prompts.generated.js';
 
-// ── Project root & prompt loading ─────────────────────────────────────────────
-
-let _projectRoot: string | undefined;
-function resolveProjectRoot(): string {
-  if (_projectRoot) return _projectRoot;
-  let dir = dirname(fileURLToPath(import.meta.url));
-  while (true) {
-    if (existsSync(join(dir, 'package.json'))) {
-      _projectRoot = dir;
-      return dir;
-    }
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  throw new Error('Could not find project root (no package.json found)');
-}
-
-let _judgePromptsDir: string | undefined;
-function getJudgePromptsDir(): string {
-  if (_judgePromptsDir) return _judgePromptsDir;
-  const config = getFrameworkConfig();
-  const dir = config.judge.promptsDir;
-  _judgePromptsDir = dir ? join(resolveProjectRoot(), dir) : join(resolveProjectRoot(), 'src', 'prompts', 'judge');
-  return _judgePromptsDir;
-}
+// ── Prompt loading ────────────────────────────────────────────────────────────
 
 function loadFrameworkPrompt(framework?: string): string {
-  const dir = getJudgePromptsDir();
-  const name = framework && existsSync(join(dir, `${framework}.md`)) ? framework : 'default';
-  return readFileSync(join(dir, `${name}.md`), 'utf-8').trim();
+  const config = getFrameworkConfig();
+  const dir = config.judge.promptsDir;
+
+  // Custom prompts directory configured — load from disk.
+  // Relative paths are resolved against cwd (the project root at runtime).
+  if (dir) {
+    const resolved = resolve(dir);
+    const name = framework && existsSync(join(resolved, `${framework}.md`)) ? framework : 'default';
+    return readFileSync(join(resolved, `${name}.md`), 'utf-8').trim();
+  }
+
+  // Built-in prompts generated from src/graders/prompts/*.md at build time.
+  const prompt = framework ? FRAMEWORK_PROMPTS[framework] : undefined;
+  return prompt ?? FRAMEWORK_PROMPTS['default']!;
 }
 
 function loadUserTemplate(): string {
-  return readFileSync(join(getJudgePromptsDir(), 'user_template.md'), 'utf-8').trim();
+  const config = getFrameworkConfig();
+  const dir = config.judge.promptsDir;
+
+  if (dir) {
+    return readFileSync(join(resolve(dir), 'user_template.md'), 'utf-8').trim();
+  }
+
+  return USER_TEMPLATE;
 }
 
 // ── Workspace helpers ─────────────────────────────────────────────────────────

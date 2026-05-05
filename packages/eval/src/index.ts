@@ -167,3 +167,25 @@ export {
   CLAUDE_CODE_MODEL_ID,
 } from './runners/claude-code/agent.js';
 export type { ClaudeCodeRunOptions, TurnStateUpdate } from './runners/claude-code/agent.js';
+
+// Grader engine
+export {
+  runGraders,
+  llmJudge,
+  passRate,
+  collectGraderFiles,
+  walkFiles,
+  EXCLUDED_EVAL_DIRS,
+  EXCLUDED_EVAL_FILES,
+  extractCodeBlocks,
+  gradeText,
+  BASELINE_LEVELS,
+  AGENT_LEVELS,
+  AGENT_MCP_LEVELS,
+  HALLUCINATION_PENALTY,
+  SECURITY_PENALTY_HARDCODED_SECRET,
+  SECURITY_PENALTY_INSECURE_STORAGE,
+  SECURITY_PENALTY_EXPOSED_SECRET,
+  FAKE_API_PATTERNS,
+  CREDENTIAL_PATTERNS,
+} from './graders/index.js';

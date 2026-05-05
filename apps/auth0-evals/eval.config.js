@@ -31,7 +31,6 @@ export default {
     model: 'claude-sonnet-4-5',
     maxTokens: 1024,
     maxCodeChars: 16_384,
-    promptsDir: 'src/prompts/judge',
   },
 
   models: {
