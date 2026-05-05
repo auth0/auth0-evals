@@ -1,10 +1,12 @@
 /**
  * Shared CLI constants and argument helpers.
  *
- * Imported by both `src/run.ts` (which re-exports them as its public API)
- * and `src/cli/config.ts` (which uses them for validation). Keeping a single
- * source of truth prevents the two files from drifting out of sync.
+ * Imported by both the run orchestrator and the CLI config parser.
+ * Keeping a single source of truth prevents files from drifting out of sync.
  */
+
+export { KNOWN_AGENT_TYPES } from '../types/agents.js';
+export type { AgentType } from '../types/agents.js';
 
 /** Models known to work reliably across all eval modes. Used when `--model all` is passed. */
 export const KNOWN_WORKING_MODELS = [
@@ -33,10 +35,6 @@ export const KNOWN_TOOLS = ['skills', 'mcp'];
  * and is not represented here.
  */
 export const MATRIX_TOOL_SETS: string[][] = [['skills'], ['mcp', 'skills']];
-
-// Re-exported from @a0/eval — canonical source
-export { KNOWN_AGENT_TYPES } from '@a0/eval';
-export type { AgentType } from '@a0/eval';
 
 /** Agent runner used when no `--agent-type` flag is provided. */
 export const DEFAULT_AGENT_TYPE = 'auth0-ReAct-agent';

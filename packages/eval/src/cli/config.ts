@@ -55,13 +55,15 @@ export interface RunConfig {
   /**
    * The agent runner to use for agent-mode jobs.
    * `undefined` when --agent-type was not passed; claude-* models are then auto-routed to claude-code.
-   * `"auth0-ReAct-agent"` runs the custom ReAct loop via the ATKO LLM gateway.
-   * `"claude-code"` spawns the Claude Code CLI and parses its JSONL stream.
-   * `"copilot"` spawns GitHub Copilot CLI and parses its JSONL stream.
    */
   agentType: AgentType | undefined;
   /** Explicit path to an `eval.config.js` file. Overrides auto-discovery when set. */
   configPath: string | undefined;
+}
+
+export interface ParseRunConfigOptions {
+  /** List of known eval IDs for validation. */
+  knownEvalIds: string[];
 }
 
 /**
@@ -71,11 +73,12 @@ export interface RunConfig {
  * has to handle invalid states.
  *
  * @param argv - Raw argument vector, typically `process.argv`.
+ * @param options - Additional context (known eval IDs) for validation.
  */
-export function parseRunConfig(argv: string[]): RunConfig {
+export function parseRunConfig(argv: string[], options: ParseRunConfigOptions): RunConfig {
   const program = new Command();
   program
-    .description('Auth0 SDK Eval Runner')
+    .description('Eval Runner')
     .option('--eval <id>', 'Eval ID(s) to run (default: all)', (v, prev: string[]) => [...prev, v], [] as string[])
     .option(
       '--model <model>',
@@ -116,7 +119,7 @@ export function parseRunConfig(argv: string[]): RunConfig {
     logger.info(`Running matrix: ${modes.join(', ')} × ${['none', 'skills', 'mcp+skills'].join(', ')}`);
   }
 
-  const evalIds = validateEvalIds(opts.eval as string[]);
+  const evalIds = validateEvalIds(opts.eval as string[], options.knownEvalIds);
   const tools = validateTools(opts.tools as string);
   const workers = validateWorkers(opts.workers as string | undefined, matrix);
   const agentType = validateAgentType(opts.agentType as string | undefined);

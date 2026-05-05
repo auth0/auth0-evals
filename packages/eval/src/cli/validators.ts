@@ -5,7 +5,6 @@
  * or calls `process.exit(1)` on invalid input.
  */
 
-import { EVALUATIONS } from '../config/evaluations.js';
 import { logger } from '../utils/logger.js';
 import {
   ALL_MODES,
@@ -78,10 +77,15 @@ export function validateModes(modeArg: string | undefined, matrix: boolean): Mod
   return [modeArg as Mode];
 }
 
-/** Validates that all requested eval IDs exist in the EVALUATIONS registry. */
-export function validateEvalIds(evalIds: string[]): string[] {
+/**
+ * Validates that all requested eval IDs exist in the provided known eval IDs list.
+ *
+ * @param evalIds - IDs provided by the user via `--eval`.
+ * @param knownEvalIds - All registered eval IDs from the eval registry.
+ */
+export function validateEvalIds(evalIds: string[], knownEvalIds: string[]): string[] {
   if (evalIds.length > 0) {
-    const unknown = evalIds.filter((id) => !EVALUATIONS.some((e) => e.id === id));
+    const unknown = evalIds.filter((id) => !knownEvalIds.includes(id));
     if (unknown.length > 0) {
       logger.error(`Unknown eval(s): ${unknown.join(', ')}`);
       process.exit(1);

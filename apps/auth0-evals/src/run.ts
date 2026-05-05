@@ -28,8 +28,6 @@ import pLimit from 'p-limit';
 import { config as loadDotenv } from 'dotenv';
 import { EVALUATIONS } from './config/evaluations.js';
 import { UnknownModeError } from './errors.js';
-import { mergeResults, loadResults, saveResults, resolveOutputPath } from './persistence/results.js';
-import { parseRunConfig } from './cli/config.js';
 import {
   loadEval,
   loadConfig,
@@ -45,12 +43,19 @@ import {
   isClaudeModel,
   isGeminiModel,
   isGptModel,
+  mergeResults,
+  loadResults,
+  saveResults,
+  resolveOutputPath,
+  parseRunConfig,
+  spawnEval,
+  mergeIntoOutput,
   type EvalConfig,
   type EvalDefinition,
+  type JobResult,
 } from '@a0/eval';
 import { setFrameworkConfig } from './config/framework-config.js';
 import { logger } from './utils/logger.js';
-import type { JobResult } from './types/results.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -70,9 +75,8 @@ export {
   parseToolsArg,
   type Mode,
   type AgentType,
-} from './cli/constants.js';
-import type { Mode, AgentType } from './cli/constants.js';
-import { DEFAULT_AGENT_TYPE, MATRIX_TOOL_SETS } from './cli/constants.js';
+} from '@a0/eval';
+import { DEFAULT_AGENT_TYPE, MATRIX_TOOL_SETS, type Mode, type AgentType } from '@a0/eval';
 
 // ── Per-job execution ─────────────────────────────────────────────────────────
 
@@ -285,7 +289,7 @@ export function buildJobList(
 }
 
 async function main(): Promise<void> {
-  const config = parseRunConfig(process.argv);
+  const config = parseRunConfig(process.argv, { knownEvalIds: EVALUATIONS.map((e) => e.id) });
   const {
     models,
     modes,
@@ -340,7 +344,6 @@ async function main(): Promise<void> {
   // (up to `workers` concurrently) then merges the temp files into the final
   // output.
   if (jobs.length > 1) {
-    const { spawnEval, mergeIntoOutput } = await import('./runners/subprocess-runner.js');
     const selfPath = join(__dirname, 'run.js');
     const outputPath = resolveOutputPath(FRAMEWORK_ROOT, matrix ? ['matrix'] : modes, outputOverride);
 
