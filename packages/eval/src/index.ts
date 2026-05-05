@@ -104,7 +104,7 @@ export {
   serialiseAgent,
   serialiseError,
 } from './serializers.js';
-export type { BaselineResult, Mode } from './serializers.js';
+export type { BaselineResult } from './serializers.js';
 
 // Framework config singleton
 export { getFrameworkConfig, setFrameworkConfig } from './config/framework-config.js';
@@ -189,3 +189,30 @@ export {
   FAKE_API_PATTERNS,
   CREDENTIAL_PATTERNS,
 } from './graders/index.js';
+
+// CLI
+export {
+  KNOWN_WORKING_MODELS,
+  DEFAULT_MODEL,
+  ALL_MODES,
+  KNOWN_TOOLS,
+  MATRIX_TOOL_SETS,
+  DEFAULT_AGENT_TYPE,
+  parseToolsArg,
+  type Mode,
+  validateApiKey,
+  validateModels,
+  validateModes,
+  validateEvalIds,
+  validateTools,
+  validateWorkers,
+  validateAgentType,
+  parseRunConfig,
+  type RunConfig,
+  type ParseRunConfigOptions,
+  spawnEval,
+  mergeIntoOutput,
+} from './cli/index.js';
+
+// Persistence
+export { resultKey, mergeResults, loadResults, saveResults, resolveOutputPath } from './persistence/index.js';

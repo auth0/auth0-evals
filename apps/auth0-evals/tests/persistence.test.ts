@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { resultKey, mergeResults, loadResults, saveResults, resolveOutputPath } from '../src/persistence/results.js';
+import { resultKey, mergeResults, loadResults, saveResults, resolveOutputPath } from '@a0/eval';
 import type { AgentJobResult, BaselineJobResult, ErrorJobResult } from '../src/types/results.js';
 import { makeTmpDir } from './tmp.js';
 
