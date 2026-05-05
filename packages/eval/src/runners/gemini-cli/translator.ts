@@ -1,5 +1,4 @@
-import type { ToolTranslator } from '../tool-translator.js';
-import { logger } from '../../utils/logger.js';
+import { BaseToolTranslator } from '../base-translator.js';
 
 const GEMINI_TOOL_MAP: Record<string, string> = {
   list_directory: 'bash',
@@ -18,19 +17,23 @@ const GEMINI_TOOL_MAP: Record<string, string> = {
   web_search: 'webfetch',
 };
 
-const GEMINI_DOC_LOOKUP_TOOLS = new Set(['web_fetch', 'web_search']);
+export class GeminiCliTranslator extends BaseToolTranslator {
+  protected readonly toolMap = GEMINI_TOOL_MAP;
+  protected readonly docLookupSet = new Set(['web_fetch', 'web_search']);
+  protected readonly interruptionSet = new Set<string>();
+  protected readonly internalToolSet = new Set<string>();
+  protected readonly logTag = 'GeminiCliTranslator';
 
-/**
- * Translator for the Gemini CLI agent.
- * Maps Gemini CLI tool names and argument shapes to the internal taxonomy
- * expected by the scorer and report pipeline.
- */
-export class GeminiCliTranslator implements ToolTranslator {
-  mapName(geminiName: string): string {
-    if (geminiName.startsWith('mcp_')) return 'mcp';
-    if (geminiName in GEMINI_TOOL_MAP) return GEMINI_TOOL_MAP[geminiName]!;
-    logger.warn(`[GeminiCliTranslator] Unknown tool "${geminiName}" — falling back to "${geminiName}"`);
-    return geminiName;
+  protected override isMcpTool(name: string): boolean {
+    return name.startsWith('mcp_');
+  }
+
+  protected override mapMcpName(_name: string): string {
+    return 'mcp';
+  }
+
+  override isDocLookup(name: string): boolean {
+    return super.isDocLookup(name) || name.includes('search') || name.includes('doc');
   }
 
   normalizeArgs(geminiName: string, args: Record<string, unknown>): Record<string, unknown> {
@@ -66,22 +69,5 @@ export class GeminiCliTranslator implements ToolTranslator {
       default:
         return args;
     }
-  }
-
-  isDocLookup(geminiName: string): boolean {
-    return (
-      GEMINI_DOC_LOOKUP_TOOLS.has(geminiName) ||
-      geminiName.startsWith('mcp_') ||
-      geminiName.includes('search') ||
-      geminiName.includes('doc')
-    );
-  }
-
-  isInterruption(_geminiName: string): boolean {
-    return false;
-  }
-
-  isInternalTool(_geminiName: string): boolean {
-    return false;
   }
 }

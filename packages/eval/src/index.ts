@@ -132,6 +132,7 @@ export { isBedrockModel, isClaudeModel, isGeminiModel, isGptModel } from './conf
 export type { AgentRunner, RunParams, RunResult } from './runners/agent-runner.js';
 export { registerRunner, getRunner } from './runners/agent-runner.js';
 export type { ToolTranslator } from './runners/tool-translator.js';
+export { BaseToolTranslator } from './runners/base-translator.js';
 export { classifyActionType, primaryArg, detectRetry, classifyErrorCategory } from './runners/classify.js';
 export type { SkillsStrategy } from './runners/skills/strategy.js';
 export {

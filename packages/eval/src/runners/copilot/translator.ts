@@ -1,5 +1,4 @@
-import type { ToolTranslator } from '../tool-translator.js';
-import { logger } from '../../utils/logger.js';
+import { BaseToolTranslator } from '../base-translator.js';
 
 const COPILOT_TOOL_MAP: Record<string, string> = {
   bash: 'run_command',
@@ -17,36 +16,26 @@ const COPILOT_TOOL_MAP: Record<string, string> = {
   ask_user: 'ask_user',
 };
 
-const COPILOT_DOC_LOOKUP_TOOLS = new Set(['web_fetch', 'web_search']);
-const COPILOT_INTERRUPTION_TOOLS = new Set(['ask_user']);
+export class CopilotCliTranslator extends BaseToolTranslator {
+  protected readonly toolMap = COPILOT_TOOL_MAP;
+  protected readonly docLookupSet = new Set(['web_fetch', 'web_search']);
+  protected readonly interruptionSet = new Set(['ask_user']);
+  protected readonly internalToolSet = new Set(['report_intent', 'skill', 'stop_bash', 'list_bash']);
+  protected readonly logTag = 'CopilotCliTranslator';
 
-/**
- * Translator for GitHub Copilot CLI JSONL tool events.
- * Maps Copilot tool names and argument shapes to internal scorer taxonomy.
- */
-export class CopilotCliTranslator implements ToolTranslator {
-  private readonly internalTools = new Set(['report_intent', 'skill', 'stop_bash', 'list_bash']);
-
-  mapName(copilotName: string): string {
-    const key = copilotName.toLowerCase();
-    if (key in COPILOT_TOOL_MAP) return COPILOT_TOOL_MAP[key]!;
-    // MCP tools: Copilot SDK emits them as "<server-name>-<tool>" (e.g. "auth0-docs-search_auth0_docs")
-    // or the legacy double-underscore format "mcp__<server>__<tool>".
-    if (key.startsWith('mcp__') || this.isMcpTool(key)) return key;
-    logger.warn(`[CopilotCliTranslator] Unknown tool "${copilotName}" — falling back to "${key}"`);
-    return key;
+  protected override normalizeKey(name: string): string {
+    return name.toLowerCase();
   }
 
-  /** Detects Copilot SDK MCP tool names in "<server-name>-<tool_name>" format. */
-  private isMcpTool(key: string): boolean {
+  /** Detects Copilot SDK MCP tool names in both legacy `mcp__<server>__<tool>` and `<server>-<tool_name>` formats. */
+  protected override isMcpTool(key: string): boolean {
     // MCP tools have underscores in the tool portion but use hyphens for the server prefix.
     // e.g. "auth0-docs-search_auth0_docs" — contains both "-" and "_".
-    return key.includes('-') && key.includes('_');
+    return key.startsWith('mcp__') || (key.includes('-') && key.includes('_'));
   }
 
   normalizeArgs(copilotName: string, input: Record<string, unknown>): Record<string, unknown> {
-    const key = copilotName.toLowerCase();
-    switch (key) {
+    switch (copilotName.toLowerCase()) {
       case 'bash':
       case 'read_bash':
         return { command: input.command ?? input.cmd ?? '' };
@@ -70,18 +59,5 @@ export class CopilotCliTranslator implements ToolTranslator {
       default:
         return input;
     }
-  }
-
-  isDocLookup(copilotName: string): boolean {
-    const key = copilotName.toLowerCase();
-    return COPILOT_DOC_LOOKUP_TOOLS.has(key) || key.startsWith('mcp__') || this.isMcpTool(key);
-  }
-
-  isInterruption(copilotName: string): boolean {
-    return COPILOT_INTERRUPTION_TOOLS.has(copilotName.toLowerCase());
-  }
-
-  isInternalTool(copilotName: string): boolean {
-    return this.internalTools.has(copilotName.toLowerCase());
   }
 }
