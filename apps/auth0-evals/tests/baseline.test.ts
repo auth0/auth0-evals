@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { estimateCost } from '../src/config/costs.js';
 import { runBaseline } from '../src/runners/baseline.js';
-import { gradeText } from '../src/agent_eval/grade-text.js';
+import { gradeText } from '@a0/eval';
 import { judge } from '@a0/eval-graders';
 import { TEST_CONFIG } from './setup-config.js';
 import type { EvalDefinition } from '@a0/eval';

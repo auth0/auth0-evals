@@ -16,7 +16,7 @@
     "@github/copilot-sdk": "^0.2.2"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "node scripts/generate-prompts.mjs && tsc",
     "test": "vitest run",
     "test:watch": "vitest"
   },

@@ -9,8 +9,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { GraderLevel } from '@a0/eval-graders';
-import { runGraders } from './graders.js';
-import type { EvalDefinition } from '@a0/eval';
+import { runGraders } from './engine.js';
+import type { EvalDefinition } from '../types/eval.js';
 
 /**
  * Extracts fenced code blocks from an LLM response.
@@ -37,7 +37,7 @@ export async function gradeText(
   allowedLevels?: Set<GraderLevel>,
 ): Promise<Awaited<ReturnType<typeof runGraders>>> {
   const code = extractCodeBlocks(text);
-  const tmp = mkdtempSync(join(tmpdir(), 'auth0_eval_grade_'));
+  const tmp = mkdtempSync(join(tmpdir(), 'eval_grade_'));
   try {
     writeFileSync(join(tmp, 'llm_response.txt'), code, 'utf-8');
     return await runGraders(evalDef.graders, tmp, apiKey, undefined, allowedLevels, false);

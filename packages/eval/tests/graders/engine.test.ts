@@ -1,14 +1,40 @@
 /**
- * Happy path tests for src/agent_eval/graders.ts
+ * Tests for the grader execution engine.
  */
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { makeTmpDir } from './tmp.js';
+import { makeTmpDir } from '../tmp.js';
 import { contains, notContains, notContainsInSource, matches, GraderLevel, type GraderResult } from '@a0/eval-graders';
-import { passRate, runGraders, llmJudge } from '../src/agent_eval/graders.js';
-import { TEST_CONFIG } from './setup-config.js';
+import { setFrameworkConfig } from '../../src/config/framework-config.js';
+import type { FrameworkConfig } from '../../src/config/framework.js';
+
+const TEST_CONFIG: Required<FrameworkConfig> = {
+  evalsDir: 'src/evals',
+  proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+  mcp: { servers: {} },
+  skills: { remoteRepos: [], localDirs: [] },
+  judge: {
+    model: 'claude-sonnet-4-5',
+    maxTokens: 1024,
+    maxCodeChars: 16_384,
+  },
+  models: {
+    known: ['gpt-5.4'],
+    default: 'gpt-5.4',
+    bedrock: {},
+    litellm: {},
+  },
+};
+
+// Note: engine.ts reads config lazily (inside function calls, not at import time),
+// so setFrameworkConfig in beforeAll runs before any config access.
+import { passRate, runGraders, llmJudge } from '../../src/graders/engine.js';
+
+beforeAll(() => {
+  setFrameworkConfig(TEST_CONFIG);
+});
 
 const JUDGE_MAX_CODE_CHARS = TEST_CONFIG.judge.maxCodeChars!;
 const JUDGE_MAX_TOKENS = TEST_CONFIG.judge.maxTokens!;
