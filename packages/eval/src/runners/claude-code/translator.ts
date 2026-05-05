@@ -1,5 +1,4 @@
-import type { ToolTranslator } from '../tool-translator.js';
-import { logger } from '../../utils/logger.js';
+import { BaseToolTranslator } from '../base-translator.js';
 
 const CC_TOOL_MAP: Record<string, string> = {
   Bash: 'run_command',
@@ -17,16 +16,11 @@ const CC_TOOL_MAP: Record<string, string> = {
   Skill: 'skill',
 };
 
-const CC_DOC_LOOKUP_TOOLS = new Set(['WebFetch', 'WebSearch']);
-const CC_INTERRUPTION_TOOLS = new Set(['AskUserQuestion']);
-
-/**
- * Translator for the Claude Code CLI agent.
- * Maps Claude Code's native tool names and argument shapes to the internal
- * taxonomy expected by the scorer and report pipeline.
- */
-export class ClaudeCodeTranslator implements ToolTranslator {
-  private readonly internalTools = new Set([
+export class ClaudeCodeTranslator extends BaseToolTranslator {
+  protected readonly toolMap = CC_TOOL_MAP;
+  protected readonly docLookupSet = new Set(['WebFetch', 'WebSearch']);
+  protected readonly interruptionSet = new Set(['AskUserQuestion']);
+  protected readonly internalToolSet = new Set([
     'TodoWrite',
     'TodoRead',
     'Task',
@@ -35,12 +29,18 @@ export class ClaudeCodeTranslator implements ToolTranslator {
     'EnterPlanMode',
     'ExitPlanMode',
   ]);
+  protected readonly logTag = 'ClaudeCodeTranslator';
 
-  mapName(ccName: string): string {
-    if (ccName in CC_TOOL_MAP) return CC_TOOL_MAP[ccName]!;
-    if (ccName.startsWith('mcp__')) return ccName.toLowerCase();
-    logger.warn(`[ClaudeCodeTranslator] Unknown tool "${ccName}" — falling back to "${ccName.toLowerCase()}"`);
-    return ccName.toLowerCase();
+  protected override isMcpTool(name: string): boolean {
+    return name.startsWith('mcp__');
+  }
+
+  protected override mapMcpName(name: string): string {
+    return name.toLowerCase();
+  }
+
+  protected override normalizeFallback(key: string): string {
+    return key.toLowerCase();
   }
 
   normalizeArgs(ccName: string, input: Record<string, unknown>): Record<string, unknown> {
@@ -72,17 +72,5 @@ export class ClaudeCodeTranslator implements ToolTranslator {
       default:
         return input;
     }
-  }
-
-  isDocLookup(ccName: string): boolean {
-    return CC_DOC_LOOKUP_TOOLS.has(ccName) || ccName.startsWith('mcp__');
-  }
-
-  isInterruption(ccName: string): boolean {
-    return CC_INTERRUPTION_TOOLS.has(ccName);
-  }
-
-  isInternalTool(ccName: string): boolean {
-    return this.internalTools.has(ccName);
   }
 }

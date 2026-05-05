@@ -58,6 +58,7 @@ beforeAll(() => {
 });
 
 import { COPILOT_MODEL_ID, getMcpServers } from '../../src/runners/copilot/agent.js';
+import { CopilotCliTranslator } from '../../src/runners/copilot/translator.js';
 
 describe('COPILOT_MODEL_ID', () => {
   it('is the expected sentinel value', () => {
@@ -76,5 +77,52 @@ describe('getMcpServers', () => {
   it('includes all tools via wildcard', () => {
     const servers = getMcpServers();
     expect(servers['auth0-docs'].tools).toContain('*');
+  });
+});
+
+describe('CopilotCliTranslator', () => {
+  const translator = new CopilotCliTranslator();
+
+  it.each([
+    ['bash', 'run_command'],
+    ['read_bash', 'run_command'],
+    ['view', 'read_file'],
+    ['read', 'read_file'],
+    ['write', 'write_file'],
+    ['create', 'write_file'],
+    ['edit', 'write_file'],
+    ['apply_patch', 'write_file'],
+    ['glob', 'list_files'],
+    ['grep', 'list_files'],
+    ['web_fetch', 'fetch_url'],
+    ['web_search', 'fetch_url'],
+    ['ask_user', 'ask_user'],
+  ])('maps %s -> %s', (copilotName, expected) => {
+    expect(translator.mapName(copilotName)).toBe(expected);
+  });
+
+  it('preserves MCP tool names in legacy and hyphen formats', () => {
+    expect(translator.mapName('mcp__auth0-docs__search_auth0_docs')).toBe('mcp__auth0-docs__search_auth0_docs');
+    expect(translator.mapName('auth0-docs-search_auth0_docs')).toBe('auth0-docs-search_auth0_docs');
+  });
+
+  it('does not map prototype keys from Object inheritance chain', () => {
+    expect(translator.mapName('toString')).toBe('tostring');
+    expect(translator.mapName('constructor')).toBe('constructor');
+  });
+
+  it('classifies doc lookups for web and mcp tools', () => {
+    expect(translator.isDocLookup('web_fetch')).toBe(true);
+    expect(translator.isDocLookup('web_search')).toBe(true);
+    expect(translator.isDocLookup('auth0-docs-search_auth0_docs')).toBe(true);
+    expect(translator.isDocLookup('bash')).toBe(false);
+  });
+
+  it('classifies interruptions and internal tools', () => {
+    expect(translator.isInterruption('ask_user')).toBe(true);
+    expect(translator.isInterruption('view')).toBe(false);
+    expect(translator.isInternalTool('report_intent')).toBe(true);
+    expect(translator.isInternalTool('skill')).toBe(true);
+    expect(translator.isInternalTool('view')).toBe(false);
   });
 });
