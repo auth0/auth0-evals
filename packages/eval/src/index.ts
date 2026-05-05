@@ -188,7 +188,12 @@ export {
   SECURITY_PENALTY_EXPOSED_SECRET,
   FAKE_API_PATTERNS,
   CREDENTIAL_PATTERNS,
+  registerExecutor,
+  getExecutor,
+  executeGrader,
 } from './graders/index.js';
+
+export type { GraderContext, GraderExecutor } from './graders/index.js';
 
 // CLI
 export {

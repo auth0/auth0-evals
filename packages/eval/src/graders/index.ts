@@ -8,6 +8,8 @@ export {
   EXCLUDED_EVAL_FILES,
 } from './engine.js';
 
+export type { LlmJudgeOptions } from './llm-judge.js';
+
 export { extractCodeBlocks, gradeText } from './grade-text.js';
 
 export { BASELINE_LEVELS, AGENT_LEVELS, AGENT_MCP_LEVELS } from './levels.js';
@@ -20,3 +22,7 @@ export {
   FAKE_API_PATTERNS,
   CREDENTIAL_PATTERNS,
 } from './vulnerability-patterns.js';
+
+// Executor registry
+export type { GraderContext, GraderExecutor } from './executors/index.js';
+export { registerExecutor, getExecutor, executeGrader } from './executors/index.js';
