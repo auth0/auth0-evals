@@ -1,11 +1,8 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { resolveInside, validatePathFormat, collectFiles } from '@a0/eval';
+import { toolResult, errorResult } from './base.js';
 import type { Tool, ToolContext, ToolName, ToolResult } from './base.js';
-
-function wrapResult(message: string, isError: boolean = false): ToolResult {
-  return [message, false, false, isError];
-}
 
 /**
  * ReadFileTool allows the agent to read the contents of a file within the workspace.
@@ -22,16 +19,16 @@ export class ReadFileTool implements Tool {
     }
     const formatError = validatePathFormat(path);
     if (formatError) {
-      return wrapResult(formatError, true);
+      return errorResult(formatError);
     }
     let full: string;
     try {
       full = resolveInside(context.workspace, path);
     } catch {
-      return wrapResult('Access denied: path is outside workspace', true);
+      return errorResult('Access denied: path is outside workspace');
     }
     if (existsSync(full) && statSync(full).isDirectory()) {
-      return wrapResult(`Path is a directory: '${path}'. Use list_files to list its contents.`);
+      return toolResult(`Path is a directory: '${path}'. Use list_files to list its contents.`);
     }
     if (!existsSync(full)) {
       const parent = join(full, '..');
@@ -44,10 +41,10 @@ export class ReadFileTool implements Tool {
         } catch {
           label = '(workspace root)';
         }
-        return wrapResult(`File not found: ${path}\nNearby files in ${label}:\n${listing}`);
+        return toolResult(`File not found: ${path}\nNearby files in ${label}:\n${listing}`);
       }
-      return wrapResult(`File not found: ${path}`);
+      return toolResult(`File not found: ${path}`);
     }
-    return wrapResult(readFileSync(full, 'utf-8'));
+    return toolResult(readFileSync(full, 'utf-8'));
   }
 }

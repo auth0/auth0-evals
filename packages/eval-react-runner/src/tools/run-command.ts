@@ -1,13 +1,6 @@
 import { execSync } from 'node:child_process';
+import { toolResult, errorResult } from './base.js';
 import type { Tool, ToolContext, ToolName, ToolResult } from './base.js';
-
-function successResult(message: string): ToolResult {
-  return [message, false, false, false];
-}
-
-function errorResult(message: string): ToolResult {
-  return [message, false, false, true];
-}
 
 /**
  * RunCommandTool allows the agent to execute a shell command in the workspace.
@@ -27,7 +20,7 @@ export class RunCommandTool implements Tool {
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
       });
-      return successResult((stdout as string).slice(-2000) || '(no output)');
+      return toolResult((stdout as string).slice(-2000) || '(no output)');
     } catch (e: unknown) {
       const err = e as { stdout?: string; stderr?: string; message?: string };
       const out = (err.stdout ?? '').slice(-2000);

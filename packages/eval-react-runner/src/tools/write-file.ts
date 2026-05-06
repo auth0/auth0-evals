@@ -1,11 +1,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveInside, validatePathFormat } from '@a0/eval';
+import { toolResult, errorResult } from './base.js';
 import type { Tool, ToolContext, ToolName, ToolResult } from './base.js';
-
-function wrapResult(message: string, isError: boolean = false): ToolResult {
-  return [message, false, false, isError];
-}
 
 /**
  * WriteFileTool allows the agent to write content to a file within the workspace.
@@ -24,7 +21,7 @@ export class WriteFileTool implements Tool {
 
     const formatError = validatePathFormat(path);
     if (formatError) {
-      return wrapResult(formatError, true);
+      return errorResult(formatError);
     }
 
     const content = args.content as string;
@@ -33,10 +30,10 @@ export class WriteFileTool implements Tool {
     try {
       full = resolveInside(context.workspace, path);
     } catch {
-      return wrapResult('Access denied: path is outside workspace', true);
+      return errorResult('Access denied: path is outside workspace');
     }
     mkdirSync(join(full, '..'), { recursive: true });
     writeFileSync(full, content, 'utf-8');
-    return wrapResult(`Written: ${path} (${content.length} chars)`);
+    return toolResult(`Written: ${path} (${content.length} chars)`);
   }
 }

@@ -1,8 +1,5 @@
+import { docResult } from './base.js';
 import type { Tool, ToolContext, ToolName, ToolResult } from './base.js';
-
-function wrapResult(message: string): ToolResult {
-  return [message, true, false, false];
-}
 
 /**
  * FetchUrlTool allows the agent to fetch the content of a URL.
@@ -25,14 +22,14 @@ export class FetchUrlTool implements Tool {
           .replace(/<[^>]+>/g, ' ')
           .trim()
           .slice(0, 200);
-        return wrapResult(
+        return docResult(
           `Could not fetch ${url}: ${response.status} ${response.statusText}${snippet ? ` — ${snippet}` : ''}`,
         );
       }
       const text = (await response.text()).replace(/<[^>]+>/g, ' ').replace(/\s{3,}/g, '\n');
-      return wrapResult(text.slice(0, 3000).trim());
+      return docResult(text.slice(0, 3000).trim());
     } catch (e) {
-      return wrapResult(`Could not fetch ${url}: ${e}`);
+      return docResult(`Could not fetch ${url}: ${e}`);
     }
   }
 }

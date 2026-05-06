@@ -1,10 +1,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { resolveInside, validatePathFormat, collectFiles } from '@a0/eval';
+import { toolResult, errorResult } from './base.js';
 import type { Tool, ToolContext, ToolName, ToolResult } from './base.js';
-
-function wrapResult(message: string, isError: boolean = false): ToolResult {
-  return [message, false, false, isError];
-}
 
 /**
  * ListFilesTool allows the agent to list files in a directory within the workspace.
@@ -19,24 +16,24 @@ export class ListFilesTool implements Tool {
     if (path) {
       const formatError = validatePathFormat(path);
       if (formatError) {
-        return wrapResult(formatError, true);
+        return errorResult(formatError);
       }
     }
     let full: string;
     try {
       full = resolveInside(context.workspace, path);
     } catch {
-      return wrapResult('Access denied: path is outside workspace', true);
+      return errorResult('Access denied: path is outside workspace');
     }
     if (!existsSync(full)) {
-      return wrapResult(`Directory not found: '${path}'`);
+      return toolResult(`Directory not found: '${path}'`);
     }
     if (!statSync(full).isDirectory()) {
-      return wrapResult(`Path is a file: '${path}'. Use read_file to read its contents.`);
+      return toolResult(`Path is a file: '${path}'. Use read_file to read its contents.`);
     }
     const lines = collectFiles(full, context.workspace);
     const listing = lines.length > 0 ? lines.join('\n') : '(empty directory)';
     const label = path || '(workspace root)';
-    return wrapResult(`Directory listing for ${label}:\n${listing}`);
+    return toolResult(`Directory listing for ${label}:\n${listing}`);
   }
 }
