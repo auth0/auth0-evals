@@ -33,6 +33,7 @@ import { estimateCost } from '../../config/costs.js';
 import { ClaudeCodeTranslator } from './translator.js';
 import { logger } from '../../utils/logger.js';
 import { makeSessionId } from '../../utils/session.js';
+import { filteredEnv } from '../../utils/env.js';
 
 // Module-level translator instance — all event processing uses this.
 const translator = new ClaudeCodeTranslator();
@@ -213,7 +214,7 @@ export async function runClaudeCodeAgent(
         persistSession: false,
         additionalDirectories: [workspace],
         abortController,
-        env: { ...process.env, ...proxyEnv, ...env },
+        env: { ...filteredEnv(), ...proxyEnv, ...env },
         mcpServers,
         settingSources: ['project'],
       },

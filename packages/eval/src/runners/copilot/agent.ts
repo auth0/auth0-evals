@@ -26,6 +26,7 @@ import { classifyActionType, classifyErrorCategory, detectRetry } from '../class
 import { CopilotCliTranslator } from './translator.js';
 import { logger } from '../../utils/logger.js';
 import { makeSessionId } from '../../utils/session.js';
+import { filteredEnv } from '../../utils/env.js';
 
 const translator = new CopilotCliTranslator();
 
@@ -105,9 +106,9 @@ export async function runCopilotAgent(
   const client = new CopilotClient({
     ...(copilotBin ? { cliPath: copilotBin } : {}),
     cwd: workspace,
-    env: { ...process.env, ...env },
     // useLoggedInUser defaults to true — the Copilot CLI picks up auth from
     // the gh CLI's stored credentials (set via `gh auth login` in CI).
+    env: { ...filteredEnv(), ...env },
   });
 
   logger.info(`\n[Copilot] Starting task: ${evalDef.id}`);
