@@ -6,7 +6,7 @@
  */
 
 import { Command } from 'commander';
-import { logger } from '../utils/logger.js';
+import { logger } from '@a0/eval-core';
 import {
   DEFAULT_MODEL,
   KNOWN_TOOLS,

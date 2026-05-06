@@ -5,8 +5,8 @@
  * Keeping a single source of truth prevents files from drifting out of sync.
  */
 
-export { KNOWN_AGENT_TYPES } from '../types/agents.js';
-export type { AgentType } from '../types/agents.js';
+export { KNOWN_AGENT_TYPES, ALL_MODES } from '@a0/eval-core';
+export type { AgentType, Mode } from '@a0/eval-core';
 
 /** Models known to work reliably across all eval modes. Used when `--model all` is passed. */
 export const KNOWN_WORKING_MODELS = [
@@ -19,12 +19,6 @@ export const KNOWN_WORKING_MODELS = [
 
 /** Model used when no `--model` flag is provided. */
 export const DEFAULT_MODEL = 'gpt-5.4';
-
-/** The two concrete execution modes. `"all"` is a CLI meta-value that expands to this union. */
-export type Mode = 'baseline' | 'agent';
-
-/** Supported execution modes. `"all"` is a meta-value that expands to this list. */
-export const ALL_MODES: Mode[] = ['baseline', 'agent'];
 
 /** Tool names accepted by the `--tools` flag (case-insensitive). */
 export const KNOWN_TOOLS = ['skills', 'mcp'];

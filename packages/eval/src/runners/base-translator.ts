@@ -1,4 +1,4 @@
-import { logger } from '../utils/logger.js';
+import { logger } from '@a0/eval-core';
 import type { ToolTranslator } from './tool-translator.js';
 
 /**

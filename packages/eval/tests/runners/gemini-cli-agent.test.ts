@@ -17,7 +17,8 @@ import { Readable } from 'node:stream';
 
 // ── Mock framework config ────────────────────────────────────────────────────
 
-vi.mock('../../src/config/framework-config.js', () => ({
+vi.mock('@a0/eval-core', async () => ({
+  ...(await vi.importActual('@a0/eval-core')),
   getFrameworkConfig: vi.fn().mockReturnValue({
     proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
     mcp: {

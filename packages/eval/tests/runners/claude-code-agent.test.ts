@@ -9,8 +9,8 @@
  */
 
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
-import { setFrameworkConfig } from '../../src/config/framework-config.js';
-import type { FrameworkConfig } from '../../src/config/framework.js';
+import { setFrameworkConfig } from '@a0/eval-core';
+import type { FrameworkConfig } from '@a0/eval-core';
 
 const TEST_CONFIG: Required<FrameworkConfig> = {
   evalsDir: 'src/evals',
@@ -85,7 +85,7 @@ import type {
   SDKSystemMessage,
   SDKMessage,
 } from '@anthropic-ai/claude-agent-sdk';
-import type { RunRecord } from '../../src/types/scorer.js';
+import type { RunRecord } from '@a0/eval-core';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

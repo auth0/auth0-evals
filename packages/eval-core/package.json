@@ -1,5 +1,5 @@
 {
-  "name": "@a0/eval",
+  "name": "@a0/eval-core",
   "version": "0.1.0",
   "type": "module",
   "main": "dist/index.js",
@@ -11,13 +11,10 @@
     }
   },
   "dependencies": {
-    "@a0/eval-core": "*",
-    "@anthropic-ai/claude-agent-sdk": "^0.2.117",
-    "@github/copilot-sdk": "^0.2.2",
-    "commander": "^14.0.3"
+    "@a0/eval-graders": "*"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "node scripts/generate-prompts.mjs && tsc",
     "test": "vitest run",
     "test:watch": "vitest"
   },

@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
-import { setFrameworkConfig } from '../../src/config/framework-config.js';
-import type { FrameworkConfig } from '../../src/config/framework.js';
+import { setFrameworkConfig } from '@a0/eval-core';
+import type { FrameworkConfig } from '@a0/eval-core';
 
 const TEST_CONFIG: Required<FrameworkConfig> = {
   evalsDir: 'src/evals',
