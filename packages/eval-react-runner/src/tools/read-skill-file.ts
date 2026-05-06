@@ -1,10 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { getSkillsManager, resolveInside } from '@a0/eval';
+import { toolResult, docResult } from './base.js';
 import type { Tool, ToolContext, ToolName, ToolResult } from './base.js';
-
-function wrapResult(message: string): ToolResult {
-  return [message, false, false, false];
-}
 
 /**
  * Tool to read a specific documentation file for a given skill.
@@ -31,25 +28,25 @@ export class ReadSkillFileTool implements Tool {
     try {
       skillDir = getSkillsManager().resolveSkillDir(skill);
     } catch {
-      return wrapResult('Access denied: skill path is outside skills directory');
+      return toolResult('Access denied: skill path is outside skills directory');
     }
     if (!skillDir) {
-      return wrapResult(`Skill '${skill}' not found`);
+      return toolResult(`Skill '${skill}' not found`);
     }
 
     let filePath: string;
     try {
       filePath = resolveInside(skillDir, path);
     } catch {
-      return wrapResult('Access denied: path is outside skill directory');
+      return toolResult('Access denied: path is outside skill directory');
     }
 
     let content: string;
     try {
       content = readFileSync(filePath, 'utf-8');
     } catch {
-      return wrapResult(`File not found: ${path}`);
+      return toolResult(`File not found: ${path}`);
     }
-    return [content, true, false, false];
+    return docResult(content);
   }
 }

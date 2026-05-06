@@ -1,8 +1,5 @@
+import { toolResult } from './base.js';
 import type { Tool, ToolContext, ToolName, ToolResult } from './base.js';
-
-function wrapResult(message: string): ToolResult {
-  return [message, false, false, false];
-}
 
 /**
  * FinishTaskTool allows the agent to signal that it has completed the task.
@@ -12,6 +9,6 @@ export class FinishTaskTool implements Tool {
   name: ToolName = 'finish_task';
 
   async run(_context: ToolContext, args: Record<string, unknown>): Promise<ToolResult> {
-    return wrapResult((args.summary as string) ?? 'Task complete.');
+    return toolResult((args.summary as string) ?? 'Task complete.');
   }
 }

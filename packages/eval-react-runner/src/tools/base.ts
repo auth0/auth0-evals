@@ -29,6 +29,26 @@ export interface ToolContext {
  */
 export type ToolResult = [result: string, isDoc: boolean, isInterrupt: boolean, isError: boolean];
 
+/** Plain result — no flags set. */
+export function toolResult(message: string): ToolResult {
+  return [message, false, false, false];
+}
+
+/** Documentation result — marks the response as a doc lookup. */
+export function docResult(message: string): ToolResult {
+  return [message, true, false, false];
+}
+
+/** Interrupt result — signals the agent asked the user for input. */
+export function interruptResult(message: string): ToolResult {
+  return [message, false, true, false];
+}
+
+/** Error result — signals a tool execution failure. */
+export function errorResult(message: string): ToolResult {
+  return [message, false, false, true];
+}
+
 /**
  * Interface that all tools must implement.
  * Each tool has a name and a run method that takes a context and arguments, and returns a ToolResult.

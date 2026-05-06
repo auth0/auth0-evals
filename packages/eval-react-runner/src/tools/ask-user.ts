@@ -1,9 +1,6 @@
 import { logger } from '@a0/eval';
+import { interruptResult } from './base.js';
 import type { Tool, ToolContext, ToolName, ToolResult } from './base.js';
-
-function wrapResult(message: string): ToolResult {
-  return [message, false, true, false];
-}
 
 /**
  * AskUserTool allows the agent to ask the user a question.
@@ -16,16 +13,16 @@ export class AskUserTool implements Tool {
     const question = args.question as string;
     const lowerQ = question.toLowerCase();
     if ((lowerQ.includes('domain') || lowerQ.includes('tenant')) && 'domain' in context.credentials) {
-      return wrapResult(context.credentials.domain);
+      return interruptResult(context.credentials.domain);
     }
     if (
       (lowerQ.includes('client id') || lowerQ.includes('clientid') || lowerQ.includes('client_id')) &&
       'client_id' in context.credentials
     ) {
-      return wrapResult(context.credentials.client_id);
+      return interruptResult(context.credentials.client_id);
     }
     logger.info(`\n[AGENT ASKING]: ${question}`);
     // In automated mode, return placeholder
-    return wrapResult('(no answer provided)');
+    return interruptResult('(no answer provided)');
   }
 }

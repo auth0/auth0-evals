@@ -1,9 +1,6 @@
 import { getSkillsManager, collectFiles } from '@a0/eval';
+import { docResult } from './base.js';
 import type { Tool, ToolContext, ToolName, ToolResult } from './base.js';
-
-function wrapResult(message: string): ToolResult {
-  return [message, true, false, false];
-}
 
 /**
  * Tool to list available documentation files for a given skill.
@@ -22,15 +19,15 @@ export class ListSkillFilesTool implements Tool {
     try {
       skillDir = getSkillsManager().resolveSkillDir(skill);
     } catch {
-      return wrapResult('Access denied: skill path is outside skills directory');
+      return docResult('Access denied: skill path is outside skills directory');
     }
     if (!skillDir) {
-      return wrapResult(`Skill '${skill}' not found`);
+      return docResult(`Skill '${skill}' not found`);
     }
     const files = collectFiles(skillDir, skillDir);
     if (files.length === 0) {
-      return wrapResult(`Skill '${skill}' directory is empty`);
+      return docResult(`Skill '${skill}' directory is empty`);
     }
-    return wrapResult(files.join('\n'));
+    return docResult(files.join('\n'));
   }
 }
