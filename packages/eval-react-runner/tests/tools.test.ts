@@ -149,7 +149,9 @@ describe('ToolExecutor.list_skill_files', () => {
   });
 
   it('returns skill-not-found (isError=false) for unknown skill', async () => {
-    const [result, , , isError] = await new ToolExecutor(tmpDir()).execute('list_skill_files', { skill: 'nonexistent' });
+    const [result, , , isError] = await new ToolExecutor(tmpDir()).execute('list_skill_files', {
+      skill: 'nonexistent',
+    });
     expect(result).toContain('not found');
     expect(isError).toBe(false);
   });

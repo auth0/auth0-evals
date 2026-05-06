@@ -7,12 +7,7 @@
 
 import type { GraderResult, RunRecord, ToolCallRecord, ScoredResult } from './types/scorer.js';
 import type { TraceStep, TurnMetricEntry } from './types/agents.js';
-import type {
-  AgentJobResult,
-  BaselineJobResult,
-  ErrorJobResult,
-  GraderSummary,
-} from './types/results.js';
+import type { AgentJobResult, BaselineJobResult, ErrorJobResult, GraderSummary } from './types/results.js';
 import type { EvalDefinition } from './types/eval.js';
 
 // ── Trace serialisation ───────────────────────────────────────────────────────

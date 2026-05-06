@@ -95,9 +95,7 @@ describe('SkillsManager', () => {
   it('resolves skills from local dirs before remote repos', async () => {
     const fs = vi.mocked(await import('node:fs'));
     // Only the local dir path exists
-    fs.existsSync.mockImplementation(
-      (p: unknown) => typeof p === 'string' && p.includes('/skills/my-skill'),
-    );
+    fs.existsSync.mockImplementation((p: unknown) => typeof p === 'string' && p.includes('/skills/my-skill'));
     const { SkillsManager } = await importConfig();
     const manager = new SkillsManager({
       localDirs: ['skills'],
@@ -119,9 +117,7 @@ describe('SkillsManager', () => {
     });
 
     // Only the remote path exists
-    fs.existsSync.mockImplementation(
-      (p: unknown) => typeof p === 'string' && p.includes('remote/plugins/my-skill'),
-    );
+    fs.existsSync.mockImplementation((p: unknown) => typeof p === 'string' && p.includes('remote/plugins/my-skill'));
 
     const result = manager.resolveSkillDir('my-skill');
 
@@ -137,9 +133,7 @@ describe('SkillsManager', () => {
     });
 
     // Only skills-b has the skill
-    fs.existsSync.mockImplementation(
-      (p: unknown) => typeof p === 'string' && p.includes('skills-b/my-skill'),
-    );
+    fs.existsSync.mockImplementation((p: unknown) => typeof p === 'string' && p.includes('skills-b/my-skill'));
 
     const result = manager.resolveSkillDir('my-skill');
 
@@ -158,9 +152,7 @@ describe('SkillsManager', () => {
     });
 
     // Only remote-b has the skill
-    fs.existsSync.mockImplementation(
-      (p: unknown) => typeof p === 'string' && p.includes('remote-b/my-skill'),
-    );
+    fs.existsSync.mockImplementation((p: unknown) => typeof p === 'string' && p.includes('remote-b/my-skill'));
 
     const result = manager.resolveSkillDir('my-skill');
 
@@ -185,9 +177,7 @@ describe('SkillsManager', () => {
     const { SkillsManager } = await importConfig();
     const manager = new SkillsManager({
       localDirs: ['skills-local-a', 'skills-local-b'],
-      remoteRepos: [
-        { url: 'https://example.com/repo.git', localPath: 'remote-x', skillsPath: 'plugins' },
-      ],
+      remoteRepos: [{ url: 'https://example.com/repo.git', localPath: 'remote-x', skillsPath: 'plugins' }],
     });
 
     const paths = manager.getSearchPaths();
@@ -243,16 +233,8 @@ describe('SkillsManager', () => {
 
     await manager.ensureAllCloned();
 
-    expect(cp.execFileSync).toHaveBeenCalledWith(
-      'git',
-      ['fetch', '--depth', '1', 'origin'],
-      expect.anything(),
-    );
-    expect(cp.execFileSync).toHaveBeenCalledWith(
-      'git',
-      ['reset', '--hard', 'FETCH_HEAD'],
-      expect.anything(),
-    );
+    expect(cp.execFileSync).toHaveBeenCalledWith('git', ['fetch', '--depth', '1', 'origin'], expect.anything());
+    expect(cp.execFileSync).toHaveBeenCalledWith('git', ['reset', '--hard', 'FETCH_HEAD'], expect.anything());
   });
 
   it('gracefully handles zero remote repos', async () => {
@@ -674,9 +656,7 @@ describe('copySkillsToWorkspace - skill not found', () => {
     const { copySkillsToWorkspace } = await importStrategy();
     const evalDef = makeEvalDef({ skills: ['unknown-skill'] });
 
-    await expect(copySkillsToWorkspace(evalDef, '/tmp/workspace')).rejects.toThrow(
-      "Skill 'unknown-skill' not found",
-    );
+    await expect(copySkillsToWorkspace(evalDef, '/tmp/workspace')).rejects.toThrow("Skill 'unknown-skill' not found");
   });
 });
 

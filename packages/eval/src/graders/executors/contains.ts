@@ -13,7 +13,9 @@ export const containsExecutor: GraderExecutor = {
   async execute(def: GraderDef, ctx: GraderContext): Promise<GraderResult> {
     const needle = def.needle!;
     const passed =
-      (def.caseSensitive ?? true) ? ctx.combinedText.includes(needle) : ctx.combinedLower.includes(needle.toLowerCase());
+      (def.caseSensitive ?? true)
+        ? ctx.combinedText.includes(needle)
+        : ctx.combinedLower.includes(needle.toLowerCase());
     return {
       name: def.name,
       kind: def.kind,

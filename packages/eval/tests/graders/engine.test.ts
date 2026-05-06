@@ -387,20 +387,35 @@ describe('llmJudge', () => {
 
   it('passes when last line is yes', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('The code correctly wraps the app with Auth0Provider.\n\nyes'));
-    const { passed } = await llmJudge({ question: 'Does it use Auth0Provider?', code: 'code', apiKey: 'key', model: 'model' });
+    const { passed } = await llmJudge({
+      question: 'Does it use Auth0Provider?',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+    });
     expect(passed).toBe(true);
   });
 
   it('fails when last line is no', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('Auth0Provider is missing from the component tree.\n\nno'));
-    const { passed } = await llmJudge({ question: 'Does it use Auth0Provider?', code: 'code', apiKey: 'key', model: 'model' });
+    const { passed } = await llmJudge({
+      question: 'Does it use Auth0Provider?',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+    });
     expect(passed).toBe(false);
   });
 
   it('detail contains full reasoning', async () => {
     const reasoning = 'The loginWithRedirect call is present on the button.\n\nyes';
     vi.stubGlobal('fetch', mockFetchResponse(reasoning));
-    const { detail } = await llmJudge({ question: 'Does it call loginWithRedirect?', code: 'code', apiKey: 'key', model: 'model' });
+    const { detail } = await llmJudge({
+      question: 'Does it call loginWithRedirect?',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+    });
     expect(detail).toContain('loginWithRedirect call is present');
   });
 
@@ -419,7 +434,9 @@ describe('llmJudge', () => {
 
   it('rejects words that merely start with yes (word boundary)', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('The code was correct.\n\nyesterday'));
-    await expect(llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model' })).rejects.toThrow('unexpected verdict');
+    await expect(llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model' })).rejects.toThrow(
+      'unexpected verdict',
+    );
   });
 
   it('passes when yes has trailing punctuation', async () => {
@@ -447,7 +464,9 @@ describe('llmJudge', () => {
 
   it('unexpected token throws JudgeError', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('maybe'));
-    await expect(llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model' })).rejects.toThrow('unexpected verdict');
+    await expect(llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model' })).rejects.toThrow(
+      'unexpected verdict',
+    );
   });
 });
 
@@ -542,7 +561,9 @@ describe('llmJudge - code corpus overflow', () => {
 
   it('throws when code exceeds JUDGE_MAX_CODE_CHARS', async () => {
     const oversized = 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1);
-    await expect(llmJudge({ question: 'question', code: oversized, apiKey: 'key', model: 'model' })).rejects.toThrow(/Code corpus exceeds limit/);
+    await expect(llmJudge({ question: 'question', code: oversized, apiKey: 'key', model: 'model' })).rejects.toThrow(
+      /Code corpus exceeds limit/,
+    );
   });
 
   it('does not throw when code is exactly at the limit', async () => {
@@ -562,7 +583,13 @@ describe('llmJudge - enforceMaxChars=false', () => {
     const fetchMock = mockFetchResponse('Oversized but still judged.\n\nyes');
     vi.stubGlobal('fetch', fetchMock);
     const oversized = 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1);
-    const { passed, detail } = await llmJudge({ question: 'question', code: oversized, apiKey: 'key', model: 'model', enforceMaxChars: false });
+    const { passed, detail } = await llmJudge({
+      question: 'question',
+      code: oversized,
+      apiKey: 'key',
+      model: 'model',
+      enforceMaxChars: false,
+    });
     expect(passed).toBe(true);
     expect(detail).toContain('Oversized but still judged.');
     expect(fetchMock).toHaveBeenCalledOnce();

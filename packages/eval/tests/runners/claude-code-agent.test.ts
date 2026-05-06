@@ -214,10 +214,21 @@ describe('handleMessage — system', () => {
   it('init event enriches model and sets sessionId', () => {
     const record = makeRecord();
     const msg = {
-      type: 'system', subtype: 'init', uuid: 'uuid_sys', session_id: 'sess_abc',
-      model: 'claude-sonnet-4-5', cwd: '/tmp', tools: [], mcp_servers: [],
-      permissionMode: 'bypassPermissions', slash_commands: [], output_style: 'concise',
-      skills: [], plugins: [], apiKeySource: 'user', claude_code_version: '1.0.0',
+      type: 'system',
+      subtype: 'init',
+      uuid: 'uuid_sys',
+      session_id: 'sess_abc',
+      model: 'claude-sonnet-4-5',
+      cwd: '/tmp',
+      tools: [],
+      mcp_servers: [],
+      permissionMode: 'bypassPermissions',
+      slash_commands: [],
+      output_style: 'concise',
+      skills: [],
+      plugins: [],
+      apiKeySource: 'user',
+      claude_code_version: '1.0.0',
     } as unknown as SDKSystemMessage;
     const result = handleMessage(msg, record, makePending(), 0, 0);
     expect(result).toBeNull();
@@ -228,10 +239,21 @@ describe('handleMessage — system', () => {
   it('init with empty model falls back to CLAUDE_CODE_MODEL_ID', () => {
     const record = makeRecord();
     const msg = {
-      type: 'system', subtype: 'init', uuid: 'uuid_sys', session_id: 'sess_xyz',
-      model: '', cwd: '/tmp', tools: [], mcp_servers: [],
-      permissionMode: 'bypassPermissions', slash_commands: [], output_style: 'concise',
-      skills: [], plugins: [], apiKeySource: 'user', claude_code_version: '1.0.0',
+      type: 'system',
+      subtype: 'init',
+      uuid: 'uuid_sys',
+      session_id: 'sess_xyz',
+      model: '',
+      cwd: '/tmp',
+      tools: [],
+      mcp_servers: [],
+      permissionMode: 'bypassPermissions',
+      slash_commands: [],
+      output_style: 'concise',
+      skills: [],
+      plugins: [],
+      apiKeySource: 'user',
+      claude_code_version: '1.0.0',
     } as unknown as SDKSystemMessage;
     handleMessage(msg, record, makePending(), 0, 0);
     expect(record.model).toBe(CLAUDE_CODE_MODEL_ID);
@@ -241,7 +263,10 @@ describe('handleMessage — system', () => {
     const record = makeRecord();
     const before = { ...record };
     const msg = {
-      type: 'system', subtype: 'hook_response', uuid: 'uuid_sys', session_id: 'sess_1',
+      type: 'system',
+      subtype: 'hook_response',
+      uuid: 'uuid_sys',
+      session_id: 'sess_1',
     } as unknown as SDKMessage;
     const result = handleMessage(msg, record, makePending(), 0, 0);
     expect(result).toBeNull();
@@ -611,25 +636,42 @@ describe('runClaudeCodeAgent', () => {
   it('successful run with result message sets status, tokens, and cost', async () => {
     const messages: SDKMessage[] = [
       {
-        type: 'system', subtype: 'init', uuid: 'u1', session_id: 's1',
-        model: 'claude-sonnet-4-5', cwd: workspace, tools: [], mcp_servers: [],
-        permissionMode: 'bypassPermissions', slash_commands: [], output_style: 'concise',
-        skills: [], plugins: [], apiKeySource: 'user', claude_code_version: '1.0.0',
+        type: 'system',
+        subtype: 'init',
+        uuid: 'u1',
+        session_id: 's1',
+        model: 'claude-sonnet-4-5',
+        cwd: workspace,
+        tools: [],
+        mcp_servers: [],
+        permissionMode: 'bypassPermissions',
+        slash_commands: [],
+        output_style: 'concise',
+        skills: [],
+        plugins: [],
+        apiKeySource: 'user',
+        claude_code_version: '1.0.0',
       } as unknown as SDKMessage,
       makeAssistantMsg({
         content: [{ type: 'tool_use', id: 'tu_1', name: 'Read', input: { file_path: 'src/app.ts' } }],
-        input_tokens: 100, output_tokens: 20,
+        input_tokens: 100,
+        output_tokens: 20,
       }) as SDKMessage,
       makeUserMsg([
         { type: 'tool_result', tool_use_id: 'tu_1', content: 'file contents', is_error: false },
       ]) as SDKMessage,
       makeAssistantMsg({
         content: [{ type: 'text', text: 'Done integrating Auth0.' }],
-        stop_reason: 'end_turn', input_tokens: 50, output_tokens: 10,
+        stop_reason: 'end_turn',
+        input_tokens: 50,
+        output_tokens: 10,
       }) as SDKMessage,
       makeResultMsg({
-        subtype: 'success', result: 'Task complete.', total_cost_usd: 0.042,
-        input_tokens: 150, output_tokens: 30,
+        subtype: 'success',
+        result: 'Task complete.',
+        total_cost_usd: 0.042,
+        input_tokens: 150,
+        output_tokens: 30,
       }) as SDKMessage,
     ];
 
@@ -661,20 +703,24 @@ describe('runClaudeCodeAgent', () => {
   });
 
   it('stream with turns but no result message falls back to success', async () => {
-    mockQuery.mockReturnValue(fakeQuery([
-      makeAssistantMsg({ content: [{ type: 'text', text: 'All done.' }], stop_reason: 'end_turn' }) as SDKMessage,
-    ]));
+    mockQuery.mockReturnValue(
+      fakeQuery([
+        makeAssistantMsg({ content: [{ type: 'text', text: 'All done.' }], stop_reason: 'end_turn' }) as SDKMessage,
+      ]),
+    );
     const record = await runClaudeCodeAgent(evalDef, workspace);
     expect(record.status).toBe('success');
     expect(record.turnMetrics).toHaveLength(1);
   });
 
   it('orphaned tool_use blocks are drained into toolCalls and providerErrors', async () => {
-    mockQuery.mockReturnValue(fakeQuery([
-      makeAssistantMsg({
-        content: [{ type: 'tool_use', id: 'tu_orphan', name: 'Bash', input: { command: 'npm install' } }],
-      }) as SDKMessage,
-    ]));
+    mockQuery.mockReturnValue(
+      fakeQuery([
+        makeAssistantMsg({
+          content: [{ type: 'tool_use', id: 'tu_orphan', name: 'Bash', input: { command: 'npm install' } }],
+        }) as SDKMessage,
+      ]),
+    );
     const record = await runClaudeCodeAgent(evalDef, workspace);
     expect(record.toolCalls).toHaveLength(1);
     expect(record.toolCalls[0].name).toBe('run_command');
@@ -684,11 +730,13 @@ describe('runClaudeCodeAgent', () => {
   });
 
   it('orphaned internal tools are not added to toolCalls', async () => {
-    mockQuery.mockReturnValue(fakeQuery([
-      makeAssistantMsg({
-        content: [{ type: 'tool_use', id: 'tu_internal', name: 'TodoWrite', input: {} }],
-      }) as SDKMessage,
-    ]));
+    mockQuery.mockReturnValue(
+      fakeQuery([
+        makeAssistantMsg({
+          content: [{ type: 'tool_use', id: 'tu_internal', name: 'TodoWrite', input: {} }],
+        }) as SDKMessage,
+      ]),
+    );
     const record = await runClaudeCodeAgent(evalDef, workspace);
     expect(record.toolCalls).toHaveLength(0);
   });
@@ -722,10 +770,18 @@ describe('ClaudeCodeTranslator — mapName', () => {
   const translator = new ClaudeCodeTranslator();
 
   it.each([
-    ['Bash', 'run_command'], ['Read', 'read_file'], ['Write', 'write_file'],
-    ['Edit', 'write_file'], ['MultiEdit', 'write_file'], ['Glob', 'list_files'],
-    ['Grep', 'list_files'], ['LS', 'list_files'], ['WebFetch', 'fetch_url'],
-    ['WebSearch', 'fetch_url'], ['AskUserQuestion', 'ask_user'], ['TodoRead', 'read_file'],
+    ['Bash', 'run_command'],
+    ['Read', 'read_file'],
+    ['Write', 'write_file'],
+    ['Edit', 'write_file'],
+    ['MultiEdit', 'write_file'],
+    ['Glob', 'list_files'],
+    ['Grep', 'list_files'],
+    ['LS', 'list_files'],
+    ['WebFetch', 'fetch_url'],
+    ['WebSearch', 'fetch_url'],
+    ['AskUserQuestion', 'ask_user'],
+    ['TodoRead', 'read_file'],
   ])('%s → %s', (ccName, expected) => {
     expect(translator.mapName(ccName)).toBe(expected);
   });

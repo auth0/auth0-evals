@@ -486,8 +486,11 @@ describe('ListSkillFilesTool', () => {
   async function importTool() {
     vi.resetModules();
     // Re-initialize the framework config singleton after resetModules clears it.
-    const { setFrameworkConfig: setConfig, resetSkillsManager: resetMgr, DEFAULT_FRAMEWORK_CONFIG: defaults } =
-      await import('@a0/eval');
+    const {
+      setFrameworkConfig: setConfig,
+      resetSkillsManager: resetMgr,
+      DEFAULT_FRAMEWORK_CONFIG: defaults,
+    } = await import('@a0/eval');
     resetMgr();
     setConfig({ ...defaults, skills: { remoteRepos: [], localDirs: [skillsBaseDir] } } as Required<typeof defaults>);
     const { ListSkillFilesTool } = await import('../src/tools/list-skill-files.js');
@@ -560,8 +563,11 @@ describe('ReadSkillFileTool', () => {
   async function importTool() {
     vi.resetModules();
     // Re-initialize the framework config singleton after resetModules clears it.
-    const { setFrameworkConfig: setConfig, resetSkillsManager: resetMgr, DEFAULT_FRAMEWORK_CONFIG: defaults } =
-      await import('@a0/eval');
+    const {
+      setFrameworkConfig: setConfig,
+      resetSkillsManager: resetMgr,
+      DEFAULT_FRAMEWORK_CONFIG: defaults,
+    } = await import('@a0/eval');
     resetMgr();
     setConfig({ ...defaults, skills: { remoteRepos: [], localDirs: [skillsBaseDir] } } as Required<typeof defaults>);
     const { ReadSkillFileTool } = await import('../src/tools/read-skill-file.js');
