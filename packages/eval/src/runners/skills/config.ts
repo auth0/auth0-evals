@@ -142,9 +142,7 @@ export class SkillsManager {
     return true;
   }
 
-  private async doCloneRepo(
-    repo: RemoteSkillRepo,
-  ): Promise<{ available: boolean; fresh: boolean }> {
+  private async doCloneRepo(repo: RemoteSkillRepo): Promise<{ available: boolean; fresh: boolean }> {
     const cloneDir = this.getRepoCloneDir(repo);
     if (!this.isCloneDirSafe(cloneDir)) {
       logger.error(`[skills] Refusing to operate on unsafe clone directory: "${cloneDir}"`);
@@ -172,15 +170,10 @@ export class SkillsManager {
     } catch (e) {
       if (hadExistingClone) {
         // Update failed but stale clone is still usable for skill resolution
-        logger.warn(
-          `[skills] Failed to update ${repo.url} — using existing (possibly stale) checkout`,
-        );
+        logger.warn(`[skills] Failed to update ${repo.url} — using existing (possibly stale) checkout`);
         return { available: true, fresh: false };
       }
-      logger.error(
-        `[skills] Failed to clone ${repo.url} —`,
-        e instanceof Error ? (e.stack ?? e.message) : String(e),
-      );
+      logger.error(`[skills] Failed to clone ${repo.url} —`, e instanceof Error ? (e.stack ?? e.message) : String(e));
       return { available: false, fresh: false };
     }
   }

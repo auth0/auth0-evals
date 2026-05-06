@@ -40,11 +40,7 @@ export function defineGraders() {
     contains('/logout', 'Implements /logout route', GraderLevel.L4),
     contains('/profile', 'Implements /profile route', GraderLevel.L4),
     contains('secret_key', 'Sets Flask app.secret_key for session management', GraderLevel.L4),
-    matches(
-      String.raw`async\s+def`,
-      'Uses async route handlers',
-      GraderLevel.L4,
-    ),
+    matches(String.raw`async\s+def`, 'Uses async route handlers', GraderLevel.L4),
     judge(
       'Does the app implement login, callback, profile, and logout routes using auth0-server-python, ' +
         'protect the /profile route so it requires login, and include a route that calls an external API ' +

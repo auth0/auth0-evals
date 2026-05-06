@@ -43,10 +43,7 @@ export async function loadEval(
   }
 
   const defaultBaselinePrompt = options?.defaultBaselineSystemPrompt ?? FALLBACK_BASELINE_PROMPT;
-  const { baselineSystemPrompt, userPrompt, meta } = parsePromptMd(
-    join(evalPath, 'PROMPT.md'),
-    defaultBaselinePrompt,
-  );
+  const { baselineSystemPrompt, userPrompt, meta } = parsePromptMd(join(evalPath, 'PROMPT.md'), defaultBaselinePrompt);
 
   // system_default.md is always the agent system prompt — it contains the universal
   // identity, 8-step workflow, tool guidance, and behavior rules. Individual evals

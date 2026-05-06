@@ -29,8 +29,16 @@ export function defineGraders() {
     ),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
-    matches(String.raw`requiredScopes\s*\(\s*.*read:messages`, 'GET /api/messages protected with read:messages scope', GraderLevel.L4),
-    matches(String.raw`requiredScopes\s*\(\s*.*write:messages`, 'POST /api/messages protected with write:messages scope', GraderLevel.L4),
+    matches(
+      String.raw`requiredScopes\s*\(\s*.*read:messages`,
+      'GET /api/messages protected with read:messages scope',
+      GraderLevel.L4,
+    ),
+    matches(
+      String.raw`requiredScopes\s*\(\s*.*write:messages`,
+      'POST /api/messages protected with write:messages scope',
+      GraderLevel.L4,
+    ),
     judge(
       'Does the API correctly protect all three routes? ' +
         'GET /api/messages requires read:messages, POST /api/messages requires write:messages, ' +

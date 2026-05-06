@@ -42,9 +42,7 @@ export async function copySkillsToWorkspace(
     const skillDir = manager.resolveSkillDir(skill);
     if (!skillDir) {
       const searchPaths = manager.getSearchPaths();
-      const locations = searchPaths.length
-        ? searchPaths.join(', ')
-        : '(no skill directories configured)';
+      const locations = searchPaths.length ? searchPaths.join(', ') : '(no skill directories configured)';
       throw new Error(`Skill '${skill}' not found in any configured directory: ${locations}`);
     }
     const files = collectFiles(skillDir, skillDir, { maxFiles: Infinity });
