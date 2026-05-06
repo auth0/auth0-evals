@@ -165,7 +165,7 @@ describe('tool events', () => {
     expect(record.toolCalls[0].name).toBe(expectedName);
   });
 
-  it('mcp_-prefixed tool is mapped to "mcp" and classified as doc lookup', async () => {
+  it('mcp__-prefixed tool preserves full name and is classified as doc lookup', async () => {
     mockSpawn.mockReturnValue(
       makeChild([
         {
@@ -181,7 +181,7 @@ describe('tool events', () => {
     );
 
     const record = await runGeminiCliAgent(evalDef, workspace);
-    expect(record.toolCalls[0].name).toBe('mcp');
+    expect(record.toolCalls[0].name).toBe('mcp__auth0-docs__search_auth0_docs');
     expect(record.toolCalls[0].isDocLookup).toBe(true);
   });
 

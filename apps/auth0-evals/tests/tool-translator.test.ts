@@ -172,9 +172,9 @@ describe('GeminiCliTranslator — mapping', () => {
     expect(translator.mapName(geminiName)).toBe(expected);
   });
 
-  it('maps mcp_-prefixed tools to "mcp"', () => {
-    expect(translator.mapName('mcp__auth0-docs__search_auth0_docs')).toBe('mcp');
-    expect(translator.mapName('mcp_anything')).toBe('mcp');
+  it('preserves full name for mcp__-prefixed tools', () => {
+    expect(translator.mapName('mcp__auth0-docs__search_auth0_docs')).toBe('mcp__auth0-docs__search_auth0_docs');
+    expect(translator.mapName('mcp__anything__tool')).toBe('mcp__anything__tool');
   });
 
   it('passes through unknown tool names', () => {
