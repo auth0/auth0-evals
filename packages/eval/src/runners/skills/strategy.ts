@@ -10,10 +10,9 @@
 import { copyFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
-import { collectFiles } from '../../workspace/index.js';
-import { logger } from '../../utils/logger.js';
+import type { EvalDefinition } from '@a0/eval-core';
+import { collectFiles, logger } from '@a0/eval-core';
 import { getSkillsManager } from './config.js';
-import type { EvalDefinition } from '../../types/eval.js';
 
 // ── Clone / pull (runs once per process) ─────────────────────────────────────
 

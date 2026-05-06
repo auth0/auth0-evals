@@ -3,7 +3,7 @@
  */
 
 import type { AgentRunner, RunParams, RunResult } from '../agent-runner.js';
-import type { EvalDefinition } from '../../types/eval.js';
+import type { EvalDefinition } from '@a0/eval-core';
 import { CopySkillsStrategy } from '../skills/strategy.js';
 import type { SkillsStrategy } from '../skills/strategy.js';
 import { runGeminiCliAgent, GEMINI_CLI_MODEL_ID } from './agent.js';

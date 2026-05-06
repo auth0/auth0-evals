@@ -20,16 +20,19 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { RunRecord, ToolCallRecord, TurnMetric, FinishReason } from '../../types/scorer.js';
+import type { RunRecord, ToolCallRecord, TurnMetric, FinishReason, EvalDefinition } from '@a0/eval-core';
+import {
+  CLAUDE_CODE_TASK_TIMEOUT_MS,
+  getLitellmModelMap,
+  getLitellmModelReverseMap,
+  getFrameworkConfig,
+  estimateCost,
+  logger,
+  makeSessionId,
+  filteredEnv,
+} from '@a0/eval-core';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '../classify.js';
-import type { EvalDefinition } from '../../types/eval.js';
-import { CLAUDE_CODE_TASK_TIMEOUT_MS, getLitellmModelMap, getLitellmModelReverseMap } from '../../config/settings.js';
-import { getFrameworkConfig } from '../../config/framework-config.js';
-import { estimateCost } from '../../config/costs.js';
 import { ClaudeCodeTranslator } from './translator.js';
-import { logger } from '../../utils/logger.js';
-import { makeSessionId } from '../../utils/session.js';
-import { filteredEnv } from '../../utils/env.js';
 
 // Module-level translator instance — all event processing uses this.
 const translator = new ClaudeCodeTranslator();

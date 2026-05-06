@@ -6,7 +6,7 @@
  */
 
 import type { AgentRunner, RunParams, RunResult } from '../agent-runner.js';
-import type { EvalDefinition } from '../../types/eval.js';
+import type { EvalDefinition } from '@a0/eval-core';
 import { CopySkillsStrategy } from '../skills/strategy.js';
 import type { SkillsStrategy } from '../skills/strategy.js';
 import { runCopilotAgent, COPILOT_MODEL_ID, COPILOT_DEFAULT_MODEL } from './agent.js';

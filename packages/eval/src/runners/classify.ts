@@ -6,8 +6,7 @@
  * needs to import from another.
  */
 
-import type { ErrorCategory } from '../types/agents.js';
-import type { ActionType, ToolCallRecord } from '../types/scorer.js';
+import type { ErrorCategory, ActionType, ToolCallRecord } from '@a0/eval-core';
 
 // ── Action type classification ───────────────────────────────────────────────
 

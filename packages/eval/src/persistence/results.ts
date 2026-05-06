@@ -4,8 +4,7 @@
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, relative, isAbsolute } from 'node:path';
-import { ALL_MODES, type Mode } from '../cli/constants.js';
-import type { JobResult } from '../types/results.js';
+import { ALL_MODES, type Mode, type JobResult } from '@a0/eval-core';
 
 /**
  * Returns a stable string key that uniquely identifies a job within a results file.

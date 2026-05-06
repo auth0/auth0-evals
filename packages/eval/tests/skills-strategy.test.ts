@@ -7,10 +7,11 @@
  */
 
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import type { EvalDefinition } from '../src/types/eval.js';
+import type { EvalDefinition } from '@a0/eval-core';
 
 // Must mock framework-config so the singleton survives re-imports.
-vi.mock('../src/config/framework-config.js', () => ({
+vi.mock('@a0/eval-core', async () => ({
+  ...(await vi.importActual('@a0/eval-core')),
   getFrameworkConfig: vi.fn().mockReturnValue({
     evalsDir: 'src/evals',
     proxy: { baseUrl: 'https://llm.atko.ai/v1' },
@@ -28,7 +29,8 @@ vi.mock('../src/config/framework-config.js', () => ({
     judge: { model: 'claude-sonnet-4-5', maxTokens: 1024, maxCodeChars: 16384, promptsDir: 'src/prompts/judge' },
     models: { known: [], default: 'gpt-5.4', bedrock: {}, litellm: {} },
   }),
-  setFrameworkConfig: vi.fn(),
+  collectFiles: vi.fn(),
+  resolveInside: vi.fn((base: string, rel: string) => (rel === '.' ? base : `${base}/${rel}`)),
 }));
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
 vi.mock('node:fs', () => ({
@@ -36,10 +38,6 @@ vi.mock('node:fs', () => ({
   mkdirSync: vi.fn(),
   rmSync: vi.fn(),
   copyFileSync: vi.fn(),
-}));
-vi.mock('../src/workspace/index.js', () => ({
-  collectFiles: vi.fn(),
-  resolveInside: vi.fn((base: string, rel: string) => (rel === '.' ? base : `${base}/${rel}`)),
 }));
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -70,6 +68,10 @@ async function importConfig() {
   return await import('../src/runners/skills/config.js');
 }
 
+async function importEvalCore() {
+  return await import('@a0/eval-core');
+}
+
 beforeEach(async () => {
   vi.resetModules();
   vi.unstubAllGlobals();
@@ -80,8 +82,8 @@ beforeEach(async () => {
   fs.mkdirSync.mockReset();
   const cp = vi.mocked(await import('node:child_process'));
   vi.mocked(cp.execFileSync as (...args: unknown[]) => unknown).mockReset();
-  const workspace = vi.mocked(await import('../src/workspace/index.js'));
-  vi.mocked(workspace.collectFiles).mockReturnValue(['README.md', 'SKILL.md']);
+  const evalCore = vi.mocked(await importEvalCore());
+  vi.mocked(evalCore.collectFiles).mockReturnValue(['README.md', 'SKILL.md']);
 });
 
 afterEach(() => {

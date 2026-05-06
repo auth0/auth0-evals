@@ -5,7 +5,7 @@
  * or calls `process.exit(1)` on invalid input.
  */
 
-import { logger } from '../utils/logger.js';
+import { logger } from '@a0/eval-core';
 import {
   ALL_MODES,
   KNOWN_TOOLS,

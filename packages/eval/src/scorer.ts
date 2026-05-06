@@ -17,8 +17,8 @@ import type {
   ScoredResult,
   ScoringOptions,
   DimensionWeights,
-} from './types/scorer.js';
-import { GraderLevel } from './types/graders.js';
+} from '@a0/eval-core';
+import { GraderLevel } from '@a0/eval-core';
 
 // ── Default scoring constants ────────────────────────────────────────────────
 
@@ -177,9 +177,9 @@ function scoreFromGraders(graderResults: GraderResult[], level: GraderLevel, emp
     failed.length === 0
       ? `All ${passed} graders passed`
       : failed
-          .slice(0, 3)
-          .map((g) => g.detail)
-          .join('; ') + (failed.length > 3 ? ` (+${failed.length - 3} more)` : '');
+            .slice(0, 3)
+            .map((g) => g.detail)
+            .join('; ') + (failed.length > 3 ? ` (+${failed.length - 3} more)` : '');
   return [Math.round(s * 10) / 10, notes];
 }
 
