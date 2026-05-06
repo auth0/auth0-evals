@@ -28,8 +28,8 @@ export class GeminiCliTranslator extends BaseToolTranslator {
     return name.startsWith('mcp_');
   }
 
-  protected override mapMcpName(_name: string): string {
-    return 'mcp';
+  protected override mapMcpName(name: string): string {
+    return name;
   }
 
   override isDocLookup(name: string): boolean {
