@@ -162,6 +162,15 @@ export async function runClaudeCodeAgent(
     proxyEnv.ANTHROPIC_API_KEY = process.env.ATKO_API_KEY;
   }
 
+  // Claude Code CLI-specific env vars that must reach the subprocess.
+  const claudeEnv: Record<string, string> = {};
+  if (process.env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS) {
+    claudeEnv.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS = process.env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS;
+  }
+  if (process.env.CLAUDE_CODE_USE_BEDROCK_PROXY) {
+    claudeEnv.CLAUDE_CODE_USE_BEDROCK_PROXY = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY;
+  }
+
   // Build MCP server config when --tools mcp is requested.
   let mcpServers: Record<string, { type: 'http'; url: string }> | undefined;
   if (tools.includes('mcp')) {
@@ -214,7 +223,7 @@ export async function runClaudeCodeAgent(
         persistSession: false,
         additionalDirectories: [workspace],
         abortController,
-        env: { ...filteredEnv(), ...proxyEnv, ...env },
+        env: { ...filteredEnv(), ...claudeEnv, ...proxyEnv, ...env },
         mcpServers,
         settingSources: ['project'],
       },

@@ -27,6 +27,7 @@ import { estimateCost } from '../../config/costs.js';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '../classify.js';
 import { logger } from '../../utils/logger.js';
 import { GeminiCliTranslator } from './translator.js';
+import { filteredEnv } from '../../utils/env.js';
 
 const translator = new GeminiCliTranslator();
 
@@ -125,11 +126,10 @@ export async function runGeminiCliAgent(
   const args: string[] = ['-p', evalDef.userPrompt, '--approval-mode', 'yolo', '-o', 'stream-json', '-m', model];
 
   // Route through the ATKO LiteLLM proxy — same pattern as the Claude Code runner.
-  const geminiEnv: Record<string, string> = {};
-  for (const [k, v] of Object.entries(process.env)) {
-    if (v !== undefined) geminiEnv[k] = v;
-  }
-  geminiEnv.GEMINI_CLI_TRUSTED_FOLDERS_PATH = trustedFoldersPath;
+  const geminiEnv: Record<string, string> = {
+    ...filteredEnv(),
+    GEMINI_CLI_TRUSTED_FOLDERS_PATH: trustedFoldersPath,
+  };
   if (process.env.ATKO_API_KEY) {
     geminiEnv.GOOGLE_GEMINI_BASE_URL = getFrameworkConfig().proxy.baseUrl.replace(/\/v1\/?$/, '');
     geminiEnv.GEMINI_API_KEY = process.env.ATKO_API_KEY;

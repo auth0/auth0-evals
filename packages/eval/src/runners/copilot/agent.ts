@@ -103,12 +103,18 @@ export async function runCopilotAgent(
   let prevTurnEndTime = record.startTime;
   const pending = new Map<string, PendingToolCall>();
 
+  // Copilot SDK-specific env vars that must reach the subprocess.
+  const copilotEnv: Record<string, string> = {};
+  if (process.env.GH_TOKEN) {
+    copilotEnv.GH_TOKEN = process.env.GH_TOKEN;
+  }
+
   const client = new CopilotClient({
     ...(copilotBin ? { cliPath: copilotBin } : {}),
     cwd: workspace,
     // useLoggedInUser defaults to true — the Copilot CLI picks up auth from
     // the gh CLI's stored credentials (set via `gh auth login` in CI).
-    env: { ...filteredEnv(), ...env },
+    env: { ...filteredEnv(), ...copilotEnv, ...env },
   });
 
   logger.info(`\n[Copilot] Starting task: ${evalDef.id}`);
