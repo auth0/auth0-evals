@@ -109,7 +109,7 @@ Additionally, the LLM judge excludes `tsconfig*.json` and `angular.json` from it
 
 ## Linting & formatting
 
-The project uses ESLint and Prettier. Run `npm run lint` and `npm run format` before committing, and follow any errors they surface.
+The project uses ESLint and Prettier. Run `npm run lint` and `npm run format` before considering work done and before committing. Always run these commands in the current working directory — do not run them in other git worktrees.
 
 ---
 
