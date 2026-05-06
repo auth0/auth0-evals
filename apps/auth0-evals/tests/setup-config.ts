@@ -9,10 +9,8 @@
  * with test-config.ts instead (see agent.test.ts, tools.test.ts, skills.test.ts).
  */
 
-import { setFrameworkConfig } from '../src/config/framework-config.js';
-import { setFrameworkConfig as setPackageFrameworkConfig } from '@a0/eval';
+import { setFrameworkConfig } from '@a0/eval';
 export { TEST_CONFIG } from './test-config.js';
 import { TEST_CONFIG } from './test-config.js';
 
 setFrameworkConfig(TEST_CONFIG);
-setPackageFrameworkConfig(TEST_CONFIG);

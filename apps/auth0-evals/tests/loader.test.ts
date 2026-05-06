@@ -8,7 +8,7 @@ import { join, resolve, dirname } from 'node:path';
 import { makeTmpDir } from './tmp.js';
 import { fileURLToPath } from 'node:url';
 import { loadEval } from '@a0/eval';
-import { EvalConfigError, EvalNotFoundError } from '../src/errors.js';
+import { EvalConfigError, EvalNotFoundError } from '@a0/eval';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
