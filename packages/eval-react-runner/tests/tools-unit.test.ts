@@ -2,7 +2,7 @@
  * Direct tool class unit tests — edge cases that ToolExecutor-level tests don't exercise.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as childProcess from 'node:child_process';
@@ -486,19 +486,16 @@ describe('ListSkillFilesTool', () => {
   async function importTool() {
     vi.resetModules();
     // Re-initialize the framework config singleton after resetModules clears it.
-    const { setFrameworkConfig: setConfig, DEFAULT_FRAMEWORK_CONFIG: defaults } = await import('@a0/eval');
-    setConfig(defaults as Required<typeof defaults>);
+    const { setFrameworkConfig: setConfig, resetSkillsManager: resetMgr, DEFAULT_FRAMEWORK_CONFIG: defaults } =
+      await import('@a0/eval');
+    resetMgr();
+    setConfig({ ...defaults, skills: { remoteRepos: [], localDirs: [skillsBaseDir] } } as Required<typeof defaults>);
     const { ListSkillFilesTool } = await import('../src/tools/list-skill-files.js');
     return ListSkillFilesTool;
   }
 
   beforeEach(() => {
     skillsBaseDir = tmpDir();
-    vi.stubEnv('SKILLS_REMOTE_DIR', skillsBaseDir);
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
   });
 
   it('throws when skill argument is missing', async () => {
@@ -563,19 +560,16 @@ describe('ReadSkillFileTool', () => {
   async function importTool() {
     vi.resetModules();
     // Re-initialize the framework config singleton after resetModules clears it.
-    const { setFrameworkConfig: setConfig, DEFAULT_FRAMEWORK_CONFIG: defaults } = await import('@a0/eval');
-    setConfig(defaults as Required<typeof defaults>);
+    const { setFrameworkConfig: setConfig, resetSkillsManager: resetMgr, DEFAULT_FRAMEWORK_CONFIG: defaults } =
+      await import('@a0/eval');
+    resetMgr();
+    setConfig({ ...defaults, skills: { remoteRepos: [], localDirs: [skillsBaseDir] } } as Required<typeof defaults>);
     const { ReadSkillFileTool } = await import('../src/tools/read-skill-file.js');
     return ReadSkillFileTool;
   }
 
   beforeEach(() => {
     skillsBaseDir = tmpDir();
-    vi.stubEnv('SKILLS_REMOTE_DIR', skillsBaseDir);
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
   });
 
   it('throws when skill argument is missing', async () => {
