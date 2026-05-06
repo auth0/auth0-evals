@@ -87,6 +87,24 @@ describe('filteredEnv', () => {
     expect(env).toHaveProperty('PATH', '');
   });
 
+  it('includes NODE_OPTIONS when set', () => {
+    process.env.NODE_OPTIONS = '--max-old-space-size=4096';
+
+    const env = filteredEnv();
+    expect(env.NODE_OPTIONS).toBe('--max-old-space-size=4096');
+  });
+
+  it('excludes runner-specific vars that must be merged explicitly', () => {
+    process.env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS = '1';
+    process.env.CLAUDE_CODE_USE_BEDROCK_PROXY = '0';
+    process.env.GH_TOKEN = 'ghp_secret';
+
+    const env = filteredEnv();
+    expect(env).not.toHaveProperty('CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS');
+    expect(env).not.toHaveProperty('CLAUDE_CODE_USE_BEDROCK_PROXY');
+    expect(env).not.toHaveProperty('GH_TOKEN');
+  });
+
   it('finds mixed-case keys and preserves their original casing', () => {
     // Simulate Windows-style mixed-case env var names.
     // Delete uppercase first, then set mixed-case.
