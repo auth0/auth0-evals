@@ -7,59 +7,15 @@
  *   - CopySkillsStrategy  (filesystem-native agents: Claude Code, Copilot, Gemini, etc.)
  */
 
-import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
+import { copyFileSync, mkdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
 
 import { collectFiles } from '../../workspace/index.js';
 import { logger } from '../../utils/logger.js';
-import { getSkillsDirs, resolveSkillDir } from './config.js';
-import { getFrameworkConfig } from '../../config/framework-config.js';
+import { getSkillsManager } from './config.js';
 import type { EvalDefinition } from '../../types/eval.js';
 
 // ── Clone / pull (runs once per process) ─────────────────────────────────────
-
-let cloneReady: Promise<boolean> | undefined;
-
-export function ensureCloned(): Promise<boolean> {
-  if (!cloneReady) {
-    cloneReady = doEnsureCloned().then((result) => {
-      if (!result) cloneReady = undefined; // reset on failure so next call retries
-      return result;
-    });
-  }
-  return cloneReady;
-}
-
-async function doEnsureCloned(): Promise<boolean> {
-  const { SKILLS_CLONE_DIR } = getSkillsDirs();
-  const resolved = resolve(SKILLS_CLONE_DIR);
-  if (!resolved || resolved === '/' || resolved === dirname(resolved)) {
-    logger.error(`[skills] Refusing to operate on unsafe clone directory: "${SKILLS_CLONE_DIR}"`);
-    return false;
-  }
-  const config = getFrameworkConfig();
-  const remoteRepo = config.skills.remoteRepos?.[0];
-  if (!remoteRepo?.url) {
-    logger.warn('[skills] No remote skill repo configured — skipping clone');
-    return false;
-  }
-  try {
-    if (existsSync(join(resolved, '.git'))) {
-      execFileSync('git', ['pull'], { cwd: resolved, stdio: 'pipe' });
-    } else {
-      if (existsSync(resolved)) {
-        rmSync(resolved, { recursive: true, force: true });
-      }
-      mkdirSync(dirname(resolved), { recursive: true });
-      execFileSync('git', ['clone', '--depth', '1', remoteRepo.url, resolved], { stdio: 'pipe' });
-    }
-    return true;
-  } catch (e) {
-    logger.error('[skills] failed to clone/pull —', e instanceof Error ? e.stack ?? e.message : String(e));
-    return false;
-  }
-}
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -72,18 +28,24 @@ export async function copySkillsToWorkspace(
   workspace: string,
   skillsDir = '.claude/skills',
 ): Promise<EvalDefinition> {
-  const cloned = await ensureCloned();
+  if (!evalDef.skills.length) {
+    return evalDef;
+  }
+
+  const manager = getSkillsManager();
+  const cloned = await manager.ensureAllCloned();
   if (!cloned) {
-    logger.warn('[skills] Remote clone unavailable — resolving skills from local directories only');
+    logger.warn('[skills] Remote clone/pull failed — skills may resolve from stale or missing checkouts');
   }
 
   for (const skill of evalDef.skills) {
-    const skillDir = resolveSkillDir(skill);
+    const skillDir = manager.resolveSkillDir(skill);
     if (!skillDir) {
-      const { SKILLS_CLONE_DIR, SKILLS_LOCAL_DIR } = getSkillsDirs();
-      throw new Error(
-        `Skill '${skill}' not found in remote (${SKILLS_CLONE_DIR}) or local (${SKILLS_LOCAL_DIR}) directories`,
-      );
+      const searchPaths = manager.getSearchPaths();
+      const locations = searchPaths.length
+        ? searchPaths.join(', ')
+        : '(no skill directories configured)';
+      throw new Error(`Skill '${skill}' not found in any configured directory: ${locations}`);
     }
     const files = collectFiles(skillDir, skillDir, { maxFiles: Infinity });
     for (const relPath of files) {
@@ -102,9 +64,10 @@ export async function augmentWithSkills(evalDef: EvalDefinition): Promise<EvalDe
     return evalDef;
   }
 
-  const cloned = await ensureCloned();
+  const manager = getSkillsManager();
+  const cloned = await manager.ensureAllCloned();
   if (!cloned) {
-    logger.warn('[skills] Remote clone unavailable — resolving skills from local directories only');
+    logger.warn('[skills] Remote clone/pull failed — skills may resolve from stale or missing checkouts');
   }
 
   const names = evalDef.skills.join(', ');

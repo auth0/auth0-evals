@@ -1,46 +1,209 @@
-import { existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { join, resolve, dirname } from 'node:path';
 
 import { resolveInside } from '../../workspace/index.js';
 import { getFrameworkConfig } from '../../config/framework-config.js';
+import { logger } from '../../utils/logger.js';
+import type { SkillsConfig, RemoteSkillRepo } from '../../config/framework.js';
 
-function getSkillsCloneDir(): string {
-  const config = getFrameworkConfig();
-  const firstRepo = config.skills.remoteRepos?.[0];
-  return resolve(process.env.SKILLS_REMOTE_DIR ?? firstRepo?.localPath ?? 'skills-remote');
+/**
+ * SkillsManager — resolves skill directories from multiple local dirs and
+ * remote repos, cloning/pulling remotes on demand.
+ *
+ * Resolution order: local directories first (in config order), then remote
+ * repos (in config order). First match wins.
+ */
+export class SkillsManager {
+  readonly localDirs: string[];
+  readonly remoteRepos: RemoteSkillRepo[];
+  private readonly clonePromises = new Map<string, Promise<boolean>>();
+
+  constructor(config: SkillsConfig) {
+    this.localDirs = (config.localDirs ?? []).map((d) => resolve(d));
+    this.remoteRepos = config.remoteRepos ?? [];
+  }
+
+  /**
+   * Clone/pull all configured remote repos. Idempotent per repo entry (keyed by
+   * url + clone directory). Note: despite Promise.all, clones execute sequentially
+   * because doCloneRepo uses execFileSync. This is intentional — synchronous git
+   * keeps error handling simple and avoids the concurrency issues documented in
+   * ensureRepoCloned. Returns true if at least one repo was cloned/pulled successfully.
+   */
+  async ensureAllCloned(): Promise<boolean> {
+    if (this.remoteRepos.length === 0) return true;
+    const results = await Promise.all(this.remoteRepos.map((repo) => this.ensureRepoCloned(repo)));
+    return results.some((r) => r);
+  }
+
+  /**
+   * Resolve a skill name to its directory path.
+   * Checks local dirs first, then remote repo skill bases — all in config order.
+   * Returns null if the skill is not found.
+   * Throws on path traversal attempts.
+   */
+  resolveSkillDir(skill: string): string | null {
+    // Local directories first
+    for (const dir of this.localDirs) {
+      const candidate = resolveInside(dir, skill);
+      if (existsSync(candidate)) return candidate;
+    }
+
+    // Remote repo skill bases
+    for (const repo of this.remoteRepos) {
+      const base = this.getRepoSkillsBase(repo);
+      const candidate = resolveInside(base, skill);
+      if (existsSync(candidate)) return candidate;
+    }
+
+    return null;
+  }
+
+  /**
+   * Get all search paths in resolution order (for error messages).
+   */
+  getSearchPaths(): string[] {
+    const paths: string[] = [];
+    for (const dir of this.localDirs) {
+      paths.push(dir);
+    }
+    for (const repo of this.remoteRepos) {
+      paths.push(this.getRepoSkillsBase(repo));
+    }
+    return paths;
+  }
+
+  /**
+   * Get the clone directory for a remote repo.
+   * When localPath is not specified, derives a unique directory name from the
+   * repo URL to prevent multiple repos from colliding in the same directory.
+   */
+  getRepoCloneDir(repo: RemoteSkillRepo): string {
+    if (repo.localPath) return resolve(repo.localPath);
+    // Derive a stable unique name from the URL: "github.com/org/repo.git" → "org-repo"
+    const slug = repo.url
+      .replace(/.*:\/\//, '') // strip protocol (https://...)
+      .replace(/^[^@]+@[^:]+:/, '') // strip SSH prefix (git@host:)
+      .replace(/\.git$/, '') // strip .git suffix
+      .split('/')
+      .slice(-2) // take org/repo
+      .join('-');
+    return resolve(`skills-remote/${slug}`);
+  }
+
+  /**
+   * Get the skills base directory (clone dir + skillsPath) for a remote repo.
+   * Uses resolveInside to prevent skillsPath from escaping the clone directory.
+   */
+  private getRepoSkillsBase(repo: RemoteSkillRepo): string {
+    const cloneDir = this.getRepoCloneDir(repo);
+    const skillsPath = repo.skillsPath ?? '.';
+    return resolveInside(cloneDir, skillsPath);
+  }
+
+  /**
+   * Ensure a single remote repo is cloned/pulled. Idempotent per repo entry
+   * (keyed by url + clone directory, so the same URL with different localPath
+   * values is treated as separate entries).
+   * Note: retry-on-failure works because doCloneRepo uses execFileSync, so the
+   * promise settles synchronously within the same microtask. If git operations
+   * are ever made async, this deduplication logic needs a lock to prevent
+   * concurrent clones between the .then() deletion and the next caller.
+   */
+  private ensureRepoCloned(repo: RemoteSkillRepo): Promise<boolean> {
+    const key = `${repo.url}|${this.getRepoCloneDir(repo)}`;
+    let promise = this.clonePromises.get(key);
+    if (!promise) {
+      promise = this.doCloneRepo(repo).then(({ available, fresh }) => {
+        // Allow retry when clone failed or update failed (stale fallback)
+        if (!fresh) this.clonePromises.delete(key);
+        return available;
+      });
+      this.clonePromises.set(key, promise);
+    }
+    return promise;
+  }
+
+  private static readonly GIT_TIMEOUT_MS = 30_000;
+  private static readonly ALLOWED_URL_PREFIXES = ['https://', 'ssh://', 'git@'];
+
+  /**
+   * Validate that a clone directory is safe for rmSync. Rejects:
+   * - root or near-root paths
+   * - paths with fewer than 3 segments (e.g. "/tmp", "/home/user")
+   */
+  private isCloneDirSafe(cloneDir: string): boolean {
+    if (!cloneDir || cloneDir === '/' || cloneDir === dirname(cloneDir)) return false;
+    // Require at least 3 path segments to avoid deleting high-level directories.
+    // Split on both separators for cross-platform safety.
+    const segments = resolve(cloneDir).split(/[\\/]/).filter(Boolean);
+    if (segments.length < 3) return false;
+    return true;
+  }
+
+  private async doCloneRepo(
+    repo: RemoteSkillRepo,
+  ): Promise<{ available: boolean; fresh: boolean }> {
+    const cloneDir = this.getRepoCloneDir(repo);
+    if (!this.isCloneDirSafe(cloneDir)) {
+      logger.error(`[skills] Refusing to operate on unsafe clone directory: "${cloneDir}"`);
+      return { available: false, fresh: false };
+    }
+    if (!SkillsManager.ALLOWED_URL_PREFIXES.some((p) => repo.url.startsWith(p))) {
+      logger.error(`[skills] Refusing untrusted URL scheme: "${repo.url}"`);
+      return { available: false, fresh: false };
+    }
+    const opts = { stdio: 'pipe' as const, timeout: SkillsManager.GIT_TIMEOUT_MS };
+    const hadExistingClone = existsSync(join(cloneDir, '.git'));
+    try {
+      if (hadExistingClone) {
+        // fetch+reset is more reliable than pull for shallow clones
+        execFileSync('git', ['fetch', '--depth', '1', 'origin'], { ...opts, cwd: cloneDir });
+        execFileSync('git', ['reset', '--hard', 'FETCH_HEAD'], { ...opts, cwd: cloneDir });
+      } else {
+        if (existsSync(cloneDir)) {
+          rmSync(cloneDir, { recursive: true, force: true });
+        }
+        mkdirSync(dirname(cloneDir), { recursive: true });
+        execFileSync('git', ['clone', '--depth', '1', repo.url, cloneDir], opts);
+      }
+      return { available: true, fresh: true };
+    } catch (e) {
+      if (hadExistingClone) {
+        // Update failed but stale clone is still usable for skill resolution
+        logger.warn(
+          `[skills] Failed to update ${repo.url} — using existing (possibly stale) checkout`,
+        );
+        return { available: true, fresh: false };
+      }
+      logger.error(
+        `[skills] Failed to clone ${repo.url} —`,
+        e instanceof Error ? (e.stack ?? e.message) : String(e),
+      );
+      return { available: false, fresh: false };
+    }
+  }
 }
 
-function getSkillsBaseDir(): string {
-  const config = getFrameworkConfig();
-  const firstRepo = config.skills.remoteRepos?.[0];
-  const skillsPath = firstRepo?.skillsPath ?? '.';
-  return join(getSkillsCloneDir(), skillsPath);
-}
+// ── Module-level singleton ───────────────────────────────────────────────────
 
-function getSkillsLocalDir(): string {
-  const config = getFrameworkConfig();
-  const firstLocalDir = config.skills.localDirs?.[0];
-  return resolve(process.env.SKILLS_LOCAL_DIR ?? firstLocalDir ?? 'skills');
-}
+let _manager: SkillsManager | undefined;
 
-export function getSkillsDirs() {
-  return {
-    SKILLS_CLONE_DIR: getSkillsCloneDir(),
-    SKILLS_BASE_DIR: getSkillsBaseDir(),
-    SKILLS_LOCAL_DIR: getSkillsLocalDir(),
-  };
+/**
+ * Get or create the SkillsManager singleton (lazy-initialized from framework config).
+ */
+export function getSkillsManager(): SkillsManager {
+  if (!_manager) {
+    const config = getFrameworkConfig();
+    _manager = new SkillsManager(config.skills);
+  }
+  return _manager;
 }
 
 /**
- * Resolve the directory for a given skill name, checking remote then local.
- * Throws if the skill name is a path traversal attempt.
- * Returns null if the skill is not found in any base.
+ * Reset the singleton (for testing).
  */
-export function resolveSkillDir(skill: string): string | null {
-  const { SKILLS_BASE_DIR, SKILLS_LOCAL_DIR } = getSkillsDirs();
-  for (const base of [SKILLS_BASE_DIR, SKILLS_LOCAL_DIR]) {
-    const dir = resolveInside(base, skill); // throws on traversal
-    if (existsSync(dir)) return dir;
-  }
-  return null;
+export function resetSkillsManager(): void {
+  _manager = undefined;
 }

@@ -139,13 +139,12 @@ export { BaseToolTranslator } from './runners/base-translator.js';
 export { classifyActionType, primaryArg, detectRetry, classifyErrorCategory } from './runners/classify.js';
 export type { SkillsStrategy } from './runners/skills/strategy.js';
 export {
-  ensureCloned,
   copySkillsToWorkspace,
   augmentWithSkills,
   InjectSkillsStrategy,
   CopySkillsStrategy,
 } from './runners/skills/strategy.js';
-export { getSkillsDirs, resolveSkillDir } from './runners/skills/config.js';
+export { SkillsManager, getSkillsManager, resetSkillsManager } from './runners/skills/config.js';
 
 // Copilot runner
 export { CopilotCliRunner } from './runners/copilot/runner.js';

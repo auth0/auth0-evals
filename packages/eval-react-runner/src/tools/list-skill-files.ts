@@ -1,4 +1,4 @@
-import { resolveSkillDir, collectFiles } from '@a0/eval';
+import { getSkillsManager, collectFiles } from '@a0/eval';
 import type { Tool, ToolContext, ToolName, ToolResult } from './base.js';
 
 function wrapResult(message: string): ToolResult {
@@ -20,7 +20,7 @@ export class ListSkillFilesTool implements Tool {
     }
     let skillDir: string | null;
     try {
-      skillDir = resolveSkillDir(skill);
+      skillDir = getSkillsManager().resolveSkillDir(skill);
     } catch {
       return wrapResult('Access denied: skill path is outside skills directory');
     }

@@ -2,15 +2,16 @@
  * Tests for all tools in the React runner.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmpDir } from './tmp.js';
 
-import { setFrameworkConfig, DEFAULT_FRAMEWORK_CONFIG } from '@a0/eval';
+import { setFrameworkConfig, resetSkillsManager, DEFAULT_FRAMEWORK_CONFIG } from '@a0/eval';
+import type { FrameworkConfig } from '@a0/eval';
 
 // Initialize the framework config singleton so internal @a0/eval functions work correctly.
-setFrameworkConfig(DEFAULT_FRAMEWORK_CONFIG as Required<typeof DEFAULT_FRAMEWORK_CONFIG>);
+setFrameworkConfig(DEFAULT_FRAMEWORK_CONFIG as Required<FrameworkConfig>);
 
 import { ToolExecutor } from '../src/tools-executor/index.js';
 
@@ -123,11 +124,16 @@ describe('ToolExecutor.list_skill_files', () => {
 
   beforeEach(() => {
     skillsBaseDir = tmpDir();
-    vi.stubEnv('SKILLS_REMOTE_DIR', skillsBaseDir);
+    resetSkillsManager();
+    setFrameworkConfig({
+      ...DEFAULT_FRAMEWORK_CONFIG,
+      skills: { remoteRepos: [], localDirs: [skillsBaseDir] },
+    } as Required<FrameworkConfig>);
   });
 
   afterEach(() => {
-    vi.unstubAllEnvs();
+    resetSkillsManager();
+    setFrameworkConfig(DEFAULT_FRAMEWORK_CONFIG as Required<FrameworkConfig>);
   });
 
   it('returns execution error (isError=true) when skill argument is missing', async () => {
@@ -169,11 +175,18 @@ describe('ToolExecutor.read_skill_file', () => {
 
   beforeEach(() => {
     skillsBaseDir = tmpDir();
-    vi.stubEnv('SKILLS_REMOTE_DIR', skillsBaseDir);
+    // Point the SkillsManager at our temp directory
+    resetSkillsManager();
+    setFrameworkConfig({
+      ...DEFAULT_FRAMEWORK_CONFIG,
+      skills: { remoteRepos: [], localDirs: [skillsBaseDir] },
+    } as Required<FrameworkConfig>);
   });
 
   afterEach(() => {
-    vi.unstubAllEnvs();
+    // Restore default config
+    resetSkillsManager();
+    setFrameworkConfig(DEFAULT_FRAMEWORK_CONFIG as Required<FrameworkConfig>);
   });
 
   it('returns execution error (isError=true) when skill argument is missing', async () => {
