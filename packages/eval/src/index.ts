@@ -125,6 +125,9 @@ export {
 // Session
 export { makeSessionId } from './utils/session.js';
 
+// Env filtering
+export { filteredEnv } from './utils/env.js';
+
 // Model detection
 export { isBedrockModel, isClaudeModel, isGeminiModel, isGptModel } from './config/model-detect.js';
 

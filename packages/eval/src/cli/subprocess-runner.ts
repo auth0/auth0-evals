@@ -9,7 +9,6 @@ export function spawnEval(selfPath: string, evalId: string, args: string[]): Pro
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [selfPath, '--eval', evalId, ...args], {
       stdio: 'inherit',
-      env: process.env,
     });
     child.on('close', (code, signal) => {
       if (code === 0 && signal === null) {
