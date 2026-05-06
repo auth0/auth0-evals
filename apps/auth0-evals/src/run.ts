@@ -26,15 +26,18 @@ import { join, basename, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pLimit from 'p-limit';
 import { config as loadDotenv } from 'dotenv';
+
 import { EVALUATIONS } from './config/evaluations.js';
-import { UnknownModeError } from './errors.js';
+
+import { UnknownModeError } from '@a0/eval';
+
 import {
   loadEval,
   loadConfig,
   serialiseBaseline,
   serialiseAgent,
   serialiseError,
-  setFrameworkConfig as setPackageFrameworkConfig,
+  setFrameworkConfig,
   runGraders,
   gradeText,
   BASELINE_LEVELS,
@@ -54,8 +57,7 @@ import {
   type EvalDefinition,
   type JobResult,
 } from '@a0/eval';
-import { setFrameworkConfig } from './config/framework-config.js';
-import { logger } from './utils/logger.js';
+import { logger } from '@a0/eval';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -308,7 +310,6 @@ async function main(): Promise<void> {
   // Load the framework configuration (eval.config.js) — auto-discovered or via --config.
   const frameworkConfig = await loadConfig({ configPath });
   setFrameworkConfig(frameworkConfig);
-  setPackageFrameworkConfig(frameworkConfig);
 
   // Validate required runtime fields — empty values typically mean eval.config.js
   // was not found (e.g. running from the wrong directory).

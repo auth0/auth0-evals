@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { estimateCost } from '../src/config/costs.js';
+import { estimateCost } from '@a0/eval';
 import { runBaseline } from '../src/runners/baseline.js';
 import { gradeText } from '@a0/eval';
 import { judge } from '@a0/eval-graders';
