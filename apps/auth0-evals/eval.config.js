@@ -1,4 +1,7 @@
 // @ts-check
+
+const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY !== '0';
+
 /** @type {import('@a0/eval').FrameworkConfig} */
 export default {
   evalsDir: 'src/evals',
@@ -9,7 +12,7 @@ export default {
 
   agents: {
     'claude-code': {
-      proxy: { baseUrl: '<LLM_PROXY_URL>/anthropic' },
+      proxy: { baseUrl: useBedrock ? '<LLM_PROXY_URL>/anthropic' : '<LLM_PROXY_URL>' },
     },
     'gemini-cli': {
       proxy: { baseUrl: '<LLM_PROXY_URL>' },
