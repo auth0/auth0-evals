@@ -268,6 +268,7 @@ By default uses the Bedrock proxy (`CLAUDE_CODE_USE_BEDROCK_PROXY` != `0`), whic
 - `claude-opus-4-7` → `global.anthropic.claude-opus-4-7`
 - `claude-sonnet-4-5` → `global.anthropic.claude-sonnet-4-5-20250929-v1:0`
 - `claude-opus-4-5` → `global.anthropic.claude-opus-4-5-20251101-v1:0`
+- `claude-haiku-4-5` → `global.anthropic.claude-haiku-4-5-20251001-v1:0`
 
 Set `CLAUDE_CODE_USE_BEDROCK_PROXY=0` to route through the LiteLLM proxy instead — aliases are resolved via `LITELLM_MODEL_MAP` (underscore-prefixed, e.g. `_claude-opus-4-7`).
 
@@ -303,6 +304,7 @@ Used when `--model all` is passed:
 - `claude-sonnet-4-6`
 - `claude-opus-4-6`
 - `claude-opus-4-7`
+- `claude-haiku-4-5`
 - `gemini-3.1-pro-preview`
 
 ### Judge model

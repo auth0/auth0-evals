@@ -46,7 +46,7 @@ export default {
   },
 
   models: {
-    known: ['gpt-5.4', 'claude-sonnet-4-6', 'claude-opus-4-6', 'claude-opus-4-7', 'gemini-3.1-pro-preview'],
+    known: ['gpt-5.4', 'claude-sonnet-4-6', 'claude-opus-4-6', 'claude-opus-4-7', 'claude-haiku-4-5', 'gemini-3.1-pro-preview'],
     default: 'gpt-5.4',
     bedrock: {
       'claude-sonnet-4-6': 'global.anthropic.claude-sonnet-4-6',
@@ -54,6 +54,7 @@ export default {
       'claude-sonnet-4-5': 'global.anthropic.claude-sonnet-4-5-20250929-v1:0',
       'claude-opus-4-7': 'global.anthropic.claude-opus-4-7',
       'claude-opus-4-5': 'global.anthropic.claude-opus-4-5-20251101-v1:0',
+      'claude-haiku-4-5': 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
     },
     litellm: {
       'claude-sonnet-4-6': '_claude-sonnet-4-6',
@@ -61,6 +62,7 @@ export default {
       'claude-opus-4-7': '_claude-opus-4-7',
       'claude-sonnet-4-5': '_claude-sonnet-4-5',
       'claude-opus-4-5': '_claude-opus-4-5',
+      'claude-haiku-4-5': 'claude-haiku-4-5',
     },
   },
 };
