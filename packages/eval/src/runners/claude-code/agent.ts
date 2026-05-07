@@ -26,6 +26,7 @@ import {
   getLitellmModelMap,
   getLitellmModelReverseMap,
   getFrameworkConfig,
+  getAgentProxyBaseUrl,
   estimateCost,
   logger,
   makeSessionId,
@@ -61,14 +62,13 @@ export const CLAUDE_CODE_MODEL_ID = 'claude-code';
 
 /**
  * ATKO proxy base URL for the Claude CLI.
- * - Bedrock mode: `/anthropic` pass-through endpoint on the ATKO LiteLLM proxy.
- * - LiteLLM mode: proxy root (stripped `/v1` suffix) — handles Anthropic-protocol requests directly.
+ * Reads from `agents.claude-code.proxy.baseUrl` in eval.config.js, falling back to
+ * the top-level `proxy.baseUrl`.
  * The Agent SDK honours ANTHROPIC_BASE_URL, routing all requests through the proxy
  * instead of hitting api.anthropic.com directly.
  */
 function getAnthropicProxyUrl(): string {
-  const baseUrl = getFrameworkConfig().proxy.baseUrl;
-  return USE_BEDROCK ? baseUrl.replace(/\/v1\/?$/, '/anthropic') : baseUrl.replace(/\/v1\/?$/, '');
+  return getAgentProxyBaseUrl('claude-code');
 }
 
 /**

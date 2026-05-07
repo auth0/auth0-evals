@@ -7,6 +7,15 @@ export default {
     baseUrl: '<LLM_PROXY_URL>/v1',
   },
 
+  agents: {
+    'claude-code': {
+      proxy: { baseUrl: '<LLM_PROXY_URL>/anthropic' },
+    },
+    'gemini-cli': {
+      proxy: { baseUrl: '<LLM_PROXY_URL>' },
+    },
+  },
+
   mcp: {
     servers: {
       'auth0-docs': {

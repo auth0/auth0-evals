@@ -16,6 +16,16 @@ export interface ProxyConfig {
   apiKey?: string;
 }
 
+export interface AgentProxyConfig {
+  /** Agent-specific proxy base URL. Overrides the top-level proxy.baseUrl for this agent. */
+  baseUrl: string;
+}
+
+export interface AgentConfig {
+  /** Agent-specific proxy settings. Falls back to top-level proxy if omitted. */
+  proxy?: AgentProxyConfig;
+}
+
 export interface MCPStdioServerConfig {
   /** Command-based MCP server. */
   type: 'stdio';
@@ -108,4 +118,6 @@ export interface FrameworkConfig {
   models?: ModelsConfig;
   /** Workspace lifecycle settings (temp dirs, file collection, excluded dirs). */
   workspace?: WorkspaceConfig;
+  /** Per-agent configuration overrides, keyed by runner ID. */
+  agents?: Record<string, AgentConfig>;
 }

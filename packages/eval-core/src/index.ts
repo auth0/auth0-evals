@@ -103,7 +103,7 @@ export {
 export type { BaselineResult } from './serializers.js';
 
 // Framework config singleton
-export { getFrameworkConfig, setFrameworkConfig } from './config/framework-config.js';
+export { getFrameworkConfig, setFrameworkConfig, getAgentProxyBaseUrl } from './config/framework-config.js';
 
 // Settings
 export {

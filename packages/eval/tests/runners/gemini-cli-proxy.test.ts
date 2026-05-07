@@ -22,7 +22,11 @@ vi.mock('@a0/eval-core', async () => ({
         'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' },
       },
     },
+    agents: {
+      'gemini-cli': { proxy: { baseUrl: '<LLM_PROXY_URL>' } },
+    },
   }),
+  getAgentProxyBaseUrl: vi.fn().mockReturnValue('<LLM_PROXY_URL>'),
 }));
 
 vi.mock('node:child_process', () => ({

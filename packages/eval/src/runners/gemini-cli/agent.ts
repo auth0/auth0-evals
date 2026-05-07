@@ -20,7 +20,14 @@ import { createInterface } from 'node:readline';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { RunRecord, ToolCallRecord, TurnMetric, EvalDefinition } from '@a0/eval-core';
-import { CLAUDE_CODE_TASK_TIMEOUT_MS, getFrameworkConfig, estimateCost, logger, filteredEnv } from '@a0/eval-core';
+import {
+  CLAUDE_CODE_TASK_TIMEOUT_MS,
+  getFrameworkConfig,
+  getAgentProxyBaseUrl,
+  estimateCost,
+  logger,
+  filteredEnv,
+} from '@a0/eval-core';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '../classify.js';
 import { GeminiCliTranslator } from './translator.js';
 
@@ -126,7 +133,7 @@ export async function runGeminiCliAgent(
     GEMINI_CLI_TRUSTED_FOLDERS_PATH: trustedFoldersPath,
   };
   if (process.env.ATKO_API_KEY) {
-    geminiEnv.GOOGLE_GEMINI_BASE_URL = getFrameworkConfig().proxy.baseUrl.replace(/\/v1\/?$/, '');
+    geminiEnv.GOOGLE_GEMINI_BASE_URL = getAgentProxyBaseUrl('gemini-cli');
     geminiEnv.GEMINI_API_KEY = process.env.ATKO_API_KEY;
   } else {
     logger.warn('[GeminiCLI] ATKO_API_KEY not set — requests will fail.');
