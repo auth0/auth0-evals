@@ -9,16 +9,6 @@ export {
   type Mode,
 } from './constants.js';
 
-export {
-  validateApiKey,
-  validateModels,
-  validateModes,
-  validateEvalIds,
-  validateTools,
-  validateWorkers,
-  validateAgentType,
-} from './validators.js';
-
-export { parseRunConfig, type RunConfig, type ParseRunConfigOptions } from './config.js';
+export { parseRunConfig, type RunConfig } from './config.js';
 
 export { spawnEval, mergeIntoOutput } from './subprocess-runner.js';

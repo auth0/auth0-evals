@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resultKey, mergeResults, loadResults, saveResults, resolveOutputPath } from '@a0/eval';
-import type { AgentJobResult, BaselineJobResult, ErrorJobResult } from '../src/types/results.js';
+import type { AgentJobResult, BaselineJobResult, ErrorJobResult } from '@a0/eval';
 import { makeTmpDir } from './tmp.js';
 
 const tmpDir = makeTmpDir('persistence_test_');

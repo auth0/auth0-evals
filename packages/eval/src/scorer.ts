@@ -177,9 +177,9 @@ function scoreFromGraders(graderResults: GraderResult[], level: GraderLevel, emp
     failed.length === 0
       ? `All ${passed} graders passed`
       : failed
-            .slice(0, 3)
-            .map((g) => g.detail)
-            .join('; ') + (failed.length > 3 ? ` (+${failed.length - 3} more)` : '');
+          .slice(0, 3)
+          .map((g) => g.detail)
+          .join('; ') + (failed.length > 3 ? ` (+${failed.length - 3} more)` : '');
   return [Math.round(s * 10) / 10, notes];
 }
 

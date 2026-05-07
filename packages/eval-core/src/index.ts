@@ -35,7 +35,6 @@ export type {
 
 // Errors
 export {
-  EvalFrameworkError,
   EvalNotFoundError,
   UnknownModeError,
   LlmApiError,
@@ -53,7 +52,7 @@ export { withRetry, isTransientLlmError } from './utils/retry.js';
 export type { RetryOptions } from './utils/retry.js';
 
 // Costs
-export { COST_TABLE, estimateCost } from './config/costs.js';
+export { estimateCost } from './config/costs.js';
 
 // Framework config
 export type {
@@ -109,10 +108,7 @@ export { getFrameworkConfig, setFrameworkConfig } from './config/framework-confi
 // Settings
 export {
   MAX_TURNS,
-  BEDROCK_MODELS,
   CLAUDE_EFFORT_MODELS,
-  GEMINI_MODELS,
-  GPT_MODELS,
   getLitellmModelMap,
   getLitellmModelReverseMap,
   CLAUDE_CODE_TASK_TIMEOUT_MS,
@@ -134,20 +130,10 @@ export {
   llmJudge,
   passRate,
   collectGraderFiles,
-  walkFiles,
-  EXCLUDED_EVAL_DIRS,
-  EXCLUDED_EVAL_FILES,
-  extractCodeBlocks,
   gradeText,
   BASELINE_LEVELS,
   AGENT_LEVELS,
   AGENT_MCP_LEVELS,
-  HALLUCINATION_PENALTY,
-  SECURITY_PENALTY_HARDCODED_SECRET,
-  SECURITY_PENALTY_INSECURE_STORAGE,
-  SECURITY_PENALTY_EXPOSED_SECRET,
-  FAKE_API_PATTERNS,
-  CREDENTIAL_PATTERNS,
   registerExecutor,
   getExecutor,
   executeGrader,
@@ -158,4 +144,3 @@ export type { GraderContext, GraderExecutor } from './graders/index.js';
 // Mode
 export { ALL_MODES } from './types/mode.js';
 export type { Mode } from './types/mode.js';
-
