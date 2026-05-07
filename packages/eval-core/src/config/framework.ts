@@ -55,7 +55,9 @@ export interface MCPConfig {
 export interface RemoteSkillRepo {
   /** Git clone URL for the skills repository. */
   url: string;
-  /** Local directory to clone into (relative to cwd). Defaults to `'skills-remote'`. */
+  /** Branch to clone/fetch. Defaults to the remote's default branch (HEAD). */
+  branch?: string;
+  /** Local directory to clone into (relative to cwd). Defaults to `'skills-remote/<org>-<repo>'` derived from the repo URL. */
   localPath?: string;
   /** Subdirectory within the cloned repo that contains skill folders. Defaults to `'.'` (repo root). */
   skillsPath?: string;

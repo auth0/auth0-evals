@@ -239,6 +239,154 @@ describe('SkillsManager', () => {
     expect(cp.execFileSync).toHaveBeenCalledWith('git', ['reset', '--hard', 'FETCH_HEAD'], expect.anything());
   });
 
+  it('clone includes --branch when branch is configured', async () => {
+    const cp = vi.mocked(await import('node:child_process'));
+    const fs = vi.mocked(await import('node:fs'));
+    fs.existsSync.mockReturnValue(false);
+
+    const { SkillsManager } = await importConfig();
+    const manager = new SkillsManager({
+      localDirs: [],
+      remoteRepos: [{ url: 'https://example.com/repo.git', localPath: 'remote', branch: 'develop' }],
+    });
+
+    await manager.ensureAllCloned();
+
+    expect(cp.execFileSync).toHaveBeenCalledWith(
+      'git',
+      ['clone', '--depth', '1', '--branch', 'develop', 'https://example.com/repo.git', expect.stringContaining('remote')],
+      expect.anything(),
+    );
+  });
+
+  it('fetch uses refs/heads/ prefix with -- separator when branch is configured', async () => {
+    const cp = vi.mocked(await import('node:child_process'));
+    const fs = vi.mocked(await import('node:fs'));
+    fs.existsSync.mockReturnValue(true); // .git dir exists
+
+    const { SkillsManager } = await importConfig();
+    const manager = new SkillsManager({
+      localDirs: [],
+      remoteRepos: [{ url: 'https://example.com/repo.git', localPath: 'remote', branch: 'feature/skills' }],
+    });
+
+    await manager.ensureAllCloned();
+
+    expect(cp.execFileSync).toHaveBeenCalledWith(
+      'git',
+      ['fetch', '--depth', '1', 'origin', '--', 'refs/heads/feature/skills'],
+      expect.anything(),
+    );
+  });
+
+  it('clone omits --branch when branch is not configured', async () => {
+    const cp = vi.mocked(await import('node:child_process'));
+    const fs = vi.mocked(await import('node:fs'));
+    fs.existsSync.mockReturnValue(false);
+
+    const { SkillsManager } = await importConfig();
+    const manager = new SkillsManager({
+      localDirs: [],
+      remoteRepos: [{ url: 'https://example.com/repo.git', localPath: 'remote' }],
+    });
+
+    await manager.ensureAllCloned();
+
+    expect(cp.execFileSync).toHaveBeenCalledWith(
+      'git',
+      ['clone', '--depth', '1', 'https://example.com/repo.git', expect.stringContaining('remote')],
+      expect.anything(),
+    );
+  });
+
+  it('strips refs/heads/ prefix from branch to avoid double-prefixing', async () => {
+    const cp = vi.mocked(await import('node:child_process'));
+    const fs = vi.mocked(await import('node:fs'));
+    fs.existsSync.mockReturnValue(true);
+
+    const { SkillsManager } = await importConfig();
+    const manager = new SkillsManager({
+      localDirs: [],
+      remoteRepos: [{ url: 'https://example.com/repo.git', localPath: 'remote', branch: 'refs/heads/main' }],
+    });
+
+    await manager.ensureAllCloned();
+
+    expect(cp.execFileSync).toHaveBeenCalledWith(
+      'git',
+      ['fetch', '--depth', '1', 'origin', '--', 'refs/heads/main'],
+      expect.anything(),
+    );
+  });
+
+  it('rejects branch names starting with -', async () => {
+    const cp = vi.mocked(await import('node:child_process'));
+    const fs = vi.mocked(await import('node:fs'));
+    fs.existsSync.mockReturnValue(false);
+
+    const { SkillsManager } = await importConfig();
+    const manager = new SkillsManager({
+      localDirs: [],
+      remoteRepos: [{ url: 'https://example.com/repo.git', localPath: 'remote', branch: '--upload-pack=evil' }],
+    });
+
+    const result = await manager.ensureAllCloned();
+
+    expect(result).toBe(false);
+    expect(cp.execFileSync).not.toHaveBeenCalled();
+  });
+
+  it('rejects branch names containing whitespace', async () => {
+    const cp = vi.mocked(await import('node:child_process'));
+    const fs = vi.mocked(await import('node:fs'));
+    fs.existsSync.mockReturnValue(false);
+
+    const { SkillsManager } = await importConfig();
+    const manager = new SkillsManager({
+      localDirs: [],
+      remoteRepos: [{ url: 'https://example.com/repo.git', localPath: 'remote', branch: 'main --upload-pack=evil' }],
+    });
+
+    const result = await manager.ensureAllCloned();
+
+    expect(result).toBe(false);
+    expect(cp.execFileSync).not.toHaveBeenCalled();
+  });
+
+  it('rejects branch names containing colon (refspec mapping)', async () => {
+    const cp = vi.mocked(await import('node:child_process'));
+    const fs = vi.mocked(await import('node:fs'));
+    fs.existsSync.mockReturnValue(false);
+
+    const { SkillsManager } = await importConfig();
+    const manager = new SkillsManager({
+      localDirs: [],
+      remoteRepos: [{ url: 'https://example.com/repo.git', localPath: 'remote', branch: 'main:refs/heads/evil' }],
+    });
+
+    const result = await manager.ensureAllCloned();
+
+    expect(result).toBe(false);
+    expect(cp.execFileSync).not.toHaveBeenCalled();
+  });
+
+  it('rejects branch names with non-heads refs/ prefix (e.g. refs/tags/)', async () => {
+    const cp = vi.mocked(await import('node:child_process'));
+    const fs = vi.mocked(await import('node:fs'));
+    fs.existsSync.mockReturnValue(false);
+
+    const { SkillsManager } = await importConfig();
+    const manager = new SkillsManager({
+      localDirs: [],
+      remoteRepos: [{ url: 'https://example.com/repo.git', localPath: 'remote', branch: 'refs/tags/v1.0' }],
+    });
+
+    const result = await manager.ensureAllCloned();
+
+    expect(result).toBe(false);
+    expect(cp.execFileSync).not.toHaveBeenCalled();
+  });
+
   it('gracefully handles zero remote repos', async () => {
     const { SkillsManager } = await importConfig();
     const manager = new SkillsManager({
