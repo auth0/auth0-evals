@@ -1,4 +1,4 @@
-import { logger } from '@a0/eval';
+import { logger } from '@a0/eval-core';
 import { interruptResult } from './base.js';
 import type { Tool, ToolContext, ToolName, ToolResult } from './base.js';
 

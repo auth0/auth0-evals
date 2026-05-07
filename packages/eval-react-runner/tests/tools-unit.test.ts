@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import * as childProcess from 'node:child_process';
 import { makeTmpDir } from './tmp.js';
 
-import { setFrameworkConfig, DEFAULT_FRAMEWORK_CONFIG, collectFiles } from '@a0/eval';
+import { setFrameworkConfig, DEFAULT_FRAMEWORK_CONFIG, collectFiles } from '@a0/eval-core';
 
 // Initialize the framework config singleton so internal @a0/eval functions work correctly.
 setFrameworkConfig(DEFAULT_FRAMEWORK_CONFIG as Required<typeof DEFAULT_FRAMEWORK_CONFIG>);
@@ -490,7 +490,7 @@ describe('ListSkillFilesTool', () => {
       setFrameworkConfig: setConfig,
       resetSkillsManager: resetMgr,
       DEFAULT_FRAMEWORK_CONFIG: defaults,
-    } = await import('@a0/eval');
+    } = await import('@a0/eval-core');
     resetMgr();
     setConfig({ ...defaults, skills: { remoteRepos: [], localDirs: [skillsBaseDir] } } as Required<typeof defaults>);
     const { ListSkillFilesTool } = await import('../src/tools/list-skill-files.js');
@@ -567,7 +567,7 @@ describe('ReadSkillFileTool', () => {
       setFrameworkConfig: setConfig,
       resetSkillsManager: resetMgr,
       DEFAULT_FRAMEWORK_CONFIG: defaults,
-    } = await import('@a0/eval');
+    } = await import('@a0/eval-core');
     resetMgr();
     setConfig({ ...defaults, skills: { remoteRepos: [], localDirs: [skillsBaseDir] } } as Required<typeof defaults>);
     const { ReadSkillFileTool } = await import('../src/tools/read-skill-file.js');

@@ -5,10 +5,10 @@
  * them via the `list_skill_files` / `read_skill_file` tools.
  */
 
-import type { AgentRunner, RunParams, RunResult } from '@a0/eval';
-import type { EvalDefinition } from '@a0/eval';
-import { InjectSkillsStrategy } from '@a0/eval';
-import type { SkillsStrategy } from '@a0/eval';
+import type { AgentRunner, RunParams, RunResult } from '@a0/eval-core';
+import type { EvalDefinition } from '@a0/eval-core';
+import { InjectSkillsStrategy } from '@a0/eval-core';
+import type { SkillsStrategy } from '@a0/eval-core';
 import { runAgent } from './agent.js';
 
 export class ReactAgentRunner implements AgentRunner {
