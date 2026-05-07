@@ -26,7 +26,7 @@ import {
   makeSessionId,
   filteredEnv,
 } from '@a0/eval-core';
-import { classifyActionType, classifyErrorCategory, detectRetry } from '../classify.js';
+import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/eval-core';
 import { CopilotCliTranslator } from './translator.js';
 
 const translator = new CopilotCliTranslator();

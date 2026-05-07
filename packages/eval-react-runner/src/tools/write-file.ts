@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolveInside, validatePathFormat } from '@a0/eval';
+import { resolveInside, validatePathFormat } from '@a0/eval-core';
 import { toolResult, errorResult } from './base.js';
 import type { Tool, ToolContext, ToolName, ToolResult } from './base.js';
 

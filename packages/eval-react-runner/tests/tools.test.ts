@@ -7,8 +7,8 @@ import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmpDir } from './tmp.js';
 
-import { setFrameworkConfig, resetSkillsManager, DEFAULT_FRAMEWORK_CONFIG } from '@a0/eval';
-import type { FrameworkConfig } from '@a0/eval';
+import { setFrameworkConfig, resetSkillsManager, DEFAULT_FRAMEWORK_CONFIG } from '@a0/eval-core';
+import type { FrameworkConfig } from '@a0/eval-core';
 
 // Initialize the framework config singleton so internal @a0/eval functions work correctly.
 setFrameworkConfig(DEFAULT_FRAMEWORK_CONFIG as Required<FrameworkConfig>);

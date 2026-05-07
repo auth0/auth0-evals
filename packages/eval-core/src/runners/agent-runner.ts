@@ -8,7 +8,9 @@
  * runner — no per-agent if/else required.
  */
 
-import type { RunRecord, EvalDefinition, AgentType } from '@a0/eval-core';
+import type { RunRecord } from '../types/scorer.js';
+import type { EvalDefinition } from '../types/eval.js';
+import type { AgentType } from '../types/agents.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

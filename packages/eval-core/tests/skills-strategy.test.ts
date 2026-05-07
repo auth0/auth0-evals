@@ -2,43 +2,51 @@
  * Unit tests for skills strategy: augmentWithSkills(), copySkillsToWorkspace(),
  * InjectSkillsStrategy, CopySkillsStrategy, and SkillsManager.
  *
- * vi.resetModules() is called before each test so the module-level
- * SkillsManager singleton is recreated, giving each test a clean slate.
+ * Uses setFrameworkConfig() to initialize the singleton, and mocks external
+ * modules (node:fs, node:child_process) for isolation.
  */
 
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import type { EvalDefinition } from '@a0/eval-core';
+import type { EvalDefinition, FrameworkConfig } from '../src/index.js';
 
-// Must mock framework-config so the singleton survives re-imports.
-vi.mock('@a0/eval-core', async () => ({
-  ...(await vi.importActual('@a0/eval-core')),
-  getFrameworkConfig: vi.fn().mockReturnValue({
-    evalsDir: 'src/evals',
-    proxy: { baseUrl: 'https://llm.atko.ai/v1' },
-    mcp: { servers: { 'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' } } },
-    skills: {
-      remoteRepos: [
-        {
-          url: 'https://github.com/auth0/agent-skills.git',
-          localPath: 'skills-remote/auth0-skills',
-          skillsPath: 'plugins/auth0/skills',
-        },
-      ],
-      localDirs: ['skills'],
-    },
-    judge: { model: 'claude-sonnet-4-5', maxTokens: 1024, maxCodeChars: 16384, promptsDir: 'src/prompts/judge' },
-    models: { known: [], default: 'gpt-5.4', bedrock: {}, litellm: {} },
-  }),
-  collectFiles: vi.fn(),
-  resolveInside: vi.fn((base: string, rel: string) => (rel === '.' ? base : `${base}/${rel}`)),
-}));
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
 vi.mock('node:fs', () => ({
   existsSync: vi.fn().mockReturnValue(true),
   mkdirSync: vi.fn(),
   rmSync: vi.fn(),
   copyFileSync: vi.fn(),
+  realpathSync: vi.fn((p: string) => p),
+  readdirSync: vi.fn(() => []),
 }));
+
+// Mock collectFiles since it uses fs internals that don't work with our mocked fs
+vi.mock('../src/workspace/index.js', async () => {
+  const actual = await vi.importActual('../src/workspace/index.js');
+  return {
+    ...actual,
+    collectFiles: vi.fn().mockReturnValue(['README.md', 'SKILL.md']),
+  };
+});
+
+// ── Test config ──────────────────────────────────────────────────────────────
+
+const TEST_CONFIG: FrameworkConfig = {
+  evalsDir: 'src/evals',
+  proxy: { baseUrl: 'https://llm.atko.ai/v1' },
+  mcp: { servers: { 'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' } } },
+  skills: {
+    remoteRepos: [
+      {
+        url: 'https://github.com/auth0/agent-skills.git',
+        localPath: 'skills-remote/auth0-skills',
+        skillsPath: 'plugins/auth0/skills',
+      },
+    ],
+    localDirs: ['skills'],
+  },
+  judge: { model: 'claude-sonnet-4-5', maxTokens: 1024, maxCodeChars: 16384, promptsDir: 'src/prompts/judge' },
+  models: { known: [], default: 'gpt-5.4', bedrock: {}, litellm: {} },
+};
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -59,8 +67,9 @@ function makeEvalDef(overrides: Partial<EvalDefinition> = {}): EvalDefinition {
   };
 }
 
-// Fresh module import per test to reset the module-level singleton
-async function importStrategy() {
+// We need to dynamically import the module under test after mocks are in place
+// and after resetting the singleton
+async function importSkills() {
   return await import('../src/runners/skills/strategy.js');
 }
 
@@ -68,13 +77,13 @@ async function importConfig() {
   return await import('../src/runners/skills/config.js');
 }
 
-async function importEvalCore() {
-  return await import('@a0/eval-core');
-}
-
 beforeEach(async () => {
   vi.resetModules();
   vi.unstubAllGlobals();
+  // Must import AFTER resetModules to get the fresh singleton
+  const { setFrameworkConfig, resetSkillsManager } = await import('../src/index.js');
+  setFrameworkConfig(TEST_CONFIG as FrameworkConfig);
+  resetSkillsManager();
   // Reset mocked fs functions to defaults (existsSync=true simulates a cloned repo)
   const fs = vi.mocked(await import('node:fs'));
   fs.existsSync.mockReturnValue(true);
@@ -82,8 +91,9 @@ beforeEach(async () => {
   fs.mkdirSync.mockReset();
   const cp = vi.mocked(await import('node:child_process'));
   vi.mocked(cp.execFileSync as (...args: unknown[]) => unknown).mockReset();
-  const evalCore = vi.mocked(await importEvalCore());
-  vi.mocked(evalCore.collectFiles).mockReturnValue(['README.md', 'SKILL.md']);
+  // Reset collectFiles mock
+  const { collectFiles } = vi.mocked(await import('../src/workspace/index.js'));
+  vi.mocked(collectFiles).mockReturnValue(['README.md', 'SKILL.md']);
 });
 
 afterEach(() => {
@@ -254,7 +264,15 @@ describe('SkillsManager', () => {
 
     expect(cp.execFileSync).toHaveBeenCalledWith(
       'git',
-      ['clone', '--depth', '1', '--branch', 'develop', 'https://example.com/repo.git', expect.stringContaining('remote')],
+      [
+        'clone',
+        '--depth',
+        '1',
+        '--branch',
+        'develop',
+        'https://example.com/repo.git',
+        expect.stringContaining('remote'),
+      ],
       expect.anything(),
     );
   });
@@ -577,7 +595,7 @@ describe('SkillsManager', () => {
 
 describe('augmentWithSkills - no skills', () => {
   it('returns original evalDef unchanged when skills list is empty', async () => {
-    const { augmentWithSkills } = await importStrategy();
+    const { augmentWithSkills } = await importSkills();
     const evalDef = makeEvalDef({ skills: [] });
 
     const result = await augmentWithSkills(evalDef);
@@ -588,7 +606,7 @@ describe('augmentWithSkills - no skills', () => {
 
 describe('augmentWithSkills - notice injection', () => {
   it('prepends Available Skills section to agentSystemPrompt', async () => {
-    const { augmentWithSkills } = await importStrategy();
+    const { augmentWithSkills } = await importSkills();
     const evalDef = makeEvalDef({ skills: ['auth0-react'] });
 
     const result = await augmentWithSkills(evalDef);
@@ -598,7 +616,7 @@ describe('augmentWithSkills - notice injection', () => {
   });
 
   it('mentions the list_skill_files tool', async () => {
-    const { augmentWithSkills } = await importStrategy();
+    const { augmentWithSkills } = await importSkills();
     const evalDef = makeEvalDef({ skills: ['auth0-react'] });
 
     const result = await augmentWithSkills(evalDef);
@@ -607,7 +625,7 @@ describe('augmentWithSkills - notice injection', () => {
   });
 
   it('mentions the read_skill_file tool', async () => {
-    const { augmentWithSkills } = await importStrategy();
+    const { augmentWithSkills } = await importSkills();
     const evalDef = makeEvalDef({ skills: ['auth0-react'] });
 
     const result = await augmentWithSkills(evalDef);
@@ -616,7 +634,7 @@ describe('augmentWithSkills - notice injection', () => {
   });
 
   it('appends existing agentSystemPrompt after a separator', async () => {
-    const { augmentWithSkills } = await importStrategy();
+    const { augmentWithSkills } = await importSkills();
     const evalDef = makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: 'You are an expert.' });
 
     const result = await augmentWithSkills(evalDef);
@@ -632,7 +650,7 @@ describe('augmentWithSkills - notice injection', () => {
   });
 
   it('does not add separator when there is no existing agentSystemPrompt', async () => {
-    const { augmentWithSkills } = await importStrategy();
+    const { augmentWithSkills } = await importSkills();
     const evalDef = makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: '' });
 
     const result = await augmentWithSkills(evalDef);
@@ -641,7 +659,7 @@ describe('augmentWithSkills - notice injection', () => {
   });
 
   it('does not mutate the original evalDef', async () => {
-    const { augmentWithSkills } = await importStrategy();
+    const { augmentWithSkills } = await importSkills();
     const evalDef = makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: 'Original.' });
     const originalPrompt = evalDef.agentSystemPrompt;
 
@@ -651,7 +669,7 @@ describe('augmentWithSkills - notice injection', () => {
   });
 
   it('lists all skill names in the notice', async () => {
-    const { augmentWithSkills } = await importStrategy();
+    const { augmentWithSkills } = await importSkills();
     const evalDef = makeEvalDef({ skills: ['auth0-react', 'auth0-nextjs'] });
 
     const result = await augmentWithSkills(evalDef);
@@ -670,7 +688,7 @@ describe('augmentWithSkills - clone failure', () => {
     const fs = vi.mocked(await import('node:fs'));
     fs.existsSync.mockReturnValue(false);
 
-    const { augmentWithSkills } = await importStrategy();
+    const { augmentWithSkills } = await importSkills();
     const evalDef = makeEvalDef({ skills: ['auth0-react'] });
 
     const result = await augmentWithSkills(evalDef);
@@ -691,7 +709,7 @@ describe('augmentWithSkills - clone failure', () => {
     const fs = vi.mocked(await import('node:fs'));
     fs.existsSync.mockReturnValue(false);
 
-    const { augmentWithSkills } = await importStrategy();
+    const { augmentWithSkills } = await importSkills();
     const evalDef = makeEvalDef({ skills: ['auth0-react'] });
 
     await augmentWithSkills(evalDef); // first call — clone fails
@@ -707,7 +725,7 @@ describe('augmentWithSkills - clone failure', () => {
       (p: unknown) => typeof p === 'string' && !p.endsWith('.git') && p.includes('auth0-skills'),
     );
 
-    const { augmentWithSkills } = await importStrategy();
+    const { augmentWithSkills } = await importSkills();
     const evalDef = makeEvalDef({ skills: ['auth0-react'] });
 
     await augmentWithSkills(evalDef);
@@ -725,7 +743,7 @@ describe('augmentWithSkills - clone failure', () => {
 
 describe('copySkillsToWorkspace - no skills', () => {
   it('returns original evalDef unchanged when skills list is empty', async () => {
-    const { copySkillsToWorkspace } = await importStrategy();
+    const { copySkillsToWorkspace } = await importSkills();
     const evalDef = makeEvalDef({ skills: [] });
 
     const result = await copySkillsToWorkspace(evalDef, '/tmp/workspace');
@@ -736,7 +754,7 @@ describe('copySkillsToWorkspace - no skills', () => {
 
 describe('copySkillsToWorkspace - file copying', () => {
   it('calls copyFileSync for each file returned by collectFiles', async () => {
-    const { copySkillsToWorkspace } = await importStrategy();
+    const { copySkillsToWorkspace } = await importSkills();
     const fs = vi.mocked(await import('node:fs'));
     const evalDef = makeEvalDef({ skills: ['auth0-react'] });
 
@@ -754,7 +772,7 @@ describe('copySkillsToWorkspace - file copying', () => {
   });
 
   it('creates destination directories for each file', async () => {
-    const { copySkillsToWorkspace } = await importStrategy();
+    const { copySkillsToWorkspace } = await importSkills();
     const fs = vi.mocked(await import('node:fs'));
     const evalDef = makeEvalDef({ skills: ['auth0-react'] });
 
@@ -767,7 +785,7 @@ describe('copySkillsToWorkspace - file copying', () => {
   });
 
   it('copies files from multiple skills', async () => {
-    const { copySkillsToWorkspace } = await importStrategy();
+    const { copySkillsToWorkspace } = await importSkills();
     const fs = vi.mocked(await import('node:fs'));
     const evalDef = makeEvalDef({ skills: ['auth0-react', 'auth0-nextjs'] });
 
@@ -780,7 +798,7 @@ describe('copySkillsToWorkspace - file copying', () => {
 
 describe('copySkillsToWorkspace - no prompt augmentation', () => {
   it('does not modify agentSystemPrompt (Claude Code auto-loads .claude/skills/)', async () => {
-    const { copySkillsToWorkspace } = await importStrategy();
+    const { copySkillsToWorkspace } = await importSkills();
     const evalDef = makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: 'Original.' });
 
     const result = await copySkillsToWorkspace(evalDef, '/tmp/workspace');
@@ -789,7 +807,7 @@ describe('copySkillsToWorkspace - no prompt augmentation', () => {
   });
 
   it('returns the same evalDef object (no prompt changes needed)', async () => {
-    const { copySkillsToWorkspace } = await importStrategy();
+    const { copySkillsToWorkspace } = await importSkills();
     const evalDef = makeEvalDef({ skills: ['auth0-react'] });
 
     const result = await copySkillsToWorkspace(evalDef, '/tmp/workspace');
@@ -803,7 +821,7 @@ describe('copySkillsToWorkspace - skill not found', () => {
     const fs = vi.mocked(await import('node:fs'));
     // resolveSkillDir will check all paths — none exist
     fs.existsSync.mockReturnValue(false);
-    const { copySkillsToWorkspace } = await importStrategy();
+    const { copySkillsToWorkspace } = await importSkills();
     const evalDef = makeEvalDef({ skills: ['unknown-skill'] });
 
     await expect(copySkillsToWorkspace(evalDef, '/tmp/workspace')).rejects.toThrow("Skill 'unknown-skill' not found");
@@ -814,7 +832,7 @@ describe('copySkillsToWorkspace - skill not found', () => {
 
 describe('InjectSkillsStrategy', () => {
   it('injects skills notice into agentSystemPrompt', async () => {
-    const { InjectSkillsStrategy } = await importStrategy();
+    const { InjectSkillsStrategy } = await importSkills();
     const strategy = new InjectSkillsStrategy();
     const result = await strategy.apply(makeEvalDef({ skills: ['auth0-react'] }), '/tmp/workspace');
     expect(result.agentSystemPrompt).toContain('auth0-react');
@@ -822,7 +840,7 @@ describe('InjectSkillsStrategy', () => {
   });
 
   it('preserves the original system prompt', async () => {
-    const { InjectSkillsStrategy } = await importStrategy();
+    const { InjectSkillsStrategy } = await importSkills();
     const strategy = new InjectSkillsStrategy();
     const result = await strategy.apply(
       makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: 'Original.' }),
@@ -832,7 +850,7 @@ describe('InjectSkillsStrategy', () => {
   });
 
   it('returns evalDef unchanged when no skills are defined', async () => {
-    const { InjectSkillsStrategy } = await importStrategy();
+    const { InjectSkillsStrategy } = await importSkills();
     const evalDef = makeEvalDef({ skills: [] });
     const strategy = new InjectSkillsStrategy();
     const result = await strategy.apply(evalDef, '/tmp/workspace');
@@ -842,7 +860,7 @@ describe('InjectSkillsStrategy', () => {
 
 describe('CopySkillsStrategy', () => {
   it('does not modify agentSystemPrompt', async () => {
-    const { CopySkillsStrategy } = await importStrategy();
+    const { CopySkillsStrategy } = await importSkills();
     const strategy = new CopySkillsStrategy('.claude/skills');
     const result = await strategy.apply(
       makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: 'Original prompt.' }),
@@ -852,7 +870,7 @@ describe('CopySkillsStrategy', () => {
   });
 
   it('copies skill files to the configured directory in the workspace', async () => {
-    const { CopySkillsStrategy } = await importStrategy();
+    const { CopySkillsStrategy } = await importSkills();
     const fs = vi.mocked(await import('node:fs'));
     const strategy = new CopySkillsStrategy('.claude/skills');
     await strategy.apply(makeEvalDef({ skills: ['auth0-react'] }), '/tmp/workspace');
@@ -863,7 +881,7 @@ describe('CopySkillsStrategy', () => {
   });
 
   it('respects a custom skills directory', async () => {
-    const { CopySkillsStrategy } = await importStrategy();
+    const { CopySkillsStrategy } = await importSkills();
     const fs = vi.mocked(await import('node:fs'));
     const strategy = new CopySkillsStrategy('.gemini/skills');
     await strategy.apply(makeEvalDef({ skills: ['auth0-react'] }), '/tmp/workspace');

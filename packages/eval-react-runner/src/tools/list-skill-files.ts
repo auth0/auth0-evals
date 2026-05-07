@@ -1,4 +1,4 @@
-import { getSkillsManager, collectFiles } from '@a0/eval';
+import { getSkillsManager, collectFiles } from '@a0/eval-core';
 import { docResult } from './base.js';
 import type { Tool, ToolContext, ToolName, ToolResult } from './base.js';
 

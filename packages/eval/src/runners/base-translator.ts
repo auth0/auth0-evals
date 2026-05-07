@@ -1,5 +1,5 @@
 import { logger } from '@a0/eval-core';
-import type { ToolTranslator } from './tool-translator.js';
+import type { ToolTranslator } from '@a0/eval-core';
 
 /**
  * Abstract base for agent tool translators.

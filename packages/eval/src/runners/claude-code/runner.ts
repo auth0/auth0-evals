@@ -5,10 +5,8 @@
  * them with its native Read/Glob tools instead of the ReAct-only skill tools.
  */
 
-import type { AgentRunner, RunParams, RunResult } from '../agent-runner.js';
-import type { EvalDefinition } from '@a0/eval-core';
-import { CopySkillsStrategy } from '../skills/strategy.js';
-import type { SkillsStrategy } from '../skills/strategy.js';
+import type { AgentRunner, RunParams, RunResult, EvalDefinition, SkillsStrategy } from '@a0/eval-core';
+import { CopySkillsStrategy } from '@a0/eval-core';
 import { runClaudeCodeAgent, CLAUDE_CODE_MODEL_ID } from './agent.js';
 
 export class ClaudeCodeRunner implements AgentRunner {

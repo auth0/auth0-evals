@@ -22,8 +22,8 @@ import {
   classifyActionType,
   classifyErrorCategory,
   detectRetry,
-} from '@a0/eval';
-import type { FinishReason, RunRecord, ToolCallRecord } from '@a0/eval';
+} from '@a0/eval-core';
+import type { FinishReason, RunRecord, ToolCallRecord } from '@a0/eval-core';
 import { buildToolDefinitions } from './tools/index.js';
 import type { McpConfig } from './tools-executor/index.js';
 import { ToolExecutor } from './tools-executor/index.js';

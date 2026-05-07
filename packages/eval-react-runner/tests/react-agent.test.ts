@@ -7,8 +7,8 @@ import { mkdirSync, writeFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmpDir } from './tmp.js';
 
-import { setFrameworkConfig, DEFAULT_FRAMEWORK_CONFIG } from '@a0/eval';
-import type { FrameworkConfig } from '@a0/eval';
+import { setFrameworkConfig, DEFAULT_FRAMEWORK_CONFIG } from '@a0/eval-core';
+import type { FrameworkConfig } from '@a0/eval-core';
 
 // Initialize the framework config singleton so internal @a0/eval functions work correctly.
 const testConfig = {
@@ -40,8 +40,8 @@ vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
 }));
 
 import { extractTokens, summariseArgs, llmCall, runAgent } from '../src/agent.js';
-import { isGeminiModel, detectRetry, collectFiles } from '@a0/eval';
-import type { ToolCallRecord } from '@a0/eval';
+import { isGeminiModel, detectRetry, collectFiles } from '@a0/eval-core';
+import type { ToolCallRecord } from '@a0/eval-core';
 import { TOOL_DEFINITIONS, buildToolDefinitions } from '../src/tools/index.js';
 
 import { ToolExecutor } from '../src/tools-executor/index.js';

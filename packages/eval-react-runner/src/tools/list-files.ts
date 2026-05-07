@@ -1,5 +1,5 @@
 import { existsSync, statSync } from 'node:fs';
-import { resolveInside, validatePathFormat, collectFiles } from '@a0/eval';
+import { resolveInside, validatePathFormat, collectFiles } from '@a0/eval-core';
 import { toolResult, errorResult } from './base.js';
 import type { Tool, ToolContext, ToolName, ToolResult } from './base.js';
 

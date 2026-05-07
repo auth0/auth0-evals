@@ -4,7 +4,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { Tool, ToolResult } from '../tools/base.js';
 import { ALL_BASE_TOOLS } from '../tools/index.js';
-import { logger } from '@a0/eval';
+import { logger } from '@a0/eval-core';
 
 export interface McpConfig {
   url: string;

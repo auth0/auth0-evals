@@ -11,7 +11,7 @@
     }
   },
   "dependencies": {
-    "@a0/eval": "*",
+    "@a0/eval-core": "*",
     "@modelcontextprotocol/sdk": "^1.12.1"
   },
   "scripts": {

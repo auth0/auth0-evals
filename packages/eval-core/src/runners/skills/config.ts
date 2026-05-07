@@ -2,8 +2,10 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 
-import type { SkillsConfig, RemoteSkillRepo } from '@a0/eval-core';
-import { resolveInside, getFrameworkConfig, logger } from '@a0/eval-core';
+import type { SkillsConfig, RemoteSkillRepo } from '../../config/framework.js';
+import { resolveInside } from '../../workspace/index.js';
+import { getFrameworkConfig } from '../../config/framework-config.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * SkillsManager — resolves skill directories from multiple local dirs and

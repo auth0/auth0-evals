@@ -32,7 +32,7 @@ import {
   makeSessionId,
   filteredEnv,
 } from '@a0/eval-core';
-import { classifyActionType, classifyErrorCategory, detectRetry } from '../classify.js';
+import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/eval-core';
 import { ClaudeCodeTranslator } from './translator.js';
 
 // Module-level translator instance — all event processing uses this.

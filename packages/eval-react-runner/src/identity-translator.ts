@@ -1,4 +1,4 @@
-import type { ToolTranslator } from '@a0/eval';
+import type { ToolTranslator } from '@a0/eval-core';
 
 /**
  * No-op translator for agents that already use the internal taxonomy.
