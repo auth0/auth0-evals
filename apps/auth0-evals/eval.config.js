@@ -1,4 +1,7 @@
 // @ts-check
+
+const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY !== '0';
+
 /** @type {import('@a0/eval').FrameworkConfig} */
 export default {
   evalsDir: 'src/evals',
@@ -9,7 +12,7 @@ export default {
 
   agents: {
     'claude-code': {
-      proxy: { baseUrl: 'https://llm.atko.ai/anthropic' },
+      proxy: { baseUrl: useBedrock ? 'https://llm.atko.ai/anthropic' : 'https://llm.atko.ai' },
     },
     'gemini-cli': {
       proxy: { baseUrl: 'https://llm.atko.ai' },
