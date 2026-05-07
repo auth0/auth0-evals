@@ -125,6 +125,30 @@ export class SkillsManager {
 
   private static readonly GIT_TIMEOUT_MS = 30_000;
   private static readonly ALLOWED_URL_PREFIXES = ['https://', 'ssh://', 'git@'];
+  private static readonly INVALID_BRANCH_PATTERN = /[\s:]/;
+
+  /**
+   * Normalize and validate a branch name. Strips an optional `refs/heads/` prefix,
+   * rejects values containing whitespace or `:` (refspec mapping), rejects
+   * values starting with `-` (could be misinterpreted as git options), and rejects
+   * other `refs/` prefixes (e.g. `refs/tags/`) which would conflict with the
+   * `refs/heads/` prefix used in fetch refspecs.
+   * Returns the normalized branch name or null if invalid.
+   */
+  private normalizeBranch(branch: string): string | null {
+    // Trim and strip optional refs/heads/ prefix to avoid refs/heads/refs/heads/...
+    const normalized = branch.trim().replace(/^refs\/heads\//, '');
+    if (
+      !normalized ||
+      normalized.startsWith('-') ||
+      normalized.startsWith('refs/') ||
+      SkillsManager.INVALID_BRANCH_PATTERN.test(normalized)
+    ) {
+      logger.error(`[skills] Refusing invalid branch name: "${branch}"`);
+      return null;
+    }
+    return normalized;
+  }
 
   /**
    * Validate that a clone directory is safe for rmSync. Rejects:
@@ -151,18 +175,27 @@ export class SkillsManager {
       return { available: false, fresh: false };
     }
     const opts = { stdio: 'pipe' as const, timeout: SkillsManager.GIT_TIMEOUT_MS };
+    const branch = repo.branch !== undefined ? this.normalizeBranch(repo.branch) : null;
+    if (repo.branch !== undefined && !branch) {
+      return { available: false, fresh: false };
+    }
     const hadExistingClone = existsSync(join(cloneDir, '.git'));
     try {
       if (hadExistingClone) {
         // fetch+reset is more reliable than pull for shallow clones
-        execFileSync('git', ['fetch', '--depth', '1', 'origin'], { ...opts, cwd: cloneDir });
+        const fetchArgs = ['fetch', '--depth', '1', 'origin'];
+        if (branch) fetchArgs.push('--', `refs/heads/${branch}`);
+        execFileSync('git', fetchArgs, { ...opts, cwd: cloneDir });
         execFileSync('git', ['reset', '--hard', 'FETCH_HEAD'], { ...opts, cwd: cloneDir });
       } else {
         if (existsSync(cloneDir)) {
           rmSync(cloneDir, { recursive: true, force: true });
         }
         mkdirSync(dirname(cloneDir), { recursive: true });
-        execFileSync('git', ['clone', '--depth', '1', repo.url, cloneDir], opts);
+        const cloneArgs = ['clone', '--depth', '1'];
+        if (branch) cloneArgs.push('--branch', branch);
+        cloneArgs.push(repo.url, cloneDir);
+        execFileSync('git', cloneArgs, opts);
       }
       return { available: true, fresh: true };
     } catch (e) {
