@@ -78,9 +78,35 @@ Speed matters but less than friction — a slow clean run beats a fast messy one
 
 ### Efficiency — 14%
 
-Tool call count correlates with cost and complexity, but it's a blunt instrument — some frameworks legitimately need more steps than others. Equal weight with Speed so neither dominates process scoring alone.
+Measures whether the agent solved the task in a focused way or thrashed — reading files it didn't need, retrying failed writes, overwriting its own output.
 
-**Constant: ideal = 10 calls.** A focused quickstart implementation: read 2–3 scaffold files, write 3–4 files, run 1–2 commands, finish. More than 10 suggests the agent explored unnecessarily, retried operations, or wrote files it later overwrote. The curve is intentionally steep — doubling the ideal call count halves the score.
+**Why waste-detection, not call-counting?** The original formula (`min(100, 100 × 10 / max(10, total_calls))`) penalized complexity, not waste. A Next.js quickstart legitimately needs 30-40 tool calls (read scaffold, write server components, client components, middleware, route handlers, config). The old formula scored that 25% — same as a flailing agent. Frameworks with more files to read and write were structurally penalized regardless of agent quality.
+
+The replacement uses heuristic waste detection on session trace metadata we already capture. Each tool call has `causedError`, `isRetry`, `isInterruption`, and full `args` (including file paths). Waste is defined as:
+
+1. **Duplicate reads** — reading the same file path twice with no intervening write or command execution that could modify that file. The second read is treated as likely redundant. Note: `run_command` can mutate files (formatters, generators, installs); the implementation should treat any `run_command` between two reads of the same path as a potential mutation, resetting the duplicate-read tracking for affected paths.
+2. **Errored calls** — any tool call where `causedError = true` OR `isRetry = true`. Retries imply the prior attempt failed; both the error and the retry are waste.
+3. **Overwritten writes** — a `write_file` to path X followed by another `write_file` to path X where the second write fully replaces (not extends) the first. The first write was discarded work.
+4. **Interruptions** — `isInterruption = true` calls. Intentionally double-counted with Setup Friction: Friction penalizes the *user disruption* (being asked questions), Efficiency penalizes the *wasted call slot* (the agent spent a turn asking instead of making progress). This is not accidental overlap — the same event harms two distinct qualities.
+
+Everything not classified as waste is treated as useful. This intentionally under-counts waste (exploratory reads that turn out to be irrelevant are counted as useful), which is the right default — we'd rather miss subtle waste than penalize legitimate exploration.
+
+**Formula (proposed):**
+```
+waste_count = count of tool calls matching ≥1 waste category (each call counted at most once)
+efficiency (%) = max(0, 100 × (1 - waste_count / total_calls))
+```
+
+A single tool call can match multiple waste predicates (e.g., a retry that also errors). To prevent `waste_count` from exceeding `total_calls`, each tool call contributes at most 1 to the count regardless of how many categories it matches. Per-category breakdowns are reported separately in notes for diagnostics.
+
+**Edge case:** When `total_calls == 0`, the formula is undefined. The scorer returns 100 but the process-dimension gate zeroes all process scores for runs with no tool calls (see AGENTS.md Overview), so this never produces a misleading result.
+
+**Score behavior:**
+- Next.js with 40 tool calls and 2 errors → 95% (was 25% under old formula)
+- Nuxt with 34 calls and 0 waste → 100% (was 29%)
+- A flailing agent with 20 calls, 8 errors and 3 retries → 45% (errored calls include retries — 11 waste calls / 20 total)
+
+**v1.1 upgrade path**: Add LLM-as-judge post-hoc classification as a validation layer — run it on 50 traces, compare with heuristic scores, calibrate. If heuristics consistently under-report waste by >15%, switch to hybrid approach.
 
 ### Error Recovery — 8%
 
