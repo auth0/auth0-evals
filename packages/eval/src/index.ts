@@ -9,7 +9,6 @@ export * from '@a0/eval-core';
 export type { AgentRunner, RunParams, RunResult } from './runners/agent-runner.js';
 export { registerRunner, getRunner } from './runners/agent-runner.js';
 export type { ToolTranslator } from './runners/tool-translator.js';
-export { BaseToolTranslator } from './runners/base-translator.js';
 export { classifyActionType, primaryArg, detectRetry, classifyErrorCategory } from './runners/classify.js';
 export type { SkillsStrategy } from './runners/skills/strategy.js';
 export {
@@ -23,13 +22,11 @@ export { SkillsManager, getSkillsManager, resetSkillsManager } from './runners/s
 // Copilot runner
 export { CopilotCliRunner } from './runners/copilot/runner.js';
 export { CopilotCliTranslator } from './runners/copilot/translator.js';
-export { runCopilotAgent, getMcpServers, COPILOT_MODEL_ID, COPILOT_DEFAULT_MODEL } from './runners/copilot/agent.js';
-export type { CopilotRunOptions } from './runners/copilot/agent.js';
+export { getMcpServers, COPILOT_MODEL_ID } from './runners/copilot/agent.js';
 
 // Runner — Gemini CLI
 export { GeminiCliRunner } from './runners/gemini-cli/runner.js';
-export { runGeminiCliAgent, GEMINI_CLI_MODEL_ID, GEMINI_CLI_DEFAULT_MODEL } from './runners/gemini-cli/agent.js';
-export type { GeminiCliRunOptions } from './runners/gemini-cli/agent.js';
+export { runGeminiCliAgent } from './runners/gemini-cli/agent.js';
 export { GeminiCliTranslator } from './runners/gemini-cli/translator.js';
 
 // Claude Code runner
@@ -42,7 +39,7 @@ export {
   normaliseStopReason,
   CLAUDE_CODE_MODEL_ID,
 } from './runners/claude-code/agent.js';
-export type { ClaudeCodeRunOptions, TurnStateUpdate } from './runners/claude-code/agent.js';
+export type { TurnStateUpdate } from './runners/claude-code/agent.js';
 
 // CLI
 export {
@@ -52,19 +49,14 @@ export {
   MATRIX_TOOL_SETS,
   DEFAULT_AGENT_TYPE,
   parseToolsArg,
-  validateApiKey,
-  validateModels,
-  validateModes,
-  validateEvalIds,
-  validateTools,
-  validateWorkers,
-  validateAgentType,
   parseRunConfig,
   type RunConfig,
-  type ParseRunConfigOptions,
   spawnEval,
   mergeIntoOutput,
 } from './cli/index.js';
+
+// Baseline runner
+export { runBaseline, llmCall } from './runners/baseline.js';
 
 // Scorer
 export { score, scoreToGrade } from './scorer.js';

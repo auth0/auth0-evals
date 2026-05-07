@@ -97,7 +97,7 @@ export async function runJob(
 
   try {
     if (mode === 'baseline') {
-      const { runBaseline } = await import('./runners/baseline.js');
+      const { runBaseline } = await import('@a0/eval');
       const result = await runBaseline(apiKey, model, evalDef);
       const graderResults = await gradeText(evalDef, result.responseText, apiKey, BASELINE_LEVELS);
       return serialiseBaseline(evalDef, result, graderResults, result.responseText);

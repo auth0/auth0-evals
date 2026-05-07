@@ -5,22 +5,15 @@
  * No workspace, no tool execution, no agentic loop.
  */
 
-import { estimateCost, getFrameworkConfig, getLitellmModelMap, makeSessionId, withRetry, LlmApiError } from '@a0/eval';
-import type { EvalDefinition } from '@a0/eval';
-
-export interface BaselineResult {
-  evalId: string;
-  model: string;
-  mode: string;
-  sessionId: string;
-  responseText: string;
-  inputTokens: number;
-  outputTokens: number;
-  costUsd: number;
-  wallTime: number;
-  status: 'success' | 'failure';
-  error: string;
-}
+import {
+  estimateCost,
+  getFrameworkConfig,
+  getLitellmModelMap,
+  makeSessionId,
+  withRetry,
+  LlmApiError,
+} from '@a0/eval-core';
+import type { BaselineResult, EvalDefinition } from '@a0/eval-core';
 
 export async function runBaseline(
   apiKey: string,
