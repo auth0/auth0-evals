@@ -20,3 +20,12 @@ export function getFrameworkConfig(): Required<FrameworkConfig> {
   }
   return _config;
 }
+
+/**
+ * Resolve the proxy base URL for a given agent runner.
+ * Returns `agents.<agentId>.proxy.baseUrl` if configured, otherwise falls back to `proxy.baseUrl`.
+ */
+export function getAgentProxyBaseUrl(agentId: string): string {
+  const config = getFrameworkConfig();
+  return config.agents?.[agentId]?.proxy?.baseUrl ?? config.proxy.baseUrl;
+}

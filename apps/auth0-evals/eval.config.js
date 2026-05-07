@@ -7,6 +7,15 @@ export default {
     baseUrl: 'https://llm.atko.ai/v1',
   },
 
+  agents: {
+    'claude-code': {
+      proxy: { baseUrl: 'https://llm.atko.ai/anthropic' },
+    },
+    'gemini-cli': {
+      proxy: { baseUrl: 'https://llm.atko.ai' },
+    },
+  },
+
   mcp: {
     servers: {
       'auth0-docs': {

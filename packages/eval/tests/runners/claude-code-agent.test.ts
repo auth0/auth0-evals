@@ -54,6 +54,9 @@ const TEST_CONFIG: Required<FrameworkConfig> = {
       'claude-opus-4-5': '_claude-opus-4-5',
     },
   },
+  agents: {
+    'claude-code': { proxy: { baseUrl: 'https://llm.atko.ai/anthropic' } },
+  },
 };
 
 beforeAll(() => {
