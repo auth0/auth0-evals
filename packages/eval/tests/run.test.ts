@@ -1,13 +1,14 @@
 /**
- * Unit tests for buildJobList in run.ts.
+ * Unit tests for buildJobList and buildSubprocessArgs in cli/run.ts.
  *
  * buildJobList is pure routing logic — it maps (registry, models, modes, tools, agentType)
  * to a flat list of jobs. No subprocess, no filesystem, no mocking required.
  */
 
 import { describe, it, expect } from 'vitest';
-import { buildJobList, buildSubprocessArgs, MATRIX_TOOL_SETS } from '../src/run.js';
-import type { EvalConfig } from '../src/config/evaluations.js';
+import { buildJobList, buildSubprocessArgs } from '../src/cli/run.js';
+import { MATRIX_TOOL_SETS } from '../src/cli/constants.js';
+import type { EvalConfig } from '@a0/eval-core';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -169,7 +170,6 @@ describe('buildJobList — matrix mode', () => {
   });
 
   it('claude-code deduplication is per-eval per-tool-set, not per-eval only', () => {
-    // When --agent-type claude-code with non-claude models, each tool-set is a distinct sentinel
     const jobs = buildJobList([EVAL], ['gpt-5.2', 'gpt-4o'], ['agent'], [], 'claude-code', true);
     // 2 tool-sets × 1 eval = 2 sentinel jobs (not 1 or 4)
     expect(jobs).toHaveLength(2);
@@ -187,7 +187,6 @@ describe('buildJobList — matrix mode', () => {
 
   it('explicit tools override matrix tool-set expansion', () => {
     const jobs = buildJobList([EVAL], ['gpt-5.2'], ['agent'], ['skills'], undefined, true);
-    // matrix=true but tools are explicitly provided → use only that tool set
     expect(jobs).toHaveLength(1);
     expect(jobs[0][3]).toEqual(['skills']);
   });

@@ -7,6 +7,8 @@
  * optional field has a sensible fallback.
  */
 
+import type { EvalConfig } from '../loader.js';
+
 // ── Sub-configs ──────────────────────────────────────────────────────────────
 
 export interface ProxyConfig {
@@ -122,4 +124,6 @@ export interface FrameworkConfig {
   workspace?: WorkspaceConfig;
   /** Per-agent configuration overrides, keyed by runner ID. */
   agents?: Record<string, AgentConfig>;
+  /** Registered evaluation configs. The CLI uses this as its eval registry. */
+  evaluations?: EvalConfig[];
 }

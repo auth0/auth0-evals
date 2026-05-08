@@ -1,12 +1,9 @@
 #!/usr/bin/env node
 /**
- * Consolidated eval runner.
+ * Consolidated eval runner CLI.
  *
  * Usage:
- *   node dist/run.js [options]
- *
- *   API key is loaded from .env automatically. Copy .env.example to .env
- *   and fill in your ATKO_API_KEY.
+ *   a0-eval [options]
  *
  * Options:
  *   --eval        Eval ID to run (default: all). Can be repeated.
@@ -22,16 +19,13 @@
  *   --braintrust       Log results to Braintrust experiment (requires BRAINTRUST_API_KEY)
  */
 
-import { join, basename, dirname } from 'node:path';
+import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pLimit from 'p-limit';
 import { config as loadDotenv } from 'dotenv';
 
-import { EVALUATIONS } from './config/evaluations.js';
-
-import { UnknownModeError } from '@a0/eval';
-
 import {
+  UnknownModeError,
   loadEval,
   loadConfig,
   serialiseBaseline,
@@ -46,39 +40,41 @@ import {
   isClaudeModel,
   isGeminiModel,
   isGptModel,
-  mergeResults,
-  loadResults,
-  saveResults,
-  resolveOutputPath,
-  parseRunConfig,
-  spawnEval,
-  mergeIntoOutput,
-  type EvalConfig,
-  type EvalDefinition,
-  type JobResult,
-} from '@a0/eval';
-import { logger } from '@a0/eval';
+  registerRunner,
+  getRunner,
+  logger,
+} from '@a0/eval-core';
+import type { EvalConfig, EvalDefinition, JobResult, AgentType, Mode } from '@a0/eval-core';
+
+import { parseRunConfig } from './config.js';
+import { spawnEval, mergeIntoOutput } from './subprocess-runner.js';
+import { DEFAULT_AGENT_TYPE, MATRIX_TOOL_SETS } from './constants.js';
+import { resolveOutputPath, mergeResults, loadResults, saveResults } from '../persistence/index.js';
+import { runBaseline } from '../runners/baseline.js';
+import { score } from '../scorer.js';
+import { ClaudeCodeRunner } from '../runners/claude-code/runner.js';
+import { CopilotCliRunner } from '../runners/copilot/runner.js';
+import { GeminiCliRunner } from '../runners/gemini-cli/runner.js';
+import { createBraintrustReporter } from '../reporters/braintrust.js';
+import { syncDataset, toEvalSummaries } from '../reporters/braintrust-dataset.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const FRAMEWORK_ROOT = ['dist', 'src'].includes(basename(__dirname)) ? join(__dirname, '..') : __dirname;
 
-// Load .env
-loadDotenv({ path: join(FRAMEWORK_ROOT, '.env') });
+// ── Runner registration ──────────────────────────────────────────────────────
 
-export {
-  ALL_MODES,
-  DEFAULT_MODEL,
-  KNOWN_TOOLS,
-  KNOWN_WORKING_MODELS,
-  KNOWN_AGENT_TYPES,
-  DEFAULT_AGENT_TYPE,
-  MATRIX_TOOL_SETS,
-  parseToolsArg,
-  type Mode,
-  type AgentType,
-} from '@a0/eval';
-import { DEFAULT_AGENT_TYPE, MATRIX_TOOL_SETS, type Mode, type AgentType } from '@a0/eval';
+let runnersInitialised = false;
+
+async function initRunners(): Promise<void> {
+  if (runnersInitialised) return;
+  runnersInitialised = true;
+
+  const { ReactAgentRunner } = await import('@a0/eval-react-runner');
+  registerRunner('auth0-ReAct-agent', new ReactAgentRunner());
+  registerRunner('claude-code', new ClaudeCodeRunner());
+  registerRunner('copilot', new CopilotCliRunner());
+  registerRunner('gemini-cli', new GeminiCliRunner());
+}
 
 // ── Per-job execution ─────────────────────────────────────────────────────────
 
@@ -90,14 +86,14 @@ export async function runJob(
   apiKey: string,
   keepWorkspace = false,
   agentType: AgentType = DEFAULT_AGENT_TYPE,
+  frameworkRoot: string = process.cwd(),
 ): Promise<JobResult> {
-  const evalDef = await loadEval(evalConfig, FRAMEWORK_ROOT);
+  const evalDef = await loadEval(evalConfig, frameworkRoot);
   const agentLabel = mode === 'agent' ? ` (${agentType})` : '';
   logger.info(`  [${mode}${agentLabel}] ${evalDef.id} / ${model}`);
 
   try {
     if (mode === 'baseline') {
-      const { runBaseline } = await import('@a0/eval');
       const result = await runBaseline(apiKey, model, evalDef);
       const graderResults = await gradeText(evalDef, result.responseText, apiKey, BASELINE_LEVELS);
       return serialiseBaseline(evalDef, result, graderResults, result.responseText);
@@ -125,10 +121,8 @@ async function runAgentJob(
   keepWorkspace: boolean,
   agentType: AgentType,
 ): Promise<JobResult> {
-  const { setupWorkspace, runSetupCommand, cleanupWorkspace } = await import('@a0/eval');
-  const { score } = await import('@a0/eval');
-  const { initAgentRegistry, getRunner } = await import('./agent_eval/agent-registry.js');
-  initAgentRegistry();
+  const { setupWorkspace, runSetupCommand, cleanupWorkspace } = await import('@a0/eval-core');
+  await initRunners();
 
   const workspace = setupWorkspace(evalDef.scaffold);
   try {
@@ -141,9 +135,6 @@ async function runAgentJob(
 
     let graderResults: Awaited<ReturnType<typeof runGraders>> = [];
     if (evalDef.graders.length > 0) {
-      // L5 (version_correctness) only runs when MCP is enabled — the model has docs
-      // access, so using deprecated APIs is a real failure. Without MCP, the model
-      // works from training data and shouldn't be penalized for version drift.
       const agentLevels = tools.includes('mcp') ? AGENT_MCP_LEVELS : AGENT_LEVELS;
       graderResults = await runGraders(evalDef.graders, workspace, apiKey, undefined, agentLevels);
     }
@@ -160,10 +151,10 @@ async function runAgentJob(
   }
 }
 
-// ── CLI ───────────────────────────────────────────────────────────────────────
+// ── CLI output ────────────────────────────────────────────────────────────────
 
 function printResult(r: JobResult): void {
-  if (r.status === 'error') return; // already reported in runJob's catch block
+  if (r.status === 'error') return;
   if (r.mode === 'agent') {
     const agentTag = r.agent_type ? ` [${r.agent_type}]` : '';
     logger.info(
@@ -198,15 +189,12 @@ function printSummary(results: JobResult[], elapsed: number): void {
   logger.info('='.repeat(60));
 }
 
+// ── Subprocess arg stripping ──────────────────────────────────────────────────
+
 /**
  * Returns process.argv (after the node/script pair) with all per-job flags
  * stripped out. Subprocesses receive these flags explicitly so each runs
  * exactly one (eval × model × mode × tools) job without re-expanding them.
- *
- * Flags with paired values that are stripped: --eval, --output, --model,
- * --mode, --tools, --agent-type.
- * Flags that pass through: --config, --workers, --keep-workspace, etc.
- * Boolean flags stripped: --matrix (already expanded into individual jobs).
  */
 export function buildSubprocessArgs(argv: string[] = process.argv.slice(2)): string[] {
   const VALUE_FLAGS = new Set(['--eval', '--output', '--model', '--mode', '--tools', '--agent-type']);
@@ -240,7 +228,6 @@ export function buildSubprocessArgs(argv: string[] = process.argv.slice(2)): str
  *   - GPT models (prefix `gpt-`) with no explicit --agent-type → `copilot`
  *   - Explicit `--agent-type claude-code` with a non-Claude model → deduplicated sentinel job
  *   - Everything else → `auth0-ReAct-agent` (or the explicitly requested type)
- * Exported so the routing logic can be unit-tested independently of the CLI.
  */
 export function buildJobList(
   registry: EvalConfig[],
@@ -252,8 +239,6 @@ export function buildJobList(
 ): Array<[EvalConfig, string, Mode, string[], AgentType]> {
   const jobs: Array<[EvalConfig, string, Mode, string[], AgentType]> = [];
   const claudeCodeEvalsSeen = new Set<string>();
-  // In matrix mode iterate over all tool-set combinations for agent jobs (skills, mcp+skills).
-  // In normal mode wrap the single tools array so the inner loop is uniform.
   const agentToolSets = matrix && tools.length === 0 ? MATRIX_TOOL_SETS : [tools];
   for (const evalCfg of registry) {
     for (const model of models) {
@@ -290,8 +275,13 @@ export function buildJobList(
   return jobs;
 }
 
-async function main(): Promise<void> {
-  const config = parseRunConfig(process.argv, { knownEvalIds: EVALUATIONS.map((e) => e.id) });
+// ── Main CLI entry point ──────────────────────────────────────────────────────
+
+export async function runCli(): Promise<void> {
+  // Load .env from the cwd
+  loadDotenv();
+
+  const config = parseRunConfig(process.argv);
   const {
     models,
     modes,
@@ -311,8 +301,7 @@ async function main(): Promise<void> {
   const frameworkConfig = await loadConfig({ configPath });
   setFrameworkConfig(frameworkConfig);
 
-  // Validate required runtime fields — empty values typically mean eval.config.js
-  // was not found (e.g. running from the wrong directory).
+  // Validate required runtime fields
   const missing: string[] = [];
   if (!frameworkConfig.proxy.baseUrl) missing.push('proxy.baseUrl');
   if (!frameworkConfig.judge.model) missing.push('judge.model');
@@ -325,31 +314,39 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const evaluations = frameworkConfig.evaluations;
+  if (!evaluations || evaluations.length === 0) {
+    logger.error('[Config] No evaluations defined in eval.config.js. Add an `evaluations` array.');
+    process.exit(1);
+  }
+
+  // Validate eval IDs against loaded evaluations
+  if (evalIds.length > 0) {
+    const knownIds = evaluations.map((e) => e.id);
+    const unknown = evalIds.filter((id) => !knownIds.includes(id));
+    if (unknown.length > 0) {
+      logger.error(`Unknown eval(s): ${unknown.join(', ')}`);
+      process.exit(1);
+    }
+  }
+
   logger.info(`[Config] evalsDir=${frameworkConfig.evalsDir}`);
 
-  const registry = evalIds.length > 0 ? EVALUATIONS.filter((e) => evalIds.includes(e.id)) : EVALUATIONS;
+  const registry = evalIds.length > 0 ? evaluations.filter((e) => evalIds.includes(e.id)) : evaluations;
 
   if (registry.length === 0) {
     logger.error('No evals to run. Check your --eval flag.');
     process.exit(1);
   }
 
+  const frameworkRoot = process.cwd();
   const jobs = buildJobList(registry, models, modes, tools, agentType, matrix);
 
   // ── Subprocess-per-job parallelism ──────────────────────────────────────────
-  // Spawn one child process per (eval × model × mode × tools) job so a crash
-  // or memory leak in one job cannot affect the others.  Each subprocess
-  // receives explicit --eval, --model, --mode, --tools, --agent-type flags so
-  // it resolves to exactly one job and takes the single-job path below, writing
-  // its result to a per-job temp file.  The parent waits for all subprocesses
-  // (up to `workers` concurrently) then merges the temp files into the final
-  // output.
   if (jobs.length > 1) {
-    const selfPath = join(__dirname, 'run.js');
-    const outputPath = resolveOutputPath(FRAMEWORK_ROOT, matrix ? ['matrix'] : modes, outputOverride);
+    const selfPath = join(__dirname, 'bin.js');
+    const outputPath = resolveOutputPath(frameworkRoot, matrix ? ['matrix'] : modes, outputOverride);
 
-    // Strip all per-job flags — each subprocess gets its own explicit values.
-    // --matrix is also stripped: the matrix has already been expanded into jobs.
     const baseArgs = buildSubprocessArgs();
 
     const tempFiles: string[] = [];
@@ -359,7 +356,7 @@ async function main(): Promise<void> {
         subLimit(async () => {
           const toolsSuffix = jobTools.length > 0 ? `-${jobTools.join('+')}` : '';
           const safeModel = model.replace(/[^a-zA-Z0-9.-]/g, '_');
-          const tempFile = join(FRAMEWORK_ROOT, `scores-tmp-${evalCfg.id}-${safeModel}-${mode}${toolsSuffix}.json`);
+          const tempFile = join(frameworkRoot, `scores-tmp-${evalCfg.id}-${safeModel}-${mode}${toolsSuffix}.json`);
           tempFiles.push(tempFile);
           const jobArgs = [
             ...baseArgs,
@@ -402,14 +399,12 @@ async function main(): Promise<void> {
   const BT_PROJECT_ID = '38395851-dd41-46ec-a971-a30402db6921';
   const BT_DATASET_NAME = 'auth0-evals';
 
-  let btReporter: Awaited<ReturnType<typeof import('@a0/eval-reporter').createBraintrustReporter>> = null;
+  let btReporter: Awaited<ReturnType<typeof createBraintrustReporter>> = null;
   if (braintrust) {
-    const { createBraintrustReporter } = await import('@a0/eval-reporter');
     const modeLabel = matrix ? 'matrix' : modes.join(',');
     btReporter = await createBraintrustReporter(modeLabel, tools, { projectId: BT_PROJECT_ID });
 
-    const { syncDataset, toEvalSummaries } = await import('@a0/eval-reporter');
-    Promise.all(registry.map((cfg) => loadEval(cfg, FRAMEWORK_ROOT)))
+    Promise.all(registry.map((cfg) => loadEval(cfg, frameworkRoot)))
       .then((evalDefs) =>
         syncDataset(toEvalSummaries(evalDefs), { projectId: BT_PROJECT_ID, datasetName: BT_DATASET_NAME }),
       )
@@ -424,7 +419,16 @@ async function main(): Promise<void> {
     jobs.map(([evalCfg, model, mode, jobTools, jobAgentType]) =>
       limit(async () => {
         try {
-          const result = await runJob(evalCfg, model, mode, jobTools, apiKey, keepWorkspace, jobAgentType);
+          const result = await runJob(
+            evalCfg,
+            model,
+            mode,
+            jobTools,
+            apiKey,
+            keepWorkspace,
+            jobAgentType,
+            frameworkRoot,
+          );
           results.push(result);
           printResult(result);
           btReporter?.log(result);
@@ -449,7 +453,7 @@ async function main(): Promise<void> {
     await btReporter.summarize();
   }
 
-  const outputPath = resolveOutputPath(FRAMEWORK_ROOT, matrix ? ['matrix'] : modes, outputOverride);
+  const outputPath = resolveOutputPath(frameworkRoot, matrix ? ['matrix'] : modes, outputOverride);
   const existing = loadResults(outputPath);
   const merged = mergeResults(existing, results);
   saveResults(outputPath, merged);
@@ -459,12 +463,4 @@ async function main(): Promise<void> {
   if (errorResults.length > 0) {
     process.exit(1);
   }
-}
-
-// ── Entry point ───────────────────────────────────────────────────────────────
-if (!process.env.VITEST) {
-  main().catch((e) => {
-    logger.error(e);
-    process.exit(1);
-  });
 }

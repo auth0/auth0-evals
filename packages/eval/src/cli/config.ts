@@ -62,8 +62,8 @@ export interface RunConfig {
 }
 
 export interface ParseRunConfigOptions {
-  /** List of known eval IDs for validation. */
-  knownEvalIds: string[];
+  /** List of known eval IDs for validation. When omitted, eval ID validation is skipped. */
+  knownEvalIds?: string[];
 }
 
 /**
@@ -75,7 +75,7 @@ export interface ParseRunConfigOptions {
  * @param argv - Raw argument vector, typically `process.argv`.
  * @param options - Additional context (known eval IDs) for validation.
  */
-export function parseRunConfig(argv: string[], options: ParseRunConfigOptions): RunConfig {
+export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = {}): RunConfig {
   const program = new Command();
   program
     .description('Eval Runner')
@@ -119,7 +119,9 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions): 
     logger.info(`Running matrix: ${modes.join(', ')} × ${['none', 'skills', 'mcp+skills'].join(', ')}`);
   }
 
-  const evalIds = validateEvalIds(opts.eval as string[], options.knownEvalIds);
+  const evalIds = options.knownEvalIds
+    ? validateEvalIds(opts.eval as string[], options.knownEvalIds)
+    : (opts.eval as string[]);
   const tools = validateTools(opts.tools as string);
   const workers = validateWorkers(opts.workers as string | undefined, matrix);
   const agentType = validateAgentType(opts.agentType as string | undefined);

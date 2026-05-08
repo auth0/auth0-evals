@@ -9,7 +9,7 @@
     "test:watch": "vitest",
     "lint": "eslint \"./**/*.ts\"",
     "prerun": "npm run build",
-    "run": "node dist/run.js",
+    "run": "a0-eval",
     "prereport": "npm run build",
     "report": "node dist/report.js"
   },
@@ -22,8 +22,7 @@
     "@github/copilot-sdk": "^0.2.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "commander": "^14.0.3",
-    "dotenv": "^17.4.2",
-    "p-limit": "^7.3.0"
+    "dotenv": "^17.4.2"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
