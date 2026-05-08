@@ -599,14 +599,29 @@ describe('llmJudge - enforceMaxChars=false', () => {
 // ── runGraders — judge overflow propagation ─────────────────────────────────
 
 describe('runGraders - judge overflow propagation', () => {
-  it('propagates overflow error from judge grader', async () => {
+  it('returns a failed result when judge grader throws overflow error', async () => {
     const dir = tmpDir();
     // Write a single file that exceeds the limit
     writeFileSync(join(dir, 'App.js'), 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1));
     const { judge } = await import('@a0/eval-graders');
     const graders = [judge('Does the code work?')];
 
-    await expect(runGraders(graders, dir, 'unused')).rejects.toThrow(/Code corpus exceeds limit/);
+    const results = await runGraders(graders, dir, 'unused');
+    expect(results.length).toBe(1);
+    expect(results[0].passed).toBe(false);
+    expect(results[0].detail).toMatch(/Code corpus exceeds limit/);
+  });
+
+  it('continues running remaining graders after one throws', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'App.js'), 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1));
+    const { judge, contains } = await import('@a0/eval-graders');
+    const graders = [judge('Does the code work?'), contains('x')];
+
+    const results = await runGraders(graders, dir, 'unused');
+    expect(results.length).toBe(2);
+    expect(results[0].passed).toBe(false); // judge failed with error
+    expect(results[1].passed).toBe(true); // contains still ran
   });
 });
 

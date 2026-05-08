@@ -131,7 +131,17 @@ export async function runGraders(
 
   const results: GraderResult[] = [];
   for (const g of active) {
-    results.push(await executeGrader(g, context));
+    try {
+      results.push(await executeGrader(g, context));
+    } catch (err) {
+      results.push({
+        name: g.name,
+        kind: g.kind,
+        passed: false,
+        detail: `Grader error [${g.name}/${g.kind}]: ${err instanceof Error ? err.message : String(err)}`,
+        level: g.level,
+      });
+    }
   }
 
   return results;
