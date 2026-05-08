@@ -18,7 +18,6 @@
   "dependencies": {
     "@a0/eval": "*",
     "@a0/eval-graders": "*",
-    "braintrust": "^3.9.0",
     "marked": "^18.0.2",
     "nunjucks": "^3.2.4"
   },

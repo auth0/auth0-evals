@@ -12,3 +12,5 @@ export {
 export { parseRunConfig, type RunConfig } from './config.js';
 
 export { spawnEval, mergeIntoOutput } from './subprocess-runner.js';
+
+export { runCli, runJob, buildJobList, buildSubprocessArgs } from './run.js';

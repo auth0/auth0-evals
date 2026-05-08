@@ -108,6 +108,9 @@ jobs:
         with:
           name: build-dist
 
+      - name: Link workspace bins
+        run: npm rebuild --ignore-scripts
+
       - name: Install Claude Code CLI
         if: matrix.agent_type == 'claude-code'
         run: |
@@ -133,7 +136,7 @@ jobs:
           if [ -n "${{ matrix.mode.tools }}" ]; then
             ARGS="$ARGS --tools ${{ matrix.mode.tools }}"
           fi
-          cd apps/auth0-evals && node dist/run.js $ARGS
+          cd apps/auth0-evals && npm run run -- $ARGS
 
       - name: Upload result
         if: always()

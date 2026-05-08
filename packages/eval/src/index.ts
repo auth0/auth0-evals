@@ -39,6 +39,10 @@ export {
   type RunConfig,
   spawnEval,
   mergeIntoOutput,
+  runCli,
+  runJob,
+  buildJobList,
+  buildSubprocessArgs,
 } from './cli/index.js';
 
 // Baseline runner
@@ -49,3 +53,9 @@ export { score, scoreToGrade } from './scorer.js';
 
 // Persistence
 export { resultKey, mergeResults, loadResults, saveResults, resolveOutputPath } from './persistence/index.js';
+
+// Braintrust reporters
+export { createBraintrustReporter, experimentName, mapResult } from './reporters/braintrust.js';
+export type { BraintrustReporter, BraintrustReporterOptions } from './reporters/braintrust.js';
+export { syncDataset, toEvalSummaries } from './reporters/braintrust-dataset.js';
+export type { EvalSummary, DatasetSyncOptions } from './reporters/braintrust-dataset.js';

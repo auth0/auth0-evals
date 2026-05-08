@@ -7,12 +7,6 @@ export { renderHtml } from './report.js';
 export { resultVariant, loadScores, groupResults, groupByVariant, computeDeltas, MODES } from './report/processors.js';
 export { registerFilters, ALL_FILTERS } from './report-filters.js';
 
-// Braintrust integration
-export { createBraintrustReporter, experimentName, mapResult } from './reporters/braintrust.js';
-export type { BraintrustReporter, BraintrustReporterOptions } from './reporters/braintrust.js';
-export { syncDataset, toEvalSummaries } from './reporters/braintrust-dataset.js';
-export type { EvalSummary, DatasetSyncOptions } from './reporters/braintrust-dataset.js';
-
 // Re-export types from @a0/eval for convenience
 export type {
   JobResult,

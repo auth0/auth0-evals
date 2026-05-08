@@ -8,8 +8,8 @@
  */
 
 import { init as btInit, type Experiment } from 'braintrust';
-import type { JobResult } from '@a0/eval';
-import { logger } from '@a0/eval';
+import type { JobResult } from '@a0/eval-core';
+import { logger } from '@a0/eval-core';
 
 export interface BraintrustReporterOptions {
   projectId?: string;
