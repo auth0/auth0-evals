@@ -11,6 +11,7 @@ export type { AgentType, Mode } from '@a0/eval-core';
 /** Models known to work reliably across all eval modes. Used when `--model all` is passed. */
 export const KNOWN_WORKING_MODELS = [
   'gpt-5.4',
+  'gpt-5.4-mini',
   'claude-sonnet-4-6',
   'claude-opus-4-6',
   'claude-opus-4-7',
