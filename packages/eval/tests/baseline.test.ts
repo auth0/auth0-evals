@@ -3,10 +3,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { estimateCost, runBaseline, gradeText } from '@a0/eval';
+import { estimateCost, gradeText } from '@a0/eval-core';
 import { judge } from '@a0/eval-graders';
+import { runBaseline } from '../src/runners/baseline.js';
 import { TEST_CONFIG } from './setup-config.js';
-import type { EvalDefinition } from '@a0/eval';
+import type { EvalDefinition } from '@a0/eval-core';
 
 const JUDGE_MAX_CODE_CHARS = TEST_CONFIG.judge.maxCodeChars!;
 

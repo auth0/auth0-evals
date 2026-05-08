@@ -1,11 +1,11 @@
 /**
- * Shared test config object — Auth0-specific values matching eval.config.js.
+ * Shared test config object — values matching eval.config.js.
  *
- * Used by both setup-config.ts (singleton initialisation) and vi.mock factories
+ * Used by setup-config.ts (singleton initialisation) and vi.mock factories
  * (for tests that use vi.resetModules() and need the mock to survive re-imports).
  */
 
-import type { FrameworkConfig } from '@a0/eval';
+import type { FrameworkConfig } from '@a0/eval-core';
 
 export const TEST_CONFIG: Required<FrameworkConfig> = {
   evalsDir: 'src/evals',

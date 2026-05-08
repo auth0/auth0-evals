@@ -1,15 +1,15 @@
 /**
- * Happy path tests for src/agent_eval/scorer.ts
+ * Happy path tests for src/scorer.ts
  */
 
 import { describe, it, expect } from 'vitest';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmpDir } from './tmp.js';
-import type { RunRecord, ToolCallRecord } from '@a0/eval';
+import type { RunRecord, ToolCallRecord, DimensionScore, ScoredResult } from '@a0/eval-core';
 import { GraderLevel, type GraderResult } from '@a0/eval-graders';
-import { collectGraderFiles as collectFiles } from '@a0/eval';
-import { score, scoreToGrade, type ScoredResult, type DimensionScore } from '@a0/eval';
+import { collectGraderFiles } from '@a0/eval-core';
+import { score, scoreToGrade } from '../src/scorer.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -452,7 +452,7 @@ describe('collectFiles - skill file exclusion', () => {
     mkdirSync(join(dir, '.claude', 'skills', 'auth0-react'), { recursive: true });
     writeFileSync(join(dir, '.claude', 'skills', 'auth0-react', 'SKILL.md'), 'loginWithRedirect');
 
-    const files = collectFiles(dir);
+    const files = collectGraderFiles(dir);
     const paths = Object.keys(files);
     expect(paths).toContain('app.ts');
     expect(paths.every((p) => !p.startsWith('.claude/'))).toBe(true);
@@ -464,7 +464,7 @@ describe('collectFiles - skill file exclusion', () => {
     mkdirSync(join(dir, '.claude', 'skills', 'auth0-react'), { recursive: true });
     writeFileSync(join(dir, '.claude', 'skills', 'auth0-react', 'SKILL.md'), 'Auth0Provider useAuth0');
 
-    const files = collectFiles(dir);
+    const files = collectGraderFiles(dir);
     const combined = Object.values(files).join('\n');
     expect(combined).not.toContain('Auth0Provider');
     expect(combined).not.toContain('useAuth0');
@@ -476,7 +476,7 @@ describe('collectFiles - skill file exclusion', () => {
     mkdirSync(join(dir, '.github'), { recursive: true });
     writeFileSync(join(dir, '.github', 'settings.json'), 'Auth0Provider useAuth0');
 
-    const files = collectFiles(dir);
+    const files = collectGraderFiles(dir);
     const paths = Object.keys(files);
     expect(paths).toContain('app.ts');
     expect(paths.every((p) => !p.startsWith('.github/'))).toBe(true);
@@ -488,7 +488,7 @@ describe('collectFiles - skill file exclusion', () => {
     mkdirSync(join(dir, '.gemini'), { recursive: true });
     writeFileSync(join(dir, '.gemini', 'settings.json'), 'Auth0Provider useAuth0');
 
-    const files = collectFiles(dir);
+    const files = collectGraderFiles(dir);
     const paths = Object.keys(files);
     expect(paths).toContain('app.ts');
     expect(paths.every((p) => !p.startsWith('.gemini/'))).toBe(true);
@@ -500,7 +500,7 @@ describe('collectFiles - skill file exclusion', () => {
     mkdirSync(join(dir, 'node_modules', 'some-pkg'), { recursive: true });
     writeFileSync(join(dir, 'node_modules', 'some-pkg', 'index.js'), "password = 'secret'");
 
-    const files = collectFiles(dir);
+    const files = collectGraderFiles(dir);
     const paths = Object.keys(files);
     expect(paths).toContain('app.ts');
     expect(paths.every((p) => !p.startsWith('node_modules/'))).toBe(true);
@@ -511,7 +511,7 @@ describe('collectFiles - skill file exclusion', () => {
     writeFileSync(join(dir, 'app.ts'), 'import { Auth0Provider } from "@auth0/auth0-react"');
     writeFileSync(join(dir, 'GEMINI.md'), 'Auth0Provider useAuth0 skill content');
 
-    const files = collectFiles(dir);
+    const files = collectGraderFiles(dir);
     const paths = Object.keys(files);
     expect(paths).toContain('app.ts');
     expect(paths).toContain('GEMINI.md');
