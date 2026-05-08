@@ -301,6 +301,7 @@ When MCP tools are enabled (`--tools mcp`), MCP server tool definitions are appe
 Used when `--model all` is passed:
 
 - `gpt-5.4` (default when no `--model` flag)
+- `gpt-5.4-mini`
 - `claude-sonnet-4-6`
 - `claude-opus-4-6`
 - `claude-opus-4-7`

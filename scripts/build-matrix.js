@@ -11,6 +11,7 @@ const ALL_MODES = [
 
 const ALL_MODELS = [
   'gpt-5.4',
+  'gpt-5.4-mini',
   'claude-sonnet-4-6',
   'claude-opus-4-6',
   'claude-opus-4-7',
