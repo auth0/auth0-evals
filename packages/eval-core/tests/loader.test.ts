@@ -1,5 +1,5 @@
 /**
- * Happy path tests for src/runners/loader.ts
+ * Happy path tests for src/loader.ts
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -7,13 +7,13 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { makeTmpDir } from './tmp.js';
 import { fileURLToPath } from 'node:url';
-import { loadEval } from '@a0/eval';
-import { EvalConfigError, EvalNotFoundError } from '@a0/eval';
+import { loadEval } from '../src/loader.js';
+import { EvalConfigError, EvalNotFoundError } from '../src/errors.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 // Absolute path to graders package so dynamically-created graders.ts in tmpdir can import it
-const GRADERS_ABS_PATH = resolve(__dirname, '../../../node_modules/@a0/eval-graders/dist/index.js');
+const GRADERS_ABS_PATH = resolve(__dirname, '../../eval-graders/dist/index.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

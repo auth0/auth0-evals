@@ -1,14 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import {
-  classifyActionType,
-  classifyErrorCategory,
-  FinishReason,
-  primaryArg,
-  type RunRecord,
-  type ToolCallRecord,
-  type TurnMetric,
-} from '@a0/eval';
-import { formatStep, serialiseTrace, serialiseTurnMetrics } from '@a0/eval';
+import { classifyActionType, classifyErrorCategory, primaryArg } from '../src/runners/classify.js';
+import { formatStep, serialiseTrace, serialiseTurnMetrics } from '../src/serializers.js';
+import type { FinishReason, RunRecord, ToolCallRecord, TurnMetric } from '../src/types/scorer.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 

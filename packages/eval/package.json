@@ -29,6 +29,7 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
+    "@a0/eval-graders": "*",
     "@types/node": "^25.6.0",
     "vitest": "^4.1.0"
   }

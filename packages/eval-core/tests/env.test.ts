@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
-import { filteredEnv } from '@a0/eval';
+import { filteredEnv } from '../src/utils/env.js';
 
 describe('filteredEnv', () => {
   const originalEnv = { ...process.env };
