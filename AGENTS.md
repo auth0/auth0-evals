@@ -306,6 +306,7 @@ Used when `--model all` is passed:
 - `claude-opus-4-7`
 - `claude-haiku-4-5`
 - `gemini-3.1-pro-preview`
+- `gemini-3.1-flash-lite-preview`
 
 ### Judge model
 
