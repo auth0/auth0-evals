@@ -19,6 +19,7 @@ import type {
   DimensionWeights,
 } from '@a0/eval-core';
 import { GraderLevel } from '@a0/eval-core';
+import { analyzeWaste } from './waste.js';
 
 // ── Default scoring constants ────────────────────────────────────────────────
 
@@ -32,8 +33,6 @@ const FRICTION_PROVIDER_ERROR_PENALTY = 10.0;
 
 const SPEED_IDEAL_ACTIVE_S = 60.0;
 const SPEED_DEGRADATION_RATE = 0.4;
-
-const EFFICIENCY_IDEAL_CALLS = 10;
 
 const ERROR_RECOVERY_PENALTY = 20.0;
 
@@ -127,22 +126,30 @@ function scoreSpeed(record: RunRecord, opts?: ScoringOptions): [number, string] 
 }
 
 function scoreEfficiency(record: RunRecord, opts?: ScoringOptions): [number, string] {
-  const idealCalls = opts?.efficiencyIdealCalls ?? EFFICIENCY_IDEAL_CALLS;
   const displayNames = opts?.toolDisplayNames ?? DEFAULT_TOOL_DISPLAY_NAMES;
 
   const total = record.toolCalls.length;
   if (total === 0) {
     return [100.0, 'N/A (no tools in baseline/skills mode)'];
   }
-  const s = Math.min(100.0, (100.0 * idealCalls) / Math.max(idealCalls, total));
 
-  // Build tool summary
+  const waste = analyzeWaste(record.toolCalls);
+  const s = Math.max(0, 100.0 * (1 - waste.wasteCount / total));
+
   const counts: Record<string, number> = {};
   for (const tc of record.toolCalls) {
     counts[tc.name] = (counts[tc.name] ?? 0) + 1;
   }
   const summary = formatToolSummary(counts, displayNames);
-  return [Math.round(s * 10) / 10, `${total} tool calls — ${summary}`];
+
+  const wasteParts: string[] = [];
+  if (waste.duplicateReads) wasteParts.push(`${waste.duplicateReads} dup read(s)`);
+  if (waste.erroredOrRetry) wasteParts.push(`${waste.erroredOrRetry} error/retry`);
+  if (waste.overwrittenWrites) wasteParts.push(`${waste.overwrittenWrites} overwritten write(s)`);
+  if (waste.interruptions) wasteParts.push(`${waste.interruptions} interruption(s)`);
+  const wasteStr = wasteParts.length ? ` [waste: ${wasteParts.join(', ')}]` : ' [no waste detected]';
+
+  return [Math.round(s * 10) / 10, `${total} tool calls — ${summary}${wasteStr}`];
 }
 
 function scoreErrors(record: RunRecord, opts?: ScoringOptions): [number, string] {

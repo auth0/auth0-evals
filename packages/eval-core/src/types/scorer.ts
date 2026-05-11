@@ -118,9 +118,6 @@ export interface ScoringOptions {
   /** Points deducted per excess second in Setup Speed (default: 0.4) */
   speedDegradationRate?: number;
 
-  /** Ideal number of tool calls for Efficiency (default: 10) */
-  efficiencyIdealCalls?: number;
-
   /** Points deducted per provider error in Error Recovery (default: 20) */
   errorRecoveryPenalty?: number;
 

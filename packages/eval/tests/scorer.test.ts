@@ -10,6 +10,7 @@ import type { RunRecord, ToolCallRecord, DimensionScore, ScoredResult } from '@a
 import { GraderLevel, type GraderResult } from '@a0/eval-graders';
 import { collectGraderFiles } from '@a0/eval-core';
 import { score, scoreToGrade } from '../src/scorer.js';
+import { analyzeWaste } from '../src/waste.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -138,28 +139,254 @@ describe('score - Efficiency', () => {
     expect(getDim(result, 'Efficiency').rawScore).toBe(0);
   });
 
-  it('at ideal call count = 100', () => {
+  it('zero waste = 100 regardless of call count', () => {
     const dir = tmpDir();
     const record = makeRecord({ workspace: dir });
-    record.toolCalls = Array.from({ length: 10 }, () => makeToolCall());
+    // 40 clean calls — no waste; old formula would have scored this 25
+    record.toolCalls = Array.from({ length: 40 }, (_, i) =>
+      makeToolCall(i % 2 === 0 ? 'write_file' : 'run_command', 1, {
+        args: { path: `file${i}.ts` },
+      }),
+    );
     const result = score(record);
     expect(getDim(result, 'Efficiency').rawScore).toBe(100.0);
   });
 
-  it('degrades above ideal', () => {
+  it('duplicate reads count as waste', () => {
     const dir = tmpDir();
     const record = makeRecord({ workspace: dir });
-    record.toolCalls = Array.from({ length: 20 }, () => makeToolCall());
+    // read same file twice, no write or run_command in between
+    record.toolCalls = [
+      makeToolCall('read_file', 1, { args: { path: 'a.ts' } }),
+      makeToolCall('read_file', 1, { args: { path: 'a.ts' } }),
+    ];
     const result = score(record);
-    expect(getDim(result, 'Efficiency').rawScore).toBeLessThan(100.0);
+    // 1 waste out of 2 = 50%
+    expect(getDim(result, 'Efficiency').rawScore).toBe(50.0);
+    expect(getDim(result, 'Efficiency').notes).toContain('dup read');
+  });
+
+  it('run_command between reads resets duplicate tracking', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    record.toolCalls = [
+      makeToolCall('read_file', 1, { args: { path: 'a.ts' } }),
+      makeToolCall('run_command', 1, { args: { command: 'npm install' } }),
+      makeToolCall('read_file', 1, { args: { path: 'a.ts' } }),
+    ];
+    const result = score(record);
+    // run_command resets tracking — second read is not a duplicate
+    expect(getDim(result, 'Efficiency').rawScore).toBe(100.0);
+  });
+
+  it('errored calls count as waste', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    record.toolCalls = [
+      makeToolCall('write_file', 1, { causedError: true }),
+      makeToolCall('write_file', 1),
+      makeToolCall('write_file', 1),
+    ];
+    const result = score(record);
+    // 1 waste out of 3 ≈ 66.7
+    expect(getDim(result, 'Efficiency').rawScore).toBeCloseTo(66.7, 0);
+    expect(getDim(result, 'Efficiency').notes).toContain('error/retry');
+  });
+
+  it('retry calls count as waste', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    record.toolCalls = [makeToolCall('run_command', 1, { isRetry: true }), makeToolCall('run_command', 1)];
+    const result = score(record);
+    // 1 waste out of 2 = 50
+    expect(getDim(result, 'Efficiency').rawScore).toBe(50.0);
+  });
+
+  it('overwritten write counts first write as waste', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    // two consecutive writes to same path (no read between) = first is overwritten
+    record.toolCalls = [
+      makeToolCall('write_file', 1, { args: { path: 'app.ts' } }),
+      makeToolCall('write_file', 1, { args: { path: 'app.ts' } }),
+      makeToolCall('write_file', 1, { args: { path: 'other.ts' } }),
+    ];
+    const result = score(record);
+    // 1 waste (overwritten write) out of 3 ≈ 66.7
+    expect(getDim(result, 'Efficiency').rawScore).toBeCloseTo(66.7, 0);
+    expect(getDim(result, 'Efficiency').notes).toContain('overwritten write');
+  });
+
+  it('read between writes cancels overwrite tracking', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    record.toolCalls = [
+      makeToolCall('write_file', 1, { args: { path: 'app.ts' } }),
+      makeToolCall('read_file', 1, { args: { path: 'app.ts' } }),
+      makeToolCall('write_file', 1, { args: { path: 'app.ts' } }),
+    ];
+    const result = score(record);
+    // read between writes = first write was used, no overwrite waste
+    expect(getDim(result, 'Efficiency').rawScore).toBe(100.0);
+  });
+
+  it('interruptions count as waste (double-counted with friction by design)', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    record.toolCalls = [
+      makeToolCall('ask_user', 1, { isInterruption: true }),
+      makeToolCall('write_file', 1),
+      makeToolCall('write_file', 1),
+      makeToolCall('write_file', 1),
+    ];
+    const result = score(record);
+    // 1 waste out of 4 = 75
+    expect(getDim(result, 'Efficiency').rawScore).toBe(75.0);
+    expect(getDim(result, 'Efficiency').notes).toContain('interruption');
   });
 
   it('notes include tool summary', () => {
     const dir = tmpDir();
     const record = makeRecord({ workspace: dir });
-    record.toolCalls = Array.from({ length: 3 }, () => makeToolCall('read_file'));
+    record.toolCalls = Array.from({ length: 3 }, () => makeToolCall('read_file', 1, { args: { path: 'unique' } }));
     const result = score(record);
     expect(getDim(result, 'Efficiency').notes).toContain('Read');
+  });
+});
+
+// ── analyzeWaste unit tests ───────────────────────────────────────────────────
+
+describe('analyzeWaste', () => {
+  it('empty call list returns all zeros', () => {
+    const result = analyzeWaste([]);
+    expect(result).toEqual({
+      totalCalls: 0,
+      wasteCount: 0,
+      duplicateReads: 0,
+      erroredOrRetry: 0,
+      overwrittenWrites: 0,
+      interruptions: 0,
+    });
+  });
+
+  it('clean calls have no waste', () => {
+    const calls = [
+      makeToolCall('read_file', 1, { args: { path: 'a.ts' } }),
+      makeToolCall('write_file', 1, { args: { path: 'b.ts' } }),
+      makeToolCall('run_command', 1),
+    ];
+    const result = analyzeWaste(calls);
+    expect(result.wasteCount).toBe(0);
+  });
+
+  it('duplicate read detected', () => {
+    const calls = [
+      makeToolCall('read_file', 1, { args: { path: 'a.ts' } }),
+      makeToolCall('read_file', 1, { args: { path: 'a.ts' } }),
+    ];
+    const result = analyzeWaste(calls);
+    expect(result.duplicateReads).toBe(1);
+    expect(result.wasteCount).toBe(1);
+  });
+
+  it('run_command resets duplicate read tracking', () => {
+    const calls = [
+      makeToolCall('read_file', 1, { args: { path: 'a.ts' } }),
+      makeToolCall('run_command', 1),
+      makeToolCall('read_file', 1, { args: { path: 'a.ts' } }),
+    ];
+    expect(analyzeWaste(calls).duplicateReads).toBe(0);
+  });
+
+  it('write_file resets duplicate read tracking for that path', () => {
+    const calls = [
+      makeToolCall('read_file', 1, { args: { path: 'a.ts' } }),
+      makeToolCall('write_file', 1, { args: { path: 'a.ts' } }),
+      makeToolCall('read_file', 1, { args: { path: 'a.ts' } }),
+    ];
+    expect(analyzeWaste(calls).duplicateReads).toBe(0);
+  });
+
+  it('errored call counted as waste', () => {
+    const calls = [makeToolCall('run_command', 1, { causedError: true }), makeToolCall('run_command', 1)];
+    const result = analyzeWaste(calls);
+    expect(result.erroredOrRetry).toBe(1);
+    expect(result.wasteCount).toBe(1);
+  });
+
+  it('retry call counted as waste', () => {
+    const calls = [makeToolCall('run_command', 1, { isRetry: true }), makeToolCall('run_command', 1)];
+    const result = analyzeWaste(calls);
+    expect(result.erroredOrRetry).toBe(1);
+    expect(result.wasteCount).toBe(1);
+  });
+
+  it('overwritten write detected', () => {
+    const calls = [
+      makeToolCall('write_file', 1, { args: { path: 'app.ts' } }),
+      makeToolCall('write_file', 1, { args: { path: 'app.ts' } }),
+    ];
+    const result = analyzeWaste(calls);
+    expect(result.overwrittenWrites).toBe(1);
+    expect(result.wasteCount).toBe(1);
+  });
+
+  it('read between writes cancels overwrite tracking', () => {
+    const calls = [
+      makeToolCall('write_file', 1, { args: { path: 'app.ts' } }),
+      makeToolCall('read_file', 1, { args: { path: 'app.ts' } }),
+      makeToolCall('write_file', 1, { args: { path: 'app.ts' } }),
+    ];
+    expect(analyzeWaste(calls).overwrittenWrites).toBe(0);
+  });
+
+  it('interruption counted as waste', () => {
+    const calls = [makeToolCall('ask_user', 1, { isInterruption: true }), makeToolCall('write_file', 1)];
+    const result = analyzeWaste(calls);
+    expect(result.interruptions).toBe(1);
+    expect(result.wasteCount).toBe(1);
+  });
+
+  it('call matching multiple categories counted once in wasteCount', () => {
+    // causedError + isRetry on same call — wasteCount should be 1, not 2
+    const calls = [makeToolCall('run_command', 1, { causedError: true, isRetry: true })];
+    const result = analyzeWaste(calls);
+    expect(result.wasteCount).toBe(1);
+    expect(result.erroredOrRetry).toBe(1);
+  });
+
+  it('errored read_file is not counted as duplicateRead', () => {
+    // A read_file with causedError=true should appear in erroredOrRetry only,
+    // not in duplicateReads — even though wasteFlags[i] is true.
+    const calls = [makeToolCall('read_file', 1, { args: { path: 'a.ts' }, causedError: true })];
+    const result = analyzeWaste(calls);
+    expect(result.erroredOrRetry).toBe(1);
+    expect(result.duplicateReads).toBe(0);
+    expect(result.wasteCount).toBe(1);
+  });
+
+  it('overwrittenWrites is accurate when other categories also have waste', () => {
+    // errored call + overwritten write — overwrittenWrites must be 1, not 0
+    const calls = [
+      makeToolCall('run_command', 1, { causedError: true }),
+      makeToolCall('write_file', 1, { args: { path: 'app.ts' } }),
+      makeToolCall('write_file', 1, { args: { path: 'app.ts' } }),
+    ];
+    const result = analyzeWaste(calls);
+    expect(result.erroredOrRetry).toBe(1);
+    expect(result.overwrittenWrites).toBe(1);
+    expect(result.wasteCount).toBe(2);
+  });
+
+  it('write_file to different path does not reset duplicate-read tracking', () => {
+    // write_file(b.ts) should not clear the read tracking for a.ts
+    const calls = [
+      makeToolCall('read_file', 1, { args: { path: 'a.ts' } }),
+      makeToolCall('write_file', 1, { args: { path: 'b.ts' } }),
+      makeToolCall('read_file', 1, { args: { path: 'a.ts' } }),
+    ];
+    const result = analyzeWaste(calls);
+    expect(result.duplicateReads).toBe(1);
   });
 });
 
