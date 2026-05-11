@@ -177,13 +177,18 @@ score = max(0, 100 - excess × 0.4)
 Measures whether the agent solved the task in a focused way or thrashed — reading files it didn't need, retrying failed writes, overwriting its own output.
 
 ```
-score = min(100, 100 × 10 / max(10, total_calls))
+waste_count = count of tool calls matching ≥1 waste category (each call counted at most once)
+efficiency (%) = max(0, 100 × (1 - waste_count / total_calls))
 ```
 
-- **Ideal**: 10 tool calls (`EFFICIENCY_IDEAL_CALLS`). At or below 10 = score 100.
-- **Degradation**: inversely proportional. 20 calls = 50, 40 calls = 25, 100 calls = 10.
+Waste categories (a single call can match multiple, but is counted at most once):
+1. **Duplicate reads** — same path read twice with no intervening `write_file` or `run_command`. A `run_command` resets duplicate-read tracking for all paths (it may mutate any file).
+2. **Errored calls** — any call where `causedError = true` OR `isRetry = true`.
+3. **Overwritten writes** — a `write_file` to path X followed by another `write_file` to path X with no intervening `read_file` (the first write was discarded).
+4. **Interruptions** — `isInterruption = true` calls. Intentionally double-counted with Setup Friction (Friction penalises user disruption; Efficiency penalises the wasted call slot).
+
 - When `total_calls == 0`, the scorer function returns 100 but the process-dimension gate (see Overview) zeroes it — a run with no tool calls scores 0 on all process dimensions.
-- Notes include a breakdown of tool calls by name.
+- Notes include a tool-call summary plus a per-category waste breakdown.
 
 #### Error Recovery — 8%
 
