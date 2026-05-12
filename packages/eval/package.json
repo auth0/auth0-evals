@@ -16,7 +16,9 @@
   "dependencies": {
     "@a0/eval-core": "*",
     "@a0/eval-react-runner": "*",
+    "@anthropic-ai/claude-code": "stable",
     "@anthropic-ai/claude-agent-sdk": "^0.2.117",
+    "@google/gemini-cli": "^0.41.2",
     "braintrust": "^3.9.0",
     "@github/copilot-sdk": "^0.2.2",
     "commander": "^14.0.3",

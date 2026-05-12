@@ -111,21 +111,15 @@ jobs:
       - name: Link workspace bins
         run: npm rebuild --ignore-scripts
 
-      - name: Install Claude Code CLI
-        if: matrix.agent_type == 'claude-code'
-        run: |
-          npm install -g @anthropic-ai/claude-code@stable
-          echo "CLAUDE_CLI_PATH=$(which claude)" >> "$GITHUB_ENV"
-
-      - name: Install Gemini CLI
-        if: matrix.agent_type == 'gemini-cli'
-        run: npm install -g @google/gemini-cli
+      - name: Add node_modules/.bin to PATH
+        run: echo "${{ github.workspace }}/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: Run eval
         env:
           ATKO_API_KEY: ${{ secrets.ATKO_API_KEY }}
           CLAUDE_CODE_USE_BEDROCK_PROXY: 0
           CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: 1
+          CLAUDE_CLI_PATH: ${{ github.workspace }}/node_modules/.bin/claude
           GH_TOKEN: ${{ matrix.agent_type == 'copilot' && secrets.GH_COPILOT_TOKEN || '' }}
         run: |
           ARGS="--eval ${{ matrix.eval }} \
