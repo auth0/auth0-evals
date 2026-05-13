@@ -63,6 +63,7 @@ beforeAll(() => {
   setFrameworkConfig(TEST_CONFIG);
 });
 
+import { MAX_TURNS } from '@a0/eval-core';
 import { ClaudeCodeTranslator } from '../../src/runners/claude-code/translator.js';
 
 // ── Mock for @anthropic-ai/claude-agent-sdk ───────────────────────────────────
@@ -764,6 +765,29 @@ describe('runClaudeCodeAgent', () => {
     const after = Date.now() / 1000;
     expect(record.endTime).toBeGreaterThanOrEqual(before);
     expect(record.endTime).toBeLessThanOrEqual(after + 0.01);
+  });
+
+  it('aborts when MAX_TURNS is reached', async () => {
+    // Generate MAX_TURNS + 5 assistant messages — only MAX_TURNS should be processed
+    const messages: SDKMessage[] = [];
+    for (let i = 0; i < MAX_TURNS + 5; i++) {
+      messages.push(
+        makeAssistantMsg({
+          content: [{ type: 'tool_use', id: `tu_${i}`, name: 'Bash', input: { command: 'echo hi' } }],
+        }) as SDKMessage,
+      );
+      messages.push(
+        makeUserMsg([{ type: 'tool_result', tool_use_id: `tu_${i}`, content: 'hi', is_error: false }]) as SDKMessage,
+      );
+    }
+    messages.push(makeResultMsg({ subtype: 'success' }) as SDKMessage);
+
+    mockQuery.mockReturnValue(fakeQuery(messages));
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+
+    expect(record.status).toBe('failure');
+    expect(record.providerErrors.some((e) => e.includes('turn limit'))).toBe(true);
+    expect(record.turnMetrics.length).toBe(MAX_TURNS);
   });
 });
 

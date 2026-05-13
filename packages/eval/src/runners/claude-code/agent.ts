@@ -21,6 +21,7 @@ import type {
 import type { RunRecord, ToolCallRecord, TurnMetric, FinishReason, EvalDefinition } from '@a0/eval-core';
 import {
   CLAUDE_CODE_TASK_TIMEOUT_MS,
+  MAX_TURNS,
   getLitellmModelMap,
   getLitellmModelReverseMap,
   getFrameworkConfig,
@@ -221,6 +222,13 @@ export async function runClaudeCodeAgent(
       if (update) {
         turnNum = update.turnNum;
         prevTurnEndTime = update.prevTurnEndTime;
+      }
+      if (turnNum >= MAX_TURNS) {
+        record.providerErrors.push(`turn limit: stopped after ${MAX_TURNS} turns`);
+        record.status = 'failure';
+        logger.info(`[ClaudeCode] ✗ Turn limit reached (${MAX_TURNS}) — aborting`);
+        abortController.abort();
+        break;
       }
     }
   } catch (err: unknown) {

@@ -1,6 +1,6 @@
 import { getFrameworkConfig } from './framework-config.js';
 
-export const MAX_TURNS = 30;
+export const MAX_TURNS = 75;
 
 // Model name prefixes routed through Bedrock — require special handling
 // (XML tool calls, no tool_choice, results as user messages).

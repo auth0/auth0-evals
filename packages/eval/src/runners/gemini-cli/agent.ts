@@ -22,6 +22,7 @@ import { join } from 'node:path';
 import type { RunRecord, ToolCallRecord, TurnMetric, EvalDefinition } from '@a0/eval-core';
 import {
   CLAUDE_CODE_TASK_TIMEOUT_MS,
+  MAX_TURNS,
   getFrameworkConfig,
   getAgentProxyBaseUrl,
   estimateCost,
@@ -143,6 +144,7 @@ export async function runGeminiCliAgent(
   const pending = new Map<string, { name: string; args: Record<string, unknown>; startTime: number }>();
 
   // Turn tracking — one TurnMetric per assistant message batch.
+  let turnLimitReached = false;
   let turnNum = 0;
   let turnToolCount = 0;
   let turnStartTime = record.startTime;
@@ -265,6 +267,13 @@ export async function runGeminiCliAgent(
                 turnStartTime = turnEndTime;
                 logger.info(`[GeminiCLI] Turn ${turnNum}: ${turnToolCount} tool(s)`);
                 turnToolCount = 0;
+                if (!turnLimitReached && turnNum >= MAX_TURNS) {
+                  turnLimitReached = true;
+                  record.providerErrors.push(`turn limit: stopped after ${MAX_TURNS} turns`);
+                  record.status = 'failure';
+                  logger.info(`[GeminiCLI] ✗ Turn limit reached (${MAX_TURNS}) — killing`);
+                  child.kill('SIGTERM');
+                }
               }
             }
             break;
@@ -296,6 +305,14 @@ export async function runGeminiCliAgent(
               };
               record.turnMetrics.push(tm);
               turnToolCount = 0;
+
+              if (!turnLimitReached && turnNum >= MAX_TURNS) {
+                turnLimitReached = true;
+                record.providerErrors.push(`turn limit: stopped after ${MAX_TURNS} turns`);
+                record.status = 'failure';
+                logger.info(`[GeminiCLI] ✗ Turn limit reached (${MAX_TURNS}) — killing`);
+                child.kill('SIGTERM');
+              }
             }
 
             record.inputTokens = inputTokens;
