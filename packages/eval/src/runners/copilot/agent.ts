@@ -20,6 +20,7 @@ import type { MCPRemoteServerConfig } from '@github/copilot-sdk';
 import type { EvalDefinition, RunRecord, ToolCallRecord, TurnMetric } from '@a0/eval-core';
 import {
   COPILOT_TASK_TIMEOUT_MS,
+  MAX_TURNS,
   getFrameworkConfig,
   estimateCost,
   logger,
@@ -102,6 +103,7 @@ export async function runCopilotAgent(
   // Mutable turn state captured by event handler closures.
   let turnNum = 0;
   let prevTurnEndTime = record.startTime;
+  let turnLimitReached = false;
   const pending = new Map<string, PendingToolCall>();
 
   // Copilot SDK-specific env vars that must reach the subprocess.
@@ -176,6 +178,14 @@ export async function runCopilotAgent(
       }
 
       logger.info(`[Copilot] Turn ${turnNum}: ${toolCallCount} tool(s), finish=${turnMetric.finishReason}`);
+
+      if (!turnLimitReached && turnNum >= MAX_TURNS) {
+        turnLimitReached = true;
+        record.providerErrors.push(`turn limit: stopped after ${MAX_TURNS} turns`);
+        record.status = 'failure';
+        logger.info(`[Copilot] ✗ Turn limit reached (${MAX_TURNS}) — aborting`);
+        session.abort().catch(() => {});
+      }
     } catch (e) {
       record.providerErrors.push(`assistant.message handler error: ${e}`);
     }
@@ -279,7 +289,9 @@ export async function runCopilotAgent(
     if (lastMessage && !record.finalSummary) {
       record.finalSummary = lastMessage.data?.content ?? '';
     }
-    record.status = 'success';
+    if (!turnLimitReached) {
+      record.status = 'success';
+    }
   } catch (err) {
     const msg = String(err);
     record.providerErrors.push(`task error: ${msg}`);

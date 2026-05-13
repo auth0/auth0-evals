@@ -34,6 +34,7 @@ vi.mock('@a0/eval-core', async () => ({
 const mockSpawn = vi.hoisted(() => vi.fn());
 vi.mock('node:child_process', () => ({ spawn: mockSpawn }));
 
+import { MAX_TURNS } from '@a0/eval-core';
 import { runGeminiCliAgent } from '../../src/runners/gemini-cli/agent.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -414,6 +415,28 @@ describe('status and final state', () => {
     const record = await runGeminiCliAgent(evalDef, workspace);
     expect(record.status).toBe('failure');
     expect(record.providerErrors.some((e) => e.includes('spawn ENOENT'))).toBe(true);
+  });
+
+  it('kills subprocess when MAX_TURNS is reached', async () => {
+    const events: JsonlEvent[] = [];
+    for (let i = 0; i < MAX_TURNS + 5; i++) {
+      events.push({ type: 'tool_use', tool_id: `t${i}`, tool_name: 'read_file', parameters: {} });
+      events.push({ type: 'tool_result', tool_id: `t${i}`, status: 'success', output: 'ok' });
+      events.push({ type: 'message', role: 'assistant', content: `Turn ${i + 1}.`, delta: false });
+    }
+    events.push(resultEvent());
+
+    const child = makeChild(events);
+    mockSpawn.mockReturnValue(child);
+
+    const record = await runGeminiCliAgent(evalDef, workspace);
+
+    expect(record.status).toBe('failure');
+    expect(record.providerErrors.some((e) => e.includes('turn limit'))).toBe(true);
+    // child.kill is mocked so the stream isn't actually stopped — turns may
+    // exceed MAX_TURNS in the test. In production SIGTERM kills the process.
+    expect(record.turnMetrics.length).toBeGreaterThanOrEqual(MAX_TURNS);
+    expect(child.kill).toHaveBeenCalledWith('SIGTERM');
   });
 
   it('endTime is always set after completion', async () => {
