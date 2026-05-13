@@ -3,7 +3,7 @@
  */
 
 /** Agent runner types accepted by the `--agent-type` flag. */
-export const KNOWN_AGENT_TYPES = ['auth0-ReAct-agent', 'claude-code', 'copilot', 'gemini-cli'] as const;
+export const KNOWN_AGENT_TYPES = ['claude-code', 'copilot', 'gemini-cli'] as const;
 
 /** Union of valid agent runner identifiers. */
 export type AgentType = (typeof KNOWN_AGENT_TYPES)[number];

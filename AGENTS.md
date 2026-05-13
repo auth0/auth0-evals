@@ -248,9 +248,8 @@ else: score = 100 × passed / relevant.length
 
 | Runner | ID | Used for | How it's selected |
 |---|---|---|---|
-| ReAct | `auth0-ReAct-agent` | Default fallback, any model via ATKO LiteLLM proxy | Default when no auto-routing matches, or explicit `--agent-type` |
 | Claude Code | `claude-code` | Claude models via Agent SDK | Auto-selected for `claude-*` models when no `--agent-type` flag |
-| Copilot SDK | `copilot` | GPT models via `@github/copilot-sdk` | Auto-selected for `gpt-*` models when no `--agent-type` flag |
+| Copilot SDK | `copilot` | GPT models via `@github/copilot-sdk` | Auto-selected for `gpt-*` models when no `--agent-type` flag; default fallback |
 | Gemini CLI | `gemini-cli` | Gemini models via Gemini CLI | Auto-selected for `gemini-*` models when no `--agent-type` flag |
 
 ### Auto-routing logic
@@ -259,7 +258,7 @@ When `--agent-type` is **not** specified, the runner is selected by model prefix
 - `claude-*` → `claude-code`
 - `gemini-*` → `gemini-cli`
 - `gpt-*` → `copilot`
-- anything else → `auth0-ReAct-agent` (default)
+- anything else → `copilot` (default)
 
 Explicit `--agent-type` overrides auto-routing for runner selection. Exception: `--agent-type claude-code` with a non-`claude-*` model replaces the model with a deduplicated sentinel (`model='claude-code'`), causing the runner to use its default Claude model instead of attempting the requested one.
 
@@ -279,21 +278,9 @@ Set `CLAUDE_CODE_USE_BEDROCK_PROXY=0` to route through the LiteLLM proxy instead
 
 ---
 
-## ReAct agent tools
+## Agent tools
 
-The built-in ReAct agent has 7 base tools available to all agent configurations, plus 2 skill-only tools:
-
-| Tool | Available in | Purpose |
-|---|---|---|
-| `read_file` | All agent configs | Read file contents from workspace |
-| `list_files` | All agent configs | List files under a directory |
-| `write_file` | All agent configs | Write/overwrite a file |
-| `run_command` | All agent configs | Run shell command in workspace |
-| `fetch_url` | All agent configs | Fetch a documentation URL |
-| `ask_user` | All agent configs | Ask user for info (credentials, domains) — counts as interruption |
-| `finish_task` | All agent configs | Signal task completion |
-| `list_skill_files` | `+skills` configs only | List files in an Auth0 SDK skill directory |
-| `read_skill_file` | `+skills` configs only | Read a file from an Auth0 SDK skill directory |
+All agent runners have access to file/shell tools in their respective environments. When using the Copilot runner, the equivalent capabilities are provided natively by the `@github/copilot-sdk` agent loop.
 
 When MCP tools are enabled (`--tools mcp`), MCP server tool definitions are appended to the tool list.
 
@@ -375,7 +362,7 @@ npm run report
 | `--model <model>` | Any model string | `gpt-5.4` | Repeatable; `all` expands to known working models |
 | `--mode <mode>` | `baseline`, `agent`, `all` | `baseline` | `all` expands to both |
 | `--tools <tools>` | `skills`, `mcp`, or comma-separated | none | Only applies to agent mode |
-| `--agent-type <type>` | `auth0-ReAct-agent`, `claude-code`, `copilot`, `gemini-cli` | auto-routed by model | Overrides auto-routing |
+| `--agent-type <type>` | `claude-code`, `copilot`, `gemini-cli` | auto-routed by model | Overrides auto-routing |
 | `--matrix` | flag | off | All evals × models × baseline + agent with tool sets (skills, mcp+skills); defaults workers to 20 |
 | `--workers <n>` | number | 4 (defaults to 20 in matrix) | Parallel job limit |
 | `--output <path>` | file path | auto-named | JSON results output |
@@ -395,7 +382,7 @@ npm run report
 | **Needle** | The substring or pattern a grader searches for — as in "needle in a haystack." The first argument to `contains`, `notContains`, and `notContainsInSource`. |
 | **Configuration** | A specific combination of mode + tools — e.g., `agent+mcp+skills`. Determines which grader levels are active. |
 | **Mode** | `baseline` (single LLM call, no tools) or `agent` (full agentic loop with file/shell tools). |
-| **Runner** | The agent runtime that executes the task: ReAct (built-in), Claude Code, Copilot SDK, or Gemini CLI. |
+| **Runner** | The agent runtime that executes the task: Claude Code, Copilot SDK, or Gemini CLI. |
 | **Interruption** | An `ask_user` tool call — the agent asking for human input (credentials, domains). Penalized in Setup Friction scoring. |
 | **Provider error** | LLM API failure: rate limit, timeout, malformed response. Penalized in both Setup Friction and Error Recovery. |
 | **Holistic judge** | The final `judge()` grader in every eval with no level assigned. Always runs regardless of configuration. Asks the LLM judge a high-level yes/no question about overall correctness. |

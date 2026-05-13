@@ -31,6 +31,5 @@ runs:
           apps/auth0-evals/dist/
           packages/eval-core/dist/
           packages/eval-graders/dist/
-          packages/eval-react-runner/dist/
           packages/eval-reporter/dist/
           packages/eval/dist/

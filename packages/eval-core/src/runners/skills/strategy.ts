@@ -3,7 +3,6 @@
  *
  * Contains the SkillsStrategy interface and concrete implementations:
  *
- *   - InjectSkillsStrategy  (ReAct-style agents)
  *   - CopySkillsStrategy  (filesystem-native agents: Claude Code, Copilot, Gemini, etc.)
  */
 
@@ -57,31 +56,6 @@ export async function copySkillsToWorkspace(
   return evalDef;
 }
 
-export async function augmentWithSkills(evalDef: EvalDefinition): Promise<EvalDefinition> {
-  if (!evalDef.skills.length) {
-    return evalDef;
-  }
-
-  const manager = getSkillsManager();
-  const cloned = await manager.ensureAllCloned();
-  if (!cloned) {
-    logger.warn('[skills] Remote clone/pull failed — skills may resolve from stale or missing checkouts');
-  }
-
-  const names = evalDef.skills.join(', ');
-  const notice =
-    `## Available Skills\n\n` +
-    `The following Auth0 SDK skills are available: ${names}\n\n` +
-    `Use \`list_skill_files\` to browse a skill's documentation files ` +
-    `and \`read_skill_file\` to read specific files.\n\n` +
-    `Always ensure you load the relevant skills before doing anything else, ` +
-    `so you can use the documentation to help understand the approach to take.`;
-
-  const parts = [notice];
-  if (evalDef.agentSystemPrompt) parts.push(evalDef.agentSystemPrompt);
-  return { ...evalDef, agentSystemPrompt: parts.join('\n\n---\n\n') };
-}
-
 // ── SkillsStrategy Interface ──────────────────────────────────────────────────
 
 /**
@@ -90,34 +64,15 @@ export async function augmentWithSkills(evalDef: EvalDefinition): Promise<EvalDe
  * Skills can be delivered to an agent in different ways depending on how that
  * agent accesses external context:
  *
- *   - InjectSkillsStrategy  (ReAct-style agents)
- *       Prepends a skills notice and tool hints to evalDef.agentSystemPrompt.
- *       The agent accesses skills via the `list_skill_files` / `read_skill_file`
- *       custom tools.
- *
  *   - CopySkillsStrategy  (filesystem-native agents such as Claude Code, Copilot, Gemini)
  *       Copies skill files into the workspace under a configurable directory.
  *       Auto-discovered by some CLIs (Claude Code, Gemini); explicitly configured
  *       in the runner for others (Copilot).
  *
- * When adding a new agent, pick the strategy that matches how it reads context
- * — no need to re-implement the injection logic.
+ * When adding a new agent, pick the strategy that matches how it reads context.
  */
 export interface SkillsStrategy {
   apply(evalDef: EvalDefinition, workspace: string): Promise<EvalDefinition>;
-}
-
-// ── InjectSkillsStrategy ──────────────────────────────────────────────────────
-
-/**
- * Delivers skills by injecting a notice into the agent system prompt.
- * Used by the ReAct agent, which accesses skills via `list_skill_files` and
- * `read_skill_file` tool calls.
- */
-export class InjectSkillsStrategy implements SkillsStrategy {
-  async apply(evalDef: EvalDefinition, _workspace: string): Promise<EvalDefinition> {
-    return augmentWithSkills(evalDef);
-  }
 }
 
 // ── CopySkillsStrategy ────────────────────────────────────────────────────────

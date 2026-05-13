@@ -18,8 +18,6 @@ import type {
   SDKResultMessage,
   SDKSystemMessage,
 } from '@anthropic-ai/claude-agent-sdk';
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { RunRecord, ToolCallRecord, TurnMetric, FinishReason, EvalDefinition } from '@a0/eval-core';
 import {
   CLAUDE_CODE_TASK_TIMEOUT_MS,
@@ -98,16 +96,6 @@ export interface ClaudeCodeRunOptions {
    * an ATKO proxy alias (e.g. `claude-sonnet-4-6`) when routing through the proxy.
    */
   model?: string;
-}
-
-/**
- * Writes the agent system prompt as CLAUDE.md in the workspace so Claude Code
- * picks it up as persistent context. No-op when prompt is empty.
- */
-export function writeAgentSystemPrompt(workspace: string, prompt: string): void {
-  if (prompt) {
-    writeFileSync(join(workspace, 'CLAUDE.md'), prompt, 'utf-8');
-  }
 }
 
 /**

@@ -11,7 +11,7 @@
  *                 Use 'all' to run all known working models.
  *   --mode        Execution mode: baseline | agent | all (default: baseline)
  *   --matrix      Run all evals × all models × all modes × all tool-set combinations
- *   --agent-type  Agent runner for agent mode: auth0-ReAct-agent | claude-code | copilot (default: auth0-ReAct-agent)
+ *   --agent-type  Agent runner for agent mode: claude-code | copilot | gemini-cli (default: copilot)
  *   --tools       Tools to inject for agent mode: skills, mcp (default: none). Case-insensitive.
  *   --workers     Parallel workers (default: 4)
  *   --output      JSON output path (default: scores-<mode>.json)
@@ -69,8 +69,6 @@ async function initRunners(): Promise<void> {
   if (runnersInitialised) return;
   runnersInitialised = true;
 
-  const { ReactAgentRunner } = await import('@a0/eval-react-runner');
-  registerRunner('auth0-ReAct-agent', new ReactAgentRunner());
   registerRunner('claude-code', new ClaudeCodeRunner());
   registerRunner('copilot', new CopilotCliRunner());
   registerRunner('gemini-cli', new GeminiCliRunner());
@@ -227,7 +225,7 @@ export function buildSubprocessArgs(argv: string[] = process.argv.slice(2)): str
  *   - Gemini models (prefix `gemini-`) with no explicit --agent-type → `gemini-cli`
  *   - GPT models (prefix `gpt-`) with no explicit --agent-type → `copilot`
  *   - Explicit `--agent-type claude-code` with a non-Claude model → deduplicated sentinel job
- *   - Everything else → `auth0-ReAct-agent` (or the explicitly requested type)
+ *   - Everything else → DEFAULT_AGENT_TYPE (or the explicitly requested type)
  */
 export function buildJobList(
   registry: EvalConfig[],

@@ -56,7 +56,7 @@ function resolveAgentType(model, override) {
   if (model.startsWith('claude-'))  return 'claude-code';
   if (model.startsWith('gemini-'))  return 'gemini-cli';
   if (model.startsWith('gpt-'))     return 'copilot';
-  return 'auth0-ReAct-agent';
+  return 'copilot';
 }
 
 // Build an explicit include list so each job has a pre-resolved agent_type.

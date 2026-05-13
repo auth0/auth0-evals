@@ -70,7 +70,7 @@ The runner logs skill delivery. What you see depends on the agent type:
   ```
   [skills] Copied 2 file(s) for 'auth0-react' → .claude/skills/auth0-react/
   ```
-- **ReAct agent** (default) injects a skills notice into the system prompt. The agent then uses `list_skill_files` / `read_skill_file` tools to access skill content at runtime.
+- **Copilot / other runners** (default) receive skill files copied directly into the workspace before the agent starts.
 
 Since local directories are checked before remote repos, your local `skills/auth0-react/` will automatically take precedence over the remote version.
 
