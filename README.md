@@ -133,9 +133,8 @@ The `--agent-type` flag selects the agent runner for agent mode:
 
 | Runner | Flag | Default model |
 |--------|------|---------------|
-| ReAct (default) | `--agent-type auth0-ReAct-agent` | `gpt-5.4` |
+| GitHub Copilot (default) | `--agent-type copilot` | `gpt-5.4` |
 | Claude Code | `--agent-type claude-code` | auto-selected for `claude-*` models |
-| GitHub Copilot | `--agent-type copilot` | — |
 | Gemini CLI | `--agent-type gemini-cli` | `gemini-2.5-flash` |
 
 ### Gemini CLI setup
@@ -212,7 +211,7 @@ src/
     baseline.ts                 # pure LLM, no tools
     skills.ts                   # fetches + injects SKILL.md into eval prompts (agent+skills mode)
   agent_eval/
-    agent.ts                    # ReAct agent loop (LLM calls, turn tracking)
+    agent.ts                    # Agent loop (LLM calls, turn tracking)
     tools/
       base.ts                   # Tool interface, ToolContext, ToolResult types
       index.ts                  # Tool definitions (sent to LLM) + ALL_TOOLS registry

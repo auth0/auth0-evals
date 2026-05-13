@@ -151,10 +151,5 @@ export { registerRunner, getRunner } from './runners/agent-runner.js';
 export type { ToolTranslator } from './runners/tool-translator.js';
 export { classifyActionType, primaryArg, detectRetry, classifyErrorCategory } from './runners/classify.js';
 export type { SkillsStrategy } from './runners/skills/strategy.js';
-export {
-  copySkillsToWorkspace,
-  augmentWithSkills,
-  InjectSkillsStrategy,
-  CopySkillsStrategy,
-} from './runners/skills/strategy.js';
+export { copySkillsToWorkspace, CopySkillsStrategy } from './runners/skills/strategy.js';
 export { SkillsManager, getSkillsManager, resetSkillsManager } from './runners/skills/config.js';

@@ -76,7 +76,7 @@ export interface BaselineJobResult {
 }
 
 /**
- * Result produced by an agent (ReAct loop with file/shell tools) job.
+ * Result produced by an agent (agentic loop with file/shell tools) job.
  *
  * All 8 scoring dimensions and the full grader suite are applied.
  * Includes a full session trace and per-turn token metrics.
@@ -94,7 +94,7 @@ export interface AgentJobResult {
   model: string;
   /** Discriminant — always `"agent"` for this type. */
   mode: 'agent';
-  /** Agent runner that produced this result, e.g. `"auth0-ReAct-agent"` or `"claude-code"`. */
+  /** Agent runner that produced this result, e.g. `"claude-code"` or `"copilot"`. */
   agent_type?: AgentType;
   /** Tools that were enabled for this run (e.g. `["skills"]`). */
   tools: string[];

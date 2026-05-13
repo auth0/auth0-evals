@@ -34,7 +34,7 @@ export const KNOWN_TOOLS = ['skills', 'mcp'];
 export const MATRIX_TOOL_SETS: string[][] = [['skills'], ['mcp', 'skills']];
 
 /** Agent runner used when no `--agent-type` flag is provided. */
-export const DEFAULT_AGENT_TYPE = 'auth0-ReAct-agent';
+export const DEFAULT_AGENT_TYPE = 'copilot';
 
 /**
  * Parses the `--tools` flag value into a sorted, deduplicated, lowercase array.

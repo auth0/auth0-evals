@@ -20,7 +20,6 @@ export { ClaudeCodeRunner } from './runners/claude-code/runner.js';
 export { ClaudeCodeTranslator } from './runners/claude-code/translator.js';
 export {
   runClaudeCodeAgent,
-  writeAgentSystemPrompt,
   handleMessage,
   normaliseStopReason,
   CLAUDE_CODE_MODEL_ID,

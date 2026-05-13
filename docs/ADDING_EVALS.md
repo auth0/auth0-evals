@@ -40,7 +40,7 @@ To test a skill before it is pushed to the remote repo, see [TESTING_SKILLS.md](
 | Section | Used in | Purpose |
 |---|---|---|
 | `## System` | `baseline` | System prompt for a single-turn LLM call |
-| `## Agent System` | `agent` (all variants) | System prompt for the ReAct agent loop |
+| `## Agent System` | `agent` (all variants) | System prompt for the agent loop |
 | `## Task` | all modes | The user-facing request sent to the model |
 
 If no sections are present, the entire file is used as the task prompt.
@@ -351,7 +351,7 @@ npm run run -- --eval my_new_eval --mode agent --keep-workspace
 | Combo | What it tests |
 |---|---|
 | `baseline` | Single LLM call, no tools; grades extracted code blocks |
-| `agent` | ReAct agent with file/shell tools; grades written workspace files |
+| `agent` | Agent with file/shell tools; grades written workspace files |
 | `agent --tools mcp` | Same as `agent`, with the Auth0 MCP server available |
 | `agent --tools skills` | Same as `agent`, with the fetched `SKILL.md` prepended to the agent system prompt |
 | `agent --tools skills,mcp` | Both skill injection and MCP docs together |

@@ -35,7 +35,7 @@ describe('buildJobList — baseline mode', () => {
 
   it('baseline jobs use DEFAULT_AGENT_TYPE as agentType placeholder', () => {
     const jobs = buildJobList([EVAL], ['gpt-5.2'], ['baseline'], [], undefined);
-    expect(jobs[0][4]).toBe('auth0-ReAct-agent');
+    expect(jobs[0][4]).toBe('copilot');
   });
 
   it('baseline jobs use the explicitly provided agentType', () => {
@@ -61,17 +61,11 @@ describe('buildJobList — agent mode auto-routing', () => {
     expect(jobs[0][1]).toBe('gpt-5.2');
   });
 
-  it('non-claude non-gemini non-gpt model with no explicit agent type → routes to auth0-ReAct-agent', () => {
+  it('non-claude non-gemini non-gpt model with no explicit agent type → routes to DEFAULT_AGENT_TYPE', () => {
     const jobs = buildJobList([EVAL], ['some-other-model'], ['agent'], [], undefined);
     expect(jobs).toHaveLength(1);
-    expect(jobs[0][4]).toBe('auth0-ReAct-agent');
+    expect(jobs[0][4]).toBe('copilot');
     expect(jobs[0][1]).toBe('some-other-model');
-  });
-
-  it('explicit --agent-type auth0-ReAct-agent with claude model → respects explicit type', () => {
-    const jobs = buildJobList([EVAL], ['claude-sonnet-4-6'], ['agent'], [], 'auth0-ReAct-agent');
-    expect(jobs).toHaveLength(1);
-    expect(jobs[0][4]).toBe('auth0-ReAct-agent');
   });
 
   it('explicit --agent-type claude-code with non-claude model → sentinel job', () => {
@@ -243,7 +237,7 @@ describe('buildSubprocessArgs', () => {
       '--tools',
       'skills',
       '--agent-type',
-      'auth0-ReAct-agent',
+      'copilot',
       '--matrix',
       '--output',
       'scores.json',
