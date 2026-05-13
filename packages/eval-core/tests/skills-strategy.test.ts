@@ -591,7 +591,6 @@ describe('SkillsManager', () => {
   });
 });
 
-
 // ── copySkillsToWorkspace ─────────────────────────────────────────────────────
 
 describe('copySkillsToWorkspace - no skills', () => {

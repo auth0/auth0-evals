@@ -11,6 +11,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { EvalConfigError, EvalNotFoundError } from './errors.js';
+import { logger } from './utils/logger.js';
+import { resolveInside } from './workspace/path-utils.js';
 import type { EvalDefinition, GraderDef } from './types/eval.js';
 
 export { EvalDefinition, GraderDef } from './types/eval.js';
@@ -168,10 +170,21 @@ function walkDir(dir: string, root: string, files: Record<string, string>): void
       walkDir(fullPath, root, files);
     } else if (entry.isFile()) {
       const rel = relative(root, fullPath);
+      let safePath: string;
       try {
-        files[rel] = readFileSync(fullPath, 'utf-8');
-      } catch {
-        // skip unreadable files
+        safePath = resolveInside(root, rel);
+      } catch (e) {
+        logger.warn(
+          `[Loader] Skipping scaffold file due to path validation: ${rel} (${e instanceof Error ? e.message : 'unknown error'})`,
+        );
+        continue;
+      }
+      try {
+        files[rel] = readFileSync(safePath, 'utf-8');
+      } catch (e) {
+        logger.warn(
+          `[Loader] Skipping unreadable scaffold file: ${rel} (${e instanceof Error ? e.message : 'unknown error'})`,
+        );
       }
     }
   }

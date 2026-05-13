@@ -5,12 +5,13 @@
  * in. Shared by all agent runners — not specific to any one agent type.
  */
 
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { logger } from '../utils/logger.js';
 import { DEFAULT_FRAMEWORK_CONFIG } from '../config/defaults.js';
+import { resolveInside } from './path-utils.js';
 
 export interface SetupWorkspaceOptions {
   /** Prefix for the temp directory name. Defaults to {@link DEFAULT_FRAMEWORK_CONFIG}.workspace.tempDirPrefix. */
@@ -28,9 +29,17 @@ export interface RunSetupCommandOptions {
  */
 export function setupWorkspace(scaffold: Record<string, string>, options?: SetupWorkspaceOptions): string {
   const prefix: string = options?.tempDirPrefix ?? DEFAULT_FRAMEWORK_CONFIG.workspace.tempDirPrefix!;
-  const workspace = mkdtempSync(join(tmpdir(), prefix));
+  const workspace = realpathSync(mkdtempSync(join(tmpdir(), prefix)));
   for (const [relPath, content] of Object.entries(scaffold)) {
-    const dest = join(workspace, relPath);
+    let dest: string;
+    try {
+      dest = resolveInside(workspace, relPath);
+    } catch (e) {
+      logger.warn(
+        `[Workspace] Skipping scaffold file due to path validation: ${relPath} (${e instanceof Error ? e.message : 'unknown error'})`,
+      );
+      continue;
+    }
     mkdirSync(join(dest, '..'), { recursive: true });
     writeFileSync(dest, content, 'utf-8');
     if (relPath === 'gradlew' || relPath.endsWith('/gradlew')) {

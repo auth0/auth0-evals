@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { makeTmpDir } from './tmp.js';
 import { fileURLToPath } from 'node:url';
@@ -232,6 +232,42 @@ describe('loadEval - scaffold loading', () => {
     const result = await loadEval(EVAL_CONFIG, tmpBase);
 
     expect(result.scaffold['main.swift']).toBe('import Auth0');
+  });
+
+  it('excludes scaffold files that escape via symlink', async () => {
+    // Create an eval with a normal scaffold file
+    makeEvalDir(tmpBase, MINIMAL_PROMPT, DEFAULT_GRADERS, { 'safe.txt': 'ok' });
+
+    // Create an outside directory with a secret file
+    const outside = join(tmpBase, 'outside');
+    mkdirSync(outside, { recursive: true });
+    writeFileSync(join(outside, 'secret.txt'), 'sensitive data');
+
+    // Add a symlink inside the scaffold pointing outside
+    const scaffoldDir = join(tmpBase, 'my_eval', 'scaffold');
+    symlinkSync(outside, join(scaffoldDir, 'escaped'));
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    // The safe file should be loaded
+    expect(result.scaffold['safe.txt']).toBe('ok');
+    // The symlinked file should NOT be loaded (resolveInside rejects it)
+    expect(result.scaffold['escaped/secret.txt']).toBeUndefined();
+  });
+
+  it('skips unreadable scaffold files and loads the rest', async () => {
+    makeEvalDir(tmpBase, MINIMAL_PROMPT, DEFAULT_GRADERS, {
+      'readable.txt': 'this is fine',
+      'unreadable.txt': 'you cannot read me',
+    });
+
+    // Make one file unreadable
+    chmodSync(join(tmpBase, 'my_eval', 'scaffold', 'unreadable.txt'), 0o000);
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.scaffold['readable.txt']).toBe('this is fine');
+    expect(result.scaffold['unreadable.txt']).toBeUndefined();
   });
 });
 
