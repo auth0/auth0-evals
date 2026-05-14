@@ -36,6 +36,17 @@ export const MATRIX_TOOL_SETS: string[][] = [['skills'], ['mcp', 'skills']];
 /** Agent runner used when no `--agent-type` flag is provided. */
 export const DEFAULT_AGENT_TYPE = 'copilot';
 
+// ── Docker sandbox constants ────────────────────────────────────────────────────
+
+/** Docker image name used for sandboxed eval runs. */
+export const DOCKER_IMAGE_NAME = 'auth0-evals:latest';
+
+/** Mount path inside the container where the workspace is bind-mounted. */
+export const DOCKER_WORKSPACE_MOUNT = '/workspace';
+
+/** Filename written inside the container workspace with the job result JSON. */
+export const SANDBOX_RESULTS_FILE = '.eval-results.json';
+
 /**
  * Parses the `--tools` flag value into a sorted, deduplicated, lowercase array.
  *

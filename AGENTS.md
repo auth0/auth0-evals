@@ -314,8 +314,8 @@ All LLM-as-judge graders use `claude-sonnet-4-5` via the ATKO proxy (`<LLM_PROXY
 | Judge max tokens | 1024 |
 | Judge max code chars | 16,384 |
 | Max agent turns | 30 |
-| Claude Code task timeout | ~250 min (~4.2 hours, 50 × 300s) |
-| Copilot task timeout | ~250 min (~4.2 hours, 50 × 300s) |
+| Runner task timeout | 30 min (per eval, graceful abort) |
+| Docker host timeout | 35 min (per container, hard kill — sandbox only) |
 
 ---
 
@@ -367,6 +367,7 @@ npm run report
 | `--workers <n>` | number | 4 (defaults to 20 in matrix) | Parallel job limit |
 | `--output <path>` | file path | auto-named | JSON results output |
 | `--keep-workspace` | flag | off | Don't delete temp workspace after run |
+| `--dangerously-skip-sandbox` | flag | off | Disable Docker sandbox — run agent jobs directly on host |
 | `--braintrust` | flag | off | Log results to Braintrust experiment |
 
 ---

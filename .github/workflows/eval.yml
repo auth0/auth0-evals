@@ -125,6 +125,7 @@ jobs:
                 --mode ${{ matrix.mode.mode }} \
                 --model ${{ matrix.model }} \
                 --agent-type ${{ matrix.agent_type }} \
+                --dangerously-skip-sandbox \
                 --output scores-${{ matrix.eval }}-${{ matrix.mode.label }}-${{ matrix.model }}.json"
           if [ -n "${{ matrix.mode.tools }}" ]; then
             ARGS="$ARGS --tools ${{ matrix.mode.tools }}"

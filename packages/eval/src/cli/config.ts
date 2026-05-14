@@ -59,6 +59,11 @@ export interface RunConfig {
   agentType: AgentType | undefined;
   /** Explicit path to an `eval.config.js` file. Overrides auto-discovery when set. */
   configPath: string | undefined;
+  /**
+   * When `true`, agent-mode jobs run inside a Docker container for isolation.
+   * Defaults to `true` — pass `--dangerously-skip-sandbox` to disable.
+   */
+  sandbox: boolean;
 }
 
 export interface ParseRunConfigOptions {
@@ -105,7 +110,12 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
     .option('--output <path>', 'JSON output path')
     .option('--keep-workspace', '(agent mode) Keep temp workspace after run', false)
     .option('--braintrust', 'Log results to Braintrust experiment', false)
-    .option('--config <path>', 'Path to eval.config.js (overrides auto-discovery)');
+    .option('--config <path>', 'Path to eval.config.js (overrides auto-discovery)')
+    .option(
+      '--dangerously-skip-sandbox',
+      'Disable Docker sandboxing — run agent jobs directly on the host (used in CI)',
+      false,
+    );
 
   program.parse(argv);
   const opts = program.opts();
@@ -139,5 +149,6 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
     apiKey,
     agentType,
     configPath: opts.config as string | undefined,
+    sandbox: !(opts.dangerouslySkipSandbox as boolean),
   };
 }

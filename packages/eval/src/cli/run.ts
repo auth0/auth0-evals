@@ -85,6 +85,7 @@ export async function runJob(
   keepWorkspace = false,
   agentType: AgentType = DEFAULT_AGENT_TYPE,
   frameworkRoot: string = process.cwd(),
+  sandbox = true,
 ): Promise<JobResult> {
   const evalDef = await loadEval(evalConfig, frameworkRoot);
   const agentLabel = mode === 'agent' ? ` (${agentType})` : '';
@@ -96,7 +97,7 @@ export async function runJob(
       const graderResults = await gradeText(evalDef, result.responseText, apiKey, BASELINE_LEVELS);
       return serialiseBaseline(evalDef, result, graderResults, result.responseText);
     } else if (mode === 'agent') {
-      return await runAgentJob(evalDef, model, mode, tools, apiKey, keepWorkspace, agentType);
+      return await runAgentJob(evalDef, model, mode, tools, apiKey, keepWorkspace, agentType, sandbox);
     } else {
       throw new UnknownModeError(mode);
     }
@@ -118,15 +119,33 @@ async function runAgentJob(
   apiKey: string,
   keepWorkspace: boolean,
   agentType: AgentType,
+  sandbox: boolean,
 ): Promise<JobResult> {
   const { setupWorkspace, runSetupCommand, cleanupWorkspace } = await import('@a0/eval-core');
   await initRunners();
 
   const workspace = setupWorkspace(evalDef.scaffold);
   try {
-    if (evalDef.setupCommand) {
+    if (!sandbox && evalDef.setupCommand) {
       runSetupCommand(workspace, evalDef.setupCommand);
     }
+
+    if (sandbox) {
+      // Docker-sandboxed execution: run the entire agent job inside a container
+      const { runJobInDocker } = await import('../sandbox/docker.js');
+      return await runJobInDocker({
+        workspace,
+        evalId: evalDef.id,
+        model,
+        mode,
+        tools,
+        agentType,
+        apiKey,
+        ghToken: process.env.GH_TOKEN,
+      });
+    }
+
+    // Local execution (--dangerously-skip-sandbox or baseline)
     const runner = getRunner(agentType);
     const preparedEval = tools.includes('skills') ? await runner.prepareSkills(evalDef, workspace) : evalDef;
     const { record, resolvedModel } = await runner.run({ evalDef: preparedEval, workspace, model, tools, apiKey });
@@ -293,6 +312,7 @@ export async function runCli(): Promise<void> {
     apiKey,
     agentType,
     configPath,
+    sandbox,
   } = config;
 
   // Load the framework configuration (eval.config.js) — auto-discovered or via --config.
@@ -339,6 +359,12 @@ export async function runCli(): Promise<void> {
 
   const frameworkRoot = process.cwd();
   const jobs = buildJobList(registry, models, modes, tools, agentType, matrix);
+
+  // Ensure Docker image exists before dispatching subprocesses — avoids N parallel builds.
+  if (sandbox && modes.includes('agent')) {
+    const { ensureDockerImage } = await import('../sandbox/docker.js');
+    await ensureDockerImage();
+  }
 
   // ── Subprocess-per-job parallelism ──────────────────────────────────────────
   if (jobs.length > 1) {
@@ -426,6 +452,7 @@ export async function runCli(): Promise<void> {
             keepWorkspace,
             jobAgentType,
             frameworkRoot,
+            sandbox,
           );
           results.push(result);
           printResult(result);
