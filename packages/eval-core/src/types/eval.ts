@@ -22,7 +22,6 @@ export interface EvalDefinition {
   path: string;
   baselineSystemPrompt: string;
   userPrompt: string;
-  agentSystemPrompt: string;
   graders: GraderDef[];
   scaffold: Record<string, string>;
   setupCommand?: string;

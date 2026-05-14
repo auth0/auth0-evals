@@ -58,7 +58,6 @@ function makeEvalDef(overrides: Partial<EvalDefinition> = {}): EvalDefinition {
     path: '/tmp/test',
     baselineSystemPrompt: '',
     userPrompt: 'Add authentication.',
-    agentSystemPrompt: '',
     graders: [],
     scaffold: {},
     skills: [],
@@ -649,15 +648,6 @@ describe('copySkillsToWorkspace - file copying', () => {
 });
 
 describe('copySkillsToWorkspace - no prompt augmentation', () => {
-  it('does not modify agentSystemPrompt (Claude Code auto-loads .claude/skills/)', async () => {
-    const { copySkillsToWorkspace } = await importSkills();
-    const evalDef = makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: 'Original.' });
-
-    const result = await copySkillsToWorkspace(evalDef, '/tmp/workspace');
-
-    expect(result.agentSystemPrompt).toBe('Original.');
-  });
-
   it('returns the same evalDef object (no prompt changes needed)', async () => {
     const { copySkillsToWorkspace } = await importSkills();
     const evalDef = makeEvalDef({ skills: ['auth0-react'] });
@@ -683,16 +673,6 @@ describe('copySkillsToWorkspace - skill not found', () => {
 // ── Strategy classes ──────────────────────────────────────────────────────────
 
 describe('CopySkillsStrategy', () => {
-  it('does not modify agentSystemPrompt', async () => {
-    const { CopySkillsStrategy } = await importSkills();
-    const strategy = new CopySkillsStrategy('.claude/skills');
-    const result = await strategy.apply(
-      makeEvalDef({ skills: ['auth0-react'], agentSystemPrompt: 'Original prompt.' }),
-      '/tmp/workspace',
-    );
-    expect(result.agentSystemPrompt).toBe('Original prompt.');
-  });
-
   it('copies skill files to the configured directory in the workspace', async () => {
     const { CopySkillsStrategy } = await importSkills();
     const fs = vi.mocked(await import('node:fs'));
