@@ -4,9 +4,6 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest",
     "lint": "eslint \"./**/*.ts\"",
     "prerun": "npm run build",
     "run": "a0-eval",
@@ -20,8 +17,6 @@
     "commander": "^14.0.3"
   },
   "devDependencies": {
-    "@types/node": "^25.6.0",
-    "@vitest/coverage-v8": "^4.1.5",
-    "vitest": "^4.1.0"
+    "@types/node": "^25.6.0"
   }
 }
