@@ -1,5 +1,5 @@
 /** Common across all platforms. */
-const COMMON_KEYS = ['PATH', 'HOME', 'LANG', 'TERM', 'NODE_OPTIONS'];
+const COMMON_KEYS = ['PATH', 'HOME', 'LANG', 'TERM', 'NODE_OPTIONS', 'NODE_EXTRA_CA_CERTS'];
 
 /** macOS / Linux — TMPDIR is the standard temp-dir variable on Darwin. */
 const POSIX_KEYS = ['TMPDIR', 'USER', 'SHELL'];

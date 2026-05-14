@@ -108,6 +108,7 @@ npm run run -- --model gpt-5.4
 --workers   Parallel workers (default: 4; default in matrix mode: 20)
 --output    JSON output path (default: scores-<mode>.json or scores-all-modes.json)
 --keep-workspace   (agent mode only) Keep temp workspace after run
+--dangerously-skip-sandbox   Disable Docker sandbox — run agent jobs directly on host
 ```
 
 ### Known Working Models
@@ -263,6 +264,29 @@ Then rebuild: `npm run build`
 
 Slash commands live in `.claude/commands/` and can be invoked from any Claude Code session inside this repo.
 
+## Docker Sandbox
+
+Agent-mode eval runs execute inside a sandboxed Docker container. The image is built automatically on first run if not present. To build manually:
+
+```bash
+npm run build && docker build -f docker/Dockerfile -t auth0-evals:latest .
+```
+
+The container is hardened with:
+- All capabilities dropped (`--cap-drop=ALL`), only `NET_ADMIN` added temporarily for network setup
+- Read-only root filesystem
+- Network isolation: iptables rules block RFC 1918, link-local, and Docker bridge traffic (host/LAN unreachable) while allowing public internet
+- `no-new-privileges` security option
+- PID, memory, and CPU limits
+- Workspace bind-mount validated to be under the OS temp directory
+- Runs as non-root `node` user (privileges dropped after network setup)
+
+To skip sandboxing (e.g. for local debugging):
+
+```bash
+npm run run -- --eval react_quickstart --mode agent --dangerously-skip-sandbox
+```
+
 ## Development
 
 ```bash
@@ -273,4 +297,4 @@ npm run build     # compile to dist/
 
 ## Requirements
 
-Node.js 24+. Dependencies are managed via `npm`.
+Node.js 24+, Docker. Dependencies are managed via `npm`.

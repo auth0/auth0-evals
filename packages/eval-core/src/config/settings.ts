@@ -39,8 +39,12 @@ export function getLitellmModelReverseMap(): Record<string, string> {
   return Object.fromEntries(Object.entries(getLitellmModelMap()).map(([alias, litellm]) => [litellm, alias]));
 }
 
-/** Maximum wall-clock time for a single Claude Code subprocess task (~4.2 hours). */
-export const CLAUDE_CODE_TASK_TIMEOUT_MS = 50 * 300_000;
+/** Maximum wall-clock time for a single Claude Code subprocess task (30 minutes).
+ * This fires first as a graceful abort. The host-side 35-min Docker deadline
+ * is a hard-kill backstop for unresponsive containers. */
+export const CLAUDE_CODE_TASK_TIMEOUT_MS = 30 * 60_000;
 
-/** Maximum wall-clock time for a single Copilot SDK agent task (~4.2 hours). */
-export const COPILOT_TASK_TIMEOUT_MS = 50 * 300_000;
+/** Maximum wall-clock time for a single Copilot SDK agent task (30 minutes).
+ * This fires first as a graceful abort. The host-side 35-min Docker deadline
+ * is a hard-kill backstop for unresponsive containers. */
+export const COPILOT_TASK_TIMEOUT_MS = 30 * 60_000;
