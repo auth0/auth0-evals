@@ -70,18 +70,7 @@ function getAnthropicProxyUrl(): string {
   return getAgentProxyBaseUrl('claude-code');
 }
 
-/**
- * Tools available during eval runs.
- * Uses the tools option to replace the full built-in set, preventing Claude Code's
- * internal housekeeping tools (Task, TodoWrite, etc.) from being called.
- *
- * AskUserQuestion is excluded to suppress interactive interruptions during unattended evals.
- */
-const DEFAULT_ALLOWED_TOOLS = ['Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'LS', 'WebFetch', 'Skill'];
-
 export interface ClaudeCodeRunOptions {
-  /** Comma-separated list of Claude Code tools to allow. Overrides DEFAULT_ALLOWED_TOOLS. */
-  allowedTools?: string;
   /** Extra env vars forwarded to the SDK process. */
   env?: Record<string, string>;
   /**
@@ -112,8 +101,7 @@ export async function runClaudeCodeAgent(
   workspace: string,
   opts: ClaudeCodeRunOptions = {},
 ): Promise<RunRecord> {
-  const { allowedTools, env = {}, tools = [], model } = opts;
-  const toolList = allowedTools ? allowedTools.split(',') : DEFAULT_ALLOWED_TOOLS;
+  const { env = {}, tools = [], model } = opts;
 
   const record: RunRecord = {
     taskName: evalDef.id,
@@ -174,7 +162,6 @@ export async function runClaudeCodeAgent(
 
   logger.info(`\n[ClaudeCode] Starting task: ${evalDef.id}`);
   logger.info(`[ClaudeCode] Workspace: ${workspace}`);
-  logger.info(`[ClaudeCode] Allowed tools: ${toolList.join(',')}`);
   if (resolvedModel) {
     const modelLabel = resolvedModel !== model ? `${model} → ${resolvedModel}` : resolvedModel;
     logger.info(`[ClaudeCode] Model: ${modelLabel}`);
@@ -205,7 +192,6 @@ export async function runClaudeCodeAgent(
         cwd: workspace,
         pathToClaudeCodeExecutable: process.env.CLAUDE_CLI_PATH || undefined,
         model: resolvedModel,
-        tools: toolList,
         permissionMode: 'bypassPermissions',
         allowDangerouslySkipPermissions: true,
         persistSession: false,
