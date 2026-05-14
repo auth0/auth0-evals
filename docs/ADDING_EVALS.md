@@ -96,7 +96,7 @@ For `judge`, the optional `framework` argument selects a context prompt from `pr
 Every grader should be assigned a `GraderLevel` that describes **what kind of correctness it tests**. This lets the framework filter, weight, and report graders by category.
 
 ```typescript
-import { GraderLevel } from '../../../agent_eval/graders.js';
+import { GraderLevel } from '@a0/eval-graders';
 ```
 
 ---
@@ -249,7 +249,7 @@ import {
   matches,
   judge,
   GraderLevel,
-} from '../../../agent_eval/graders.js';
+} from '@a0/eval-graders';
 
 export function defineGraders() {
   return [

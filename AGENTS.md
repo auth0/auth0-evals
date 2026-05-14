@@ -35,9 +35,9 @@ Full guide for adding evals: [docs/ADDING_EVALS.md](docs/ADDING_EVALS.md)
 `package.json` sets `"type": "module"`. Every import needs a `.js` extension, even when importing `.ts` source files. Use the `node:` prefix for builtins. Use `import type` for type-only imports.
 
 ```typescript
-import { contains } from '../agent_eval/graders.js';  // ✓
-import { readFileSync } from 'node:fs';               // ✓
-import { contains } from '../agent_eval/graders';     // ✗ fails at runtime
+import { contains } from '@a0/eval-graders';  // ✓
+import { readFileSync } from 'node:fs';       // ✓
+import type { GraderDef } from '@a0/eval-graders'; // ✓ type-only
 ```
 
 For dynamic imports of absolute paths, use `pathToFileURL(path).href` — bare absolute paths fail on macOS and Windows.
