@@ -8,7 +8,7 @@
     "prerun": "npm run build",
     "run": "a0-eval",
     "prereport": "npm run build",
-    "report": "node dist/report.js"
+    "report": "a0-eval report"
   },
   "dependencies": {
     "@a0/eval": "*",

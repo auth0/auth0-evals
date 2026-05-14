@@ -7,7 +7,7 @@ export { renderHtml } from './report.js';
 export { resultVariant, loadScores, groupResults, groupByVariant, computeDeltas, MODES } from './report/processors.js';
 export { registerFilters, ALL_FILTERS } from './report-filters.js';
 
-// Re-export types from @a0/eval for convenience
+// Re-export types from @a0/eval-core for convenience
 export type {
   JobResult,
   BaselineJobResult,
@@ -20,6 +20,6 @@ export type {
   AgentType,
   ErrorCategory,
   Logger,
-} from '@a0/eval';
-export { logger, setLogger } from '@a0/eval';
+} from '@a0/eval-core';
+export { logger, setLogger } from '@a0/eval-core';
 export { GraderLevel } from '@a0/eval-graders';

@@ -24,6 +24,14 @@ runs:
       with:
         name: build-dist
 
+    - name: Link workspace bins
+      shell: bash
+      run: npm rebuild --ignore-scripts
+
+    - name: Add node_modules/.bin to PATH
+      shell: bash
+      run: echo "${{ github.workspace }}/node_modules/.bin" >> "$GITHUB_PATH"
+
     - name: Download all results
       uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
       with:
@@ -33,7 +41,7 @@ runs:
 
     - name: Generate HTML report
       shell: bash
-      run: node apps/auth0-evals/dist/report.js
+      run: cd apps/auth0-evals && npm run report
 
     - name: Write step summary
       shell: bash
