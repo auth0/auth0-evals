@@ -10,13 +10,12 @@ import {
   DEFAULT_AGENT_TYPE,
   KNOWN_AGENT_TYPES,
   KNOWN_WORKING_MODELS,
-} from '@a0/eval';
-import { EVALUATIONS } from '../src/config/evaluations.js';
+} from '../src/index.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Known eval IDs for validation. */
-const KNOWN_EVAL_IDS = EVALUATIONS.map((e) => e.id);
+/** Fake eval IDs for validation tests. */
+const KNOWN_EVAL_IDS = ['eval_one', 'eval_two', 'eval_three'];
 
 /** Wraps args in the node+script prefix that Commander strips on parse(). */
 function argv(...args: string[]): string[] {
@@ -28,9 +27,8 @@ function parse(...args: string[]) {
   return parseRunConfig(argv(...args), { knownEvalIds: KNOWN_EVAL_IDS });
 }
 
-/** Known-valid eval IDs drawn from the live registry so they can't drift. */
-const VALID_EVAL_ID = EVALUATIONS[0].id;
-const VALID_EVAL_ID_2 = EVALUATIONS[1].id;
+const VALID_EVAL_ID = KNOWN_EVAL_IDS[0];
+const VALID_EVAL_ID_2 = KNOWN_EVAL_IDS[1];
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
 
