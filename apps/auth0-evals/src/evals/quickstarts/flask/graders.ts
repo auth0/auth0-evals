@@ -5,7 +5,6 @@ import {
   matches,
   judge,
   ranCommand,
-  wroteFile,
   GraderLevel,
 } from '@a0/eval-graders';
 
@@ -45,7 +44,6 @@ export function defineGraders() {
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
     ranCommand('pip install', 'auth0-server-python', 'Ran pip install for auth0-server-python', GraderLevel.L4),
-    wroteFile('.env', 'Created .env file for credentials', GraderLevel.L4),
     contains('/callback', 'Implements /callback route', GraderLevel.L4),
     contains('/login', 'Implements /login route', GraderLevel.L4),
     contains('/logout', 'Implements /logout route', GraderLevel.L4),

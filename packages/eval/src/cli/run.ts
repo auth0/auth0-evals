@@ -126,8 +126,6 @@ const AGENT_INSTRUCTIONS = `
  * The ReAct agent already receives these via system_default.md.
  */
 function writeAgentInstructions(workspace: string, agentType: AgentType): void {
-  if (agentType === 'auth0-ReAct-agent') return; // already in system_default.md
-
   if (agentType === 'claude-code') {
     writeFileSync(join(workspace, 'CLAUDE.md'), AGENT_INSTRUCTIONS, 'utf-8');
   } else if (agentType === 'gemini-cli') {

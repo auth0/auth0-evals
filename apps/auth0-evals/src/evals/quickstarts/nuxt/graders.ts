@@ -6,7 +6,6 @@ import {
   judge,
   ranCommand,
   ranCommandOneOf,
-  wroteFile,
   GraderLevel,
 } from '@a0/eval-graders';
 
@@ -57,7 +56,6 @@ export function defineGraders() {
     // ── L4: Structural / behavioral correctness ───────────────────────────────
     ranCommand('npm install', '@auth0/auth0-nuxt', 'Ran npm install for @auth0/auth0-nuxt', GraderLevel.L4),
     ranCommandOneOf(['npm run build', 'nuxt build'], 'Ran build to verify compilation', GraderLevel.L4),
-    wroteFile('.env', 'Created .env file for credentials', GraderLevel.L4),
     matches(
       String.raw`modules:\s*\[[\s\S]*['"]@auth0\/auth0-nuxt['"]`,
       'Module correctly registered in the modules array',

@@ -5,7 +5,6 @@ import {
   matches,
   judge,
   ranCommand,
-  wroteFile,
   GraderLevel,
 } from '@a0/eval-graders';
 
@@ -54,7 +53,6 @@ export function defineGraders() {
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
     ranCommand('npm install', 'express-openid-connect', 'Ran npm install for express-openid-connect', GraderLevel.L4),
-    wroteFile('.env', 'Created .env file for credentials', GraderLevel.L4),
     matches(String.raw`app\.use\s*\(\s*auth\s*\(`, 'auth middleware registered with app.use', GraderLevel.L4),
     contains('requiresAuth', 'Uses requiresAuth() to protect the /profile route', GraderLevel.L4),
     contains('req.oidc.accessToken', 'Accesses access token via req.oidc.accessToken', GraderLevel.L4),

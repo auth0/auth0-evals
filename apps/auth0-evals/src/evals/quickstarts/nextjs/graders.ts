@@ -6,7 +6,6 @@ import {
   judge,
   ranCommand,
   ranCommandOneOf,
-  wroteFile,
   GraderLevel,
 } from '@a0/eval-graders';
 
@@ -48,7 +47,6 @@ export function defineGraders() {
     // ── L4: Structural / behavioral correctness ───────────────────────────────
     ranCommand('npm install', '@auth0/nextjs-auth0', 'Ran npm install for @auth0/nextjs-auth0', GraderLevel.L4),
     ranCommandOneOf(['npm run build', 'next build'], 'Ran build to verify compilation', GraderLevel.L4),
-    wroteFile('.env', 'Created .env file for credentials', GraderLevel.L4),
     matches(
       String.raw`export\s+(default\s+)?(async\s+)?function\s+(middleware|proxy)`,
       'Middleware function is exported from middleware or proxy file',

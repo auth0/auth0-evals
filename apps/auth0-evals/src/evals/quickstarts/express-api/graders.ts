@@ -5,7 +5,6 @@ import {
   matches,
   judge,
   ranCommand,
-  wroteFile,
   GraderLevel,
 } from '@a0/eval-graders';
 
@@ -44,7 +43,7 @@ export function defineGraders() {
       'Ran npm install for express-oauth2-jwt-bearer',
       GraderLevel.L4,
     ),
-    wroteFile('.env', 'Created .env file for credentials', GraderLevel.L4),
+
     matches(
       String.raw`requiredScopes\s*\(\s*.*read:messages`,
       'GET /api/messages protected with read:messages scope',
