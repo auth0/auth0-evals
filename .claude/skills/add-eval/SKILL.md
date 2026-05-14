@@ -17,6 +17,8 @@ An "eval" is a task + acceptance criteria that measures how accurately an LLM co
 
 ## Overview of what you'll create
 
+All paths below are relative to `apps/auth0-evals/`.
+
 ```
 src/evals/<category>/<eval-dir>/
 ├── PROMPT.md       ← task description
@@ -48,6 +50,7 @@ Before writing files, nail down:
 ```markdown
 ---
 skills: <skill-name>
+setup_command: npm install
 ---
 
 ## Task
@@ -56,6 +59,7 @@ skills: <skill-name>
 
 ### Frontmatter
 - `skills`: references the matching entry in the [auth0/agent-skills](https://github.com/auth0/agent-skills) repo. Used only in `agent+skills` mode. Omit if no matching skill exists yet.
+- `setup_command`: command to run before the agent starts (e.g. `npm install`). Include when the scaffold has a `package.json` with dependencies.
 
 ### Sections (all optional but follow this order if used)
 | Section | Used in | Purpose |
@@ -89,7 +93,7 @@ import {
   matches,
   judge,
   GraderLevel,
-} from '../../../agent_eval/graders.js';
+} from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
@@ -105,7 +109,7 @@ export function defineGraders() {
 - Export exactly one function: `defineGraders()` returning an array.
 - Every grader except the last must have a `GraderLevel` argument.
 - The final grader must be a `judge` with **no level** — it always runs regardless of filtering.
-- All imports use `.js` extensions (ESM requirement — omitting `.js` causes runtime failures).
+- Import from the `@a0/eval-graders` package (monorepo workspace package).
 
 ### Grader levels
 
@@ -122,8 +126,11 @@ Cover all five levels in every eval. L1 and L2 are the most important for baseli
 ### Grader primitives
 
 ```typescript
-// Check any workspace file contains this string (case-insensitive)
+// Check any workspace file contains this string (case-insensitive by default)
 contains('@auth0/auth0-react', 'Uses @auth0/auth0-react SDK', GraderLevel.L1)
+
+// Optional: case-sensitive matching
+contains('Auth0Provider', 'Wraps app with Auth0Provider', GraderLevel.L1, { caseSensitive: true })
 
 // Check no workspace file contains this string
 notContains('@auth0/react', 'No hallucinated @auth0/react package', GraderLevel.L2)
@@ -162,7 +169,7 @@ import {
   matches,
   judge,
   GraderLevel,
-} from '../../../agent_eval/graders.js';
+} from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
@@ -258,7 +265,7 @@ npm run report
 ```
 
 If the build fails, the most common causes are:
-1. Missing `.js` extension on an import in `graders.ts`
+1. Wrong import path — use `from '@a0/eval-graders'`
 2. `defineGraders` not exported from `graders.ts`
 
 ---
@@ -269,7 +276,7 @@ If the build fails, the most common causes are:
 - [ ] `src/evals/<category>/<eval-dir>/graders.ts` created
 - [ ] `src/evals/<category>/<eval-dir>/scaffold/` created with at least a `package.json` and placeholder source files
 - [ ] Entry added to `src/config/evaluations.ts` with `id` (snake_case config ID) and `path` (points to `src/evals/<category>/<eval-dir>`)
-- [ ] All imports in `graders.ts` use `.js` extensions
+- [ ] Graders import from `@a0/eval-graders`
 - [ ] All graders except the final one have a `GraderLevel`
 - [ ] Final grader is a `judge` with no level argument
 - [ ] No `readFileSync` for JSON — use `import` instead
