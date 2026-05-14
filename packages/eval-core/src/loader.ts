@@ -47,14 +47,6 @@ export async function loadEval(
   const defaultBaselinePrompt = options?.defaultBaselineSystemPrompt ?? FALLBACK_BASELINE_PROMPT;
   const { baselineSystemPrompt, userPrompt, meta } = parsePromptMd(join(evalPath, 'PROMPT.md'), defaultBaselinePrompt);
 
-  // system_default.md is always the agent system prompt — it contains the universal
-  // identity, 8-step workflow, tool guidance, and behavior rules. Individual evals
-  // do not override this; framework-specific hints belong in the ## Task section.
-  const srcDefaultPath = join(frameworkRoot, 'src', 'prompts', 'system_default.md');
-  const distDefaultPath = join(frameworkRoot, 'prompts', 'system_default.md');
-  const defaultPath = existsSync(srcDefaultPath) ? srcDefaultPath : distDefaultPath;
-  const agentSystemPrompt = existsSync(defaultPath) ? readFileSync(defaultPath, 'utf-8').trim() : '';
-
   const distRelPath = evalConfig.path.replace(/^src\//, '');
   const distGradersPath = join(frameworkRoot, 'dist', distRelPath, 'graders.js');
   const srcGradersPath = join(evalPath, 'graders.ts');
@@ -77,7 +69,6 @@ export async function loadEval(
     path: evalPath,
     baselineSystemPrompt,
     userPrompt,
-    agentSystemPrompt,
     graders,
     scaffold,
     setupCommand,
@@ -99,7 +90,6 @@ function parsePromptMd(
 ): {
   baselineSystemPrompt: string;
   userPrompt: string;
-  agentSystemPrompt: string;
   meta: Record<string, string>;
 } {
   if (!existsSync(promptPath)) {
@@ -126,14 +116,12 @@ function parsePromptMd(
   }
 
   const systemMatch = text.match(/^## System\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
-  const agentSystemMatch = text.match(/^## Agent System\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
   const taskMatch = text.match(/^## Task\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
 
   const baselineSystemPrompt = systemMatch?.[1] ? systemMatch[1].trim() : defaultBaselinePrompt;
-  const agentSystemPrompt = agentSystemMatch?.[1] ? agentSystemMatch[1].trim() : '';
   const userPrompt = taskMatch?.[1] ? taskMatch[1].trim() : text.trim();
 
-  return { baselineSystemPrompt, userPrompt, agentSystemPrompt, meta };
+  return { baselineSystemPrompt, userPrompt, meta };
 }
 
 // ── graders.ts dynamic import ─────────────────────────────────────────────────

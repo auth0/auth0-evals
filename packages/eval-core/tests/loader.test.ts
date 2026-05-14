@@ -151,40 +151,10 @@ describe('loadEval - setupCommand', () => {
   });
 });
 
-// ── Agent System prompt tests ─────────────────────────────────────────────────
+// ── System prompt tests ───────────────────────────────────────────────────────
 
-describe('loadEval - Agent System prompt', () => {
-  it('loads agentSystemPrompt from system_default.md', async () => {
-    makeEvalDir(tmpBase);
-
-    // Write a system_default.md into the fake framework root
-    const promptsDir = join(tmpBase, 'src', 'prompts');
-    mkdirSync(promptsDir, { recursive: true });
-    writeFileSync(join(promptsDir, 'system_default.md'), 'You are an expert developer.\n');
-
-    const result = await loadEval(EVAL_CONFIG, tmpBase);
-
-    expect(result.agentSystemPrompt).toContain('You are an expert developer.');
-  });
-
-  it('returns empty agentSystemPrompt when system_default.md is missing', async () => {
-    makeEvalDir(tmpBase);
-
-    const result = await loadEval(EVAL_CONFIG, tmpBase);
-
-    expect(result.agentSystemPrompt).toBe('');
-  });
-
-  it('does not use ## Agent System from PROMPT.md', async () => {
-    makeEvalDir(tmpBase, '## Agent System\nOld per-eval override.\n\n## Task\nDo the task.\n');
-
-    // No system_default.md present — result should be empty, not the old Agent System content
-    const result = await loadEval(EVAL_CONFIG, tmpBase);
-
-    expect(result.agentSystemPrompt).not.toContain('Old per-eval override');
-  });
-
-  it('baselineSystemPrompt is still parsed from ## System section', async () => {
+describe('loadEval - system prompt', () => {
+  it('baselineSystemPrompt is parsed from ## System section', async () => {
     makeEvalDir(tmpBase, '## System\nGeneric system prompt.\n\n## Task\nDo the task.\n');
 
     const result = await loadEval(EVAL_CONFIG, tmpBase);

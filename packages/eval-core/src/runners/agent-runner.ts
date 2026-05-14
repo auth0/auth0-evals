@@ -42,12 +42,7 @@ export interface AgentRunner {
    * Prepare skills for this agent's execution style.
    *
    * Only called when `tools` contains `'skills'` — the caller is responsible
-   * for that guard. Implementations should:
-   *   - ReAct-style:      augment evalDef.agentSystemPrompt with a notice + tool hints.
-   *   - Filesystem-style: copy skill files into the workspace and update the prompt.
-   *
-   * The `workspace` path is provided for filesystem-native agents; prompt-based
-   * strategies may ignore it.
+   * for that guard. Copies skill files into the workspace.
    */
   prepareSkills(evalDef: EvalDefinition, workspace: string): Promise<EvalDefinition>;
 

@@ -131,9 +131,6 @@ export async function runCopilotAgent(
   const session = await client.createSession({
     model,
     workingDirectory: workspace,
-    // Do not pass agentSystemPrompt — that is a ReAct-specific prompt with
-    // tool names (list_files, write_file, finish_task) that don't exist in
-    // the Copilot CLI. The CLI manages its own system prompt.
     onPermissionRequest: approveAll,
     // Suppress ask_user to prevent eval runs from blocking on interactive input.
     excludedTools: ['ask_user'],
