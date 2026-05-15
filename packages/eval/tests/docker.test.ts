@@ -216,7 +216,7 @@ describe('runJobInDocker — Docker argument construction', () => {
       mode: 'agent' as const,
       tools: ['skills', 'mcp'],
       agentType: 'claude-code' as const,
-      apiKey: 'sk-test-123',
+      apiKey: 'test-api-key-12345678',
       ghToken: 'gh-token-456',
     });
 
@@ -228,7 +228,7 @@ describe('runJobInDocker — Docker argument construction', () => {
     expect(envPairs).toContain('MODE=agent');
     expect(envPairs).toContain('TOOLS=skills,mcp');
     expect(envPairs).toContain('AGENT_TYPE=claude-code');
-    expect(envPairs).toContain('ATKO_API_KEY=sk-test-123');
+    expect(envPairs).toContain('ATKO_API_KEY=test-api-key-12345678');
     expect(envPairs).toContain('GH_TOKEN=gh-token-456');
     expect(envPairs).toContain('CLAUDE_CODE_USE_BEDROCK_PROXY=0');
 
