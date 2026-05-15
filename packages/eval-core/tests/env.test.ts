@@ -50,8 +50,8 @@ describe('filteredEnv', () => {
   });
 
   it('excludes sensitive variables like API keys', () => {
-    process.env.ATKO_API_KEY = 'sk-secret';
-    process.env.ANTHROPIC_API_KEY = 'sk-another-secret';
+    process.env.ATKO_API_KEY = 'test-api-key-12345678';
+    process.env.ANTHROPIC_API_KEY = 'test-anthropic-key-12345678';
     process.env.AWS_SECRET_ACCESS_KEY = 'aws-secret';
     process.env.DATABASE_URL = 'postgres://user:pass@host/db';
 
@@ -97,7 +97,7 @@ describe('filteredEnv', () => {
   it('excludes runner-specific vars that must be merged explicitly', () => {
     process.env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS = '1';
     process.env.CLAUDE_CODE_USE_BEDROCK_PROXY = '0';
-    process.env.GH_TOKEN = 'ghp_secret';
+    process.env.GH_TOKEN = 'test-gh-token-12345678';
 
     const env = filteredEnv();
     expect(env).not.toHaveProperty('CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS');
