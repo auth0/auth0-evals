@@ -7,6 +7,8 @@ dist/
 
 # Environment
 .env
+.env.local
+.env.*.local
 
 # Generated run artifacts
 scores-*.json
