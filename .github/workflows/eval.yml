@@ -115,7 +115,7 @@ jobs:
 
       - name: Run eval
         env:
-          ATKO_API_KEY: ${{ secrets.ATKO_API_KEY }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           CLAUDE_CODE_USE_BEDROCK_PROXY: 0
           CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: 1
           CLAUDE_CLI_PATH: ${{ github.workspace }}/node_modules/.bin/claude

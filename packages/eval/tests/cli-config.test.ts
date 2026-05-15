@@ -35,8 +35,8 @@ const VALID_EVAL_ID_2 = KNOWN_EVAL_IDS[1];
 let savedKey: string | undefined;
 
 beforeEach(() => {
-  savedKey = process.env.ATKO_API_KEY;
-  process.env.ATKO_API_KEY = 'test-key';
+  savedKey = process.env.LLM_API_KEY;
+  process.env.LLM_API_KEY = 'test-key';
 
   // Prevent process.exit from terminating the test runner.
   vi.spyOn(process, 'exit').mockImplementation((): never => {
@@ -50,9 +50,9 @@ beforeEach(() => {
 
 afterEach(() => {
   if (savedKey !== undefined) {
-    process.env.ATKO_API_KEY = savedKey;
+    process.env.LLM_API_KEY = savedKey;
   } else {
-    delete process.env.ATKO_API_KEY;
+    delete process.env.LLM_API_KEY;
   }
   vi.restoreAllMocks();
 });
@@ -60,13 +60,13 @@ afterEach(() => {
 // ── API key ───────────────────────────────────────────────────────────────────
 
 describe('API key', () => {
-  it('exits when ATKO_API_KEY is not set', () => {
-    delete process.env.ATKO_API_KEY;
+  it('exits when LLM_API_KEY is not set', () => {
+    delete process.env.LLM_API_KEY;
     expect(() => parse()).toThrow('process.exit(1)');
   });
 
-  it('includes apiKey from ATKO_API_KEY in the returned config', () => {
-    process.env.ATKO_API_KEY = 'my-secret-key';
+  it('includes apiKey from LLM_API_KEY in the returned config', () => {
+    process.env.LLM_API_KEY = 'my-secret-key';
     const config = parse();
     expect(config.apiKey).toBe('my-secret-key');
   });

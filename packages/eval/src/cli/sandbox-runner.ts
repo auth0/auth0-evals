@@ -31,6 +31,7 @@ import {
 } from '@a0/eval-core';
 import type { AgentType } from '@a0/eval-core';
 
+import { LLM_API_KEY_ENV } from './constants.js';
 import { score } from '../scorer.js';
 import { ClaudeCodeRunner } from '../runners/claude-code/runner.js';
 import { CopilotCliRunner } from '../runners/copilot/runner.js';
@@ -59,7 +60,7 @@ async function main(): Promise<void> {
   const mode = process.env.MODE as 'agent' | undefined;
   const tools = (process.env.TOOLS || '').split(',').filter(Boolean);
   const agentType = process.env.AGENT_TYPE as AgentType | undefined;
-  const apiKey = process.env.ATKO_API_KEY;
+  const apiKey = process.env[LLM_API_KEY_ENV];
   const workspace = process.env.WORKSPACE || '/workspace';
 
   // Validate required params
@@ -67,7 +68,7 @@ async function main(): Promise<void> {
   if (!model) throw new Error('MODEL environment variable is required');
   if (!mode) throw new Error('MODE environment variable is required');
   if (!agentType) throw new Error('AGENT_TYPE environment variable is required');
-  if (!apiKey) throw new Error('ATKO_API_KEY environment variable is required');
+  if (!apiKey) throw new Error(`${LLM_API_KEY_ENV} environment variable is required`);
 
   // The framework root inside the container
   const frameworkRoot = '/app/apps/auth0-evals';

@@ -36,6 +36,11 @@ export const MATRIX_TOOL_SETS: string[][] = [['skills'], ['mcp', 'skills']];
 /** Agent runner used when no `--agent-type` flag is provided. */
 export const DEFAULT_AGENT_TYPE = 'copilot';
 
+// ── Environment variable names ──────────────────────────────────────────────────
+
+/** Environment variable name for the LLM proxy API key. */
+export const LLM_API_KEY_ENV = 'LLM_API_KEY';
+
 // ── Docker sandbox constants ────────────────────────────────────────────────────
 
 /** Docker image name used for sandboxed eval runs. */
