@@ -312,7 +312,7 @@ All LLM-as-judge graders use `claude-opus-4-7` via the ATKO proxy (`<LLM_PROXY_U
 | Judge model | `claude-opus-4-7` |
 | Judge max tokens | 1024 |
 | Judge max code chars | 16,384 |
-| Max agent turns | 30 |
+| Max agent turns | 75 |
 | Runner task timeout | 30 min (per eval, graceful abort) |
 | Docker host timeout | 35 min (per container, hard kill — sandbox only) |
 
