@@ -43,7 +43,7 @@ export interface RunConfig {
   keepWorkspace: boolean;
   /** When `true`, results are logged to a Braintrust experiment. */
   braintrust: boolean;
-  /** Validated API key read from `ATKO_API_KEY`. */
+  /** Validated API key read from `LLM_API_KEY`. */
   apiKey: string;
   /**
    * When `true`, `--matrix` was passed. Shorthand for running all evals × all

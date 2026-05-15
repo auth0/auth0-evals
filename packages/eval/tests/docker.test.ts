@@ -228,7 +228,7 @@ describe('runJobInDocker — Docker argument construction', () => {
     expect(envPairs).toContain('MODE=agent');
     expect(envPairs).toContain('TOOLS=skills,mcp');
     expect(envPairs).toContain('AGENT_TYPE=claude-code');
-    expect(envPairs).toContain('ATKO_API_KEY=test-api-key-12345678');
+    expect(envPairs).toContain('LLM_API_KEY=test-api-key-12345678');
     expect(envPairs).toContain('GH_TOKEN=gh-token-456');
     expect(envPairs).toContain('CLAUDE_CODE_USE_BEDROCK_PROXY=0');
 
@@ -261,7 +261,7 @@ describe('runJobInDocker — Docker argument construction', () => {
     const envPairs = extractEnvPairs(capturedArgs);
 
     // Verify env wiring still works (positive assertion)
-    expect(envPairs).toContain('ATKO_API_KEY=test-key');
+    expect(envPairs).toContain('LLM_API_KEY=test-key');
     expect(envPairs.some((e) => e.startsWith('GH_TOKEN='))).toBe(false);
 
     rmSync(workspace, { recursive: true, force: true });

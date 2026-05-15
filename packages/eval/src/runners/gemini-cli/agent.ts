@@ -5,7 +5,7 @@
  * as a subprocess and parses the JSONL event stream into a RunRecord.
  *
  * Authentication: routed through the ATKO LiteLLM proxy (https://llm.atko.ai)
- * using ATKO_API_KEY — the same token used by all other runners.
+ * using the shared LLM API key — the same token used by all other runners.
  *
  * Event format (stream-json):
  *   {"type":"init",        "session_id":"...", "model":"..."}
@@ -30,6 +30,7 @@ import {
   filteredEnv,
 } from '@a0/eval-core';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/eval-core';
+import { LLM_API_KEY_ENV } from '../../cli/constants.js';
 import { GeminiCliTranslator } from './translator.js';
 
 const translator = new GeminiCliTranslator();
@@ -133,11 +134,11 @@ export async function runGeminiCliAgent(
     ...filteredEnv(),
     GEMINI_CLI_TRUSTED_FOLDERS_PATH: trustedFoldersPath,
   };
-  if (process.env.ATKO_API_KEY) {
+  if (process.env[LLM_API_KEY_ENV]) {
     geminiEnv.GOOGLE_GEMINI_BASE_URL = getAgentProxyBaseUrl('gemini-cli');
-    geminiEnv.GEMINI_API_KEY = process.env.ATKO_API_KEY;
+    geminiEnv.GEMINI_API_KEY = process.env[LLM_API_KEY_ENV]!;
   } else {
-    logger.warn('[GeminiCLI] ATKO_API_KEY not set — requests will fail.');
+    logger.warn(`[GeminiCLI] ${LLM_API_KEY_ENV} not set — requests will fail.`);
   }
 
   // Pending tool calls: tool_id → { name, args, startTime }

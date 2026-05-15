@@ -6,7 +6,7 @@ Evaluation framework for measuring how well LLM agents complete developer integr
 
 ```bash
 cp .env.example .env
-# add your ATKO_API_KEY to .env
+# add your LLM_API_KEY to .env
 
 npm install
 
@@ -126,7 +126,7 @@ The framework maintains a list of models that work reliably across all modes:
 **Google:**
 - `gemini-3.1-pro-preview`
 
-**Note:** GPT and Gemini use the ATKO LiteLLM proxy (`ATKO_API_KEY`). Claude models use the `claude` CLI routed through the ATKO proxy's Bedrock pass-through endpoint by default. Set `CLAUDE_CODE_USE_BEDROCK_PROXY=0` to route through the LiteLLM proxy instead.
+**Note:** GPT and Gemini use the ATKO LiteLLM proxy (`LLM_API_KEY`). Claude models use the `claude` CLI routed through the ATKO proxy's Bedrock pass-through endpoint by default. Set `CLAUDE_CODE_USE_BEDROCK_PROXY=0` to route through the LiteLLM proxy instead.
 
 ## Agent Runners
 
@@ -138,23 +138,7 @@ The `--agent-type` flag selects the agent runner for agent mode:
 | Claude Code | `--agent-type claude-code` | auto-selected for `claude-*` models |
 | Gemini CLI | `--agent-type gemini-cli` | `gemini-2.5-flash` |
 
-### Gemini CLI setup
-
-The Gemini CLI runner routes through the ATKO LiteLLM proxy. Before running, add your LiteLLM token to `.env`:
-
-```bash
-# Get a fresh token via OCM and add it to .env
-echo "GEMINI_API_KEY=$(ocm auth litellm)" >> .env
-```
-
-Then run evals as normal:
-
-```bash
-npm run run -- --eval swift_quickstart --mode agent --agent-type gemini-cli
-npm run run -- --eval react_quickstart --mode agent --agent-type gemini-cli --tools mcp
-```
-
-If the token expires, re-run the `echo` command above to refresh it.
+All runners use the shared `LLM_API_KEY` environment variable. Each runner maps it internally to the provider-specific key (e.g. `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`).
 
 ## Evals
 

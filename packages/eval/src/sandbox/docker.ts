@@ -11,7 +11,7 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { logger } from '@a0/eval-core';
 import type { JobResult, AgentType, Mode } from '@a0/eval-core';
-import { DOCKER_IMAGE_NAME, DOCKER_WORKSPACE_MOUNT, SANDBOX_RESULTS_FILE } from '../cli/constants.js';
+import { DOCKER_IMAGE_NAME, DOCKER_WORKSPACE_MOUNT, LLM_API_KEY_ENV, SANDBOX_RESULTS_FILE } from '../cli/constants.js';
 
 export interface DockerRunOptions {
   /** Absolute host path to the workspace directory. */
@@ -141,7 +141,7 @@ export async function runJobInDocker(options: DockerRunOptions): Promise<JobResu
     '-e',
     `AGENT_TYPE=${agentType}`,
     '-e',
-    `ATKO_API_KEY=${apiKey}`,
+    `${LLM_API_KEY_ENV}=${apiKey}`,
     '-e',
     `WORKSPACE=${DOCKER_WORKSPACE_MOUNT}`,
   ];

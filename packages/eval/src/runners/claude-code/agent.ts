@@ -32,6 +32,7 @@ import {
   filteredEnv,
 } from '@a0/eval-core';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/eval-core';
+import { LLM_API_KEY_ENV } from '../../cli/constants.js';
 import { ClaudeCodeTranslator } from './translator.js';
 
 // Module-level translator instance — all event processing uses this.
@@ -134,8 +135,8 @@ export async function runClaudeCodeAgent(
   const proxyEnv: Record<string, string> = {
     ANTHROPIC_BASE_URL: getAnthropicProxyUrl(),
   };
-  if (process.env.ATKO_API_KEY) {
-    proxyEnv.ANTHROPIC_API_KEY = process.env.ATKO_API_KEY;
+  if (process.env[LLM_API_KEY_ENV]) {
+    proxyEnv.ANTHROPIC_API_KEY = process.env[LLM_API_KEY_ENV]!;
   }
 
   // Claude Code CLI-specific env vars that must reach the subprocess.

@@ -50,13 +50,13 @@ describe('filteredEnv', () => {
   });
 
   it('excludes sensitive variables like API keys', () => {
-    process.env.ATKO_API_KEY = 'test-api-key-12345678';
+    process.env.LLM_API_KEY = 'test-api-key-12345678';
     process.env.ANTHROPIC_API_KEY = 'test-anthropic-key-12345678';
     process.env.AWS_SECRET_ACCESS_KEY = 'aws-secret';
     process.env.DATABASE_URL = 'postgres://user:pass@host/db';
 
     const env = filteredEnv();
-    expect(env).not.toHaveProperty('ATKO_API_KEY');
+    expect(env).not.toHaveProperty('LLM_API_KEY');
     expect(env).not.toHaveProperty('ANTHROPIC_API_KEY');
     expect(env).not.toHaveProperty('AWS_SECRET_ACCESS_KEY');
     expect(env).not.toHaveProperty('DATABASE_URL');

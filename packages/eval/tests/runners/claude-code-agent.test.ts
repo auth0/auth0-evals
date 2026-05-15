@@ -811,6 +811,39 @@ describe('runClaudeCodeAgent', () => {
   });
 });
 
+// ── Proxy env injection ───────────────────────────────────────────────────────
+
+describe('runClaudeCodeAgent proxy env injection', () => {
+  beforeEach(() => {
+    mockQuery.mockReset();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    // Return an empty stream so the agent resolves immediately.
+    mockQuery.mockReturnValue(fakeQuery([makeResultMsg({ subtype: 'success' }) as SDKMessage]));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  function capturedEnv(): Record<string, string> {
+    const call = mockQuery.mock.calls[0] as [{ options: { env: Record<string, string> } }];
+    return call[0].options.env;
+  }
+
+  it('sets ANTHROPIC_API_KEY from LLM_API_KEY', async () => {
+    vi.stubEnv('LLM_API_KEY', 'test-atko-token');
+    await runClaudeCodeAgent(evalDef, workspace);
+    expect(capturedEnv().ANTHROPIC_API_KEY).toBe('test-atko-token');
+  });
+
+  it('does not set ANTHROPIC_API_KEY when LLM_API_KEY is absent', async () => {
+    vi.stubEnv('LLM_API_KEY', '');
+    await runClaudeCodeAgent(evalDef, workspace);
+    expect(capturedEnv()).not.toHaveProperty('ANTHROPIC_API_KEY');
+  });
+});
+
 // ── ClaudeCodeTranslator ──────────────────────────────────────────────────────
 
 describe('ClaudeCodeTranslator — mapName', () => {

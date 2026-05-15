@@ -12,6 +12,7 @@ import {
   KNOWN_WORKING_MODELS,
   DEFAULT_MODEL,
   KNOWN_AGENT_TYPES,
+  LLM_API_KEY_ENV,
   parseToolsArg,
   type Mode,
   type AgentType,
@@ -20,11 +21,11 @@ import {
 /** Valid meta-values accepted by `--mode` in addition to the concrete Mode values. */
 const META_MODES = ['all'] as const;
 
-/** Reads and validates `ATKO_API_KEY` from the environment. Exits if missing. */
+/** Reads and validates the LLM API key from the environment. Exits if missing. */
 export function validateApiKey(): string {
-  const apiKey = process.env.ATKO_API_KEY;
+  const apiKey = process.env[LLM_API_KEY_ENV];
   if (!apiKey) {
-    logger.error('Error: ATKO_API_KEY environment variable not set.');
+    logger.error(`Error: ${LLM_API_KEY_ENV} environment variable not set.`);
     process.exit(1);
   }
   return apiKey;

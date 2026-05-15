@@ -12,7 +12,7 @@
 export interface ProxyConfig {
   /** LLM API base URL (e.g. `https://llm.atko.ai/v1`). */
   baseUrl: string;
-  /** API key for the proxy. Falls back to `ATKO_API_KEY` env var when omitted. */
+  /** API key for the proxy. Callers must supply this explicitly (e.g. from `LLM_API_KEY` env var). */
   apiKey?: string;
 }
 
