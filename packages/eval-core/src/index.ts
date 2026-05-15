@@ -116,6 +116,7 @@ export {
   getLitellmModelReverseMap,
   CLAUDE_CODE_TASK_TIMEOUT_MS,
   COPILOT_TASK_TIMEOUT_MS,
+  BASELINE_TASK_TIMEOUT_MS,
 } from './config/settings.js';
 
 // Session
