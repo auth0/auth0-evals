@@ -16,7 +16,7 @@ const TEST_CONFIG: Required<FrameworkConfig> = {
   mcp: { servers: {} },
   skills: { remoteRepos: [], localDirs: [] },
   judge: {
-    model: 'claude-sonnet-4-5',
+    model: 'claude-opus-4-7',
     maxTokens: 1024,
     maxCodeChars: 16_384,
   },

@@ -79,7 +79,7 @@ Use `notContainsInSource` (not `notContains`) when a value like a client ID is a
 | `notContains(needle)` | Substring must NOT appear in any non-excluded workspace file |
 | `notContainsInSource(needle)` | Substring must NOT appear in source files (allowed in config) |
 | `matches(pattern)` | Regex match in any non-excluded workspace file |
-| `judge(question, framework?)` | LLM-as-judge yes/no question — uses `claude-sonnet-4-5` |
+| `judge(question, framework?)` | LLM-as-judge yes/no question — uses `claude-opus-4-7` |
 
 ## Grading exclusions
 
@@ -270,7 +270,6 @@ By default uses the Bedrock proxy (`CLAUDE_CODE_USE_BEDROCK_PROXY` != `0`), whic
 - `claude-sonnet-4-6` → `global.anthropic.claude-sonnet-4-6`
 - `claude-opus-4-6` → `global.anthropic.claude-opus-4-6-v1`
 - `claude-opus-4-7` → `global.anthropic.claude-opus-4-7`
-- `claude-sonnet-4-5` → `global.anthropic.claude-sonnet-4-5-20250929-v1:0`
 - `claude-opus-4-5` → `global.anthropic.claude-opus-4-5-20251101-v1:0`
 - `claude-haiku-4-5` → `global.anthropic.claude-haiku-4-5-20251001-v1:0`
 
@@ -303,14 +302,14 @@ Used when `--model all` is passed:
 
 ### Judge model
 
-All LLM-as-judge graders use `claude-sonnet-4-5` via the ATKO proxy (`<LLM_PROXY_URL>/v1`).
+All LLM-as-judge graders use `claude-opus-4-7` via the ATKO proxy (`<LLM_PROXY_URL>/v1`).
 
 ### Settings
 
 | Setting | Value |
 |---|---|
 | Base URL | `<LLM_PROXY_URL>/v1` |
-| Judge model | `claude-sonnet-4-5` |
+| Judge model | `claude-opus-4-7` |
 | Judge max tokens | 1024 |
 | Judge max code chars | 16,384 |
 | Max agent turns | 30 |

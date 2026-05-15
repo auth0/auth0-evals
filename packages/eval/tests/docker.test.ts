@@ -68,7 +68,6 @@ function makeCloseEmitter(exitCode = 0) {
 // ── Workspace path validation ────────────────────────────────────────────────
 
 describe('runJobInDocker — workspace path validation', () => {
-
   it('accepts a workspace under the OS temp directory', async () => {
     const runJobInDocker = await getRunJobInDocker();
     const workspace = mkdtempSync(join(tmpdir(), 'docker-test-'));
@@ -299,9 +298,7 @@ describe('runJobInDocker — results parsing', () => {
     mockExecFileSync.mockReturnValue('');
     mockSpawn.mockImplementation(() => makeCloseEmitter(null as unknown as number));
 
-    await expect(runJobInDocker(makeOptions(workspace))).rejects.toThrow(
-      'Container did not produce results.',
-    );
+    await expect(runJobInDocker(makeOptions(workspace))).rejects.toThrow('Container did not produce results.');
     // Should NOT contain "(exit code:" when exit code is null
     await expect(runJobInDocker(makeOptions(workspace))).rejects.not.toThrow('exit code');
 

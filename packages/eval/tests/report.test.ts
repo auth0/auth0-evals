@@ -60,11 +60,7 @@ describe('runReport', () => {
     });
 
     it('sorts discovered files alphabetically', async () => {
-      mockReaddirSync.mockReturnValue([
-        'scores-z.json',
-        'scores-a.json',
-        'scores-m.json',
-      ]);
+      mockReaddirSync.mockReturnValue(['scores-z.json', 'scores-a.json', 'scores-m.json']);
       mockLoadScores.mockReturnValue([{ eval_id: 'test' }]);
       mockRenderHtml.mockReturnValue('<html></html>');
 
@@ -100,11 +96,7 @@ describe('runReport', () => {
 
       await runReport({ input: ['scores.json'], output: 'my-report.html' });
 
-      expect(mockWriteFileSync).toHaveBeenCalledWith(
-        '/project/my-report.html',
-        '<html>report</html>',
-        'utf-8',
-      );
+      expect(mockWriteFileSync).toHaveBeenCalledWith('/project/my-report.html', '<html>report</html>', 'utf-8');
       expect(mockWriteFileSync).toHaveBeenCalledWith(
         '/project/scores-consolidated.json',
         JSON.stringify([{ eval_id: 'test' }], null, 2),

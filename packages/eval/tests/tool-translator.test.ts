@@ -39,7 +39,18 @@ describe('ClaudeCodeTranslator — isInternalTool', () => {
   const translator = new ClaudeCodeTranslator();
 
   it('tracked tools are not internal', () => {
-    for (const tool of ['TodoWrite', 'TodoRead', 'Task', 'TaskOutput', 'KillShell', 'EnterPlanMode', 'ExitPlanMode', 'Bash', 'Read', 'WebFetch']) {
+    for (const tool of [
+      'TodoWrite',
+      'TodoRead',
+      'Task',
+      'TaskOutput',
+      'KillShell',
+      'EnterPlanMode',
+      'ExitPlanMode',
+      'Bash',
+      'Read',
+      'WebFetch',
+    ]) {
       expect(translator.isInternalTool(tool)).toBe(false);
     }
   });
