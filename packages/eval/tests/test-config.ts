@@ -26,7 +26,7 @@ export const TEST_CONFIG: Required<FrameworkConfig> = {
     localDirs: ['skills'],
   },
   judge: {
-    model: 'claude-sonnet-4-5',
+    model: 'claude-opus-4-7',
     maxTokens: 1024,
     maxCodeChars: 16_384,
   },
@@ -43,7 +43,6 @@ export const TEST_CONFIG: Required<FrameworkConfig> = {
     bedrock: {
       'claude-sonnet-4-6': 'global.anthropic.claude-sonnet-4-6',
       'claude-opus-4-6': 'global.anthropic.claude-opus-4-6-v1',
-      'claude-sonnet-4-5': 'global.anthropic.claude-sonnet-4-5-20250929-v1:0',
       'claude-opus-4-7': 'global.anthropic.claude-opus-4-7',
       'claude-opus-4-5': 'global.anthropic.claude-opus-4-5-20251101-v1:0',
       'claude-haiku-4-5': 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
@@ -52,7 +51,6 @@ export const TEST_CONFIG: Required<FrameworkConfig> = {
       'claude-sonnet-4-6': '_claude-sonnet-4-6',
       'claude-opus-4-6': '_claude-opus-4-6',
       'claude-opus-4-7': '_claude-opus-4-7',
-      'claude-sonnet-4-5': '_claude-sonnet-4-5',
       'claude-opus-4-5': '_claude-opus-4-5',
       'claude-haiku-4-5': 'claude-haiku-4-5',
     },

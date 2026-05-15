@@ -92,7 +92,6 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<{ passed: boolean
       { role: 'system', content: system },
       { role: 'user', content: user },
     ],
-    temperature: 0.0,
     max_tokens: judgeMaxTokens,
   });
 

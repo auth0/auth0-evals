@@ -83,7 +83,7 @@ export interface ClaudeCodeRunOptions {
   /**
    * Claude model identifier to pass via `model` option.
    * When omitted the SDK uses its own default model.
-   * Use the Anthropic model ID format (e.g. `claude-sonnet-4-5-20251101`) or
+   * Use the Anthropic model ID format (e.g. `claude-sonnet-4-6-20251101`) or
    * an ATKO proxy alias (e.g. `claude-sonnet-4-6`) when routing through the proxy.
    */
   model?: string;
