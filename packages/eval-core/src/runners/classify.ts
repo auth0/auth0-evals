@@ -21,6 +21,7 @@ const TOOL_ACTION_TYPES: Record<string, ActionType> = {
   finish_task: 'Implementation',
   search_auth0_docs: 'Discovery',
   skill: 'Skill',
+  plan: 'Discovery',
 };
 
 /**

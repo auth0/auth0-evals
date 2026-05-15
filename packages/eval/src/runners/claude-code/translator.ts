@@ -13,6 +13,12 @@ const CC_TOOL_MAP: Record<string, string> = {
   WebSearch: 'fetch_url',
   AskUserQuestion: 'ask_user',
   TodoRead: 'read_file',
+  TodoWrite: 'write_file',
+  Task: 'run_command',
+  TaskOutput: 'read_file',
+  KillShell: 'run_command',
+  EnterPlanMode: 'plan',
+  ExitPlanMode: 'plan',
   Skill: 'skill',
 };
 
@@ -20,15 +26,7 @@ export class ClaudeCodeTranslator extends BaseToolTranslator {
   protected readonly toolMap = CC_TOOL_MAP;
   protected readonly docLookupSet = new Set(['WebFetch', 'WebSearch']);
   protected readonly interruptionSet = new Set(['AskUserQuestion']);
-  protected readonly internalToolSet = new Set([
-    'TodoWrite',
-    'TodoRead',
-    'Task',
-    'TaskOutput',
-    'KillShell',
-    'EnterPlanMode',
-    'ExitPlanMode',
-  ]);
+  protected readonly internalToolSet = new Set<string>();
   protected readonly logTag = 'ClaudeCodeTranslator';
 
   protected override isMcpTool(name: string): boolean {
@@ -67,6 +65,22 @@ export class ClaudeCodeTranslator extends BaseToolTranslator {
         return { url: input.query ?? '' };
       case 'AskUserQuestion':
         return { question: input.question ?? '' };
+      case 'TodoWrite':
+        return {
+          path: input.file_path ?? input.path ?? '__todo__',
+          content: input.todos != null ? JSON.stringify(input.todos) : String(input.content ?? ''),
+        };
+      case 'TodoRead':
+        return { path: input.file_path ?? input.path ?? '__todo__' };
+      case 'Task':
+        return { command: input.description ?? input.task ?? '' };
+      case 'TaskOutput':
+        return { path: input.task_id ?? '' };
+      case 'KillShell':
+        return { command: `kill shell ${String(input.shell_id ?? input.id ?? '')}`.trim() };
+      case 'EnterPlanMode':
+      case 'ExitPlanMode':
+        return {};
       case 'Skill':
         return { name: input.skill ?? '' };
       default:

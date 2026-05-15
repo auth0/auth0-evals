@@ -457,22 +457,40 @@ describe('handleMessage — user', () => {
     expect(record.toolCalls).toHaveLength(0);
   });
 
-  it('internal tool (TodoWrite) is skipped and not added to toolCalls', () => {
+  it('TodoWrite is tracked as write_file', () => {
     const record = makeRecord();
     const pending = makePendingWithEntry('tu_1', 'TodoWrite', { todos: [] });
     const msg = makeUserMsg([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'ok', is_error: false }]);
     handleMessage(msg, record, pending, 0, 0);
-    expect(record.toolCalls).toHaveLength(0);
+    expect(record.toolCalls).toHaveLength(1);
+    expect(record.toolCalls[0].name).toBe('write_file');
   });
 
-  it('other internal tools are also skipped (Task, TaskOutput, ExitPlanMode)', () => {
-    for (const toolName of ['Task', 'TaskOutput', 'ExitPlanMode', 'KillShell', 'EnterPlanMode', 'TodoRead']) {
+  it('planning tools are tracked (Task, TaskOutput, TodoRead, EnterPlanMode, ExitPlanMode)', () => {
+    const expected: Record<string, string> = {
+      Task: 'run_command',
+      TaskOutput: 'read_file',
+      TodoRead: 'read_file',
+      EnterPlanMode: 'plan',
+      ExitPlanMode: 'plan',
+    };
+    for (const [toolName, mappedName] of Object.entries(expected)) {
       const r = makeRecord();
       const pending = makePendingWithEntry('tu_1', toolName, {});
       const msg = makeUserMsg([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'ok', is_error: false }]);
       handleMessage(msg, r, pending, 0, 0);
-      expect(r.toolCalls).toHaveLength(0);
+      expect(r.toolCalls).toHaveLength(1);
+      expect(r.toolCalls[0].name).toBe(mappedName);
     }
+  });
+
+  it('KillShell is tracked as run_command', () => {
+    const record = makeRecord();
+    const pending = makePendingWithEntry('tu_1', 'KillShell', { shell_id: '42' });
+    const msg = makeUserMsg([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'ok', is_error: false }]);
+    handleMessage(msg, record, pending, 0, 0);
+    expect(record.toolCalls).toHaveLength(1);
+    expect(record.toolCalls[0].name).toBe('run_command');
   });
 
   it('array content blocks are joined into a single result string', () => {
@@ -733,7 +751,7 @@ describe('runClaudeCodeAgent', () => {
     expect(record.providerErrors.some((e) => e.includes('orphaned tool_use: Bash'))).toBe(true);
   });
 
-  it('orphaned internal tools are not added to toolCalls', async () => {
+  it('orphaned TodoWrite is tracked as write_file with causedError', async () => {
     mockQuery.mockReturnValue(
       fakeQuery([
         makeAssistantMsg({
@@ -742,7 +760,9 @@ describe('runClaudeCodeAgent', () => {
       ]),
     );
     const record = await runClaudeCodeAgent(evalDef, workspace);
-    expect(record.toolCalls).toHaveLength(0);
+    expect(record.toolCalls).toHaveLength(1);
+    expect(record.toolCalls[0].name).toBe('write_file');
+    expect(record.toolCalls[0].causedError).toBe(true);
   });
 
   it('SDK error after abort does not overwrite failure status', async () => {
@@ -809,6 +829,12 @@ describe('ClaudeCodeTranslator — mapName', () => {
     ['WebSearch', 'fetch_url'],
     ['AskUserQuestion', 'ask_user'],
     ['TodoRead', 'read_file'],
+    ['TodoWrite', 'write_file'],
+    ['Task', 'run_command'],
+    ['TaskOutput', 'read_file'],
+    ['KillShell', 'run_command'],
+    ['EnterPlanMode', 'plan'],
+    ['ExitPlanMode', 'plan'],
   ])('%s → %s', (ccName, expected) => {
     expect(translator.mapName(ccName)).toBe(expected);
   });
@@ -897,6 +923,44 @@ describe('ClaudeCodeTranslator — normalizeArgs', () => {
     expect(translator.normalizeArgs('Skill', { skill: 'auth0-quickstart' })).toEqual({ name: 'auth0-quickstart' });
   });
 
+  it('TodoWrite: serializes todos array as content, uses __todo__ path', () => {
+    expect(translator.normalizeArgs('TodoWrite', { todos: [{ id: 1, content: 'fix bug' }] })).toEqual({
+      path: '__todo__',
+      content: '[{"id":1,"content":"fix bug"}]',
+    });
+  });
+
+  it('TodoWrite: falls back to content string when no todos field', () => {
+    expect(translator.normalizeArgs('TodoWrite', { content: 'some text' })).toEqual({
+      path: '__todo__',
+      content: 'some text',
+    });
+  });
+
+  it('TodoRead: uses __todo__ path', () => {
+    expect(translator.normalizeArgs('TodoRead', {})).toEqual({ path: '__todo__' });
+  });
+
+  it('Task: maps description to command', () => {
+    expect(translator.normalizeArgs('Task', { description: 'run tests' })).toEqual({ command: 'run tests' });
+  });
+
+  it('Task: falls back to task field', () => {
+    expect(translator.normalizeArgs('Task', { task: 'build app' })).toEqual({ command: 'build app' });
+  });
+
+  it('TaskOutput: maps task_id to path', () => {
+    expect(translator.normalizeArgs('TaskOutput', { task_id: 'abc123' })).toEqual({ path: 'abc123' });
+  });
+
+  it('KillShell: constructs kill command from shell_id', () => {
+    expect(translator.normalizeArgs('KillShell', { shell_id: '42' })).toEqual({ command: 'kill shell 42' });
+  });
+
+  it('KillShell: falls back to id field', () => {
+    expect(translator.normalizeArgs('KillShell', { id: '7' })).toEqual({ command: 'kill shell 7' });
+  });
+
   it('unknown tool returns input unchanged', () => {
     const input = { custom: 'arg', value: 42 };
     expect(translator.normalizeArgs('SomeFutureTool', input)).toEqual(input);
@@ -951,13 +1015,13 @@ describe('ClaudeCodeTranslator — isInterruption', () => {
 describe('ClaudeCodeTranslator — isInternalTool', () => {
   const translator = new ClaudeCodeTranslator();
 
-  it('returns true for all internal tools', () => {
+  it('no tools are internal', () => {
     for (const tool of ['TodoWrite', 'TodoRead', 'Task', 'TaskOutput', 'KillShell', 'EnterPlanMode', 'ExitPlanMode']) {
-      expect(translator.isInternalTool(tool)).toBe(true);
+      expect(translator.isInternalTool(tool)).toBe(false);
     }
   });
 
-  it('returns false for non-internal tools', () => {
+  it('returns false for standard tools', () => {
     for (const tool of ['Bash', 'Read', 'Write', 'WebFetch', 'AskUserQuestion', 'Skill']) {
       expect(translator.isInternalTool(tool)).toBe(false);
     }
