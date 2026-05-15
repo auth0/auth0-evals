@@ -12,6 +12,7 @@ import {
   makeSessionId,
   withRetry,
   LlmApiError,
+  BASELINE_TASK_TIMEOUT_MS,
 } from '@a0/eval-core';
 import type { BaselineResult, EvalDefinition } from '@a0/eval-core';
 
@@ -80,7 +81,7 @@ export async function llmCall(
         'Content-Type': 'application/json',
       },
       body: payload,
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(BASELINE_TASK_TIMEOUT_MS),
     });
 
     if (!resp.ok) {
