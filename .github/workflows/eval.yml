@@ -120,17 +120,25 @@ jobs:
           CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: 1
           CLAUDE_CLI_PATH: ${{ github.workspace }}/node_modules/.bin/claude
           GH_TOKEN: ${{ matrix.agent_type == 'copilot' && secrets.GH_COPILOT_TOKEN || '' }}
+          EVAL_ID: ${{ matrix.eval }}
+          EVAL_MODE: ${{ matrix.mode.mode }}
+          EVAL_MODE_LABEL: ${{ matrix.mode.label }}
+          EVAL_MODEL: ${{ matrix.model }}
+          EVAL_AGENT_TYPE: ${{ matrix.agent_type }}
+          EVAL_TOOLS: ${{ matrix.mode.tools }}
         run: |
-          ARGS="--eval ${{ matrix.eval }} \
-                --mode ${{ matrix.mode.mode }} \
-                --model ${{ matrix.model }} \
-                --agent-type ${{ matrix.agent_type }} \
-                --dangerously-skip-sandbox \
-                --output scores-${{ matrix.eval }}-${{ matrix.mode.label }}-${{ matrix.model }}.json"
-          if [ -n "${{ matrix.mode.tools }}" ]; then
-            ARGS="$ARGS --tools ${{ matrix.mode.tools }}"
+          ARGS=(
+            --eval        "${EVAL_ID}"
+            --mode        "${EVAL_MODE}"
+            --model       "${EVAL_MODEL}"
+            --agent-type  "${EVAL_AGENT_TYPE}"
+            --dangerously-skip-sandbox
+            --output      "scores-${EVAL_ID}-${EVAL_MODE_LABEL}-${EVAL_MODEL}.json"
+          )
+          if [ -n "${EVAL_TOOLS}" ]; then
+            ARGS+=(--tools "${EVAL_TOOLS}")
           fi
-          cd apps/auth0-evals && npm run run -- $ARGS
+          cd apps/auth0-evals && npm run run -- "${ARGS[@]}"
 
       - name: Upload result
         if: always()
