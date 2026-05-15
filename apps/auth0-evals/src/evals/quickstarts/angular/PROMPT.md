@@ -1,4 +1,6 @@
 ---
+id: angular_quickstart
+name: Angular Quickstart
 skills: auth0-angular
 setup_command: npm install
 ---

@@ -1,4 +1,6 @@
 ---
+id: android_quickstart
+name: Android Quickstart
 skills: auth0-android
 ---
 

@@ -1,4 +1,6 @@
 ---
+id: vue_quickstart
+name: Vue Quickstart
 skills: auth0-vue
 setup_command: npm install
 ---

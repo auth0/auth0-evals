@@ -1,4 +1,6 @@
 ---
+id: spa_js_quickstart
+name: SPA JS Quickstart
 skills: auth0-spa-js
 setup_command: npm install
 ---

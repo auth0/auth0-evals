@@ -1,4 +1,6 @@
 ---
+id: fastapi_quickstart
+name: FastAPI Quickstart
 skills: auth0-fastapi-api
 setup_command: pip install -r requirements.txt
 ---

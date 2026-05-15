@@ -1,4 +1,6 @@
 ---
+id: fastify_api_quickstart
+name: Fastify API Quickstart
 skills: auth0-fastify-api
 setup_command: npm install
 ---

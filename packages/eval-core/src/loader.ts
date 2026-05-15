@@ -12,6 +12,7 @@ import { join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { EvalConfigError, EvalNotFoundError } from './errors.js';
 import { logger } from './utils/logger.js';
+import { parseFrontmatter } from './utils/frontmatter.js';
 import { resolveInside } from './workspace/path-utils.js';
 import type { EvalDefinition, GraderDef } from './types/eval.js';
 
@@ -96,30 +97,14 @@ function parsePromptMd(
     throw new EvalConfigError('PROMPT.md not found', promptPath);
   }
 
-  let text = readFileSync(promptPath, 'utf-8').replace(/\r\n/g, '\n');
+  const raw = readFileSync(promptPath, 'utf-8');
+  const { meta, body } = parseFrontmatter(raw);
 
-  // Extract YAML-ish frontmatter between --- delimiters
-  const meta: Record<string, string> = {};
-  const frontMatch = text.match(/^---\n([\s\S]*?)\n---\n/);
-  if (frontMatch && frontMatch[1]) {
-    for (const line of frontMatch[1].split('\n')) {
-      const colonIdx = line.indexOf(':');
-      if (colonIdx !== -1) {
-        const k = line.slice(0, colonIdx).trim();
-        const v = line.slice(colonIdx + 1).trim();
-        meta[k] = v;
-      }
-    }
-    if (frontMatch[0]) {
-      text = text.slice(frontMatch[0].length);
-    }
-  }
-
-  const systemMatch = text.match(/^## System\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
-  const taskMatch = text.match(/^## Task\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
+  const systemMatch = body.match(/^## System\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
+  const taskMatch = body.match(/^## Task\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
 
   const baselineSystemPrompt = systemMatch?.[1] ? systemMatch[1].trim() : defaultBaselinePrompt;
-  const userPrompt = taskMatch?.[1] ? taskMatch[1].trim() : text.trim();
+  const userPrompt = taskMatch?.[1] ? taskMatch[1].trim() : body.trim();
 
   return { baselineSystemPrompt, userPrompt, meta };
 }
