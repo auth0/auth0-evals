@@ -61,6 +61,7 @@ export async function loadConfig(options: LoadConfigOptions = {}): Promise<Requi
   const merged = deepMerge(DEFAULT_FRAMEWORK_CONFIG, userConfig) as Required<FrameworkConfig>;
 
   validate(merged, resolvedPath);
+
   return merged;
 }
 

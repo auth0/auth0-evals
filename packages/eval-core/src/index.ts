@@ -91,6 +91,9 @@ export type { EvalDefinition, GraderDef } from './types/eval.js';
 export { loadEval } from './loader.js';
 export type { EvalConfig, LoadEvalOptions } from './loader.js';
 
+// Discovery
+export { discoverEvals } from './discovery.js';
+
 // Serializers
 export {
   formatStep,

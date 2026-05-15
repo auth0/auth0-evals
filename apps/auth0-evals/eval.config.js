@@ -1,11 +1,8 @@
 // @ts-check
-import { EVALUATIONS } from './dist/config/evaluations.js';
-
 const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY !== '0';
 
 /** @type {import('@a0/eval').FrameworkConfig} */
 export default {
-  evaluations: EVALUATIONS,
   evalsDir: 'src/evals',
 
   proxy: {

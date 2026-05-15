@@ -17,6 +17,7 @@ import { config as loadDotenv } from 'dotenv';
 import {
   loadEval,
   loadConfig,
+  discoverEvals,
   setFrameworkConfig,
   runGraders,
   runSetupCommand,
@@ -78,9 +79,9 @@ async function main(): Promise<void> {
   const frameworkConfig = await loadConfig({ configPath: join(frameworkRoot, 'eval.config.js') });
   setFrameworkConfig(frameworkConfig);
 
-  const evaluations = frameworkConfig.evaluations;
-  if (!evaluations || evaluations.length === 0) {
-    throw new Error('No evaluations found in config');
+  const evaluations = discoverEvals(frameworkConfig.evalsDir, frameworkRoot);
+  if (evaluations.length === 0) {
+    throw new Error('No evaluations found in evalsDir');
   }
 
   const evalConfig = evaluations.find((e) => e.id === evalId);

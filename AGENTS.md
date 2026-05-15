@@ -12,7 +12,7 @@
 | `agent+mcp` | `--mode agent --tools mcp` | Agent + Auth0 MCP server tools | L1-L5 |
 | `agent+mcp+skills` | `--mode agent --tools mcp,skills` | Agent + MCP + skills (full investment) | L1-L5 |
 
-Each eval lives in `src/evals/<category>/<eval-dir>/` and consists of a `PROMPT.md` (task description) and a `graders.ts` (acceptance criteria). The framework runs the eval and grades the output. Agent-mode runs are scored across 7 dimensions into a JSON results file; baseline runs only produce grader pass rates (no 7-dimension scoring). Each eval also has a snake_case config ID (e.g. `react_quickstart`) registered in `src/config/evaluations.ts` — this ID is used with `--eval` and is separate from the on-disk directory name (e.g. `src/evals/quickstarts/react`).
+Each eval lives in `src/evals/<category>/<eval-dir>/` and consists of a `PROMPT.md` (task description) and a `graders.ts` (acceptance criteria). The framework auto-discovers evals by scanning `evalsDir` for directories containing both files. The eval's snake_case config ID (e.g. `react_quickstart`) is declared in `PROMPT.md` frontmatter via the `id` field — this ID is used with `--eval`. Agent-mode runs are scored across 7 dimensions into a JSON results file; baseline runs only produce grader pass rates (no 7-dimension scoring).
 
 Full guide for adding evals: [docs/ADDING_EVALS.md](docs/ADDING_EVALS.md)
 
@@ -116,7 +116,7 @@ The project uses ESLint and Prettier. Run `npm run lint` and `npm run format` be
 ## Adding an eval — checklist
 
 1. `src/evals/<category>/<eval-dir>/PROMPT.md` + `graders.ts`
-2. Register in `src/config/evaluations.ts` — `id` is the snake_case config ID (e.g. `vue_quickstart`), `path` points to the directory (e.g. `src/evals/quickstarts/vue`); these are **not** the same
+2. Add `id` (required) and optionally `name`/`category` to `PROMPT.md` frontmatter — the framework auto-discovers evals from `evalsDir`
 3. All imports use `.js` extensions; `import type` for type-only
 4. All graders have `GraderLevel`; one final holistic `judge` with no level
 5. `npm run build && npm test` passes

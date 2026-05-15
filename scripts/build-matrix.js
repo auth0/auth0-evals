@@ -1,7 +1,9 @@
 import { appendFileSync } from 'node:fs';
-import { EVALUATIONS } from '../apps/auth0-evals/dist/config/evaluations.js';
+import { resolve } from 'node:path';
+import { discoverEvals } from '@a0/eval-core';
 
-const ALL_EVALS = EVALUATIONS.map(e => e.id);
+const frameworkRoot = resolve('apps/auth0-evals');
+const ALL_EVALS = discoverEvals('src/evals', frameworkRoot).map(e => e.id);
 
 const ALL_MODES = [
   { label: 'baseline',         mode: 'baseline', tools: ''            },
@@ -75,5 +77,6 @@ for (const evalId of evals) {
 }
 
 const matrix = JSON.stringify({ include });
-console.log('Matrix (' + include.length + ' jobs):', matrix);
-appendFileSync(process.env.GITHUB_OUTPUT, 'matrix=' + matrix + '\n');
+const safeMatrix = matrix.replace(/[\r\n]/g, '');
+console.log('Matrix (' + include.length + ' jobs):', safeMatrix);
+appendFileSync(process.env.GITHUB_OUTPUT, 'matrix=' + safeMatrix + '\n');

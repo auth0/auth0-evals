@@ -1,4 +1,6 @@
 ---
+id: react_quickstart
+name: React Quickstart
 skills: auth0-react
 setup_command: npm install
 ---

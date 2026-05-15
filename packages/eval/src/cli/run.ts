@@ -28,6 +28,7 @@ import {
   UnknownModeError,
   loadEval,
   loadConfig,
+  discoverEvals,
   serialiseBaseline,
   serialiseAgent,
   serialiseError,
@@ -332,9 +333,13 @@ export async function runCli(): Promise<void> {
     process.exit(1);
   }
 
-  const evaluations = frameworkConfig.evaluations;
-  if (!evaluations || evaluations.length === 0) {
-    logger.error('[Config] No evaluations defined in eval.config.js. Add an `evaluations` array.');
+  const frameworkRoot = process.cwd();
+  const evaluations = discoverEvals(frameworkConfig.evalsDir, frameworkRoot);
+  if (evaluations.length === 0) {
+    logger.error(
+      `[Config] No evaluations found in evalsDir '${frameworkConfig.evalsDir}'. ` +
+        `Ensure each eval directory contains PROMPT.md (with 'id' in frontmatter) and graders.ts.`,
+    );
     process.exit(1);
   }
 
@@ -357,7 +362,6 @@ export async function runCli(): Promise<void> {
     process.exit(1);
   }
 
-  const frameworkRoot = process.cwd();
   const jobs = buildJobList(registry, models, modes, tools, agentType, matrix);
 
   // Ensure Docker image exists before dispatching subprocesses — avoids N parallel builds.

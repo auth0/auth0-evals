@@ -204,7 +204,6 @@ src/
   run.ts                        # CLI entry point
   report.ts                     # HTML report generator
   config/
-    evaluations.ts              # central eval registry
     settings.ts                 # API base URL, judge model, limits
     costs.ts                    # per-model token cost table
   runners/
@@ -250,9 +249,9 @@ tests/                          # Vitest test suite
 Quick summary:
 
 1. Create `src/evals/<category>/<eval-id>/PROMPT.md` and `graders.ts`
-2. Assign every grader a `GraderLevel` (L1–L5) and include a holistic `judge` at the end — see [the grader levels guide](docs/ADDING_EVALS.md#grader-levels-l1l5) for what each level tests
-3. Optionally add starter files in `scaffold/` and declare skills in frontmatter
-4. Register the eval in `src/config/evaluations.ts`
+2. Add `id` (required), `name`, and optionally `category` to `PROMPT.md` frontmatter — the framework auto-discovers evals from `evalsDir`
+3. Assign every grader a `GraderLevel` (L1–L5) and include a holistic `judge` at the end — see [the grader levels guide](docs/ADDING_EVALS.md#grader-levels-l1l5) for what each level tests
+4. Optionally add starter files in `scaffold/` and declare skills in frontmatter
 
 Then rebuild: `npm run build`
 

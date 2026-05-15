@@ -1,4 +1,6 @@
 ---
+id: express_quickstart
+name: Express Quickstart
 skills: auth0-express
 setup_command: npm install
 ---

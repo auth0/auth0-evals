@@ -6,7 +6,7 @@ This guide walks through adding a new evaluation to `auth0-evals`.
 
 ## 1. Create the Folder Structure
 
-Pick a short, kebab-case directory name and create a folder under `src/evals/<category>/<eval-dir>/`. The category groups related evals (e.g., `quickstarts`, `api`, `mfa`). Note that the on-disk directory name (e.g. `my-new-eval`) is separate from the snake_case config ID (e.g. `my_new_eval`) you'll register in `evaluations.ts` and use with `--eval`.
+Pick a short, kebab-case directory name and create a folder under `src/evals/<category>/<eval-dir>/`. The category groups related evals (e.g., `quickstarts`, `api`, `mfa`). Note that the on-disk directory name (e.g. `my-new-eval`) is separate from the snake_case config ID (e.g. `my_new_eval`) you'll declare as `id` in `PROMPT.md` frontmatter and use with `--eval`.
 
 ```
 src/evals/
@@ -310,23 +310,24 @@ scaffold/
 
 ---
 
-## 4. Register the Evaluation
+## 4. Declare the Eval ID in Frontmatter
 
-Add an entry to `src/config/evaluations.ts`:
+The framework auto-discovers evals by scanning `evalsDir` for directories containing `PROMPT.md` + `graders.ts`. Each eval must declare its ID in `PROMPT.md` frontmatter:
 
-```typescript
-export const EVALUATIONS: EvalConfig[] = [
-  // existing evals …
-  {
-    id: 'my_new_eval',                           // unique snake_case identifier
-    name: 'My New Eval',                         // human-readable display name
-    category: 'quickstarts',                     // matches the directory category
-    path: 'src/evals/quickstarts/my-new-eval',
-  },
-];
+```yaml
+---
+id: my_new_eval
+name: My New Eval
+skills: auth0-react
+setup_command: npm install
+---
 ```
 
-The `id` value is what you pass to `--eval` on the CLI.
+- `id` — **required**. Unique snake_case identifier, used with `--eval` on the CLI.
+- `name` — optional. Human-readable display name. Defaults to `id`.
+- `category` — optional. Defaults to the parent directory name (e.g. `quickstarts`).
+
+No manual registration step is needed — the framework discovers the eval automatically.
 
 ---
 
@@ -369,7 +370,7 @@ Pass `--agent-type copilot` to route the eval through the `copilot` binary. Skil
 ## 6. Before Submitting
 
 - [ ] `PROMPT.md` and `graders.ts` exist in the eval directory
-- [ ] The eval is registered in `config/evaluations.ts`
+- [ ] `PROMPT.md` frontmatter includes `id` (snake_case config ID)
 - [ ] All grader imports use the `.js` extension (required for ESM)
 - [ ] Graders are assigned `GraderLevel` values (L1–L5) with at least one holistic `judge` at the end (no level)
 - [ ] `npm run build` completes without errors

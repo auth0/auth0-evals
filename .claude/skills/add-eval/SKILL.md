@@ -26,7 +26,7 @@ src/evals/<category>/<eval-dir>/
 └── scaffold/       ← starter files pre-loaded into agent workspace
 ```
 
-Plus a registration entry in `src/config/evaluations.ts`.
+The eval `id` is declared in `PROMPT.md` frontmatter — the framework auto-discovers evals from `evalsDir`.
 
 ---
 
@@ -37,8 +37,8 @@ Before writing files, nail down:
 - **What SDK / framework?** (e.g., `@auth0/auth0-react`, `express-openid-connect`, `auth0-fastapi-api`)
 - **What integration scenario?** (quickstart login flow, API protection, token refresh, etc.)
 - **What category?** Use `quickstarts` for SDK getting-started tasks. Add new categories only if clearly distinct.
-- **What config ID?** snake_case identifier used with `--eval` and in `evaluations.ts`. e.g. `vue_quickstart`, `fastify_api_quickstart`
-- **What directory name?** Short, lowercase/kebab-case name for the on-disk folder. e.g. `vue`, `fastify-api`. This is the `path` leaf in `evaluations.ts` and is **not** the same as the config ID.
+- **What config ID?** snake_case identifier declared as `id` in `PROMPT.md` frontmatter and used with `--eval`. e.g. `vue_quickstart`, `fastify_api_quickstart`
+- **What directory name?** Short, lowercase/kebab-case name for the on-disk folder. e.g. `vue`, `fastify-api`. This is **not** the same as the config ID.
 - **What scaffold files?** Every eval must include scaffold files. Provide a minimal project structure with `package.json` and placeholder source files — this is required, not optional.
 
 ---
@@ -49,6 +49,8 @@ Before writing files, nail down:
 
 ```markdown
 ---
+id: <snake_case_eval_id>
+name: <Human-Readable Name>
 skills: <skill-name>
 setup_command: npm install
 ---
@@ -58,6 +60,9 @@ setup_command: npm install
 ```
 
 ### Frontmatter
+- `id` — **required**. Unique snake_case identifier (must match `/^[a-z][a-z0-9_]{0,63}$/`), used with `--eval` on the CLI. The framework auto-discovers evals from this field.
+- `name` — optional. Human-readable display name. Defaults to `id`.
+- `category` — optional. Defaults to the parent directory name (e.g. `quickstarts`).
 - `skills`: references the matching entry in the [auth0/agent-skills](https://github.com/auth0/agent-skills) repo. Used only in `agent+skills` mode. Omit if no matching skill exists yet.
 - `setup_command`: command to run before the agent starts (e.g. `npm install`). Include when the scaffold has a `package.json` with dependencies.
 
@@ -214,26 +219,7 @@ export function defineGraders() {
 
 ---
 
-## Step 4 — Register in evaluations.ts
-
-**File:** `src/config/evaluations.ts`
-
-Add an entry to the `EVALUATIONS` array:
-
-```typescript
-{
-  id: 'vue_quickstart',              // snake_case config ID; used with --eval flag
-  name: 'Vue Quickstart',            // human-readable display name
-  category: 'quickstarts',           // groups related evals
-  path: 'src/evals/quickstarts/vue', // actual directory; short/kebab-case, NOT the same as id
-},
-```
-
-Note: `id` and the `path` leaf are intentionally different. For example, `id: 'express_api_quickstart'` maps to `path: 'src/evals/quickstarts/express-api'`. Keep `path` short and kebab-case.
-
----
-
-## Step 5 — Add scaffold files
+## Step 4 — Add scaffold files
 
 Scaffold files are copied into the agent's temporary workspace before execution. **Every eval must include scaffold files.** They give the agent a realistic starting point — a real project with correct dependencies already installed — so graders can check integration quality rather than project setup.
 
@@ -251,7 +237,7 @@ src/evals/<category>/<eval-dir>/scaffold/
 
 ---
 
-## Step 6 — Verify
+## Step 5 — Verify
 
 ```bash
 npm run build          # must compile without errors
@@ -275,7 +261,7 @@ If the build fails, the most common causes are:
 - [ ] `src/evals/<category>/<eval-dir>/PROMPT.md` created
 - [ ] `src/evals/<category>/<eval-dir>/graders.ts` created
 - [ ] `src/evals/<category>/<eval-dir>/scaffold/` created with at least a `package.json` and placeholder source files
-- [ ] Entry added to `src/config/evaluations.ts` with `id` (snake_case config ID) and `path` (points to `src/evals/<category>/<eval-dir>`)
+- [ ] `PROMPT.md` frontmatter includes `id` (snake_case config ID)
 - [ ] Graders import from `@a0/eval-graders`
 - [ ] All graders except the final one have a `GraderLevel`
 - [ ] Final grader is a `judge` with no level argument
