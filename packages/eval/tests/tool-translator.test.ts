@@ -38,17 +38,10 @@ describe('ClaudeCodeTranslator — isDocLookup / isInterruption', () => {
 describe('ClaudeCodeTranslator — isInternalTool', () => {
   const translator = new ClaudeCodeTranslator();
 
-  it.each(['TodoWrite', 'TodoRead', 'Task', 'TaskOutput', 'KillShell', 'EnterPlanMode', 'ExitPlanMode'])(
-    '%s is internal',
-    (name) => {
-      expect(translator.isInternalTool(name)).toBe(true);
-    },
-  );
-
-  it('external tools are not internal', () => {
-    expect(translator.isInternalTool('Bash')).toBe(false);
-    expect(translator.isInternalTool('Read')).toBe(false);
-    expect(translator.isInternalTool('WebFetch')).toBe(false);
+  it('tracked tools are not internal', () => {
+    for (const tool of ['TodoWrite', 'TodoRead', 'Task', 'TaskOutput', 'KillShell', 'EnterPlanMode', 'ExitPlanMode', 'Bash', 'Read', 'WebFetch']) {
+      expect(translator.isInternalTool(tool)).toBe(false);
+    }
   });
 });
 
