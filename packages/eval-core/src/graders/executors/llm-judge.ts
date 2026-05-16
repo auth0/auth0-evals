@@ -26,7 +26,7 @@ export const llmJudgeExecutor: GraderExecutor = {
       };
     }
 
-    const { model, maxCodeChars, enforceMaxChars } = ctx.judge;
+    const { model, baseUrl, maxTokens, maxCodeChars, promptsDir, modelMap, enforceMaxChars } = ctx.judge;
 
     const judgeEntries = Object.entries(ctx.files).filter(
       ([k]) => !JUDGE_EXCLUDED_PATTERNS.some((p) => p.test(k.split('/').pop()!)),
@@ -46,7 +46,11 @@ export const llmJudgeExecutor: GraderExecutor = {
       code: judgeText,
       apiKey: ctx.apiKey,
       model,
+      baseUrl,
+      maxTokens,
       framework: def.framework,
+      promptsDir,
+      modelMap,
       enforceMaxChars,
       maxCodeChars,
     });

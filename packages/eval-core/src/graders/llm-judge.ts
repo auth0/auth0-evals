@@ -7,8 +7,6 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { getLitellmModelMap } from '../config/settings.js';
-import { getFrameworkConfig } from '../config/framework-config.js';
 import { JudgeError, LlmApiError } from '../errors.js';
 import { withRetry } from '../utils/retry.js';
 import { logger } from '../utils/logger.js';
@@ -16,14 +14,11 @@ import { FRAMEWORK_PROMPTS, USER_TEMPLATE } from './prompts.generated.js';
 
 // ── Prompt loading ────────────────────────────────────────────────────────────
 
-function loadFrameworkPrompt(framework?: string): string {
-  const config = getFrameworkConfig();
-  const dir = config.judge.promptsDir;
-
+function loadFrameworkPrompt(framework?: string, promptsDir?: string): string {
   // Custom prompts directory configured — load from disk.
   // Relative paths are resolved against cwd (the project root at runtime).
-  if (dir) {
-    const resolved = resolve(dir);
+  if (promptsDir) {
+    const resolved = resolve(promptsDir);
     const name = framework && existsSync(join(resolved, `${framework}.md`)) ? framework : 'default';
     return readFileSync(join(resolved, `${name}.md`), 'utf-8').trim();
   }
@@ -33,12 +28,9 @@ function loadFrameworkPrompt(framework?: string): string {
   return prompt ?? FRAMEWORK_PROMPTS['default']!;
 }
 
-function loadUserTemplate(): string {
-  const config = getFrameworkConfig();
-  const dir = config.judge.promptsDir;
-
-  if (dir) {
-    return readFileSync(join(resolve(dir), 'user_template.md'), 'utf-8').trim();
+function loadUserTemplate(promptsDir?: string): string {
+  if (promptsDir) {
+    return readFileSync(join(resolve(promptsDir), 'user_template.md'), 'utf-8').trim();
   }
 
   return USER_TEMPLATE;
@@ -51,26 +43,29 @@ export interface LlmJudgeOptions {
   code: string;
   apiKey: string;
   model: string;
+  baseUrl: string;
+  maxTokens?: number;
   framework?: string;
+  promptsDir?: string;
   enforceMaxChars?: boolean;
   maxCodeChars?: number;
+  /** LiteLLM model alias map. When provided, model is resolved via this map before the API call. */
+  modelMap?: Record<string, string>;
 }
 
 export async function llmJudge(opts: LlmJudgeOptions): Promise<{ passed: boolean; detail: string }> {
-  const { question, code, apiKey, model, framework, enforceMaxChars = true } = opts;
-  const config = getFrameworkConfig();
-  const judgeMaxCodeChars = opts.maxCodeChars ?? config.judge.maxCodeChars ?? 16_384;
-  const judgeMaxTokens = config.judge.maxTokens ?? 1024;
-  const baseUrl = config.proxy.baseUrl;
+  const { question, code, apiKey, model, baseUrl, framework, promptsDir, enforceMaxChars = true } = opts;
+  const judgeMaxCodeChars = opts.maxCodeChars ?? 16_384;
+  const judgeMaxTokens = opts.maxTokens ?? 1024;
 
   if (!model) {
-    throw new JudgeError('(none)', 'No judge model configured. Set judge.model in eval.config.js or pass judgeModel.');
+    throw new JudgeError('(none)', 'No judge model configured. Pass model in LlmJudgeOptions, or configure judge.model in eval.config.js and use runGraders().');
   }
   if (!baseUrl) {
-    throw new JudgeError(model, 'No proxy base URL configured. Set proxy.baseUrl in eval.config.js.');
+    throw new JudgeError(model, 'No proxy base URL configured. Pass baseUrl in LlmJudgeOptions, or configure proxy.baseUrl in eval.config.js and use runGraders().');
   }
 
-  const base = loadFrameworkPrompt(framework);
+  const base = loadFrameworkPrompt(framework, promptsDir);
   const system =
     `${base} Provide 1-3 short sentences of reasoning, ` +
     "then on the FINAL line write your verdict as exactly 'yes' or 'no' (nothing else on that line).";
@@ -83,8 +78,8 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<{ passed: boolean
     }
     logger.warn(`[judge] Code corpus exceeds limit (${code.length} > ${judgeMaxCodeChars} chars) — proceeding anyway`);
   }
-  const user = loadUserTemplate().replace('{question}', question).replace('{code}', code);
-  const apiModel = getLitellmModelMap()[model] ?? model;
+  const user = loadUserTemplate(promptsDir).replace('{question}', question).replace('{code}', code);
+  const apiModel = (opts.modelMap ?? {})[model] ?? model;
 
   const payload = JSON.stringify({
     model: apiModel,

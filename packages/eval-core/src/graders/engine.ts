@@ -10,6 +10,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getFrameworkConfig } from '../config/framework-config.js';
+import { getLitellmModelMap } from '../config/settings.js';
 import { collectFiles as collectFilePaths } from '../workspace/index.js';
 import type { GraderDef, GraderResult } from '@a0/eval-graders';
 import { GraderLevel } from '@a0/eval-graders';
@@ -108,6 +109,10 @@ export async function runGraders(
   const config = getFrameworkConfig();
   const resolvedJudgeModel = judgeModel ?? config.judge.model ?? '';
   const judgeMaxCodeChars = config.judge.maxCodeChars ?? 16_384;
+  const judgeMaxTokens = config.judge.maxTokens ?? 1024;
+  const judgeBaseUrl = config.proxy.baseUrl;
+  const judgePromptsDir = config.judge.promptsDir;
+  const judgeModelMap = getLitellmModelMap();
   const active = allowedLevels
     ? graderDefs.filter((g) => g.level === undefined || allowedLevels.has(g.level))
     : graderDefs;
@@ -124,7 +129,11 @@ export async function runGraders(
     apiKey,
     judge: {
       model: resolvedJudgeModel,
+      baseUrl: judgeBaseUrl,
+      maxTokens: judgeMaxTokens,
       maxCodeChars: judgeMaxCodeChars,
+      promptsDir: judgePromptsDir,
+      modelMap: judgeModelMap,
       enforceMaxChars,
     },
   };
