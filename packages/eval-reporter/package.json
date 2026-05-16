@@ -13,6 +13,7 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
+    "test:ci": "vitest run --silent --coverage",
     "test:watch": "vitest"
   },
   "dependencies": {
@@ -24,6 +25,7 @@
   "devDependencies": {
     "@types/node": "^25.6.0",
     "@types/nunjucks": "^3.2.6",
+    "@vitest/coverage-v8": "^4.1.6",
     "vitest": "^4.1.0"
   }
 }

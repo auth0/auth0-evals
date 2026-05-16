@@ -44,7 +44,7 @@ jobs:
         run: npm ci
 
       - name: Run tests
-        run: npm test
+        run: npm run test:ci
 
   lint:
     runs-on:
