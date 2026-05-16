@@ -23,7 +23,7 @@ export const GEMINI_MODELS = ['gemini-'];
 export const GPT_MODELS = ['gpt-'];
 
 /**
- * Maps the friendly ATKO model aliases to the LiteLLM proxy model IDs.
+ * Maps friendly model aliases to the LiteLLM proxy model IDs.
  * LiteLLM requires an underscore prefix to route to the correct deployment
  * (e.g. `_claude-opus-4-7` instead of `claude-opus-4-7`).
  *
@@ -34,7 +34,7 @@ export function getLitellmModelMap(): Record<string, string> {
   return getFrameworkConfig().models.litellm ?? {};
 }
 
-/** Reverse lookup: LiteLLM model ID → friendly ATKO alias. */
+/** Reverse lookup: LiteLLM model ID → friendly model alias. */
 export function getLitellmModelReverseMap(): Record<string, string> {
   return Object.fromEntries(Object.entries(getLitellmModelMap()).map(([alias, litellm]) => [litellm, alias]));
 }

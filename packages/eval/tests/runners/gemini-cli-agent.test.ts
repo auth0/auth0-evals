@@ -20,7 +20,7 @@ import { Readable } from 'node:stream';
 vi.mock('@a0/eval-core', async () => ({
   ...(await vi.importActual('@a0/eval-core')),
   getFrameworkConfig: vi.fn().mockReturnValue({
-    proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+    proxy: { baseUrl: 'https://llm.example.com/v1' },
     mcp: {
       servers: {
         'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' },

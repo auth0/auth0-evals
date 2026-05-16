@@ -18,7 +18,7 @@ import '../../src/graders/engine.js';
 
 const TEST_CONFIG: Required<FrameworkConfig> = {
   evalsDir: 'src/evals',
-  proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+  proxy: { baseUrl: 'https://llm.example.com/v1' },
   mcp: { servers: {} },
   skills: { remoteRepos: [], localDirs: [] },
   judge: {

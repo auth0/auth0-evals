@@ -40,7 +40,7 @@ const translator = new ClaudeCodeTranslator();
 
 // ── Model alias mapping ───────────────────────────────────────────────────────
 
-/** Whether the runner should use Bedrock model IDs (via the ATKO /anthropic proxy endpoint). */
+/** Whether the runner should use Bedrock model IDs (via the /anthropic proxy endpoint). */
 const USE_BEDROCK = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY !== '0';
 
 function getBedrockModelAliasMap(): Record<string, string> {
@@ -51,7 +51,7 @@ function getBedrockModelReverseMap(): Record<string, string> {
   return Object.fromEntries(Object.entries(getBedrockModelAliasMap()).map(([alias, full]) => [full, alias]));
 }
 
-function getAtkoKnownModels(): Set<string> {
+function getKnownBedrockAliases(): Set<string> {
   return new Set(Object.keys(getBedrockModelAliasMap()));
 }
 
@@ -61,7 +61,7 @@ function getAtkoKnownModels(): Set<string> {
 export const CLAUDE_CODE_MODEL_ID = 'claude-code';
 
 /**
- * ATKO proxy base URL for the Claude CLI.
+ * Proxy base URL for the Claude CLI.
  * Reads from `agents.claude-code.proxy.baseUrl` in eval.config.js, falling back to
  * the top-level `proxy.baseUrl`.
  * The Agent SDK honours ANTHROPIC_BASE_URL, routing all requests through the proxy
@@ -83,8 +83,8 @@ export interface ClaudeCodeRunOptions {
   /**
    * Claude model identifier to pass via `model` option.
    * When omitted the SDK uses its own default model.
-   * Use the Anthropic model ID format (e.g. `claude-sonnet-4-6-20251101`) or
-   * an ATKO proxy alias (e.g. `claude-sonnet-4-6`) when routing through the proxy.
+   * Use the Anthropic model ID format (e.g. `claude-sonnet-4-5-20251101`) or
+   * a proxy alias (e.g. `claude-sonnet-4-6`) when routing through the proxy.
    */
   model?: string;
 }
@@ -121,7 +121,7 @@ export async function runClaudeCodeAgent(
     workspace,
   };
 
-  // In Bedrock mode, resolve short ATKO alias to the full Bedrock model ID
+  // In Bedrock mode, resolve short alias to the full Bedrock model ID
   // (e.g. claude-sonnet-4-6 → global.anthropic.claude-sonnet-4-6).
   // In LiteLLM mode, resolve via getLitellmModelMap() (adds underscore prefix).
   const resolvedModel = model
@@ -131,7 +131,7 @@ export async function runClaudeCodeAgent(
     : undefined;
 
   // Build environment variables for the SDK process.
-  // Route through the ATKO proxy's Anthropic pass-through endpoint.
+  // Route through the proxy's Anthropic pass-through endpoint.
   const proxyEnv: Record<string, string> = {
     ANTHROPIC_BASE_URL: getAnthropicProxyUrl(),
   };
@@ -303,7 +303,7 @@ export function handleMessage(
     record.model = sys.model
       ? (getBedrockModelReverseMap()[sys.model] ??
         getLitellmModelReverseMap()[sys.model] ??
-        (getAtkoKnownModels().has(sys.model) ? sys.model : `claude-code/${sys.model}`))
+        (getKnownBedrockAliases().has(sys.model) ? sys.model : `claude-code/${sys.model}`))
       : CLAUDE_CODE_MODEL_ID;
     record.sessionId = sys.session_id;
     logger.info(`[ClaudeCode] Session ${sys.session_id} model=${sys.model}`);

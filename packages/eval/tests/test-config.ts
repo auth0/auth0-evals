@@ -9,7 +9,7 @@ import type { FrameworkConfig } from '@a0/eval-core';
 
 export const TEST_CONFIG: Required<FrameworkConfig> = {
   evalsDir: 'src/evals',
-  proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+  proxy: { baseUrl: 'https://llm.example.com/v1' },
   mcp: {
     servers: {
       'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' },
