@@ -32,7 +32,7 @@ vi.mock('../src/workspace/index.js', async () => {
 
 const TEST_CONFIG: FrameworkConfig = {
   evalsDir: 'src/evals',
-  proxy: { baseUrl: 'https://llm.atko.ai/v1' },
+  proxy: { baseUrl: 'https://llm.example.com/v1' },
   mcp: { servers: { 'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' } } },
   skills: {
     remoteRepos: [

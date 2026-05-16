@@ -92,18 +92,12 @@ function buildEvalConfig(promptPath: string, evalDir: string, frameworkRoot: str
   const relPath = relative(frameworkRoot, evalDir);
 
   if (!meta.id) {
-    throw new EvalConfigError(
-      `PROMPT.md missing or empty 'id' in frontmatter`,
-      join(evalDir, 'PROMPT.md'),
-    );
+    throw new EvalConfigError(`PROMPT.md missing or empty 'id' in frontmatter`, join(evalDir, 'PROMPT.md'));
   }
 
   const SAFE_ID_RE = /^[a-z][a-z0-9_]{0,63}$/;
   if (!SAFE_ID_RE.test(meta.id)) {
-    throw new EvalConfigError(
-      `Invalid eval id '${meta.id}': must match ${SAFE_ID_RE}`,
-      join(evalDir, 'PROMPT.md'),
-    );
+    throw new EvalConfigError(`Invalid eval id '${meta.id}': must match ${SAFE_ID_RE}`, join(evalDir, 'PROMPT.md'));
   }
 
   const parentDir = basename(join(evalDir, '..'));

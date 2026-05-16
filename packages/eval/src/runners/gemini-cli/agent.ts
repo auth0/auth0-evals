@@ -4,8 +4,8 @@
  * Spawns `gemini -p <prompt> --approval-mode yolo -o stream-json -m <model>`
  * as a subprocess and parses the JSONL event stream into a RunRecord.
  *
- * Authentication: routed through the ATKO LiteLLM proxy (https://llm.atko.ai)
- * using the shared LLM API key — the same token used by all other runners.
+ * Authentication: routed through the LiteLLM proxy using the LLM API key —
+ * the same token used by all other runners.
  *
  * Event format (stream-json):
  *   {"type":"init",        "session_id":"...", "model":"..."}
@@ -129,7 +129,7 @@ export async function runGeminiCliAgent(
 
   const args: string[] = ['-p', evalDef.userPrompt, '--approval-mode', 'yolo', '-o', 'stream-json', '-m', model];
 
-  // Route through the ATKO LiteLLM proxy — same pattern as the Claude Code runner.
+  // Route through the LiteLLM proxy — same pattern as the Claude Code runner.
   const geminiEnv: Record<string, string> = {
     ...filteredEnv(),
     GEMINI_CLI_TRUSTED_FOLDERS_PATH: trustedFoldersPath,

@@ -1,8 +1,8 @@
 /**
- * Unit tests for the ATKO proxy env-var injection in runGeminiCliAgent().
+ * Unit tests for the LLM proxy env-var injection in runGeminiCliAgent().
  *
- * Verifies that LLM_API_KEY is forwarded as GEMINI_API_KEY and that
- * GOOGLE_GEMINI_BASE_URL is set to the ATKO LiteLLM proxy endpoint.
+ * Verifies that the LLM API key is forwarded as GEMINI_API_KEY and that
+ * GOOGLE_GEMINI_BASE_URL is set to the LiteLLM proxy endpoint.
  * Achieved by stubbing process.env and capturing the env passed to spawn.
  */
 
@@ -16,17 +16,17 @@ import { Readable } from 'node:stream';
 vi.mock('@a0/eval-core', async () => ({
   ...(await vi.importActual('@a0/eval-core')),
   getFrameworkConfig: vi.fn().mockReturnValue({
-    proxy: { baseUrl: 'https://llm.atko.ai/v1' },
+    proxy: { baseUrl: 'https://llm.example.com/v1' },
     mcp: {
       servers: {
         'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' },
       },
     },
     agents: {
-      'gemini-cli': { proxy: { baseUrl: 'https://llm.atko.ai' } },
+      'gemini-cli': { proxy: { baseUrl: 'https://llm.example.com' } },
     },
   }),
-  getAgentProxyBaseUrl: vi.fn().mockReturnValue('https://llm.atko.ai'),
+  getAgentProxyBaseUrl: vi.fn().mockReturnValue('https://llm.example.com'),
 }));
 
 vi.mock('node:child_process', () => ({
@@ -73,16 +73,16 @@ async function triggerRun() {
 }
 
 describe('runGeminiCliAgent proxy env injection', () => {
-  it('sets GOOGLE_GEMINI_BASE_URL to ATKO proxy when LLM_API_KEY is set', async () => {
-    vi.stubEnv('LLM_API_KEY', 'test-atko-token');
+  it('sets GOOGLE_GEMINI_BASE_URL to LLM proxy when LLM_API_KEY is set', async () => {
+    vi.stubEnv('LLM_API_KEY', 'test-llm-token');
     await triggerRun();
-    expect(capturedEnv().GOOGLE_GEMINI_BASE_URL).toBe('https://llm.atko.ai');
+    expect(capturedEnv().GOOGLE_GEMINI_BASE_URL).toBe('https://llm.example.com');
   });
 
   it('sets GEMINI_API_KEY to the value of LLM_API_KEY', async () => {
-    vi.stubEnv('LLM_API_KEY', 'test-atko-token');
+    vi.stubEnv('LLM_API_KEY', 'test-llm-token');
     await triggerRun();
-    expect(capturedEnv().GEMINI_API_KEY).toBe('test-atko-token');
+    expect(capturedEnv().GEMINI_API_KEY).toBe('test-llm-token');
   });
 
   it('does not set GOOGLE_GEMINI_BASE_URL when LLM_API_KEY is absent', async () => {

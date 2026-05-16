@@ -264,7 +264,7 @@ Explicit `--agent-type` overrides auto-routing for runner selection. Exception: 
 
 ### Claude Code runner details
 
-Uses `@anthropic-ai/claude-agent-sdk` `query()` function (not CLI subprocess). Routes through ATKO proxy.
+Uses `@anthropic-ai/claude-agent-sdk` `query()` function (not CLI subprocess). Routes through the configured LLM proxy (`proxy.baseUrl` in `eval.config.js`).
 
 By default uses the Bedrock proxy (`CLAUDE_CODE_USE_BEDROCK_PROXY` != `0`), which maps supported short aliases to full Bedrock model IDs:
 - `claude-sonnet-4-6` → `global.anthropic.claude-sonnet-4-6`
@@ -302,14 +302,14 @@ Used when `--model all` is passed:
 
 ### Judge model
 
-All LLM-as-judge graders use `claude-opus-4-7` via the ATKO proxy (`https://llm.atko.ai/v1`).
+All LLM-as-judge graders use `claude-sonnet-4-5` via the configured LLM proxy (`proxy.baseUrl` in `eval.config.js`).
 
 ### Settings
 
 | Setting | Value |
 |---|---|
-| Base URL | `https://llm.atko.ai/v1` |
-| Judge model | `claude-opus-4-7` |
+| Base URL | Configured in `eval.config.js` (`proxy.baseUrl`) |
+| Judge model | `claude-sonnet-4-5` |
 | Judge max tokens | 1024 |
 | Judge max code chars | 16,384 |
 | Max agent turns | 75 |
