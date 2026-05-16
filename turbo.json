@@ -22,6 +22,10 @@
       "dependsOn": ["build"],
       "outputLogs": "new-only"
     },
+    "test:ci": {
+      "dependsOn": ["build"],
+      "outputLogs": "new-only"
+    },
     "lint": {
       "outputLogs": "new-only"
     },

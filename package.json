@@ -12,6 +12,7 @@
     "run": "turbo run run --",
     "report": "turbo run report --",
     "test": "turbo run test",
+    "test:ci": "turbo run test:ci",
     "lint": "turbo run lint",
     "format": "prettier --write \"./**/*.ts\"",
     "prepare": "husky"

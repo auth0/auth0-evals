@@ -16,10 +16,12 @@
   "scripts": {
     "build": "node scripts/generate-prompts.mjs && tsc",
     "test": "vitest run",
+    "test:ci": "vitest run --silent --coverage",
     "test:watch": "vitest"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
+    "@vitest/coverage-v8": "^4.1.6",
     "vitest": "^4.1.0"
   }
 }

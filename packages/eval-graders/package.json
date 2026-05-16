@@ -13,10 +13,12 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run --passWithNoTests",
+    "test:ci": "vitest run --passWithNoTests --silent --coverage",
     "test:watch": "vitest"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
+    "@vitest/coverage-v8": "^4.1.6",
     "vitest": "^4.1.0"
   }
 }
