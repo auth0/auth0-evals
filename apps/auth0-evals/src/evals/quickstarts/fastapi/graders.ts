@@ -1,12 +1,4 @@
-import {
-  contains,
-  notContains,
-  notContainsInSource,
-  matches,
-  judge,
-  ranCommand,
-  GraderLevel,
-} from '@a0/eval-graders';
+import { contains, notContains, notContainsInSource, matches, judge, ranCommand, GraderLevel } from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
