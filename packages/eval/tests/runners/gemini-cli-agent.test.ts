@@ -121,7 +121,7 @@ describe('tool events', () => {
     const record = await runGeminiCliAgent(evalDef, workspace);
     expect(record.toolCalls).toHaveLength(1);
     const tc = record.toolCalls[0];
-    expect(tc.name).toBe('read');
+    expect(tc.name).toBe('read_file');
     expect(tc.result).toBe('file contents');
     expect(tc.causedError).toBe(false);
     expect(tc.args).toEqual({ path: 'src/app.ts' });
@@ -142,16 +142,16 @@ describe('tool events', () => {
   });
 
   it.each([
-    ['read_file', 'read'],
-    ['write_file', 'write'],
-    ['edit_file', 'edit'],
-    ['replace_in_file', 'edit'],
-    ['run_shell_command', 'bash'],
-    ['list_directory', 'bash'],
-    ['create_directory', 'bash'],
-    ['glob', 'glob'],
-    ['grep', 'grep'],
-    ['web_fetch', 'webfetch'],
+    ['read_file', 'read_file'],
+    ['write_file', 'write_file'],
+    ['edit_file', 'write_file'],
+    ['replace_in_file', 'write_file'],
+    ['run_shell_command', 'run_command'],
+    ['list_directory', 'list_files'],
+    ['create_directory', 'run_command'],
+    ['glob', 'list_files'],
+    ['grep', 'list_files'],
+    ['web_fetch', 'fetch_url'],
   ])('maps Gemini tool name "%s" → canonical "%s"', async (geminiName, expectedName) => {
     mockSpawn.mockReturnValue(
       makeChild([
