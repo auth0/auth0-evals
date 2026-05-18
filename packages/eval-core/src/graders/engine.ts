@@ -120,9 +120,10 @@ export async function runGraders(
     ? graderDefs.filter((g) => g.level === undefined || allowedLevels.has(g.level))
     : graderDefs;
 
-  const files = collectFiles(workspace);
-  const combinedText = combined(files);
-  const combinedLower = combinedText.toLowerCase();
+  const hasTextGraders = active.some((g) => g.kind !== 'event');
+  const files = hasTextGraders ? collectFiles(workspace) : {};
+  const combinedText = hasTextGraders ? combined(files) : '';
+  const combinedLower = hasTextGraders ? combinedText.toLowerCase() : '';
 
   const context = {
     workspace,

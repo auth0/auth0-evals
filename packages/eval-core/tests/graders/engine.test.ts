@@ -845,4 +845,57 @@ describe('runGraders - event graders', () => {
     expect(results[0]!.passed).toBe(false);
     expect(results[0]!.detail).toContain('No tool calls available');
   });
+
+  it('event graders work with empty toolCalls array', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [ranCommand('npm install', undefined, 'ran npm install', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, []);
+    expect(results[0]!.passed).toBe(false);
+    expect(results[0]!.detail).toBe('Event condition NOT met');
+  });
+
+  it('wroteFile matches filename arg key', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const toolCalls: EventToolCall[] = [
+      { name: 'write_file', args: { filename: 'src/App.tsx' }, result: 'ok', causedError: false },
+    ];
+    const graders = [wroteFile('App.tsx', 'Wrote App.tsx', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('wroteFile matches file_path arg key', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const toolCalls: EventToolCall[] = [
+      { name: 'write_file', args: { file_path: 'src/App.tsx' }, result: 'ok', causedError: false },
+    ];
+    const graders = [wroteFile('App.tsx', 'Wrote App.tsx', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('wroteFile excludes errored writes', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const toolCalls: EventToolCall[] = [
+      { name: 'write_file', args: { path: '.env' }, result: 'error', causedError: true },
+    ];
+    const graders = [wroteFile('.env', 'Created .env', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('wroteFile matches edit-named tool call (Gemini CLI)', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const toolCalls: EventToolCall[] = [
+      { name: 'edit', args: { path: 'src/App.tsx' }, result: 'ok', causedError: false },
+    ];
+    const graders = [wroteFile('App.tsx', 'Wrote App.tsx', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
 });

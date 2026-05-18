@@ -115,24 +115,33 @@ export async function runJob(
 
 // ── Agent workspace instructions ──────────────────────────────────────────────
 
-const AGENT_INSTRUCTIONS = `
-- Always install dependencies explicitly using the CLI (e.g. \`npm install <package>\`, \`pip install <package>\`) rather than editing the dependency file (e.g. \`package.json\`, \`requirements.txt\`) and then running the install command.
-- Always verify compilation by running the project's build command (e.g. \`npm run build\`) before finishing.
-`.trim();
+const AGENT_INSTRUCTIONS_BASE = `- Always install dependencies explicitly using the CLI (e.g. \`npm install <package>\`, \`pip install <package>\`) rather than editing the dependency file (e.g. \`package.json\`, \`requirements.txt\`) and then running the install command.`;
+
+const AGENT_INSTRUCTIONS_BUILD = `- Always verify compilation by running the project's build command (e.g. \`npm run build\`) before finishing.`;
+
+function getAgentInstructions(evalDef: EvalDefinition): string {
+  const lines = [AGENT_INSTRUCTIONS_BASE];
+  const pkgJson = evalDef.scaffold['package.json'];
+  if (pkgJson && pkgJson.includes('"build"')) {
+    lines.push(AGENT_INSTRUCTIONS_BUILD);
+  }
+  return lines.join('\n');
+}
 
 /**
  * Write lightweight behavioral instructions to the workspace in a format
  * each non-ReAct agent can pick up via its native config file convention.
  * The ReAct agent already receives these via system_default.md.
  */
-function writeAgentInstructions(workspace: string, agentType: AgentType): void {
+function writeAgentInstructions(workspace: string, agentType: AgentType, evalDef: EvalDefinition): void {
+  const instructions = getAgentInstructions(evalDef);
   if (agentType === 'claude-code') {
-    writeFileSync(join(workspace, 'CLAUDE.md'), AGENT_INSTRUCTIONS, 'utf-8');
+    writeFileSync(join(workspace, 'CLAUDE.md'), instructions, 'utf-8');
   } else if (agentType === 'gemini-cli') {
-    writeFileSync(join(workspace, 'GEMINI.md'), AGENT_INSTRUCTIONS, 'utf-8');
+    writeFileSync(join(workspace, 'GEMINI.md'), instructions, 'utf-8');
   } else if (agentType === 'copilot') {
     mkdirSync(join(workspace, '.github'), { recursive: true });
-    writeFileSync(join(workspace, '.github', 'copilot-instructions.md'), AGENT_INSTRUCTIONS, 'utf-8');
+    writeFileSync(join(workspace, '.github', 'copilot-instructions.md'), instructions, 'utf-8');
   }
 }
 
@@ -151,7 +160,7 @@ async function runAgentJob(
 
   const workspace = setupWorkspace(evalDef.scaffold);
   try {
-    writeAgentInstructions(workspace, agentType);
+    writeAgentInstructions(workspace, agentType, evalDef);
     if (!sandbox && evalDef.setupCommand) {
       runSetupCommand(workspace, evalDef.setupCommand);
     }
