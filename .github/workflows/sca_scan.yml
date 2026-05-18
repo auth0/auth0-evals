@@ -14,7 +14,4 @@ jobs:
     with:
       additional-arguments: "--exclude=scaffold"
       node-version: 24
-    secrets:
-      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-      SIGNAL_HANDLER_TOKEN: ${{ secrets.SIGNAL_HANDLER_TOKEN }}
-      SIGNAL_HANDLER_DOMAIN: ${{ secrets.SIGNAL_HANDLER_DOMAIN }}
+    secrets: inherit
