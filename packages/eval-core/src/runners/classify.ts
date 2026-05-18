@@ -22,6 +22,8 @@ const TOOL_ACTION_TYPES: Record<string, ActionType> = {
   search_auth0_docs: 'Discovery',
   skill: 'Skill',
   plan: 'Discovery',
+  todo_read: 'Discovery',
+  todo_write: 'Discovery',
 };
 
 /**
