@@ -6,21 +6,8 @@
  * shared so runners and skills strategies can reference them.
  */
 
-import type { GraderLevel } from './graders.js';
-
-export interface GraderDef {
-  kind: string;
-  name: string;
-  needle?: string;
-  pattern?: string;
-  question?: string;
-  framework?: string;
-  level?: GraderLevel;
-  caseSensitive?: boolean;
-  predicate?: (
-    toolCalls: Array<{ name: string; args: Record<string, unknown>; result: string; causedError: boolean }>,
-  ) => boolean;
-}
+import type { GraderDef } from '@a0/eval-graders';
+export type { GraderDef } from '@a0/eval-graders';
 
 export interface EvalDefinition {
   id: string;

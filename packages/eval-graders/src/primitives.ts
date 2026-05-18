@@ -120,6 +120,8 @@ export function ranCommandOneOf(commands: string[], description?: string, level?
   };
 }
 
+const WRITE_TOOL_NAMES = new Set(['write_file', 'write', 'edit']);
+
 /**
  * Asserts that the agent wrote a file whose path contains the given substring.
  */
@@ -130,7 +132,7 @@ export function wroteFile(path: string, description?: string, level?: GraderLeve
     level,
     predicate: (toolCalls: EventToolCall[]) =>
       toolCalls
-        .filter((tc) => tc.name === 'write_file' && !tc.causedError)
+        .filter((tc) => WRITE_TOOL_NAMES.has(tc.name) && !tc.causedError)
         .some((tc) => String(tc.args.path ?? tc.args.filename ?? tc.args.file_path ?? '').includes(path)),
   };
 }

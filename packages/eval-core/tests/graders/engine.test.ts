@@ -815,6 +815,28 @@ describe('runGraders - event graders', () => {
     expect(results[0]!.passed).toBe(true);
   });
 
+  it('ranCommand matches bash-named tool call (Gemini CLI)', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const bashToolCalls: EventToolCall[] = [
+      { name: 'bash', args: { command: 'npm install @auth0/auth0-react' }, result: 'ok', causedError: false },
+    ];
+    const graders = [ranCommand('npm install', '@auth0/auth0-react', 'installed via bash', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, bashToolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('wroteFile matches write-named tool call (Gemini CLI)', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const geminiToolCalls: EventToolCall[] = [
+      { name: 'write', args: { path: 'src/App.tsx' }, result: 'ok', causedError: false },
+    ];
+    const graders = [wroteFile('App.tsx', 'Wrote App.tsx', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, geminiToolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
   it('event graders fail gracefully when no toolCalls provided', async () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'x.ts'), '');
