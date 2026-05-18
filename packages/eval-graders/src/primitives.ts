@@ -119,65 +119,6 @@ export function ranCommandOneOf(commands: string[], description?: string, level?
 }
 
 /**
- * Asserts that the agent did NOT run a shell command containing the given command substring
- * (with optional args).
- */
-export function didNotRunCommand(
-  command: string,
-  args?: string | string[],
-  description?: string,
-  level?: GraderLevel,
-): GraderDef {
-  const argList = args ? (Array.isArray(args) ? args : [args]) : [];
-  const label = argList.length > 0 ? `${command} with [${argList.join(', ')}]` : command;
-  return {
-    kind: 'event',
-    name: description ?? `did not run command '${label}'`,
-    level,
-    predicate: (toolCalls: EventToolCall[]) =>
-      !getRunCommands(toolCalls).some((cmd) => cmd.includes(command) && argList.every((arg) => cmd.includes(arg))),
-  };
-}
-
-/**
- * Asserts that the agent invoked a specific tool at least once.
- */
-export function usedTool(toolName: string, description?: string, level?: GraderLevel): GraderDef {
-  return {
-    kind: 'event',
-    name: description ?? `used tool '${toolName}'`,
-    level,
-    predicate: (toolCalls: EventToolCall[]) => toolCalls.some((tc) => tc.name === toolName),
-  };
-}
-
-/**
- * Asserts that the agent called a tool with a specific argument value.
- * argValue can be a substring (string) or a regex matched against the stringified arg.
- */
-export function toolCalledWithArg(
-  toolName: string,
-  argKey: string,
-  argValue: string | RegExp,
-  description?: string,
-  level?: GraderLevel,
-): GraderDef {
-  const label = argValue instanceof RegExp ? argValue.source : argValue;
-  return {
-    kind: 'event',
-    name: description ?? `tool '${toolName}' called with ${argKey} matching '${label}'`,
-    level,
-    predicate: (toolCalls: EventToolCall[]) =>
-      toolCalls
-        .filter((tc) => tc.name === toolName)
-        .some((tc) => {
-          const val = String(tc.args[argKey] ?? '');
-          return typeof argValue === 'string' ? val.includes(argValue) : argValue.test(val);
-        }),
-  };
-}
-
-/**
  * Asserts that the agent wrote a file whose path contains the given substring.
  */
 export function wroteFile(path: string, description?: string, level?: GraderLevel): GraderDef {
@@ -189,36 +130,5 @@ export function wroteFile(path: string, description?: string, level?: GraderLeve
       toolCalls
         .filter((tc) => tc.name === 'write_file' && !tc.causedError)
         .some((tc) => String(tc.args.path ?? tc.args.filename ?? tc.args.file_path ?? '').includes(path)),
-  };
-}
-
-/**
- * Asserts that the agent fetched a URL containing the given substring.
- */
-export function fetchedUrl(pattern: string, description?: string, level?: GraderLevel): GraderDef {
-  return {
-    kind: 'event',
-    name: description ?? `fetched URL matching '${pattern}'`,
-    level,
-    predicate: (toolCalls: EventToolCall[]) =>
-      toolCalls
-        .filter((tc) => tc.name === 'fetch_url' && !tc.causedError)
-        .some((tc) => String(tc.args.url ?? '').includes(pattern)),
-  };
-}
-
-/**
- * Escape hatch — custom predicate on the full tool call array.
- */
-export function eventMatch(
-  predicate: (toolCalls: EventToolCall[]) => boolean,
-  description: string,
-  level?: GraderLevel,
-): GraderDef {
-  return {
-    kind: 'event',
-    name: description,
-    level,
-    predicate,
   };
 }

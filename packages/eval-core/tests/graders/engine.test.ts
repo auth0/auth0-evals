@@ -13,12 +13,7 @@ import {
   matches,
   ranCommand,
   ranCommandOneOf,
-  didNotRunCommand,
-  usedTool,
-  toolCalledWithArg,
   wroteFile,
-  fetchedUrl,
-  eventMatch,
   GraderLevel,
   type GraderResult,
   type EventToolCall,
@@ -460,7 +455,14 @@ describe('llmJudge', () => {
         return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
       }),
     );
-    await llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test', maxTokens: 512 });
+    await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+      maxTokens: 512,
+    });
     expect(capturedBody?.max_tokens).toBe(512);
   });
 
@@ -472,20 +474,32 @@ describe('llmJudge', () => {
 
   it('rejects words that merely start with yes (word boundary)', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('The code was correct.\n\nyesterday'));
-    await expect(llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' })).rejects.toThrow(
-      'unexpected verdict',
-    );
+    await expect(
+      llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' }),
+    ).rejects.toThrow('unexpected verdict');
   });
 
   it('passes when yes has trailing punctuation', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('The Auth0Provider wrapper is present.\n\nyes.'));
-    const { passed } = await llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' });
+    const { passed } = await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
     expect(passed).toBe(true);
   });
 
   it('fails when no verdict has trailing explanation', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('The provider is missing.\n\nno, the provider is missing.'));
-    const { passed, detail } = await llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' });
+    const { passed, detail } = await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
     expect(passed).toBe(false);
     expect(detail).not.toContain('unexpected verdict');
   });
@@ -495,16 +509,22 @@ describe('llmJudge', () => {
       'fetch',
       mockFetchResponse('yes, the provider appears to be set up.\nHowever on closer inspection it is missing.\n\nno'),
     );
-    const { passed, detail } = await llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' });
+    const { passed, detail } = await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
     expect(passed).toBe(false);
     expect(detail).not.toContain('unexpected verdict');
   });
 
   it('unexpected token throws JudgeError', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('maybe'));
-    await expect(llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' })).rejects.toThrow(
-      'unexpected verdict',
-    );
+    await expect(
+      llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' }),
+    ).rejects.toThrow('unexpected verdict');
   });
 });
 
@@ -599,15 +619,21 @@ describe('llmJudge - code corpus overflow', () => {
 
   it('throws when code exceeds JUDGE_MAX_CODE_CHARS', async () => {
     const oversized = 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1);
-    await expect(llmJudge({ question: 'question', code: oversized, apiKey: 'key', model: 'model', baseUrl: 'http://test' })).rejects.toThrow(
-      /Code corpus exceeds limit/,
-    );
+    await expect(
+      llmJudge({ question: 'question', code: oversized, apiKey: 'key', model: 'model', baseUrl: 'http://test' }),
+    ).rejects.toThrow(/Code corpus exceeds limit/);
   });
 
   it('does not throw when code is exactly at the limit', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('Looks good.\n\nyes'));
     const exact = 'x'.repeat(JUDGE_MAX_CODE_CHARS);
-    const { passed } = await llmJudge({ question: 'question', code: exact, apiKey: 'key', model: 'model', baseUrl: 'http://test' });
+    const { passed } = await llmJudge({
+      question: 'question',
+      code: exact,
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
     expect(passed).toBe(true);
   });
 });
@@ -762,68 +788,6 @@ describe('runGraders - event graders', () => {
     expect(results[0]!.passed).toBe(true);
   });
 
-  it('didNotRunCommand passes when command was not executed', async () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, 'x.ts'), '');
-    const graders = [didNotRunCommand('rm -rf', undefined, 'no rm -rf', GraderLevel.L3)];
-    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
-    expect(results[0]!.passed).toBe(true);
-  });
-
-  it('didNotRunCommand fails when command was executed', async () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, 'x.ts'), '');
-    const graders = [didNotRunCommand('npm install', undefined, 'no npm install', GraderLevel.L4)];
-    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
-    expect(results[0]!.passed).toBe(false);
-  });
-
-  it('usedTool passes when tool was invoked', async () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, 'x.ts'), '');
-    const graders = [usedTool('write_file', 'used write_file', GraderLevel.L4)];
-    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
-    expect(results[0]!.passed).toBe(true);
-  });
-
-  it('usedTool fails when tool was not invoked', async () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, 'x.ts'), '');
-    const graders = [usedTool('fetch_url', 'used fetch_url', GraderLevel.L4)];
-    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
-    expect(results[0]!.passed).toBe(false);
-  });
-
-  it('toolCalledWithArg passes when arg matches', async () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, 'x.ts'), '');
-    const graders = [toolCalledWithArg('write_file', 'path', 'App.tsx', 'wrote App.tsx', GraderLevel.L4)];
-    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
-    expect(results[0]!.passed).toBe(true);
-  });
-
-  it('toolCalledWithArg fails when arg does not match', async () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, 'x.ts'), '');
-    const graders = [toolCalledWithArg('write_file', 'path', 'index.html', 'wrote index.html', GraderLevel.L4)];
-    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
-    expect(results[0]!.passed).toBe(false);
-  });
-
-  it('eventMatch works with custom predicate', async () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, 'x.ts'), '');
-    const graders = [
-      eventMatch(
-        (calls) => calls.filter((c) => c.name === 'run_command').length >= 2,
-        'at least 2 commands',
-        GraderLevel.L4,
-      ),
-    ];
-    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
-    expect(results[0]!.passed).toBe(true);
-  });
-
   it('wroteFile passes when file was written', async () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'x.ts'), '');
@@ -849,30 +813,6 @@ describe('runGraders - event graders', () => {
     const graders = [wroteFile('App.tsx', 'Wrote App.tsx', GraderLevel.L4)];
     const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
     expect(results[0]!.passed).toBe(true);
-  });
-
-  it('fetchedUrl passes when URL was fetched', async () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, 'x.ts'), '');
-    const graders = [fetchedUrl('auth0.com', 'Consulted Auth0 docs', GraderLevel.L4)];
-    const toolCalls: EventToolCall[] = [
-      {
-        name: 'fetch_url',
-        args: { url: 'https://auth0.com/docs/quickstart' },
-        result: 'doc content',
-        causedError: false,
-      },
-    ];
-    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
-    expect(results[0]!.passed).toBe(true);
-  });
-
-  it('fetchedUrl fails when URL was not fetched', async () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, 'x.ts'), '');
-    const graders = [fetchedUrl('auth0.com', 'Consulted Auth0 docs', GraderLevel.L4)];
-    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
-    expect(results[0]!.passed).toBe(false);
   });
 
   it('event graders fail gracefully when no toolCalls provided', async () => {

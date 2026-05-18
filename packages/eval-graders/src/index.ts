@@ -13,10 +13,5 @@ export {
   judge,
   ranCommand,
   ranCommandOneOf,
-  didNotRunCommand,
-  usedTool,
-  toolCalledWithArg,
   wroteFile,
-  fetchedUrl,
-  eventMatch,
 } from './primitives.js';
