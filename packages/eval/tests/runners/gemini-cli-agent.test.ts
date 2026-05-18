@@ -463,3 +463,32 @@ describe('status and final state', () => {
     expect(record.finalSummary).toBe('Final response.');
   });
 });
+
+// ── GH_TOKEN env forwarding ──────────────────────────────────────────────────
+
+describe('GH_TOKEN env forwarding', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  function capturedEnv(): Record<string, string> {
+    const call = mockSpawn.mock.calls[0] as [string, string[], { env: Record<string, string> }];
+    return call[2].env;
+  }
+
+  it('includes GH_TOKEN when set in process.env', async () => {
+    vi.stubEnv('GH_TOKEN', 'gh-test-token-456');
+    mockSpawn.mockReturnValue(makeChild([resultEvent()]));
+
+    await runGeminiCliAgent(evalDef, workspace);
+    expect(capturedEnv().GH_TOKEN).toBe('gh-test-token-456');
+  });
+
+  it('omits GH_TOKEN when not set in process.env', async () => {
+    vi.stubEnv('GH_TOKEN', '');
+    mockSpawn.mockReturnValue(makeChild([resultEvent()]));
+
+    await runGeminiCliAgent(evalDef, workspace);
+    expect(capturedEnv()).not.toHaveProperty('GH_TOKEN');
+  });
+});

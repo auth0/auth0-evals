@@ -134,6 +134,9 @@ export async function runGeminiCliAgent(
     ...filteredEnv(),
     GEMINI_CLI_TRUSTED_FOLDERS_PATH: trustedFoldersPath,
   };
+  if (process.env.GH_TOKEN) {
+    geminiEnv.GH_TOKEN = process.env.GH_TOKEN;
+  }
   if (process.env[LLM_API_KEY_ENV]) {
     geminiEnv.GOOGLE_GEMINI_BASE_URL = getAgentProxyBaseUrl('gemini-cli');
     geminiEnv.GEMINI_API_KEY = process.env[LLM_API_KEY_ENV]!;
