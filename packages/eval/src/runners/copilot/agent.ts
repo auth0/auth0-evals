@@ -16,7 +16,7 @@
 
 import { join } from 'node:path';
 import { CopilotClient, approveAll } from '@github/copilot-sdk';
-import type { MCPRemoteServerConfig } from '@github/copilot-sdk';
+import type { MCPServerConfig } from '@github/copilot-sdk';
 import type { EvalDefinition, RunRecord, ToolCallRecord, TurnMetric } from '@a0/eval-core';
 import {
   COPILOT_TASK_TIMEOUT_MS,
@@ -50,9 +50,9 @@ export interface CopilotRunOptions {
 }
 
 /** Returns MCP server config for the Auth0 docs server. */
-export function getMcpServers(): Record<string, MCPRemoteServerConfig> {
+export function getMcpServers(): Record<string, MCPServerConfig> {
   const servers = getFrameworkConfig().mcp.servers;
-  const result: Record<string, MCPRemoteServerConfig> = {};
+  const result: Record<string, MCPServerConfig> = {};
   for (const [name, server] of Object.entries(servers)) {
     if (server.type === 'http') {
       result[name] = { type: 'http', url: server.url, tools: ['*'] };
