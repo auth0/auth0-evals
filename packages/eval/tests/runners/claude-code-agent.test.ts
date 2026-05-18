@@ -800,6 +800,18 @@ describe('runClaudeCodeAgent proxy env injection', () => {
     await runClaudeCodeAgent(evalDef, workspace);
     expect(capturedEnv()).not.toHaveProperty('ANTHROPIC_API_KEY');
   });
+
+  it('includes GH_TOKEN when set in process.env', async () => {
+    vi.stubEnv('GH_TOKEN', 'gh-test-token-123');
+    await runClaudeCodeAgent(evalDef, workspace);
+    expect(capturedEnv().GH_TOKEN).toBe('gh-test-token-123');
+  });
+
+  it('omits GH_TOKEN when not set in process.env', async () => {
+    vi.stubEnv('GH_TOKEN', '');
+    await runClaudeCodeAgent(evalDef, workspace);
+    expect(capturedEnv()).not.toHaveProperty('GH_TOKEN');
+  });
 });
 
 // ── ClaudeCodeTranslator ──────────────────────────────────────────────────────

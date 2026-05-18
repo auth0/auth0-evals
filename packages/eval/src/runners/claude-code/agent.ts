@@ -147,6 +147,9 @@ export async function runClaudeCodeAgent(
   if (process.env.CLAUDE_CODE_USE_BEDROCK_PROXY) {
     claudeEnv.CLAUDE_CODE_USE_BEDROCK_PROXY = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY;
   }
+  if (process.env.GH_TOKEN) {
+    claudeEnv.GH_TOKEN = process.env.GH_TOKEN;
+  }
 
   // Build MCP server config when --tools mcp is requested.
   let mcpServers: Record<string, { type: 'http'; url: string }> | undefined;
