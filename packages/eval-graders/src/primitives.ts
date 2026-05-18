@@ -73,6 +73,7 @@ export function judge(question: string, framework?: string, level?: GraderLevel)
 
 // ── Event-based graders ─────────────────────────────────────────────────────
 
+// Tool names that represent shell execution across runners (Claude: run_command, Gemini: bash).
 const RUN_COMMAND_NAMES = new Set(['run_command', 'bash']);
 
 function getRunCommands(toolCalls: EventToolCall[]): string[] {
@@ -120,6 +121,7 @@ export function ranCommandOneOf(commands: string[], description?: string, level?
   };
 }
 
+// Tool names that represent file writes across runners (Claude/Copilot: write_file, Gemini: write/edit).
 const WRITE_TOOL_NAMES = new Set(['write_file', 'write', 'edit']);
 
 /**

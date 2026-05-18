@@ -130,8 +130,7 @@ function getAgentInstructions(evalDef: EvalDefinition): string {
 
 /**
  * Write lightweight behavioral instructions to the workspace in a format
- * each non-ReAct agent can pick up via its native config file convention.
- * The ReAct agent already receives these via system_default.md.
+ * each agent can pick up via its native config file convention.
  */
 function writeAgentInstructions(workspace: string, agentType: AgentType, evalDef: EvalDefinition): void {
   const instructions = getAgentInstructions(evalDef);
