@@ -21,7 +21,7 @@ export const eventExecutor: GraderExecutor = {
       };
     }
 
-    if (!ctx.toolCalls || ctx.toolCalls.length === 0) {
+    if (!ctx.toolCalls) {
       return {
         name: def.name,
         kind: def.kind,

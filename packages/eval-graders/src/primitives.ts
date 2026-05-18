@@ -73,10 +73,12 @@ export function judge(question: string, framework?: string, level?: GraderLevel)
 
 // ── Event-based graders ─────────────────────────────────────────────────────
 
+const RUN_COMMAND_NAMES = new Set(['run_command', 'bash']);
+
 function getRunCommands(toolCalls: EventToolCall[]): string[] {
   return toolCalls
-    .filter((tc) => tc.name === 'run_command' && !tc.causedError)
-    .map((tc) => (tc.args.command as string) ?? '');
+    .filter((tc) => RUN_COMMAND_NAMES.has(tc.name) && !tc.causedError)
+    .map((tc) => String(tc.args.command ?? ''));
 }
 
 /**

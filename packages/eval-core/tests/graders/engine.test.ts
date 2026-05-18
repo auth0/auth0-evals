@@ -771,12 +771,12 @@ describe('runGraders - event graders', () => {
     expect(results[0]!.passed).toBe(false);
   });
 
-  it('ranCommandOneOf passes when one of the commands matches', async () => {
+  it('ranCommandOneOf fails when matching command caused an error', async () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'x.ts'), '');
     const graders = [ranCommandOneOf(['ng build', 'npm run build'], 'ran build', GraderLevel.L4)];
     const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
-    // sampleToolCalls doesn't have ng build or npm run build (npm run build causedError)
+    // sampleToolCalls has npm run build with causedError=true, so it's excluded
     expect(results[0]!.passed).toBe(false);
   });
 
