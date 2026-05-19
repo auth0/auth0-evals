@@ -415,20 +415,20 @@ describe('handleMessage — user', () => {
     expect(record.toolCalls).toHaveLength(0);
   });
 
-  it('TodoWrite is tracked as write_file', () => {
+  it('TodoWrite is tracked as todo_write', () => {
     const record = makeRecord();
     const pending = makePendingWithEntry('tu_1', 'TodoWrite', { todos: [] });
     const msg = makeUserMsg([{ type: 'tool_result', tool_use_id: 'tu_1', content: 'ok', is_error: false }]);
     handleMessage(msg, record, pending, 0, 0);
     expect(record.toolCalls).toHaveLength(1);
-    expect(record.toolCalls[0].name).toBe('write_file');
+    expect(record.toolCalls[0].name).toBe('todo_write');
   });
 
   it('planning tools are tracked (Task, TaskOutput, TodoRead, EnterPlanMode, ExitPlanMode)', () => {
     const expected: Record<string, string> = {
       Task: 'run_command',
       TaskOutput: 'read_file',
-      TodoRead: 'read_file',
+      TodoRead: 'todo_read',
       EnterPlanMode: 'plan',
       ExitPlanMode: 'plan',
     };
@@ -709,7 +709,7 @@ describe('runClaudeCodeAgent', () => {
     expect(record.providerErrors.some((e) => e.includes('orphaned tool_use: Bash'))).toBe(true);
   });
 
-  it('orphaned TodoWrite is tracked as write_file with causedError', async () => {
+  it('orphaned TodoWrite is tracked as todo_write with causedError', async () => {
     mockQuery.mockReturnValue(
       fakeQuery([
         makeAssistantMsg({
@@ -719,7 +719,7 @@ describe('runClaudeCodeAgent', () => {
     );
     const record = await runClaudeCodeAgent(evalDef, workspace);
     expect(record.toolCalls).toHaveLength(1);
-    expect(record.toolCalls[0].name).toBe('write_file');
+    expect(record.toolCalls[0].name).toBe('todo_write');
     expect(record.toolCalls[0].causedError).toBe(true);
   });
 
@@ -831,8 +831,8 @@ describe('ClaudeCodeTranslator — mapName', () => {
     ['WebFetch', 'fetch_url'],
     ['WebSearch', 'fetch_url'],
     ['AskUserQuestion', 'ask_user'],
-    ['TodoRead', 'read_file'],
-    ['TodoWrite', 'write_file'],
+    ['TodoRead', 'todo_read'],
+    ['TodoWrite', 'todo_write'],
     ['Task', 'run_command'],
     ['TaskOutput', 'read_file'],
     ['KillShell', 'run_command'],

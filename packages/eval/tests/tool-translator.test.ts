@@ -125,20 +125,23 @@ describe('GeminiCliTranslator — mapping', () => {
   const translator = new GeminiCliTranslator();
 
   it.each([
-    ['read_file', 'read'],
-    ['write_file', 'write'],
-    ['edit_file', 'edit'],
-    ['replace_in_file', 'edit'],
-    ['run_shell_command', 'bash'],
-    ['list_directory', 'bash'],
-    ['create_directory', 'bash'],
-    ['move_file', 'bash'],
-    ['copy_file', 'bash'],
-    ['delete_file', 'bash'],
-    ['glob', 'glob'],
-    ['grep', 'grep'],
-    ['web_fetch', 'webfetch'],
-    ['web_search', 'webfetch'],
+    ['read_file', 'read_file'],
+    ['write_file', 'write_file'],
+    ['edit_file', 'write_file'],
+    ['replace_in_file', 'write_file'],
+    ['run_shell_command', 'run_command'],
+    ['list_directory', 'list_files'],
+    ['create_directory', 'run_command'],
+    ['move_file', 'run_command'],
+    ['copy_file', 'run_command'],
+    ['delete_file', 'run_command'],
+    ['glob', 'list_files'],
+    ['grep', 'list_files'],
+    ['replace', 'write_file'],
+    ['web_fetch', 'fetch_url'],
+    ['web_search', 'fetch_url'],
+    ['update_topic', 'plan'],
+    ['activate_skill', 'skill'],
   ])('maps "%s" → "%s"', (geminiName, expected) => {
     expect(translator.mapName(geminiName)).toBe(expected);
   });
@@ -190,6 +193,23 @@ describe('GeminiCliTranslator — normalizeArgs', () => {
 
   it('normalizes web_search query to url', () => {
     expect(translator.normalizeArgs('web_search', { query: 'auth0 login' })).toEqual({ url: 'auth0 login' });
+  });
+
+  it('normalizes activate_skill with skill field', () => {
+    expect(translator.normalizeArgs('activate_skill', { skill: 'auth0-nextjs' })).toEqual({ name: 'auth0-nextjs' });
+  });
+
+  it('normalizes activate_skill falls back to name field', () => {
+    expect(translator.normalizeArgs('activate_skill', { name: 'auth0-nextjs' })).toEqual({ name: 'auth0-nextjs' });
+  });
+
+  it('normalizes activate_skill defaults to empty string', () => {
+    expect(translator.normalizeArgs('activate_skill', {})).toEqual({ name: '' });
+  });
+
+  it('passes through args for update_topic', () => {
+    const args = { topic: 'Auth0 integration', summary: 'Adding login', intent: 'Setup auth' };
+    expect(translator.normalizeArgs('update_topic', args)).toEqual(args);
   });
 
   it('passes through args for unknown tools', () => {

@@ -1,20 +1,23 @@
 import { BaseToolTranslator } from '../base-translator.js';
 
 const GEMINI_TOOL_MAP: Record<string, string> = {
-  list_directory: 'bash',
-  run_shell_command: 'bash',
-  create_directory: 'bash',
-  move_file: 'bash',
-  copy_file: 'bash',
-  delete_file: 'bash',
-  read_file: 'read',
-  write_file: 'write',
-  edit_file: 'edit',
-  replace_in_file: 'edit',
-  glob: 'glob',
-  grep: 'grep',
-  web_fetch: 'webfetch',
-  web_search: 'webfetch',
+  list_directory: 'list_files',
+  run_shell_command: 'run_command',
+  create_directory: 'run_command',
+  move_file: 'run_command',
+  copy_file: 'run_command',
+  delete_file: 'run_command',
+  read_file: 'read_file',
+  write_file: 'write_file',
+  edit_file: 'write_file',
+  replace_in_file: 'write_file',
+  replace: 'write_file',
+  glob: 'list_files',
+  grep: 'list_files',
+  web_fetch: 'fetch_url',
+  web_search: 'fetch_url',
+  update_topic: 'plan',
+  activate_skill: 'skill',
 };
 
 export class GeminiCliTranslator extends BaseToolTranslator {
@@ -41,23 +44,26 @@ export class GeminiCliTranslator extends BaseToolTranslator {
       case 'run_shell_command':
         return { command: args.command ?? args.cmd ?? '' };
       case 'list_directory':
-      case 'create_directory':
         return { path: args.path ?? args.directory ?? '' };
+      case 'create_directory':
+        return { command: `mkdir ${String(args.path ?? args.directory ?? '')}` };
       case 'read_file':
         return { path: args.path ?? args.file_path ?? '' };
       case 'write_file':
         return { path: args.path ?? args.file_path ?? '', content: args.content ?? '' };
       case 'edit_file':
       case 'replace_in_file':
+      case 'replace':
         return {
           path: args.path ?? args.file_path ?? '',
           content: args.new_content ?? args.new_string ?? args.content ?? '',
         };
       case 'move_file':
+        return { command: `mv ${String(args.source ?? args.path ?? '')} ${String(args.destination ?? '')}` };
       case 'copy_file':
-        return { path: args.destination ?? args.path ?? '' };
+        return { command: `cp ${String(args.source ?? args.path ?? '')} ${String(args.destination ?? '')}` };
       case 'delete_file':
-        return { path: args.path ?? args.file_path ?? '' };
+        return { command: `rm ${String(args.path ?? args.file_path ?? '')}` };
       case 'glob':
         return { path: args.pattern ?? args.path ?? '' };
       case 'grep':
@@ -66,6 +72,10 @@ export class GeminiCliTranslator extends BaseToolTranslator {
         return { url: args.url ?? '' };
       case 'web_search':
         return { url: args.query ?? '' };
+      case 'activate_skill':
+        return { name: args.skill ?? args.name ?? '' };
+      case 'update_topic':
+        return args;
       default:
         return args;
     }

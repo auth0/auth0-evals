@@ -63,7 +63,8 @@ export function defineGraders() {
     ),
     judge(
       'Does the code set up a working authentication flow with login, logout, and a callback route? ' +
-        'Is there a protected /dashboard page that checks the user session and redirects unauthenticated users to log in?',
+        'Is there a protected /dashboard page that checks the user session and redirects unauthenticated users to log in? ' +
+        'Note: Next.js 16 supports both middleware.ts (export function middleware) and proxy.ts (export function proxy) — both are valid.',
       'nextjs',
       GraderLevel.L4,
     ),
@@ -77,13 +78,14 @@ export function defineGraders() {
     ),
     notContains('handleAuth', 'Does not use v3 handleAuth (v4 uses middleware)', GraderLevel.L5),
     notContains('/api/auth/', 'Does not use v3 route prefix /api/auth/ (v4 uses /auth/)', GraderLevel.L5),
-    notContains('withPageAuthRequired', 'Does not use v3 withPageAuthRequired (v4 uses middleware)', GraderLevel.L5),
+    notContains('withPageAuthRequired', 'Does not use v3 withPageAuthRequired (v4 uses proxy/middleware)', GraderLevel.L5),
     notContains('withApiAuthRequired', 'Does not use v3 withApiAuthRequired (removed in v4)', GraderLevel.L5),
     judge(
       'Does the solution correctly integrate Auth0 into a Next.js App Router app ' +
-        'using Auth0Client from @auth0/nextjs-auth0/server, middleware-based auth ' +
+        'using Auth0Client from @auth0/nextjs-auth0/server, proxy or middleware-based auth ' +
         'routing, and getSession for server-side session access? It should NOT use ' +
         'the deprecated v3 patterns like handleAuth, withPageAuthRequired, or /api/auth/ routes. ' +
+        'Note: Next.js 16 replaces middleware.ts with proxy.ts (export function proxy) — both are valid. ' +
         'There should also be a protected /dashboard page that checks the session and ' +
         'redirects unauthenticated users to log in.',
       'nextjs',
