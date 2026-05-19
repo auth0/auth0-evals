@@ -28,6 +28,7 @@ apps/
 ```bash
 cp .env.example .env
 # add your LLM_API_KEY to .env
+# add GH_TOKEN if running evals that use gh CLI calls (e.g. android_quickstart): gh auth token
 
 npm install
 npm run build
