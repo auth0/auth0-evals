@@ -59,7 +59,7 @@ export function defineGraders() {
     judge(
       'Does the solution use current auth0-server-python patterns? ' +
         'Specifically: does it import ServerClient from auth0_server_python, ' +
-        'define state and transaction store classes locally (not imported from the SDK), ' +
+        'define concrete state and transaction store classes locally (subclassing StateStore/TransactionStore from the SDK), ' +
         'and configure authorization_params with audience and scope?',
       undefined,
       GraderLevel.L5,
