@@ -229,7 +229,6 @@ describe('runJobInDocker — Docker argument construction', () => {
     expect(envPairs).toContain('AGENT_TYPE=claude-code');
     expect(envPairs).toContain('LLM_API_KEY=test-api-key-12345678');
     expect(envPairs).toContain('GH_TOKEN=gh-token-456');
-    expect(envPairs).toContain('CLAUDE_CODE_USE_BEDROCK_PROXY=0');
 
     rmSync(workspace, { recursive: true, force: true });
   });

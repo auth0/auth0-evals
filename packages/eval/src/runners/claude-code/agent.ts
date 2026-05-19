@@ -41,7 +41,7 @@ const translator = new ClaudeCodeTranslator();
 // ── Model alias mapping ───────────────────────────────────────────────────────
 
 /** Whether the runner should use Bedrock model IDs (via the /anthropic proxy endpoint). */
-const USE_BEDROCK = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY !== '0';
+const USE_BEDROCK = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY === '1';
 
 function getBedrockModelAliasMap(): Record<string, string> {
   return getFrameworkConfig().models.bedrock ?? {};

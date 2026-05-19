@@ -149,8 +149,6 @@ export async function runJobInDocker(options: DockerRunOptions): Promise<JobResu
   if (ghToken) {
     envFlags.push('-e', `GH_TOKEN=${ghToken}`);
   }
-  // Always disable Bedrock proxy inside Docker — use LiteLLM instead
-  envFlags.push('-e', 'CLAUDE_CODE_USE_BEDROCK_PROXY=0');
 
   // Mount host CA certificates for corporate SSL inspection (MITM proxies)
   // Use resolvedWorkspace (canonicalized) to ensure we mount the same path we validated

@@ -1,5 +1,5 @@
 // @ts-check
-const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY !== '0';
+const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY === '1';
 
 /** @type {import('@a0/eval').FrameworkConfig} */
 export default {
