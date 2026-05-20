@@ -5,8 +5,8 @@
   "scripts": {
     "build": "tsc",
     "lint": "eslint \"./**/*.ts\"",
-    "prerun": "npm run build",
-    "run": "a0-eval",
+    "preevals": "npm run build",
+    "evals": "a0-eval",
     "prereport": "npm run build",
     "report": "a0-eval report"
   },

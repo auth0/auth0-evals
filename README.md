@@ -37,10 +37,10 @@ cp apps/auth0-evals/.env.example apps/auth0-evals/.env
 # add your API key to apps/auth0-evals/.env
 
 # Run a single eval in baseline mode
-npm run run -- --eval react_quickstart --mode baseline
+npm run evals -- --eval react_quickstart --mode baseline
 
 # Run the matrix (all evals × all models × baseline + agent+skills + agent+mcp+skills)
-npm run run -- --matrix
+npm run evals -- --matrix
 
 # Generate an HTML report
 npm run report

@@ -9,7 +9,8 @@
   ],
   "scripts": {
     "build": "turbo run build",
-    "run": "turbo run run --",
+    "evals": "turbo run evals --",
+    "run": "turbo run evals --",
     "report": "turbo run report --",
     "test": "turbo run test",
     "test:ci": "turbo run test:ci",

@@ -117,7 +117,7 @@ jobs:
           if [ -n "${EVAL_TOOLS}" ]; then
             ARGS+=(--tools "${EVAL_TOOLS}")
           fi
-          cd apps/auth0-evals && npm run run -- "${ARGS[@]}"
+          cd apps/auth0-evals && npm run evals -- "${ARGS[@]}"
 
       - name: Upload result
         if: always()

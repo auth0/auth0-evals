@@ -333,21 +333,21 @@ npm run lint
 npm run format
 
 # Single eval
-npm run run -- --eval react_quickstart --mode agent
-npm run run -- --eval react_quickstart --mode agent --tools skills
-npm run run -- --eval react_quickstart --mode agent --tools mcp,skills
+npm run evals -- --eval react_quickstart --mode agent
+npm run evals -- --eval react_quickstart --mode agent --tools skills
+npm run evals -- --eval react_quickstart --mode agent --tools mcp,skills
 
 # Full matrix (all evals × all models × baseline + agent with tool sets)
-npm run run -- --matrix --workers 20
+npm run evals -- --matrix --workers 20
 
 # All modes, all models, limited parallelism
-npm run run -- --mode all --model all --workers 8
+npm run evals -- --mode all --model all --workers 8
 
 # Specific agent runner
-npm run run -- --eval react_quickstart --mode agent --agent-type claude-code
+npm run evals -- --eval react_quickstart --mode agent --agent-type claude-code
 
 # Keep workspace for debugging
-npm run run -- --eval react_quickstart --mode agent --keep-workspace
+npm run evals -- --eval react_quickstart --mode agent --keep-workspace
 
 # Generate HTML report from results
 npm run report

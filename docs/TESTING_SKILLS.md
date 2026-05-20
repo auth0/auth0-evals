@@ -58,10 +58,10 @@ The `skills/` directory is already committed to the repo and gitignored content 
 
 ```bash
 # Run your eval in agent+skills mode
-npm run run -- --eval react_quickstart --mode agent --tools Skills
+npm run evals -- --eval react_quickstart --mode agent --tools Skills
 
 # Keep the workspace to inspect what the agent produced
-npm run run -- --eval react_quickstart --mode agent --tools Skills --keep-workspace
+npm run evals -- --eval react_quickstart --mode agent --tools Skills --keep-workspace
 ```
 
 The runner logs skill delivery. What you see depends on the agent type:
@@ -79,7 +79,7 @@ Since local directories are checked before remote repos, your local `skills/auth
 Run all 4 combos to measure the delta your skill provides:
 
 ```bash
-npm run run -- --eval react_quickstart --mode matrix --model gpt-5.2
+npm run evals -- --eval react_quickstart --mode matrix --model gpt-5.2
 npm run report -- --input scores-matrix.json && open report.html
 ```
 
@@ -99,7 +99,7 @@ Once the skill produces the results you want:
 
 ```bash
 # Verify remote parity
-npm run run -- --eval react_quickstart --mode agent --tools Skills
+npm run evals -- --eval react_quickstart --mode agent --tools Skills
 ```
 
 ---
