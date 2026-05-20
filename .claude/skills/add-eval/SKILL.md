@@ -245,8 +245,8 @@ npm test               # Vitest suite must pass
 npm run lint           # no ESLint errors
 
 # Run the new eval to see it in action (use the config ID, e.g. vue_quickstart)
-npm run run -- --eval <eval-config-id> --mode baseline
-npm run run -- --eval <eval-config-id> --mode agent --keep-workspace
+npm run evals -- --eval <eval-config-id> --mode baseline
+npm run evals -- --eval <eval-config-id> --mode agent --keep-workspace
 npm run report
 ```
 
