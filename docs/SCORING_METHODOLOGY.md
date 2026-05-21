@@ -37,7 +37,7 @@ Scores must match what a developer actually experiences. If we publish a score o
 
 Guiding principle #5: "The journey matters as much as the destination." A perfect output produced through 50 retries and 10 interruptions isn't a good developer experience. The 50/50 split ensures process quality can't be ignored even when the final code is correct.
 
-Process dimensions: Setup Friction (14%) + Setup Speed (14%) + Efficiency (14%) + Error Recovery (8%) = 50%.
+Process dimensions: Setup Friction (12%) + Setup Speed (12%) + Efficiency (12%) + Error Recovery (7%) + Docs Quality (7%) = 50%.
 Output dimensions: Correctness (25%) + Hallucination (15%) + Security (10%) = 50%.
 
 ---
@@ -58,7 +58,7 @@ Calibrated to match developer intuition. When we show engineers a run scored 91,
 
 ## Dimension weights — rationale
 
-### Setup Friction — 14%
+### Setup Friction — 12%
 
 Interruptions are the single biggest friction point in agent-assisted development. If the agent stops to ask "what's your domain?" or "what framework do you want?", the entire value prop of autonomous setup breaks. A developer who has to answer 5 questions might as well have read the quickstart docs.
 
@@ -66,7 +66,7 @@ Interruptions are the single biggest friction point in agent-assisted developmen
 
 **Constant: provider error penalty = 10 (less than interruptions).** Provider errors are infrastructure problems, not agent behavior — they're frustrating but not the agent's fault. Still penalized because they affect the developer experience regardless of cause.
 
-### Setup Speed — 14%
+### Setup Speed — 12%
 
 Speed matters but less than friction — a slow clean run beats a fast messy one. And speed is partially outside the agent's control (API latency, model inference time).
 
@@ -76,7 +76,7 @@ Speed matters but less than friction — a slow clean run beats a fast messy one
 
 **Constant: degradation rate = 0.4 (ceiling at 310s).** 5+ minutes of active tool execution for a quickstart means the agent is thrashing — retrying failed commands, reading unnecessary files, or going in circles.
 
-### Efficiency — 14%
+### Efficiency — 12%
 
 Measures whether the agent solved the task in a focused way or thrashed — reading files it didn't need, retrying failed writes, overwriting its own output.
 
@@ -108,7 +108,7 @@ A single tool call can match multiple waste predicates (e.g., a retry that also 
 
 **v1.1 upgrade path**: Add LLM-as-judge post-hoc classification as a validation layer — run it on 50 traces, compare with heuristic scores, calibrate. If heuristics consistently under-report waste by >15%, switch to hybrid approach.
 
-### Error Recovery — 8%
+### Error Recovery — 7%
 
 Provider errors are infrastructure failures (rate limits, timeouts), not agent quality signals. They affect developer experience but the agent can't prevent them. Lower weight than the other process dimensions ensures a flaky API day doesn't tank an otherwise good run, while still penalizing repeated failures that suggest a systemic problem.
 
@@ -123,6 +123,63 @@ Correctness is the bottom line — did the generated code actually work? It gets
 ### Hallucination — 15%
 
 Hallucinations are the most dangerous failure mode for developer trust. A wrong import or invented package wastes hours of debugging time because the error messages don't point to the real problem — the dependency doesn't exist. Weighted higher than Security because hallucinations are far more common in practice. L2 graders are scored exclusively here — they are excluded from Correctness to prevent double-counting.
+
+### Docs Quality — 7%
+
+#### Why this dimension exists
+
+When a developer uses an AI agent to integrate Auth0, the agent has two paths to knowledge: its training data, or live documentation. Training data goes stale — a model trained before `@auth0/auth0-nuxt` existed will confidently reach for the Vue SPA SDK instead. Live docs are the ground truth.
+
+This dimension measures not just *whether* an agent fetched documentation, but *how well it used it*. It answers the question Auth0 cares about most: **does investing in better documentation actually change agent behavior and output quality?**
+
+Critically, agents that never fetch docs score 100 — succeeding from training data is a valid strategy and should not be penalized. The dimension only fires when an agent chooses to look something up, and then asks: was that lookup worth it?
+
+#### What "good" looks like
+
+A high-scoring agent fetches documentation from a trusted Auth0 source, gets a successful response, and uses it to write the code correctly the first time — no rewrites after the fetch. A low-scoring agent fetches a wrong URL (or gets a 404), or overwrites files it had already written after looking up the docs.
+
+#### Formula
+
+```
+if doc_lookups == 0:
+    score = 100                                              # no fetch needed — full marks
+else:
+    score = sum(points per lookup) / total_lookups
+```
+
+Each doc lookup is scored independently out of 100 points across three equal-weight signals:
+
+| Signal | Points | What it means | How detected |
+|---|---|---|---|
+| URL is a valid Auth0 domain | +34 | Agent went to the right source | URL `startsWith` one of the allowed prefixes (prevents false positives when Auth0 URLs appear as query parameters) |
+| Fetch did not error or 404 | +33 | Agent actually got content back | `causedError == false` on the tool call |
+| Correctness: no file overwrite after this fetch | +17 | Agent didn't discard its own output after reading docs | No `write_file` to an already-written path between this fetch and the next (or end-of-trace for the final fetch) |
+| Correctness: L4 grader pass rate | up to +16 | Docs translated into structurally correct code | `16 × (l4_passed / total_l4)` — scales with fraction of L4 graders that pass |
+
+The last two signals together form a **correctness** measure — did the doc fetch produce correct code? The rewrite sub-signal catches immediate thrashing (agent overwrote its own work); the L4 sub-signal is the direct structural correctness check, scaled proportionally so a partial L4 failure (1 of 3 failing) costs ~5 points rather than the full 16.
+
+The final score is the average across all lookups. An agent that makes one perfect lookup, doesn't rewrite, and passes all L4 graders scores 100.
+
+#### Valid Auth0 doc domains
+
+Any fetch to a URL outside this list scores 0 on the first signal. The check uses `startsWith` (not `contains`) to prevent false positives when Auth0 URLs appear as query parameters in proxy or redirect URLs. The list should be treated as a living allowlist — add entries as new canonical sources emerge:
+- `https://auth0.github.io`
+- `https://auth0.com/docs`
+- `https://auth0.com/blog`
+- `https://community.auth0.com`
+- `https://npmjs.com/package/@auth0`
+- `https://github.com/auth0/`
+- `https://github.com/auth0-samples`
+- `https://jwt.io`
+
+#### Why this is measurable without an LLM judge
+
+The first three signals are pure trace sequence analysis — they require only the ordered list of tool calls already captured in `session_trace`. The fourth signal (L4 grader pass rate) is already computed as part of the Correctness dimension. No extra LLM calls, no added latency, no additional cost per eval run.
+
+#### What this tells Auth0
+
+A low Docs Quality score on a specific framework is a direct signal: **the documentation for that SDK is not serving agents well.** Either agents aren't finding it, aren't getting useful content from it, or are getting content that doesn't translate into correct code on the first attempt. Each of those failure modes points to a different fix — better URL discoverability, richer content, or clearer code examples with correct structural wiring.
+
 
 ### Security — 10%
 
@@ -151,3 +208,29 @@ Hardcoded secrets are serious but relatively rare in quickstart contexts — mos
 **Alternatives considered:**
 - *Make Docs Quality dynamic (per-framework lookup).* Rejected — the per-framework data doesn't exist yet and the static value was masking the problem rather than solving it.
 - *Keep Docs Quality at a lower weight (e.g. 5%).* Rejected — a static dimension at any weight still can't differentiate runs, so the weight would be dead weight in the scoring formula.
+
+---
+
+### Add Docs Quality dimension (2026-05-13)
+
+**Problem:** Agents that fetch wrong or hallucinated documentation URLs (e.g. non-existent Auth0 pages, wrong SDK docs) get no penalty under the current scoring model. Conversely, agents that correctly look up real Auth0 docs and use them effectively get no credit. This hides a meaningful behavioral difference — fetching the Nuxt docs vs the Vue SPA docs is the difference between a C and a B on `nuxt_quickstart`.
+
+**Decision:** Add a Docs Quality dimension (7%) scored per-lookup across three trace-derived signals: URL validity, fetch success, and no post-fetch rewrite. Agents that never fetch docs score 100. Weight spread across all four process dimensions: Setup Friction (14% → 12%), Setup Speed (14% → 12%), Efficiency (14% → 12%), Error Recovery (8% → 7%), with Docs Quality taking 7%.
+
+**Alternatives considered:**
+- *Per-eval allowlist of expected URLs.* More precise but high maintenance — a global Auth0 domain allowlist captures the same intent with far less overhead.
+- *Penalize agents that fetch no docs when the task requires them.* Rejected — we can't reliably know in advance whether a task requires doc lookup. Agents that succeed without docs should be rewarded, not penalized.
+- *Use LLM-as-judge to verify doc was applied correctly.* Rejected for v1 — pure trace sequence analysis gives sufficient signal at zero added cost. Can be layered in later if the heuristics prove insufficient.
+- *Concentrate cut on one dimension.* Rejected — removing 7% from a single dimension would disproportionately weaken that signal. Spreading across all four process dimensions (−2% each from Friction, Speed, Efficiency; −1% from Error Recovery) keeps the reduction proportional to each dimension's prior weight.
+
+---
+
+### Add L4 correctness sub-signal to Docs Quality (2026-05-19)
+
+**Problem:** The "no file overwrite after fetch" signal was a useful heuristic but incomplete — an agent could avoid rewrites and still produce structurally broken code, scoring full marks on that signal despite the docs having no effect on output correctness.
+
+**Decision:** Split the third signal (33 points) into two proportional sub-signals: no file overwrite (+17) and no L4 grader failures (+16). The rewrite heuristic catches immediate thrashing; L4 pass rate is the direct correctness measure. Together they capture whether the doc fetch translated into correct code. Losing one costs 16–17 points; losing both costs 33. The L4 result is already computed for Correctness, so no added cost.
+
+**Alternatives considered:**
+- *Replace file-overwrite entirely with L4.* Rejected — the rewrite signal catches a distinct failure mode (agent discarded its own output) that L4 doesn't capture. Both are worth keeping.
+- *Binary L4 sub-signal (all pass = +16, any fail = +0).* Rejected — too harsh when an eval has multiple L4 graders. Proportional scaling (`16 × l4_passed / total_l4`) means one failing L4 out of three costs ~5 points, which is more calibrated.
