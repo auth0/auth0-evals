@@ -101,6 +101,7 @@
     <div class="judge-verdict">
       <span class="judge-verdict-badge {{ 'judge-pass' if g.passed else 'judge-fail' }}">{{ "Pass" if g.passed else "Fail" }}</span>
       <span class="judge-question">{{ g.name }}</span>
+      {% if g.cost_usd is defined and g.cost_usd is not none %}<span class="judge-cost">${{ "%.4f" | format(g.cost_usd) }}</span>{% endif %}
     </div>
     {{ g.detail | judge_html | safe }}
   </div>
@@ -260,6 +261,8 @@
 {% set rate          = result.grader_pass_rate if result.grader_pass_rate is defined else (passed / total if total else 0) %}
 {% set tokens        = result.tokens if result.tokens else 0 %}
 {% set cost          = result.cost_usd if result.cost_usd else 0 %}
+{% set judge_cost    = result.judge_cost_usd if result.judge_cost_usd else 0 %}
+{% set total_cost    = result.total_cost_usd if result.total_cost_usd else cost %}
 {% set wall          = result.wall_time if result.wall_time else 0 %}
 {% set rate_cls      = rate | rate_css_class %}
 {% set dimensions    = result.dimensions if result.dimensions else [] %}
@@ -324,7 +327,7 @@
   <div class="card-footer">
     <span>⏱ {{ "%.1f" | format(wall) }}s</span>
     <span>🔤 {{ tokens }} tokens</span>
-    <span>💰 ${{ "%.4f" | format(cost) }}</span>
+    <span>💰 ${{ "%.4f" | format(cost) }} + ${{ "%.4f" | format(judge_cost) }} (judge) = ${{ "%.4f" | format(total_cost) }}</span>
   </div>
 </div>
 {% endif %}
@@ -359,7 +362,7 @@
       <span><strong class="stat-value">{{ total_runs }}</strong> runs</span>
       <span><strong class="stat-value">{{ evals_run | length }}</strong> evals</span>
       <span><strong class="stat-value">{{ models_run | join(", ") }}</strong></span>
-      <span>total cost <strong class="stat-value">${{ "%.4f" | format(total_cost) }}</strong></span>
+      <span>total cost <strong class="stat-value">${{ "%.4f" | format(total_cost) }}</strong> + <strong class="stat-value">${{ "%.4f" | format(total_judge_cost) }}</strong> (judge) = <strong class="stat-value">${{ "%.4f" | format(grand_total_cost) }}</strong></span>
     </div>
   </div>
 

@@ -62,6 +62,8 @@ function mapResult(result: JobResult): {
     duration_ms: result.wall_time * 1000,
     total_tokens: result.tokens,
     cost_usd: result.cost_usd,
+    judge_cost_usd: result.judge_cost_usd,
+    total_cost_usd: result.total_cost_usd,
   };
   if ('active_time' in result) metrics['active_time_ms'] = result.active_time * 1000;
   if ('tool_calls' in result) metrics['tool_calls'] = result.tool_calls;

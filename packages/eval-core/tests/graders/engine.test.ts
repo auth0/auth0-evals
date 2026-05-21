@@ -444,7 +444,14 @@ describe('llmJudge', () => {
         return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
       }),
     );
-    await llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test', maxTokens: 512 });
+    await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+      maxTokens: 512,
+    });
     expect(capturedBody?.max_tokens).toBe(512);
   });
 
@@ -456,20 +463,32 @@ describe('llmJudge', () => {
 
   it('rejects words that merely start with yes (word boundary)', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('The code was correct.\n\nyesterday'));
-    await expect(llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' })).rejects.toThrow(
-      'unexpected verdict',
-    );
+    await expect(
+      llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' }),
+    ).rejects.toThrow('unexpected verdict');
   });
 
   it('passes when yes has trailing punctuation', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('The Auth0Provider wrapper is present.\n\nyes.'));
-    const { passed } = await llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' });
+    const { passed } = await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
     expect(passed).toBe(true);
   });
 
   it('fails when no verdict has trailing explanation', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('The provider is missing.\n\nno, the provider is missing.'));
-    const { passed, detail } = await llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' });
+    const { passed, detail } = await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
     expect(passed).toBe(false);
     expect(detail).not.toContain('unexpected verdict');
   });
@@ -479,16 +498,79 @@ describe('llmJudge', () => {
       'fetch',
       mockFetchResponse('yes, the provider appears to be set up.\nHowever on closer inspection it is missing.\n\nno'),
     );
-    const { passed, detail } = await llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' });
+    const { passed, detail } = await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
     expect(passed).toBe(false);
     expect(detail).not.toContain('unexpected verdict');
   });
 
   it('unexpected token throws JudgeError', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('maybe'));
-    await expect(llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' })).rejects.toThrow(
-      'unexpected verdict',
+    await expect(
+      llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' }),
+    ).rejects.toThrow('unexpected verdict');
+  });
+
+  it('extracts token usage from OpenAI-style usage (prompt_tokens/completion_tokens)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: 'Looks correct.\n\nyes' } }],
+          usage: { prompt_tokens: 150, completion_tokens: 30 },
+        }),
+      } as unknown as Response),
     );
+    const result = await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
+    expect(result.inputTokens).toBe(150);
+    expect(result.outputTokens).toBe(30);
+  });
+
+  it('extracts token usage from Anthropic-style usage (input_tokens/output_tokens)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: 'Looks correct.\n\nyes' } }],
+          usage: { input_tokens: 200, output_tokens: 40 },
+        }),
+      } as unknown as Response),
+    );
+    const result = await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
+    expect(result.inputTokens).toBe(200);
+    expect(result.outputTokens).toBe(40);
+  });
+
+  it('returns zero tokens when usage is absent', async () => {
+    vi.stubGlobal('fetch', mockFetchResponse('Looks correct.\n\nyes'));
+    const result = await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
+    expect(result.inputTokens).toBe(0);
+    expect(result.outputTokens).toBe(0);
   });
 });
 
@@ -583,15 +665,21 @@ describe('llmJudge - code corpus overflow', () => {
 
   it('throws when code exceeds JUDGE_MAX_CODE_CHARS', async () => {
     const oversized = 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1);
-    await expect(llmJudge({ question: 'question', code: oversized, apiKey: 'key', model: 'model', baseUrl: 'http://test' })).rejects.toThrow(
-      /Code corpus exceeds limit/,
-    );
+    await expect(
+      llmJudge({ question: 'question', code: oversized, apiKey: 'key', model: 'model', baseUrl: 'http://test' }),
+    ).rejects.toThrow(/Code corpus exceeds limit/);
   });
 
   it('does not throw when code is exactly at the limit', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('Looks good.\n\nyes'));
     const exact = 'x'.repeat(JUDGE_MAX_CODE_CHARS);
-    const { passed } = await llmJudge({ question: 'question', code: exact, apiKey: 'key', model: 'model', baseUrl: 'http://test' });
+    const { passed } = await llmJudge({
+      question: 'question',
+      code: exact,
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
     expect(passed).toBe(true);
   });
 });

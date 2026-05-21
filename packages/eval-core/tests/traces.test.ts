@@ -1,7 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import { classifyActionType, classifyErrorCategory, primaryArg } from '../src/runners/classify.js';
-import { formatStep, serialiseTrace, serialiseTurnMetrics } from '../src/serializers.js';
-import type { FinishReason, RunRecord, ToolCallRecord, TurnMetric } from '../src/types/scorer.js';
+import {
+  formatStep,
+  serialiseTrace,
+  serialiseTurnMetrics,
+  serialiseBaseline,
+  serialiseAgent,
+} from '../src/serializers.js';
+import type {
+  FinishReason,
+  GraderResult,
+  RunRecord,
+  ScoredResult,
+  ToolCallRecord,
+  TurnMetric,
+} from '../src/types/scorer.js';
+import type { EvalDefinition } from '../src/types/eval.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -455,5 +469,108 @@ describe('integration', () => {
     expect(result.reduce((sum, m) => sum + m.input_tokens, 0)).toBe(650);
     expect(result.reduce((sum, m) => sum + m.output_tokens, 0)).toBe(300);
     expect(result[2].finish_reason).toBe('stop');
+  });
+});
+
+// ── Judge cost serialisation tests ──────────────────────────────────────────
+
+const stubEvalDef: EvalDefinition = {
+  id: 'test_eval',
+  category: 'test',
+  path: 'test',
+  userPrompt: 'test prompt',
+  graders: [],
+};
+
+const stubBaselineResult = {
+  evalId: 'test_eval',
+  model: 'gpt-4o',
+  mode: 'baseline',
+  sessionId: 'sess-1',
+  responseText: 'response',
+  inputTokens: 100,
+  outputTokens: 50,
+  costUsd: 0.01,
+  wallTime: 5,
+  status: 'success' as const,
+  error: '',
+};
+
+describe('serialiseBaseline — judge cost fields', () => {
+  it('sets judge_cost_usd to 0 when no graders have token usage', () => {
+    const graders: GraderResult[] = [{ name: 'check', kind: 'contains', passed: true, detail: 'found' }];
+    const result = serialiseBaseline(stubEvalDef, stubBaselineResult, graders, 'response');
+    expect(result.judge_cost_usd).toBe(0);
+    expect(result.total_cost_usd).toBe(stubBaselineResult.costUsd);
+  });
+
+  it('computes judge_cost_usd from graders with token usage and judgeModel', () => {
+    const graders: GraderResult[] = [
+      { name: 'check', kind: 'contains', passed: true, detail: 'found' },
+      {
+        name: 'judge q',
+        kind: 'judge',
+        passed: true,
+        detail: 'yes',
+        inputTokens: 1000,
+        outputTokens: 100,
+        judgeModel: 'claude-sonnet-4-5',
+      },
+    ];
+    const result = serialiseBaseline(stubEvalDef, stubBaselineResult, graders, 'response');
+    expect(result.judge_cost_usd).toBeGreaterThan(0);
+    expect(result.total_cost_usd).toBe(stubBaselineResult.costUsd + result.judge_cost_usd);
+  });
+
+  it('non-judge graders do not get cost_usd on GraderSummary', () => {
+    const graders: GraderResult[] = [
+      { name: 'check', kind: 'contains', passed: true, detail: 'found' },
+      {
+        name: 'judge q',
+        kind: 'judge',
+        passed: true,
+        detail: 'yes',
+        inputTokens: 500,
+        outputTokens: 50,
+        judgeModel: 'claude-sonnet-4-5',
+      },
+    ];
+    const result = serialiseBaseline(stubEvalDef, stubBaselineResult, graders, 'response');
+    expect(result.graders[0].cost_usd).toBeUndefined();
+    expect(result.graders[1].cost_usd).toBeGreaterThan(0);
+  });
+});
+
+describe('serialiseAgent — judge cost fields', () => {
+  it('computes judge_cost_usd from graders with token usage', () => {
+    const record: RunRecord = {
+      ...makeRunRecord(),
+      status: 'success',
+      costUsd: 0.05,
+      startTime: 0,
+      endTime: 10,
+    };
+    const scored: ScoredResult = {
+      runRecord: record,
+      dimensions: [],
+      overallScore: 90,
+      overallGrade: 'A',
+      graderResults: [],
+      graderPassRate: 1.0,
+    };
+    const graders: GraderResult[] = [
+      {
+        name: 'judge q',
+        kind: 'judge',
+        passed: true,
+        detail: 'yes',
+        inputTokens: 2000,
+        outputTokens: 200,
+        judgeModel: 'claude-sonnet-4-5',
+      },
+    ];
+    const result = serialiseAgent(stubEvalDef, record, scored, graders, 'gpt-4o', 'agent', []);
+    expect(result.judge_cost_usd).toBeGreaterThan(0);
+    expect(result.total_cost_usd).toBe(record.costUsd + result.judge_cost_usd);
   });
 });
