@@ -5,7 +5,7 @@ export function defineGraders() {
     // ── L1: Positive presence (correct SDK and patterns) ──────────────────────
     contains('Auth0', 'Uses Auth0 SDK', GraderLevel.L1),
     contains('import Auth0', 'Imports Auth0 module', GraderLevel.L1),
-    contains('webAuth()', 'Uses webAuth() for login', GraderLevel.L1),
+    matches(String.raw`\bAuth0\s*\.\s*webAuth\s*\(\s*\)`, 'Uses webAuth() for login', GraderLevel.L1),
     contains('clearSession', 'Uses clearSession for logout', GraderLevel.L1),
 
     // ── L2: Negative / anti-pattern detection ─────────────────────────────────
