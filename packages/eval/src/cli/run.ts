@@ -424,19 +424,20 @@ export async function runCli(): Promise<void> {
   logger.info();
 
   // Braintrust experiment tracking (opt-in via --braintrust flag)
-  const BT_PROJECT_ID = '38395851-dd41-46ec-a971-a30402db6921';
-  const BT_DATASET_NAME = 'auth0-evals';
-
   let btReporter: Awaited<ReturnType<typeof createBraintrustReporter>> = null;
   if (braintrust) {
+    const btProjectId = frameworkConfig.braintrust.projectId || undefined;
+    const btDatasetName = frameworkConfig.braintrust.datasetName || undefined;
     const modeLabel = matrix ? 'matrix' : modes.join(',');
-    btReporter = await createBraintrustReporter(modeLabel, tools, { projectId: BT_PROJECT_ID });
+    btReporter = await createBraintrustReporter(modeLabel, tools, { projectId: btProjectId });
 
-    Promise.all(registry.map((cfg) => loadEval(cfg, frameworkRoot)))
-      .then((evalDefs) =>
-        syncDataset(toEvalSummaries(evalDefs), { projectId: BT_PROJECT_ID, datasetName: BT_DATASET_NAME }),
-      )
-      .catch((e) => logger.error(`[Braintrust] Dataset sync error: ${e}`));
+    if (btDatasetName) {
+      Promise.all(registry.map((cfg) => loadEval(cfg, frameworkRoot)))
+        .then((evalDefs) =>
+          syncDataset(toEvalSummaries(evalDefs), { projectId: btProjectId, datasetName: btDatasetName }),
+        )
+        .catch((e) => logger.error(`[Braintrust] Dataset sync error: ${e}`));
+    }
   }
 
   const results: JobResult[] = [];

@@ -67,6 +67,7 @@ export type {
   JudgeConfig,
   ModelsConfig,
   WorkspaceConfig,
+  BraintrustConfig,
 } from './config/framework.js';
 export { DEFAULT_FRAMEWORK_CONFIG } from './config/defaults.js';
 export { defineConfig, loadConfig, deepMerge } from './config/loader.js';
