@@ -41,7 +41,7 @@ export const llmJudgeExecutor: GraderExecutor = {
       logger.warn(`[judge] WARNING: content exceeds limit (${judgeText.length} > ${maxCodeChars} chars)`);
     }
 
-    const { passed, detail } = await llmJudge({
+    const { passed, detail, inputTokens, outputTokens } = await llmJudge({
       question: def.question!,
       code: judgeText,
       apiKey: ctx.apiKey,
@@ -55,6 +55,15 @@ export const llmJudgeExecutor: GraderExecutor = {
       maxCodeChars,
     });
 
-    return { name: def.name, kind: def.kind, passed, detail, level: def.level };
+    return {
+      name: def.name,
+      kind: def.kind,
+      passed,
+      detail,
+      level: def.level,
+      inputTokens,
+      outputTokens,
+      judgeModel: model,
+    };
   },
 };

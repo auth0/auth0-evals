@@ -53,7 +53,14 @@ export interface LlmJudgeOptions {
   modelMap?: Record<string, string>;
 }
 
-export async function llmJudge(opts: LlmJudgeOptions): Promise<{ passed: boolean; detail: string }> {
+export interface LlmJudgeResult {
+  passed: boolean;
+  detail: string;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
   const { question, code, apiKey, model, baseUrl, framework, promptsDir, enforceMaxChars = true } = opts;
   const judgeMaxCodeChars = opts.maxCodeChars ?? 16_384;
   const judgeMaxTokens = opts.maxTokens ?? 1024;
@@ -124,7 +131,12 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<{ passed: boolean
     if (!m) {
       throw new JudgeError(model, `unexpected verdict ${JSON.stringify(lastLine)}: ${answer}`);
     }
-    return { passed: m[1] === 'yes', detail: `Judge (${model}): ${answer}` };
+
+    const usage = data.usage as Record<string, number> | undefined;
+    const inputTokens = usage?.prompt_tokens ?? usage?.input_tokens ?? 0;
+    const outputTokens = usage?.completion_tokens ?? usage?.output_tokens ?? 0;
+
+    return { passed: m[1] === 'yes', detail: `Judge (${model}): ${answer}`, inputTokens, outputTokens };
   } catch (e) {
     if (e instanceof JudgeError) throw e;
     throw new JudgeError(model, String(e));

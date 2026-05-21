@@ -16,6 +16,12 @@ export interface GraderResult {
   passed: boolean;
   detail: string;
   level?: GraderLevel;
+  /** Input tokens consumed by this grader (judge graders only). */
+  inputTokens?: number;
+  /** Output tokens consumed by this grader (judge graders only). */
+  outputTokens?: number;
+  /** Model used for this grader call (judge graders only). */
+  judgeModel?: string;
 }
 
 export interface GraderDef {

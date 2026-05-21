@@ -529,6 +529,8 @@ a { color: var(--link); }
 .judge-fail                { background: var(--clr-red-bg);   color: var(--clr-red); }
 .judge-question            { color: var(--text-light); font-size: 13px; font-weight: 500;
                              line-height: 1.4; }
+.judge-cost                { margin-left: auto; flex-shrink: 0; font-size: 11px;
+                             color: #64748b; font-family: var(--ff-mono); }
 /* ── Judge markdown body ─────────────────────────────────────────────────── */
 .judge-reasoning-body p      { margin: 4px 0; line-height: 1.6; color: #94a3b8; font-size: 12px; }
 .judge-reasoning-body ul,
