@@ -103,6 +103,13 @@ export interface WorkspaceConfig {
   setupCommandTimeoutMs?: number;
 }
 
+export interface BraintrustConfig {
+  /** Braintrust project ID for experiment tracking. */
+  projectId?: string;
+  /** Dataset name for eval sync. */
+  datasetName?: string;
+}
+
 // ── Root config ──────────────────────────────────────────────────────────────
 
 export interface FrameworkConfig {
@@ -122,4 +129,6 @@ export interface FrameworkConfig {
   workspace?: WorkspaceConfig;
   /** Per-agent configuration overrides, keyed by runner ID. */
   agents?: Record<string, AgentConfig>;
+  /** Braintrust experiment tracking settings. */
+  braintrust?: BraintrustConfig;
 }

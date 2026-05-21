@@ -44,4 +44,9 @@ describe('DEFAULT_FRAMEWORK_CONFIG', () => {
     expect(DEFAULT_FRAMEWORK_CONFIG.skills.remoteRepos).toEqual([]);
     expect(DEFAULT_FRAMEWORK_CONFIG.skills.localDirs).toEqual(['skills']);
   });
+
+  it('has empty braintrust defaults', () => {
+    expect(DEFAULT_FRAMEWORK_CONFIG.braintrust.projectId).toBe('');
+    expect(DEFAULT_FRAMEWORK_CONFIG.braintrust.datasetName).toBe('');
+  });
 });

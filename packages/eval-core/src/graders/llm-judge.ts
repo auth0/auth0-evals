@@ -66,10 +66,16 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
   const judgeMaxTokens = opts.maxTokens ?? 1024;
 
   if (!model) {
-    throw new JudgeError('(none)', 'No judge model configured. Pass model in LlmJudgeOptions, or configure judge.model in eval.config.js and use runGraders().');
+    throw new JudgeError(
+      '(none)',
+      'No judge model configured. Pass model in LlmJudgeOptions, or configure judge.model in eval.config.js and use runGraders().',
+    );
   }
   if (!baseUrl) {
-    throw new JudgeError(model, 'No proxy base URL configured. Pass baseUrl in LlmJudgeOptions, or configure proxy.baseUrl in eval.config.js and use runGraders().');
+    throw new JudgeError(
+      model,
+      'No proxy base URL configured. Pass baseUrl in LlmJudgeOptions, or configure proxy.baseUrl in eval.config.js and use runGraders().',
+    );
   }
 
   const base = loadFrameworkPrompt(framework, promptsDir);
