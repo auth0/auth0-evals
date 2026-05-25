@@ -11,6 +11,18 @@ import type { EvalDefinition } from '@a0/eval-core';
 
 const JUDGE_MAX_CODE_CHARS = TEST_CONFIG.judge.maxCodeChars!;
 
+// ── Mock for ai / @ai-sdk/openai ──────────────────────────────────────────────
+
+const mockGenerateText = vi.hoisted(() => vi.fn());
+const mockCreateOpenAI = vi.hoisted(() => vi.fn());
+
+vi.mock('ai', () => ({ generateText: mockGenerateText }));
+vi.mock('@ai-sdk/openai', () => ({ createOpenAI: mockCreateOpenAI }));
+
+// createOpenAI returns a model-factory; the factory's return value is passed
+// straight to generateText — stub both so the chain resolves cleanly.
+mockCreateOpenAI.mockReturnValue(() => 'stub-model');
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeEvalDef(evalId = 'react_quickstart') {
@@ -21,11 +33,8 @@ function makeEvalDef(evalId = 'react_quickstart') {
   };
 }
 
-function makeLlmResponse(content = 'Here is the code.', inputTokens = 100, outputTokens = 200) {
-  return {
-    choices: [{ message: { content } }],
-    usage: { prompt_tokens: inputTokens, completion_tokens: outputTokens },
-  };
+function makeAiResponse(text = 'Here is the code.', inputTokens = 100, outputTokens = 200) {
+  return { text, usage: { inputTokens, outputTokens } };
 }
 
 // ── estimateCost tests ──────────────────────────────────────────────────────
@@ -61,14 +70,12 @@ describe('estimateCost', () => {
 
 describe('runBaseline', () => {
   beforeEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
+    mockCreateOpenAI.mockReturnValue(() => 'stub-model');
   });
 
   it('returns a BaselineResult with eval_id and model', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => makeLlmResponse(),
-    } as unknown as Response);
+    mockGenerateText.mockResolvedValue(makeAiResponse());
 
     const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
     expect(result.evalId).toBe('react_quickstart');
@@ -76,69 +83,29 @@ describe('runBaseline', () => {
   });
 
   it('mode is baseline', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => makeLlmResponse(),
-    } as unknown as Response);
+    mockGenerateText.mockResolvedValue(makeAiResponse());
 
     const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
     expect(result.mode).toBe('baseline');
   });
 
   it('captures response text', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => makeLlmResponse('Auth0 code here'),
-    } as unknown as Response);
+    mockGenerateText.mockResolvedValue(makeAiResponse('Auth0 code here'));
 
     const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
     expect(result.responseText).toBe('Auth0 code here');
   });
 
   it('captures token counts', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => makeLlmResponse('ok', 500, 250),
-    } as unknown as Response);
+    mockGenerateText.mockResolvedValue(makeAiResponse('ok', 500, 250));
 
     const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
     expect(result.inputTokens).toBe(500);
     expect(result.outputTokens).toBe(250);
   });
 
-  it('falls back to input_tokens/output_tokens when prompt_tokens fields are absent', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        choices: [{ message: { content: 'ok' } }],
-        usage: { input_tokens: 300, output_tokens: 150 },
-      }),
-    } as unknown as Response);
-
-    const result = await runBaseline('key', 'gpt-5.2', makeEvalDef());
-    expect(result.inputTokens).toBe(300);
-    expect(result.outputTokens).toBe(150);
-  });
-
-  it('prefers prompt_tokens over input_tokens when both are present', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        choices: [{ message: { content: 'ok' } }],
-        usage: { prompt_tokens: 400, completion_tokens: 200, input_tokens: 1, output_tokens: 1 },
-      }),
-    } as unknown as Response);
-
-    const result = await runBaseline('key', 'gpt-5.2', makeEvalDef());
-    expect(result.inputTokens).toBe(400);
-    expect(result.outputTokens).toBe(200);
-  });
-
-  it('defaults token counts to zero when usage is missing', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => ({ choices: [{ message: { content: 'ok' } }], usage: {} }),
-    } as unknown as Response);
+  it('defaults token counts to zero when usage fields are absent', async () => {
+    mockGenerateText.mockResolvedValue({ text: 'ok', usage: { inputTokens: undefined, outputTokens: undefined } });
 
     const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
     expect(result.inputTokens).toBe(0);
@@ -146,27 +113,21 @@ describe('runBaseline', () => {
   });
 
   it('calculates cost from token counts', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => makeLlmResponse('ok', 1_000_000, 0),
-    } as unknown as Response);
+    mockGenerateText.mockResolvedValue(makeAiResponse('ok', 1_000_000, 0));
 
     const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
     expect(result.costUsd).toBe(2.5);
   });
 
   it('status is success on happy path', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => makeLlmResponse(),
-    } as unknown as Response);
+    mockGenerateText.mockResolvedValue(makeAiResponse());
 
     const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
     expect(result.status).toBe('success');
   });
 
   it('status is failure on error', async () => {
-    vi.spyOn(global, 'fetch').mockRejectedValue(new Error('timeout'));
+    mockGenerateText.mockRejectedValue(new Error('timeout'));
 
     const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
     expect(result.status).toBe('failure');
@@ -174,14 +135,31 @@ describe('runBaseline', () => {
   });
 
   it('records wall time', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => makeLlmResponse(),
-    } as unknown as Response);
+    mockGenerateText.mockResolvedValue(makeAiResponse());
 
     const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
     expect(typeof result.wallTime).toBe('number');
     expect(result.wallTime).toBeGreaterThanOrEqual(0);
+  });
+
+  it('passes system prompt and user prompt to generateText', async () => {
+    mockGenerateText.mockResolvedValue(makeAiResponse());
+
+    await runBaseline('key', 'gpt-5.4', makeEvalDef());
+    expect(mockGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: 'You are a React developer.',
+        prompt: 'Add Auth0 authentication to the app.',
+        temperature: 0,
+      }),
+    );
+  });
+
+  it('omits system when baselineSystemPrompt is undefined', async () => {
+    mockGenerateText.mockResolvedValue(makeAiResponse());
+
+    await runBaseline('key', 'gpt-5.4', { id: 'x', userPrompt: 'hello', baselineSystemPrompt: undefined });
+    expect(mockGenerateText).toHaveBeenCalledWith(expect.objectContaining({ system: undefined, prompt: 'hello' }));
   });
 });
 
