@@ -125,6 +125,7 @@ async function runAgentJob(
   sandbox: boolean,
 ): Promise<JobResult> {
   const { setupWorkspace, runSetupCommand, cleanupWorkspace } = await import('@a0/eval-core');
+  const { generateRunRecommendations } = await import('../recommendations/index.js');
   await initRunners();
 
   const workspace = setupWorkspace(evalDef.scaffold);
@@ -134,7 +135,8 @@ async function runAgentJob(
     }
 
     if (sandbox) {
-      // Docker-sandboxed execution: run the entire agent job inside a container
+      // Docker-sandboxed execution: run the entire agent job inside a container.
+      // The container handles scoring and recommendations generation internally.
       const { runJobInDocker } = await import('../sandbox/docker.js');
       return await runJobInDocker({
         workspace,
@@ -160,8 +162,20 @@ async function runAgentJob(
     }
 
     const scored = score(record, graderResults);
+
+    // Generate recommendations only when skills or MCP are enabled (must happen before workspace cleanup)
+    const recommendations = await generateRunRecommendations(
+      evalDef,
+      resolvedModel,
+      tools,
+      workspace,
+      scored,
+      record,
+      apiKey,
+    );
+
     return {
-      ...serialiseAgent(evalDef, record, scored, graderResults, resolvedModel, mode, tools),
+      ...serialiseAgent(evalDef, record, scored, graderResults, resolvedModel, mode, tools, recommendations),
       agent_type: agentType,
     };
   } finally {

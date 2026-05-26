@@ -5,6 +5,7 @@
 import type { GraderLevel } from './graders.js';
 import type { TraceStep, TurnMetricEntry } from './agents.js';
 import type { AgentType } from './agents.js';
+import type { Recommendations } from '../recommendations/types.js';
 
 /** Serialised outcome of a single grader check, included in every result type. */
 export interface GraderSummary {
@@ -138,6 +139,8 @@ export interface AgentJobResult {
   session_trace: TraceStep[];
   /** Per-turn token and latency metrics. */
   turn_metrics: TurnMetricEntry[];
+  /** Structured recommendations for improving graders, skills, MCP, and efficiency. Present only when skills or MCP tools are enabled. */
+  recommendations?: Recommendations;
 }
 
 /**

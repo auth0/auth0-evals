@@ -159,3 +159,6 @@ export { classifyActionType, primaryArg, detectRetry, classifyErrorCategory } fr
 export type { SkillsStrategy } from './runners/skills/strategy.js';
 export { copySkillsToWorkspace, CopySkillsStrategy } from './runners/skills/strategy.js';
 export { SkillsManager, getSkillsManager, resetSkillsManager } from './runners/skills/config.js';
+
+// Recommendations types
+export type { Recommendation, Recommendations } from './recommendations/types.js';
