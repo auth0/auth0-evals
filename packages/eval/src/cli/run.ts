@@ -56,6 +56,7 @@ import { score } from '../scorer.js';
 import { ClaudeCodeRunner } from '../runners/claude-code/runner.js';
 import { CopilotCliRunner } from '../runners/copilot/runner.js';
 import { GeminiCliRunner } from '../runners/gemini-cli/runner.js';
+import { CodexRunner } from '../runners/codex/runner.js';
 import { createBraintrustReporter } from '../reporters/braintrust.js';
 import { syncDataset, toEvalSummaries } from '../reporters/braintrust-dataset.js';
 
@@ -73,6 +74,7 @@ async function initRunners(): Promise<void> {
   registerRunner('claude-code', new ClaudeCodeRunner());
   registerRunner('copilot', new CopilotCliRunner());
   registerRunner('gemini-cli', new GeminiCliRunner());
+  registerRunner('codex', new CodexRunner());
 }
 
 // ── Per-job execution ─────────────────────────────────────────────────────────
@@ -257,6 +259,7 @@ export function buildJobList(
 ): Array<[EvalConfig, string, Mode, string[], AgentType]> {
   const jobs: Array<[EvalConfig, string, Mode, string[], AgentType]> = [];
   const claudeCodeEvalsSeen = new Set<string>();
+  const codexEvalsSeen = new Set<string>();
   const agentToolSets = matrix && tools.length === 0 ? MATRIX_TOOL_SETS : [tools];
   for (const evalCfg of registry) {
     for (const model of models) {
@@ -271,7 +274,7 @@ export function buildJobList(
             : !agentType && isGeminiModel(model)
               ? 'gemini-cli'
               : !agentType && isGptModel(model)
-                ? 'copilot'
+                ? 'codex'
                 : (agentType ?? DEFAULT_AGENT_TYPE);
         for (const jobTools of agentToolSets) {
           if (effectiveAgentType === 'claude-code') {
@@ -282,6 +285,15 @@ export function buildJobList(
               if (claudeCodeEvalsSeen.has(seenKey)) continue;
               claudeCodeEvalsSeen.add(seenKey);
               jobs.push([evalCfg, 'claude-code', mode, jobTools, effectiveAgentType]);
+            }
+          } else if (effectiveAgentType === 'codex') {
+            if (isGptModel(model)) {
+              jobs.push([evalCfg, model, mode, jobTools, effectiveAgentType]);
+            } else {
+              const seenKey = `${evalCfg.id}|${jobTools.join(',')}`;
+              if (codexEvalsSeen.has(seenKey)) continue;
+              codexEvalsSeen.add(seenKey);
+              jobs.push([evalCfg, 'codex', mode, jobTools, effectiveAgentType]);
             }
           } else {
             jobs.push([evalCfg, model, mode, jobTools, effectiveAgentType]);

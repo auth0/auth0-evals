@@ -16,12 +16,13 @@ on:
         default: 'all'
         type: string
       agent_type:
-        description: 'Agent runner (auto = Claude→claude-code, Gemini→gemini-cli, GPT→copilot, others→copilot)'
+        description: 'Agent runner (auto = Claude→claude-code, Gemini→gemini-cli, GPT→codex, others→copilot)'
         default: 'auto'
         type: choice
         options:
           - auto
           - claude-code
+          - codex
           - copilot
           - gemini-cli
 

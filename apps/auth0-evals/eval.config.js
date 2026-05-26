@@ -16,6 +16,9 @@ export default {
     'gemini-cli': {
       proxy: { baseUrl: '<LLM_PROXY_URL>' },
     },
+    'codex': {
+      proxy: { baseUrl: '<LLM_PROXY_URL>' },
+    },
   },
 
   mcp: {
