@@ -78,7 +78,11 @@ export function defineGraders() {
     ),
     notContains('handleAuth', 'Does not use v3 handleAuth (v4 uses middleware)', GraderLevel.L5),
     notContains('/api/auth/', 'Does not use v3 route prefix /api/auth/ (v4 uses /auth/)', GraderLevel.L5),
-    notContains('withPageAuthRequired', 'Does not use v3 withPageAuthRequired (v4 uses proxy/middleware)', GraderLevel.L5),
+    notContains(
+      'withPageAuthRequired',
+      'Does not use v3 withPageAuthRequired (v4 uses proxy/middleware)',
+      GraderLevel.L5,
+    ),
     notContains('withApiAuthRequired', 'Does not use v3 withApiAuthRequired (removed in v4)', GraderLevel.L5),
     judge(
       'Does the solution correctly integrate Auth0 into a Next.js App Router app ' +

@@ -30,9 +30,11 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Ensure git can find the CA bundle regardless of which user runs the container
 ENV GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt
 
-# Install additional runtimes: Python 3, Java, git, CA certs, iptables (for network isolation)
+# Install additional runtimes: Python 3, Java, git, curl, gh, CA certs, iptables (for network isolation)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    curl \
+    gh \
     git \
     iptables \
     python3 \

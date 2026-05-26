@@ -9,6 +9,8 @@ import type { GraderResult, RunRecord, ToolCallRecord, ScoredResult } from './ty
 import type { TraceStep, TurnMetricEntry } from './types/agents.js';
 import type { AgentJobResult, BaselineJobResult, ErrorJobResult, GraderSummary } from './types/results.js';
 import type { EvalDefinition } from './types/eval.js';
+import type { Recommendations } from './recommendations/types.js';
+import { estimateCost } from './config/costs.js';
 
 // ── Trace serialisation ───────────────────────────────────────────────────────
 
@@ -57,17 +59,38 @@ export function serialiseTurnMetrics(record: RunRecord): TurnMetricEntry[] {
   }));
 }
 
+// ── Judge cost helper ─────────────────────────────────────────────────────────
+
+/** Sums token usage across judge grader results and estimates cost per judge model. */
+function computeJudgeCost(graderResults: GraderResult[]): number {
+  let total = 0;
+  for (const gr of graderResults) {
+    const input = gr.inputTokens ?? 0;
+    const output = gr.outputTokens ?? 0;
+    if ((input > 0 || output > 0) && gr.judgeModel) {
+      total += estimateCost(gr.judgeModel, input, output);
+    }
+  }
+  return total;
+}
+
 // ── Result serialisation ──────────────────────────────────────────────────────
 
 /** Projects a `GraderResult` array to the leaner `GraderSummary` shape stored in results. */
 function mapGraders(graderResults: GraderResult[]): GraderSummary[] {
-  return graderResults.map((gr) => ({
-    name: gr.name,
-    kind: gr.kind,
-    passed: gr.passed,
-    detail: gr.detail,
-    level: gr.level,
-  }));
+  return graderResults.map((gr) => {
+    const summary: GraderSummary = {
+      name: gr.name,
+      kind: gr.kind,
+      passed: gr.passed,
+      detail: gr.detail,
+      level: gr.level,
+    };
+    if ((gr.inputTokens || gr.outputTokens) && gr.judgeModel) {
+      summary.cost_usd = estimateCost(gr.judgeModel, gr.inputTokens ?? 0, gr.outputTokens ?? 0);
+    }
+    return summary;
+  });
 }
 
 /** Shape of raw baseline runner output consumed by serialiseBaseline. */
@@ -100,6 +123,7 @@ export function serialiseBaseline(
   const passed = graderResults.filter((r) => r.passed).length;
   const total = graderResults.length;
   const rate = total > 0 ? passed / total : 1.0;
+  const judgeCost = computeJudgeCost(graderResults);
   return {
     eval_id: evalDef.id,
     category: evalDef.category,
@@ -115,6 +139,8 @@ export function serialiseBaseline(
     wall_time: result.wallTime,
     tokens: result.inputTokens + result.outputTokens,
     cost_usd: result.costUsd,
+    judge_cost_usd: judgeCost,
+    total_cost_usd: result.costUsd + judgeCost,
     error: result.error ?? '',
     graders: mapGraders(graderResults),
   };
@@ -131,7 +157,9 @@ export function serialiseAgent(
   model: string,
   mode: 'agent',
   tools: string[],
+  recommendations?: Recommendations,
 ): AgentJobResult {
+  const judgeCost = computeJudgeCost(graderResults);
   return {
     eval_id: evalDef.id,
     category: evalDef.category,
@@ -151,6 +179,8 @@ export function serialiseAgent(
     interruptions: record.toolCalls.filter((tc) => tc.isInterruption).length,
     tokens: record.inputTokens + record.outputTokens,
     cost_usd: record.costUsd,
+    judge_cost_usd: judgeCost,
+    total_cost_usd: record.costUsd + judgeCost,
     dimensions: scored.dimensions.map((d) => ({
       name: d.name,
       score: d.rawScore,
@@ -161,6 +191,7 @@ export function serialiseAgent(
     graders: mapGraders(graderResults),
     session_trace: serialiseTrace(record),
     turn_metrics: serialiseTurnMetrics(record),
+    recommendations,
   };
 }
 
@@ -186,5 +217,7 @@ export function serialiseError(
     wall_time: 0,
     tokens: 0,
     cost_usd: 0,
+    judge_cost_usd: 0,
+    total_cost_usd: 0,
   };
 }

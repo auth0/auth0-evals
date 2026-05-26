@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { ClaudeCodeTranslator } from '../src/runners/claude-code/translator.js';
 import { CopilotCliTranslator } from '../src/runners/copilot/translator.js';
 import { GeminiCliTranslator } from '../src/runners/gemini-cli/translator.js';
+import { CodexTranslator } from '../src/runners/codex/translator.js';
 
 describe('ClaudeCodeTranslator — isDocLookup / isInterruption', () => {
   const translator = new ClaudeCodeTranslator();
@@ -248,6 +249,115 @@ describe('GeminiCliTranslator — classifications', () => {
 
   it('never classifies any tool as internal', () => {
     expect(translator.isInternalTool('read_file')).toBe(false);
+    expect(translator.isInternalTool('anything')).toBe(false);
+  });
+});
+
+describe('CodexTranslator — mapping', () => {
+  const translator = new CodexTranslator();
+
+  it.each([
+    ['command_execution', 'run_command'],
+    ['exec_command', 'run_command'],
+    ['shell', 'run_command'],
+    ['bash', 'run_command'],
+    ['run_command', 'run_command'],
+    ['read_file', 'read_file'],
+    ['write_file', 'write_file'],
+    ['edit_file', 'write_file'],
+    ['patch', 'write_file'],
+    ['apply_diff', 'write_file'],
+    ['create_file', 'write_file'],
+    ['delete_file', 'run_command'],
+    ['list_files', 'list_files'],
+    ['glob', 'list_files'],
+    ['grep', 'list_files'],
+    ['web_fetch', 'fetch_url'],
+    ['web_search', 'fetch_url'],
+  ])('maps "%s" → "%s"', (codexName, expected) => {
+    expect(translator.mapName(codexName)).toBe(expected);
+  });
+
+  it('passes through unknown tool names', () => {
+    expect(translator.mapName('some_unknown_tool')).toBe('some_unknown_tool');
+  });
+});
+
+describe('CodexTranslator — normalizeArgs', () => {
+  const translator = new CodexTranslator();
+
+  it('normalizes command_execution command field', () => {
+    expect(translator.normalizeArgs('command_execution', { command: 'npm install' })).toEqual({ command: 'npm install' });
+  });
+
+  it('normalizes exec_command with cmd fallback', () => {
+    expect(translator.normalizeArgs('exec_command', { cmd: 'ls' })).toEqual({ command: 'ls' });
+  });
+
+  it('normalizes read_file path', () => {
+    expect(translator.normalizeArgs('read_file', { path: 'src/app.ts' })).toEqual({ path: 'src/app.ts' });
+  });
+
+  it('normalizes read_file file_path fallback', () => {
+    expect(translator.normalizeArgs('read_file', { file_path: 'src/app.ts' })).toEqual({ path: 'src/app.ts' });
+  });
+
+  it('normalizes write_file to path and content', () => {
+    expect(translator.normalizeArgs('write_file', { path: 'out.ts', content: 'hello' })).toEqual({ path: 'out.ts', content: 'hello' });
+  });
+
+  it('normalizes edit_file new_content to content', () => {
+    expect(translator.normalizeArgs('edit_file', { path: 'a.ts', new_content: 'updated' })).toEqual({ path: 'a.ts', content: 'updated' });
+  });
+
+  it('normalizes delete_file to rm command', () => {
+    expect(translator.normalizeArgs('delete_file', { path: 'a.ts' })).toEqual({ command: 'rm a.ts' });
+  });
+
+  it('normalizes web_fetch url', () => {
+    expect(translator.normalizeArgs('web_fetch', { url: 'https://auth0.com' })).toEqual({ url: 'https://auth0.com' });
+  });
+
+  it('normalizes web_search query to url', () => {
+    expect(translator.normalizeArgs('web_search', { query: 'auth0 login' })).toEqual({ url: 'auth0 login' });
+  });
+
+  it('passes through args for unknown tools', () => {
+    const args = { foo: 'bar' };
+    expect(translator.normalizeArgs('unknown_tool', args)).toEqual(args);
+  });
+});
+
+describe('CodexTranslator — classifications', () => {
+  const translator = new CodexTranslator();
+
+  it('classifies web_fetch and web_search as doc lookups', () => {
+    expect(translator.isDocLookup('web_fetch')).toBe(true);
+    expect(translator.isDocLookup('web_search')).toBe(true);
+  });
+
+  it('classifies mcp_-prefixed tools as doc lookups', () => {
+    expect(translator.isDocLookup('mcp__auth0-docs__search_auth0_docs')).toBe(true);
+    expect(translator.isDocLookup('mcp_auth0_docs')).toBe(true);
+  });
+
+  it('classifies tools with "search" or "doc" in name as doc lookups', () => {
+    expect(translator.isDocLookup('search_docs')).toBe(true);
+    expect(translator.isDocLookup('fetch_doc')).toBe(true);
+  });
+
+  it('does not classify file tools as doc lookups', () => {
+    expect(translator.isDocLookup('read_file')).toBe(false);
+    expect(translator.isDocLookup('command_execution')).toBe(false);
+  });
+
+  it('never classifies any tool as an interruption', () => {
+    expect(translator.isInterruption('ask_user')).toBe(false);
+    expect(translator.isInterruption('web_fetch')).toBe(false);
+  });
+
+  it('never classifies any tool as internal', () => {
+    expect(translator.isInternalTool('command_execution')).toBe(false);
     expect(translator.isInternalTool('anything')).toBe(false);
   });
 });

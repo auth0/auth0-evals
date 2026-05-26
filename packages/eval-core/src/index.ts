@@ -67,6 +67,7 @@ export type {
   JudgeConfig,
   ModelsConfig,
   WorkspaceConfig,
+  BraintrustConfig,
 } from './config/framework.js';
 export { DEFAULT_FRAMEWORK_CONFIG } from './config/defaults.js';
 export { defineConfig, loadConfig, deepMerge } from './config/loader.js';
@@ -117,6 +118,7 @@ export {
   CLAUDE_CODE_TASK_TIMEOUT_MS,
   COPILOT_TASK_TIMEOUT_MS,
   BASELINE_TASK_TIMEOUT_MS,
+  CODEX_TASK_TIMEOUT_MS,
 } from './config/settings.js';
 
 // Session
@@ -157,3 +159,6 @@ export { classifyActionType, primaryArg, detectRetry, classifyErrorCategory } fr
 export type { SkillsStrategy } from './runners/skills/strategy.js';
 export { copySkillsToWorkspace, CopySkillsStrategy } from './runners/skills/strategy.js';
 export { SkillsManager, getSkillsManager, resetSkillsManager } from './runners/skills/config.js';
+
+// Recommendations types
+export type { Recommendation, Recommendations } from './recommendations/types.js';

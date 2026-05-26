@@ -1,5 +1,5 @@
-import { appendFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import * as core from '@actions/core';
 import { discoverEvals } from '@a0/eval-core';
 
 const frameworkRoot = resolve('apps/auth0-evals');
@@ -57,7 +57,7 @@ function resolveAgentType(model, override) {
   if (override && override !== 'auto') return override;
   if (model.startsWith('claude-'))  return 'claude-code';
   if (model.startsWith('gemini-'))  return 'gemini-cli';
-  if (model.startsWith('gpt-'))     return 'copilot';
+  if (model.startsWith('gpt-'))     return 'codex';
   return 'copilot';
 }
 
@@ -77,6 +77,5 @@ for (const evalId of evals) {
 }
 
 const matrix = JSON.stringify({ include });
-const safeMatrix = matrix.replace(/[\r\n]/g, '');
-console.log('Matrix (' + include.length + ' jobs):', safeMatrix);
-appendFileSync(process.env.GITHUB_OUTPUT, 'matrix=' + safeMatrix + '\n');
+console.log('Matrix (' + include.length + ' jobs):', matrix);
+core.setOutput('matrix', matrix);

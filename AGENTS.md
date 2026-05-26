@@ -12,7 +12,7 @@
 | `agent+mcp` | `--mode agent --tools mcp` | Agent + Auth0 MCP server tools | L1-L5 |
 | `agent+mcp+skills` | `--mode agent --tools mcp,skills` | Agent + MCP + skills (full investment) | L1-L5 |
 
-Each eval lives in `src/evals/<category>/<eval-dir>/` and consists of a `PROMPT.md` (task description) and a `graders.ts` (acceptance criteria). The framework auto-discovers evals by scanning `evalsDir` for directories containing both files. The eval's snake_case config ID (e.g. `react_quickstart`) is declared in `PROMPT.md` frontmatter via the `id` field — this ID is used with `--eval`. Agent-mode runs are scored across 7 dimensions into a JSON results file; baseline runs only produce grader pass rates (no 7-dimension scoring).
+Each eval lives in `src/evals/<category>/<eval-dir>/` and consists of a `PROMPT.md` (task description) and a `graders.ts` (acceptance criteria). The framework auto-discovers evals by scanning `evalsDir` for directories containing both files. The eval's snake_case config ID (e.g. `react_quickstart`) is declared in `PROMPT.md` frontmatter via the `id` field — this ID is used with `--eval`. Agent-mode runs are scored across 8 dimensions into a JSON results file; baseline runs only produce grader pass rates (no 8-dimension scoring).
 
 Full guide for adding evals: [docs/ADDING_EVALS.md](docs/ADDING_EVALS.md)
 
@@ -87,6 +87,7 @@ Graders run against all workspace files (scaffold + agent edits) minus the exclu
 
 **Directories:**
 - `.claude` — injected skill files and agent context
+- `.codex` — Codex agent context
 - `.github` — workflow metadata
 - `.gemini` — Gemini agent context
 - `node_modules` — dependencies
@@ -129,7 +130,7 @@ The project uses ESLint and Prettier. Run `npm run lint` and `npm run format` be
 
 ### Overview
 
-7 dimensions, each scored 0–100, combined by weighted sum into an overall score. Process dimensions (50%) measure *how* the agent worked. Output dimensions (50%) measure *what* it produced. Process dimensions are **zeroed when the agent didn't execute** (0 tool calls) — this prevents broken runs from scoring high on "efficiency" by doing nothing.
+8 dimensions, each scored 0–100, combined by weighted sum into an overall score. Process dimensions (50%) measure *how* the agent worked. Output dimensions (50%) measure *what* it produced. Process dimensions are **zeroed when the agent didn't execute** (0 tool calls) — this prevents broken runs from scoring high on "efficiency" by doing nothing.
 
 ### Grade thresholds
 
@@ -143,7 +144,7 @@ The project uses ESLint and Prettier. Run `npm run lint` and `npm run format` be
 
 ### Process dimensions (50%)
 
-#### Setup Friction — 14%
+#### Setup Friction — 12%
 
 Measures how cleanly the agent completed the task without needing human help or hitting infrastructure errors.
 
@@ -158,7 +159,7 @@ score = max(0, score)
 - **Provider errors**: LLM API failures (rate limits, timeouts, malformed responses). Each costs 10 points.
 - A clean run with no interruptions and no errors scores **100**.
 
-#### Setup Speed — 14%
+#### Setup Speed — 12%
 
 Measures how quickly the agent completed tool execution, using **active tool time** (sum of individual tool call durations), not wall time.
 
@@ -172,7 +173,7 @@ score = max(0, 100 - excess × 0.4)
 - **Degradation**: 0.4 points per excess second (`SPEED_DEGRADATION_RATE`). At 310s active time, score hits 0.
 - Notes include both active and wall time for comparison, plus doc lookup count.
 
-#### Efficiency — 14%
+#### Efficiency — 12%
 
 Measures whether the agent solved the task in a focused way or thrashed — reading files it didn't need, retrying failed writes, overwriting its own output.
 
@@ -190,7 +191,7 @@ Waste categories (a single call can match multiple, but is counted at most once)
 - When `total_calls == 0`, the scorer function returns 100 but the process-dimension gate (see Overview) zeroes it — a run with no tool calls scores 0 on all process dimensions.
 - Notes include a tool-call summary plus a per-category waste breakdown.
 
-#### Error Recovery — 8%
+#### Error Recovery — 7%
 
 Measures how many provider errors the agent encountered.
 
@@ -200,6 +201,28 @@ score = max(0, 100 - provider_errors × 20)
 
 - Each provider error costs 20 points (`ERROR_RECOVERY_PENALTY`). 5+ errors = score 0.
 - Notes show up to 3 error messages.
+
+#### Docs Quality — 7%
+
+Measures how effectively the agent used documentation when it chose to fetch it. Agents that never fetch docs score 100 — succeeding from training data is valid and should not be penalized.
+
+```
+if doc_lookups == 0:
+    score = 100
+else:
+    score = sum(points per lookup) / total_lookups
+```
+
+Each lookup scores up to 100 points across three signals:
+
+| Signal | Points | How detected |
+|---|---|---|
+| URL is a valid Auth0 domain | +34 | URL `startsWith` one of the allowed prefixes (`https://auth0.github.io`, `https://auth0.com/docs`, `https://auth0.com/blog`, `https://community.auth0.com`, `https://npmjs.com/package/@auth0`, `https://github.com/auth0/`, `https://github.com/auth0-samples`, `https://jwt.io`) |
+| Fetch did not error or 404 | +33 | `causedError == false` on the tool call |
+| No file overwrite after this fetch | +33 | No `write_file` to an already-written path between this fetch and the next (or end-of-trace for the final fetch) — agent got it right first time |
+
+- All signals are pure trace sequence analysis — no LLM judge, no added cost.
+- Notes show per-lookup breakdown and total score.
 
 ### Output dimensions (50%)
 
@@ -249,15 +272,16 @@ else: score = 100 × passed / relevant.length
 | Runner | ID | Used for | How it's selected |
 |---|---|---|---|
 | Claude Code | `claude-code` | Claude models via Agent SDK | Auto-selected for `claude-*` models when no `--agent-type` flag |
-| Copilot SDK | `copilot` | GPT models via `@github/copilot-sdk` | Auto-selected for `gpt-*` models when no `--agent-type` flag; default fallback |
+| Copilot SDK | `copilot` | GPT models via `@github/copilot-sdk` | Not auto-selected; available via `--agent-type copilot` |
 | Gemini CLI | `gemini-cli` | Gemini models via Gemini CLI | Auto-selected for `gemini-*` models when no `--agent-type` flag |
+| Codex CLI | `codex` | GPT models via OpenAI Codex CLI | Auto-selected for `gpt-*` models when no `--agent-type` flag |
 
 ### Auto-routing logic
 
 When `--agent-type` is **not** specified, the runner is selected by model prefix:
 - `claude-*` → `claude-code`
 - `gemini-*` → `gemini-cli`
-- `gpt-*` → `copilot`
+- `gpt-*` → `codex`
 - anything else → `copilot` (default)
 
 Explicit `--agent-type` overrides auto-routing for runner selection. Exception: `--agent-type claude-code` with a non-`claude-*` model replaces the model with a deduplicated sentinel (`model='claude-code'`), causing the runner to use its default Claude model instead of attempting the requested one.
@@ -266,14 +290,14 @@ Explicit `--agent-type` overrides auto-routing for runner selection. Exception: 
 
 Uses `@anthropic-ai/claude-agent-sdk` `query()` function (not CLI subprocess). Routes through the configured LLM proxy (`proxy.baseUrl` in `eval.config.js`).
 
-By default uses the Bedrock proxy (`CLAUDE_CODE_USE_BEDROCK_PROXY` != `0`), which maps supported short aliases to full Bedrock model IDs:
+By default uses the LiteLLM proxy, which maps supported short aliases via `LITELLM_MODEL_MAP` (underscore-prefixed, e.g. `_claude-opus-4-7`).
+
+Set `CLAUDE_CODE_USE_BEDROCK_PROXY=1` to route through the Bedrock proxy instead (`/anthropic` endpoint), which maps supported short aliases to full Bedrock model IDs:
 - `claude-sonnet-4-6` → `global.anthropic.claude-sonnet-4-6`
 - `claude-opus-4-6` → `global.anthropic.claude-opus-4-6-v1`
 - `claude-opus-4-7` → `global.anthropic.claude-opus-4-7`
 - `claude-opus-4-5` → `global.anthropic.claude-opus-4-5-20251101-v1:0`
 - `claude-haiku-4-5` → `global.anthropic.claude-haiku-4-5-20251001-v1:0`
-
-Set `CLAUDE_CODE_USE_BEDROCK_PROXY=0` to route through the LiteLLM proxy instead — aliases are resolved via `LITELLM_MODEL_MAP` (underscore-prefixed, e.g. `_claude-opus-4-7`).
 
 ---
 
@@ -333,21 +357,21 @@ npm run lint
 npm run format
 
 # Single eval
-npm run run -- --eval react_quickstart --mode agent
-npm run run -- --eval react_quickstart --mode agent --tools skills
-npm run run -- --eval react_quickstart --mode agent --tools mcp,skills
+npm run evals -- --eval react_quickstart --mode agent
+npm run evals -- --eval react_quickstart --mode agent --tools skills
+npm run evals -- --eval react_quickstart --mode agent --tools mcp,skills
 
 # Full matrix (all evals × all models × baseline + agent with tool sets)
-npm run run -- --matrix --workers 20
+npm run evals -- --matrix --workers 20
 
 # All modes, all models, limited parallelism
-npm run run -- --mode all --model all --workers 8
+npm run evals -- --mode all --model all --workers 8
 
 # Specific agent runner
-npm run run -- --eval react_quickstart --mode agent --agent-type claude-code
+npm run evals -- --eval react_quickstart --mode agent --agent-type claude-code
 
 # Keep workspace for debugging
-npm run run -- --eval react_quickstart --mode agent --keep-workspace
+npm run evals -- --eval react_quickstart --mode agent --keep-workspace
 
 # Generate HTML report from results
 npm run report
@@ -361,7 +385,7 @@ npm run report
 | `--model <model>` | Any model string | `gpt-5.4` | Repeatable; `all` expands to known working models |
 | `--mode <mode>` | `baseline`, `agent`, `all` | `baseline` | `all` expands to both |
 | `--tools <tools>` | `skills`, `mcp`, or comma-separated | none | Only applies to agent mode |
-| `--agent-type <type>` | `claude-code`, `copilot`, `gemini-cli` | auto-routed by model | Overrides auto-routing |
+| `--agent-type <type>` | `claude-code`, `copilot`, `gemini-cli`, `codex` | auto-routed by model | Overrides auto-routing |
 | `--matrix` | flag | off | All evals × models × baseline + agent with tool sets (skills, mcp+skills); defaults workers to 20 |
 | `--workers <n>` | number | 4 (defaults to 20 in matrix) | Parallel job limit |
 | `--output <path>` | file path | auto-named | JSON results output |

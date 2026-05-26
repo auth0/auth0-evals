@@ -185,7 +185,7 @@ describe('runJobInDocker — Docker argument construction', () => {
     expect(capturedArgs).toContain('--security-opt=no-new-privileges:true');
     expect(capturedArgs).toContain('--read-only');
     expect(capturedArgs).toContain('--pids-limit=512');
-    expect(capturedArgs).toContain('--memory=4g');
+    expect(capturedArgs).toContain('--memory=6g');
     expect(capturedArgs).toContain('--cpus=2');
     expect(capturedArgs).toContain('--sysctl=net.ipv6.conf.all.disable_ipv6=1');
     expect(capturedArgs).toContain('--hostname=sandbox');
@@ -229,7 +229,6 @@ describe('runJobInDocker — Docker argument construction', () => {
     expect(envPairs).toContain('AGENT_TYPE=claude-code');
     expect(envPairs).toContain('LLM_API_KEY=test-api-key-12345678');
     expect(envPairs).toContain('GH_TOKEN=gh-token-456');
-    expect(envPairs).toContain('CLAUDE_CODE_USE_BEDROCK_PROXY=0');
 
     rmSync(workspace, { recursive: true, force: true });
   });

@@ -149,8 +149,6 @@ export async function runJobInDocker(options: DockerRunOptions): Promise<JobResu
   if (ghToken) {
     envFlags.push('-e', `GH_TOKEN=${ghToken}`);
   }
-  // Always disable Bedrock proxy inside Docker — use LiteLLM instead
-  envFlags.push('-e', 'CLAUDE_CODE_USE_BEDROCK_PROXY=0');
 
   // Mount host CA certificates for corporate SSL inspection (MITM proxies)
   // Use resolvedWorkspace (canonicalized) to ensure we mount the same path we validated
@@ -172,11 +170,11 @@ export async function runJobInDocker(options: DockerRunOptions): Promise<JobResu
     '--cap-add=SETGID', // Required for setpriv to set groups when dropping user
     '--security-opt=no-new-privileges:true',
     '--read-only',
-    '--tmpfs=/tmp:size=512m',
-    '--tmpfs=/home/node:size=512m,uid=1000,gid=1000',
+    '--tmpfs=/tmp:size=2g',
+    '--tmpfs=/home/node:size=1g,uid=1000,gid=1000',
     '--tmpfs=/app/skills-remote:size=256m,uid=1000,gid=1000',
     '--pids-limit=512',
-    '--memory=4g',
+    '--memory=6g',
     '--cpus=2',
     // Disable IPv6 to prevent bypassing IPv4 iptables rules via IPv6 link-local/private ranges
     '--sysctl=net.ipv6.conf.all.disable_ipv6=1',

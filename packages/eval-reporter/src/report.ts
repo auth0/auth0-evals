@@ -36,6 +36,8 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
 
   const totalRuns = results.length;
   const totalCost = results.reduce((sum, r) => sum + Number(r.cost_usd ?? 0), 0);
+  const totalJudgeCost = results.reduce((sum, r) => sum + Number(r.judge_cost_usd ?? 0), 0);
+  const grandTotalCost = results.reduce((sum, r) => sum + Number(r.total_cost_usd ?? r.cost_usd ?? 0), 0);
   const modelsRun = [...new Set(results.map((r) => r.model as string))].sort();
   const variantsRun = [...new Set(results.map(resultVariant))];
   const evalsRun = [...new Set(results.map((r) => r.eval_id as string))].sort();
@@ -61,6 +63,8 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
     deltas,
     total_runs: totalRuns,
     total_cost: totalCost,
+    total_judge_cost: totalJudgeCost,
+    grand_total_cost: grandTotalCost,
     models_run: modelsRun,
     variants_run: variantsRun,
     variants_present: variantsPresent,

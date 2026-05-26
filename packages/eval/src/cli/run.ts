@@ -57,6 +57,7 @@ import { score } from '../scorer.js';
 import { ClaudeCodeRunner } from '../runners/claude-code/runner.js';
 import { CopilotCliRunner } from '../runners/copilot/runner.js';
 import { GeminiCliRunner } from '../runners/gemini-cli/runner.js';
+import { CodexRunner } from '../runners/codex/runner.js';
 import { createBraintrustReporter } from '../reporters/braintrust.js';
 import { syncDataset, toEvalSummaries } from '../reporters/braintrust-dataset.js';
 
@@ -74,6 +75,7 @@ async function initRunners(): Promise<void> {
   registerRunner('claude-code', new ClaudeCodeRunner());
   registerRunner('copilot', new CopilotCliRunner());
   registerRunner('gemini-cli', new GeminiCliRunner());
+  registerRunner('codex', new CodexRunner());
 }
 
 // ── Per-job execution ─────────────────────────────────────────────────────────
@@ -155,6 +157,7 @@ async function runAgentJob(
   sandbox: boolean,
 ): Promise<JobResult> {
   const { setupWorkspace, runSetupCommand, cleanupWorkspace } = await import('@a0/eval-core');
+  const { generateRunRecommendations } = await import('../recommendations/index.js');
   await initRunners();
 
   const workspace = setupWorkspace(evalDef.scaffold);
@@ -165,7 +168,8 @@ async function runAgentJob(
     }
 
     if (sandbox) {
-      // Docker-sandboxed execution: run the entire agent job inside a container
+      // Docker-sandboxed execution: run the entire agent job inside a container.
+      // The container handles scoring and recommendations generation internally.
       const { runJobInDocker } = await import('../sandbox/docker.js');
       return await runJobInDocker({
         workspace,
@@ -199,8 +203,20 @@ async function runAgentJob(
     }
 
     const scored = score(record, graderResults);
+
+    // Generate recommendations only when skills or MCP are enabled (must happen before workspace cleanup)
+    const recommendations = await generateRunRecommendations(
+      evalDef,
+      resolvedModel,
+      tools,
+      workspace,
+      scored,
+      record,
+      apiKey,
+    );
+
     return {
-      ...serialiseAgent(evalDef, record, scored, graderResults, resolvedModel, mode, tools),
+      ...serialiseAgent(evalDef, record, scored, graderResults, resolvedModel, mode, tools, recommendations),
       agent_type: agentType,
     };
   } finally {
@@ -298,6 +314,7 @@ export function buildJobList(
 ): Array<[EvalConfig, string, Mode, string[], AgentType]> {
   const jobs: Array<[EvalConfig, string, Mode, string[], AgentType]> = [];
   const claudeCodeEvalsSeen = new Set<string>();
+  const codexEvalsSeen = new Set<string>();
   const agentToolSets = matrix && tools.length === 0 ? MATRIX_TOOL_SETS : [tools];
   for (const evalCfg of registry) {
     for (const model of models) {
@@ -312,7 +329,7 @@ export function buildJobList(
             : !agentType && isGeminiModel(model)
               ? 'gemini-cli'
               : !agentType && isGptModel(model)
-                ? 'copilot'
+                ? 'codex'
                 : (agentType ?? DEFAULT_AGENT_TYPE);
         for (const jobTools of agentToolSets) {
           if (effectiveAgentType === 'claude-code') {
@@ -323,6 +340,15 @@ export function buildJobList(
               if (claudeCodeEvalsSeen.has(seenKey)) continue;
               claudeCodeEvalsSeen.add(seenKey);
               jobs.push([evalCfg, 'claude-code', mode, jobTools, effectiveAgentType]);
+            }
+          } else if (effectiveAgentType === 'codex') {
+            if (isGptModel(model)) {
+              jobs.push([evalCfg, model, mode, jobTools, effectiveAgentType]);
+            } else {
+              const seenKey = `${evalCfg.id}|${jobTools.join(',')}`;
+              if (codexEvalsSeen.has(seenKey)) continue;
+              codexEvalsSeen.add(seenKey);
+              jobs.push([evalCfg, 'codex', mode, jobTools, effectiveAgentType]);
             }
           } else {
             jobs.push([evalCfg, model, mode, jobTools, effectiveAgentType]);
@@ -465,19 +491,20 @@ export async function runCli(): Promise<void> {
   logger.info();
 
   // Braintrust experiment tracking (opt-in via --braintrust flag)
-  const BT_PROJECT_ID = '38395851-dd41-46ec-a971-a30402db6921';
-  const BT_DATASET_NAME = 'auth0-evals';
-
   let btReporter: Awaited<ReturnType<typeof createBraintrustReporter>> = null;
   if (braintrust) {
+    const btProjectId = frameworkConfig.braintrust.projectId || undefined;
+    const btDatasetName = frameworkConfig.braintrust.datasetName || undefined;
     const modeLabel = matrix ? 'matrix' : modes.join(',');
-    btReporter = await createBraintrustReporter(modeLabel, tools, { projectId: BT_PROJECT_ID });
+    btReporter = await createBraintrustReporter(modeLabel, tools, { projectId: btProjectId });
 
-    Promise.all(registry.map((cfg) => loadEval(cfg, frameworkRoot)))
-      .then((evalDefs) =>
-        syncDataset(toEvalSummaries(evalDefs), { projectId: BT_PROJECT_ID, datasetName: BT_DATASET_NAME }),
-      )
-      .catch((e) => logger.error(`[Braintrust] Dataset sync error: ${e}`));
+    if (btDatasetName) {
+      Promise.all(registry.map((cfg) => loadEval(cfg, frameworkRoot)))
+        .then((evalDefs) =>
+          syncDataset(toEvalSummaries(evalDefs), { projectId: btProjectId, datasetName: btDatasetName }),
+        )
+        .catch((e) => logger.error(`[Braintrust] Dataset sync error: ${e}`));
+    }
   }
 
   const results: JobResult[] = [];

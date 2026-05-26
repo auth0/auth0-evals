@@ -335,16 +335,16 @@ No manual registration step is needed — the framework discovers the eval autom
 
 ```bash
 # Run only your eval across all 4 combos with the default model
-npm run run -- --eval my_new_eval --mode matrix
+npm run evals -- --eval my_new_eval --mode matrix
 
 # Run a specific combo
-npm run run -- --eval my_new_eval --mode agent --tools skills
+npm run evals -- --eval my_new_eval --mode agent --tools skills
 
 # Run with a specific model
-npm run run -- --eval my_new_eval --model claude-sonnet-4-6 --mode agent
+npm run evals -- --eval my_new_eval --model claude-sonnet-4-6 --mode agent
 
 # Keep the temporary workspace after the run for inspection
-npm run run -- --eval my_new_eval --mode agent --keep-workspace
+npm run evals -- --eval my_new_eval --mode agent --keep-workspace
 ```
 
 ### Modes and tools

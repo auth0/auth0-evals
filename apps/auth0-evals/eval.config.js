@@ -1,5 +1,5 @@
 // @ts-check
-const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY !== '0';
+const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY === '1';
 
 /** @type {import('@a0/eval').FrameworkConfig} */
 export default {
@@ -14,6 +14,9 @@ export default {
       proxy: { baseUrl: useBedrock ? 'https://llm.atko.ai/anthropic' : 'https://llm.atko.ai' },
     },
     'gemini-cli': {
+      proxy: { baseUrl: 'https://llm.atko.ai' },
+    },
+    'codex': {
       proxy: { baseUrl: 'https://llm.atko.ai' },
     },
   },
@@ -42,6 +45,11 @@ export default {
     model: 'claude-opus-4-7',
     maxTokens: 1024,
     maxCodeChars: 16_384,
+  },
+
+  braintrust: {
+    projectId: '38395851-dd41-46ec-a971-a30402db6921',
+    datasetName: 'auth0-evals',
   },
 
   models: {

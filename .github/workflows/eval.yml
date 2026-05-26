@@ -16,12 +16,13 @@ on:
         default: 'all'
         type: string
       agent_type:
-        description: 'Agent runner (auto = Claude→claude-code, Gemini→gemini-cli, GPT→copilot, others→copilot)'
+        description: 'Agent runner (auto = Claude→claude-code, Gemini→gemini-cli, GPT→codex, others→copilot)'
         default: 'auto'
         type: choice
         options:
           - auto
           - claude-code
+          - codex
           - copilot
           - gemini-cli
 
@@ -96,7 +97,6 @@ jobs:
       - name: Run eval
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-          CLAUDE_CODE_USE_BEDROCK_PROXY: 0
           CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: 1
           CLAUDE_CLI_PATH: ${{ github.workspace }}/node_modules/.bin/claude
           GH_TOKEN: ${{ matrix.agent_type == 'copilot' && secrets.GH_COPILOT_TOKEN || github.token }}
@@ -118,7 +118,7 @@ jobs:
           if [ -n "${EVAL_TOOLS}" ]; then
             ARGS+=(--tools "${EVAL_TOOLS}")
           fi
-          cd apps/auth0-evals && npm run run -- "${ARGS[@]}"
+          cd apps/auth0-evals && npm run evals -- "${ARGS[@]}"
 
       - name: Upload result
         if: always()

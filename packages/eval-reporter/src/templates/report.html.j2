@@ -101,6 +101,7 @@
     <div class="judge-verdict">
       <span class="judge-verdict-badge {{ 'judge-pass' if g.passed else 'judge-fail' }}">{{ "Pass" if g.passed else "Fail" }}</span>
       <span class="judge-question">{{ g.name }}</span>
+      {% if g.cost_usd is defined and g.cost_usd is not none %}<span class="judge-cost">${{ "%.4f" | format(g.cost_usd) }}</span>{% endif %}
     </div>
     {{ g.detail | judge_html | safe }}
   </div>
@@ -251,6 +252,35 @@
 {% endif %}
 {% endmacro %}
 
+{# ── recommendations ─────────────────────────────────────────────────────── #}
+
+{% macro render_recommendations(recs) %}
+{% if recs and recs.recommendations and recs.recommendations | length > 0 %}
+<div class="rec-panel">
+  {% if recs.summary %}
+  <div class="rec-summary">{{ recs.summary }}</div>
+  {% endif %}
+  <ul class="rec-list">
+    {% for r in recs.recommendations %}
+    <li class="rec-item rec-severity-{{ r.severity }}">
+      <div class="rec-item-header">
+        <span class="rec-badge rec-badge--{{ r.category }}">{{ r.category }}</span>
+        <span class="rec-badge" style="background: var(--clr-dim-bg); color: var(--text-sec);">{{ r.severity }}</span>
+      </div>
+      <div class="rec-issue">{{ r.issue }}</div>
+      <div class="rec-suggestion">💡 {{ r.suggestion }}</div>
+      {% if r.context %}
+      <div class="rec-context">{{ r.context }}</div>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% else %}
+<div class="tab-panel-empty">No recommendations generated for this run.</div>
+{% endif %}
+{% endmacro %}
+
 {# ── detail card ──────────────────────────────────────────────────────────── #}
 
 {% macro render_detail_card(model, variant, result, card_id) %}
@@ -260,6 +290,8 @@
 {% set rate          = result.grader_pass_rate if result.grader_pass_rate is defined else (passed / total if total else 0) %}
 {% set tokens        = result.tokens if result.tokens else 0 %}
 {% set cost          = result.cost_usd if result.cost_usd else 0 %}
+{% set judge_cost    = result.judge_cost_usd if result.judge_cost_usd else 0 %}
+{% set total_cost    = result.total_cost_usd if result.total_cost_usd else cost %}
 {% set wall          = result.wall_time if result.wall_time else 0 %}
 {% set rate_cls      = rate | rate_css_class %}
 {% set dimensions    = result.dimensions if result.dimensions else [] %}
@@ -300,23 +332,27 @@
   {% set has_metrics = result.turn_metrics and result.turn_metrics | length > 0 %}
   {% set has_trace   = result.session_trace and result.session_trace | length > 0 %}
   {% set has_judge   = judge_graders | length > 0 %}
-  {% set show_tabs   = has_metrics or has_trace or has_judge %}
+  {% set has_recs    = result.recommendations is defined and result.recommendations %}
+  {% set show_tabs   = has_metrics or has_trace or has_judge or has_recs %}
   {% if show_tabs %}
   <div class="card-tabs">
     <input type="radio" name="tab-{{ card_id }}" id="tab-g-{{ card_id }}" checked>
     <input type="radio" name="tab-{{ card_id }}" id="tab-j-{{ card_id }}">
     <input type="radio" name="tab-{{ card_id }}" id="tab-m-{{ card_id }}">
     <input type="radio" name="tab-{{ card_id }}" id="tab-t-{{ card_id }}">
+    <input type="radio" name="tab-{{ card_id }}" id="tab-r-{{ card_id }}">
     <div class="tab-bar">
       <label class="tab-label" for="tab-g-{{ card_id }}">Graders</label>
       <label class="tab-label{% if not has_judge %} tab-label--hidden{% endif %}" for="tab-j-{{ card_id }}">Judge</label>
       <label class="tab-label{% if not has_metrics %} tab-label--hidden{% endif %}" for="tab-m-{{ card_id }}">Metrics</label>
       <label class="tab-label{% if not has_trace %} tab-label--hidden{% endif %}" for="tab-t-{{ card_id }}">Trace</label>
+      <label class="tab-label{% if not has_recs %} tab-label--hidden{% endif %}" for="tab-r-{{ card_id }}">Recommendations</label>
     </div>
     <div class="tab-panel">{{ render_graders(graders_list) }}</div>
     <div class="tab-panel">{{ render_judge(judge_graders) }}</div>
     <div class="tab-panel">{{ render_turn_metrics(result.turn_metrics) }}</div>
     <div class="tab-panel">{{ render_session_trace(result.session_trace) }}</div>
+    <div class="tab-panel">{{ render_recommendations(result.recommendations) }}</div>
   </div>
   {% else %}
   {{ render_graders(graders_list) }}
@@ -324,7 +360,7 @@
   <div class="card-footer">
     <span>⏱ {{ "%.1f" | format(wall) }}s</span>
     <span>🔤 {{ tokens }} tokens</span>
-    <span>💰 ${{ "%.4f" | format(cost) }}</span>
+    <span>💰 ${{ "%.4f" | format(cost) }} + ${{ "%.4f" | format(judge_cost) }} (judge) = ${{ "%.4f" | format(total_cost) }}</span>
   </div>
 </div>
 {% endif %}
@@ -359,7 +395,7 @@
       <span><strong class="stat-value">{{ total_runs }}</strong> runs</span>
       <span><strong class="stat-value">{{ evals_run | length }}</strong> evals</span>
       <span><strong class="stat-value">{{ models_run | join(", ") }}</strong></span>
-      <span>total cost <strong class="stat-value">${{ "%.4f" | format(total_cost) }}</strong></span>
+      <span>total cost <strong class="stat-value">${{ "%.4f" | format(total_cost) }}</strong> + <strong class="stat-value">${{ "%.4f" | format(total_judge_cost) }}</strong> (judge) = <strong class="stat-value">${{ "%.4f" | format(grand_total_cost) }}</strong></span>
     </div>
   </div>
 

@@ -526,6 +526,63 @@ describe('llmJudge', () => {
       llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' }),
     ).rejects.toThrow('unexpected verdict');
   });
+
+  it('extracts token usage from OpenAI-style usage (prompt_tokens/completion_tokens)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: 'Looks correct.\n\nyes' } }],
+          usage: { prompt_tokens: 150, completion_tokens: 30 },
+        }),
+      } as unknown as Response),
+    );
+    const result = await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
+    expect(result.inputTokens).toBe(150);
+    expect(result.outputTokens).toBe(30);
+  });
+
+  it('extracts token usage from Anthropic-style usage (input_tokens/output_tokens)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: 'Looks correct.\n\nyes' } }],
+          usage: { input_tokens: 200, output_tokens: 40 },
+        }),
+      } as unknown as Response),
+    );
+    const result = await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
+    expect(result.inputTokens).toBe(200);
+    expect(result.outputTokens).toBe(40);
+  });
+
+  it('returns zero tokens when usage is absent', async () => {
+    vi.stubGlobal('fetch', mockFetchResponse('Looks correct.\n\nyes'));
+    const result = await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
+    expect(result.inputTokens).toBe(0);
+    expect(result.outputTokens).toBe(0);
+  });
 });
 
 // ── allowedLevels filtering ───────────────────────────────────────────────────

@@ -19,7 +19,7 @@ export const CLAUDE_EFFORT_MODELS = new Set([
 // instead of tools/tool_choice.
 export const GEMINI_MODELS = ['gemini-'];
 
-// Model name prefixes for GPT models routed through the Copilot SDK.
+// Model name prefixes for GPT models routed through the Codex runner.
 export const GPT_MODELS = ['gpt-'];
 
 /**
@@ -48,6 +48,11 @@ export const CLAUDE_CODE_TASK_TIMEOUT_MS = 30 * 60_000;
  * This fires first as a graceful abort. The host-side 35-min Docker deadline
  * is a hard-kill backstop for unresponsive containers. */
 export const COPILOT_TASK_TIMEOUT_MS = 30 * 60_000;
+
+/** Maximum wall-clock time for a single Codex CLI task (30 minutes).
+ * This fires first as a graceful abort. The host-side 35-min Docker deadline
+ * is a hard-kill backstop for unresponsive containers. */
+export const CODEX_TASK_TIMEOUT_MS = 30 * 60_000;
 
 /** Maximum wall-clock time for a single baseline LLM call (2 minutes). */
 export const BASELINE_TASK_TIMEOUT_MS = 2 * 60_000;

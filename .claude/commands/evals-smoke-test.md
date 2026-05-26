@@ -7,7 +7,7 @@ npm run build
 
 2. **Full matrix for react_quickstart:**
 ```bash
-npm run run -- --eval react_quickstart --matrix
+npm run evals -- --eval react_quickstart --matrix
 ```
 
 After each command completes, summarize the results (pass/fail counts, any errors).

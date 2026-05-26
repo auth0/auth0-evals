@@ -44,6 +44,7 @@ registerExecutor(eventExecutor);
 export const EXCLUDED_EVAL_DIRS = new Set([
   // Agent specific directories
   '.claude',
+  '.codex',
   '.github',
   '.gemini',
   // Npm directory

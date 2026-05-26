@@ -5,6 +5,7 @@
 import type { GraderLevel } from './graders.js';
 import type { TraceStep, TurnMetricEntry } from './agents.js';
 import type { AgentType } from './agents.js';
+import type { Recommendations } from '../recommendations/types.js';
 
 /** Serialised outcome of a single grader check, included in every result type. */
 export interface GraderSummary {
@@ -18,6 +19,8 @@ export interface GraderSummary {
   detail: string;
   /** Grader level, if one was assigned (absent for holistic `judge` graders). */
   level?: GraderLevel;
+  /** Estimated cost in USD for this grader call (judge graders only). */
+  cost_usd?: number;
 }
 
 /** Serialised outcome of a single scoring dimension, included in agent results. */
@@ -67,8 +70,12 @@ export interface BaselineJobResult {
   wall_time: number;
   /** Total tokens consumed (input + output). */
   tokens: number;
-  /** Estimated cost in USD. */
+  /** Estimated cost in USD (model inference only). */
   cost_usd: number;
+  /** Estimated cost in USD for LLM judge grader calls. */
+  judge_cost_usd: number;
+  /** Total cost in USD (model inference + judge calls). */
+  total_cost_usd: number;
   /** Error message if the run failed, empty string otherwise. */
   error: string;
   /** Per-grader pass/fail detail. */
@@ -118,8 +125,12 @@ export interface AgentJobResult {
   interruptions: number;
   /** Total tokens consumed (input + output). */
   tokens: number;
-  /** Estimated cost in USD. */
+  /** Estimated cost in USD (agent inference only). */
   cost_usd: number;
+  /** Estimated cost in USD for LLM judge grader calls. */
+  judge_cost_usd: number;
+  /** Total cost in USD (agent inference + judge calls). */
+  total_cost_usd: number;
   /** Per-dimension score breakdown. */
   dimensions: DimensionSummary[];
   /** Per-grader pass/fail detail. */
@@ -128,6 +139,8 @@ export interface AgentJobResult {
   session_trace: TraceStep[];
   /** Per-turn token and latency metrics. */
   turn_metrics: TurnMetricEntry[];
+  /** Structured recommendations for improving graders, skills, MCP, and efficiency. Present only when skills or MCP tools are enabled. */
+  recommendations?: Recommendations;
 }
 
 /**
@@ -157,6 +170,10 @@ export interface ErrorJobResult {
   tokens: number;
   /** Always `0`. */
   cost_usd: number;
+  /** Always `0`. */
+  judge_cost_usd: number;
+  /** Always `0`. */
+  total_cost_usd: number;
 }
 
 /** Union of all possible job result shapes returned by `runJob()`. */
