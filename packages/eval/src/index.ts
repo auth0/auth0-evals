@@ -58,3 +58,7 @@ export { createBraintrustReporter, experimentName, mapResult } from './reporters
 export type { BraintrustReporter, BraintrustReporterOptions } from './reporters/braintrust.js';
 export { syncDataset, toEvalSummaries } from './reporters/braintrust-dataset.js';
 export type { EvalSummary, DatasetSyncOptions } from './reporters/braintrust-dataset.js';
+
+// Recommendations
+export type { RecommendationInput } from './recommendations/index.js';
+export { generateRecommendations, collectSkillContent } from './recommendations/index.js';

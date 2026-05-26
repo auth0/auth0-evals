@@ -9,6 +9,7 @@ import type { GraderResult, RunRecord, ToolCallRecord, ScoredResult } from './ty
 import type { TraceStep, TurnMetricEntry } from './types/agents.js';
 import type { AgentJobResult, BaselineJobResult, ErrorJobResult, GraderSummary } from './types/results.js';
 import type { EvalDefinition } from './types/eval.js';
+import type { Recommendations } from './recommendations/types.js';
 import { estimateCost } from './config/costs.js';
 
 // ── Trace serialisation ───────────────────────────────────────────────────────
@@ -156,6 +157,7 @@ export function serialiseAgent(
   model: string,
   mode: 'agent',
   tools: string[],
+  recommendations?: Recommendations,
 ): AgentJobResult {
   const judgeCost = computeJudgeCost(graderResults);
   return {
@@ -189,6 +191,7 @@ export function serialiseAgent(
     graders: mapGraders(graderResults),
     session_trace: serialiseTrace(record),
     turn_metrics: serialiseTurnMetrics(record),
+    recommendations,
   };
 }
 

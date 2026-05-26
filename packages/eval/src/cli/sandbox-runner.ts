@@ -30,6 +30,7 @@ import {
   serialiseError,
 } from '@a0/eval-core';
 import type { AgentType } from '@a0/eval-core';
+import { generateRunRecommendations } from '../recommendations/index.js';
 
 import { LLM_API_KEY_ENV } from './constants.js';
 import { score } from '../scorer.js';
@@ -112,8 +113,20 @@ async function main(): Promise<void> {
     }
 
     const scored = score(record, graderResults);
+
+    // Generate recommendations when skills or MCP are enabled
+    const recommendations = await generateRunRecommendations(
+      evalDef,
+      resolvedModel,
+      tools,
+      workspace,
+      scored,
+      record,
+      apiKey,
+    );
+
     const result = {
-      ...serialiseAgent(evalDef, record, scored, graderResults, resolvedModel, mode, tools),
+      ...serialiseAgent(evalDef, record, scored, graderResults, resolvedModel, mode, tools, recommendations),
       agent_type: agentType,
     };
 

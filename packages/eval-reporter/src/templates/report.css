@@ -467,18 +467,37 @@ a { color: var(--link); }
 .card-tabs > input:nth-of-type(1):checked ~ div:nth-of-type(2),
 .card-tabs > input:nth-of-type(2):checked ~ div:nth-of-type(3),
 .card-tabs > input:nth-of-type(3):checked ~ div:nth-of-type(4),
-.card-tabs > input:nth-of-type(4):checked ~ div:nth-of-type(5) { display: block; }
+.card-tabs > input:nth-of-type(4):checked ~ div:nth-of-type(5),
+.card-tabs > input:nth-of-type(5):checked ~ div:nth-of-type(6) { display: block; }
 
 /* Active label */
 .card-tabs > input:nth-of-type(1):checked ~ div:nth-of-type(1) > .tab-label:nth-child(1),
 .card-tabs > input:nth-of-type(2):checked ~ div:nth-of-type(1) > .tab-label:nth-child(2),
 .card-tabs > input:nth-of-type(3):checked ~ div:nth-of-type(1) > .tab-label:nth-child(3),
-.card-tabs > input:nth-of-type(4):checked ~ div:nth-of-type(1) > .tab-label:nth-child(4) {
+.card-tabs > input:nth-of-type(4):checked ~ div:nth-of-type(1) > .tab-label:nth-child(4),
+.card-tabs > input:nth-of-type(5):checked ~ div:nth-of-type(1) > .tab-label:nth-child(5) {
   color: var(--text-primary); border-bottom-color: var(--link);
 }
 
 /* Empty state */
 .tab-panel-empty { padding: 8px; color: var(--text-quat); font-size: 12px; font-style: italic; }
+
+/* ── Recommendations ────────────────────────────────────────────────────── */
+.rec-summary { padding: 8px 0; color: var(--text-sec); font-size: 13px; line-height: 1.5; margin-bottom: 8px; }
+.rec-list { list-style: none; padding: 0; margin: 0; }
+.rec-item { padding: 10px 12px; border: 1px solid var(--border-2); border-radius: 6px; margin-bottom: 8px; }
+.rec-item-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.rec-badge { font-size: 10px; font-weight: 600; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; }
+.rec-badge--grader { background: var(--clr-blue-bg); color: var(--clr-blue); }
+.rec-badge--skill { background: var(--clr-green-bg); color: var(--clr-green); }
+.rec-badge--mcp { background: var(--clr-amber-bg); color: var(--clr-amber); }
+.rec-badge--efficiency { background: var(--clr-orange-bg); color: var(--clr-orange); }
+.rec-severity-high { border-left: 3px solid var(--clr-red); }
+.rec-severity-medium { border-left: 3px solid var(--clr-amber); }
+.rec-severity-low { border-left: 3px solid var(--text-quat); }
+.rec-issue { font-size: 13px; color: var(--text-primary); margin-bottom: 4px; }
+.rec-suggestion { font-size: 12px; color: var(--text-sec); }
+.rec-context { font-size: 11px; color: var(--text-ter); margin-top: 4px; font-style: italic; }
 
 /* ── Metrics compact table (turn metrics / session trace) ────────────────── */
 .metrics-table       { width: 100%; border-collapse: collapse; font-size: 12px; }
