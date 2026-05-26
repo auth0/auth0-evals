@@ -57,7 +57,7 @@ function resolveAgentType(model, override) {
   if (override && override !== 'auto') return override;
   if (model.startsWith('claude-'))  return 'claude-code';
   if (model.startsWith('gemini-'))  return 'gemini-cli';
-  if (model.startsWith('gpt-'))     return 'copilot';
+  if (model.startsWith('gpt-'))     return 'codex';
   return 'copilot';
 }
 

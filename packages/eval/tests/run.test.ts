@@ -54,10 +54,10 @@ describe('buildJobList — agent mode auto-routing', () => {
     expect(jobs[0][1]).toBe('claude-sonnet-4-6');
   });
 
-  it('gpt- model with no explicit agent type → routes to copilot', () => {
+  it('gpt- model with no explicit agent type → routes to codex', () => {
     const jobs = buildJobList([EVAL], ['gpt-5.2'], ['agent'], [], undefined);
     expect(jobs).toHaveLength(1);
-    expect(jobs[0][4]).toBe('copilot');
+    expect(jobs[0][4]).toBe('codex');
     expect(jobs[0][1]).toBe('gpt-5.2');
   });
 

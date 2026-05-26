@@ -16,6 +16,9 @@ export default {
     'gemini-cli': {
       proxy: { baseUrl: 'https://llm.atko.ai' },
     },
+    'codex': {
+      proxy: { baseUrl: 'https://llm.atko.ai' },
+    },
   },
 
   mcp: {

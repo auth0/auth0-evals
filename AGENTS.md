@@ -87,6 +87,7 @@ Graders run against all workspace files (scaffold + agent edits) minus the exclu
 
 **Directories:**
 - `.claude` — injected skill files and agent context
+- `.codex` — Codex agent context
 - `.github` — workflow metadata
 - `.gemini` — Gemini agent context
 - `node_modules` — dependencies
@@ -271,15 +272,16 @@ else: score = 100 × passed / relevant.length
 | Runner | ID | Used for | How it's selected |
 |---|---|---|---|
 | Claude Code | `claude-code` | Claude models via Agent SDK | Auto-selected for `claude-*` models when no `--agent-type` flag |
-| Copilot SDK | `copilot` | GPT models via `@github/copilot-sdk` | Auto-selected for `gpt-*` models when no `--agent-type` flag; default fallback |
+| Copilot SDK | `copilot` | GPT models via `@github/copilot-sdk` | Not auto-selected; available via `--agent-type copilot` |
 | Gemini CLI | `gemini-cli` | Gemini models via Gemini CLI | Auto-selected for `gemini-*` models when no `--agent-type` flag |
+| Codex CLI | `codex` | GPT models via OpenAI Codex CLI | Auto-selected for `gpt-*` models when no `--agent-type` flag |
 
 ### Auto-routing logic
 
 When `--agent-type` is **not** specified, the runner is selected by model prefix:
 - `claude-*` → `claude-code`
 - `gemini-*` → `gemini-cli`
-- `gpt-*` → `copilot`
+- `gpt-*` → `codex`
 - anything else → `copilot` (default)
 
 Explicit `--agent-type` overrides auto-routing for runner selection. Exception: `--agent-type claude-code` with a non-`claude-*` model replaces the model with a deduplicated sentinel (`model='claude-code'`), causing the runner to use its default Claude model instead of attempting the requested one.
@@ -383,7 +385,7 @@ npm run report
 | `--model <model>` | Any model string | `gpt-5.4` | Repeatable; `all` expands to known working models |
 | `--mode <mode>` | `baseline`, `agent`, `all` | `baseline` | `all` expands to both |
 | `--tools <tools>` | `skills`, `mcp`, or comma-separated | none | Only applies to agent mode |
-| `--agent-type <type>` | `claude-code`, `copilot`, `gemini-cli` | auto-routed by model | Overrides auto-routing |
+| `--agent-type <type>` | `claude-code`, `copilot`, `gemini-cli`, `codex` | auto-routed by model | Overrides auto-routing |
 | `--matrix` | flag | off | All evals × models × baseline + agent with tool sets (skills, mcp+skills); defaults workers to 20 |
 | `--workers <n>` | number | 4 (defaults to 20 in matrix) | Parallel job limit |
 | `--output <path>` | file path | auto-named | JSON results output |
