@@ -47,3 +47,6 @@ export interface GraderDef {
 export interface GraderOptions {
   caseSensitive?: boolean;
 }
+
+/** Levels valid for event-based graders (agent-only — no tool calls exist in baseline). */
+export type EventGraderLevel = GraderLevel.L4 | GraderLevel.L5;

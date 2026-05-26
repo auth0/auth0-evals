@@ -86,8 +86,13 @@ Graders define the acceptance criteria. Export a single `defineGraders()` functi
 | `notContainsInSource(needle, description?, level?)` | No **source** file contains the substring (skips `.env`, `.json`, `.plist`, config files) |
 | `matches(pattern, description?, level?)` | Any workspace file matches the regex pattern |
 | `judge(question, framework?, level?)` | An LLM judge answers "yes" given the full workspace contents |
+| `ranCommand(command, args?, description?, level?)` | Agent ran a successful shell command containing `command` and all `args` substrings |
+| `ranCommandOneOf(commands, description?, level?)` | Agent ran at least one successful command from the list (substring match) |
+| `wroteFile(path, description?, level?)` | Agent wrote a file whose path contains the substring |
 
 For `judge`, the optional `framework` argument selects a context prompt from `prompts/judge/`. Current options: `react`, `nextjs`, `ios`. Omit it for a generic judgment.
+
+The event-based primitives (`ranCommand`, `ranCommandOneOf`, `wroteFile`) inspect the agent's tool-call trace rather than workspace file contents. They only produce meaningful results in agent mode — in baseline mode (no tool calls), they gracefully fail. Use them at **L4** level for behavioral checks like verifying the agent explicitly installed dependencies or ran a build.
 
 ---
 

@@ -80,6 +80,9 @@ Use `notContainsInSource` (not `notContains`) when a value like a client ID is a
 | `notContainsInSource(needle)` | Substring must NOT appear in source files (allowed in config) |
 | `matches(pattern)` | Regex match in any non-excluded workspace file |
 | `judge(question, framework?)` | LLM-as-judge yes/no question — uses `claude-opus-4-7` |
+| `ranCommand(command, args?)` | Agent ran a shell command containing `command` (and optionally all `args`) — event-based, L4 only |
+| `ranCommandOneOf(commands)` | Agent ran at least one command from the list — event-based, L4 only |
+| `wroteFile(path)` | Agent wrote a file whose path contains the substring — event-based, L4 only |
 
 ## Grading exclusions
 
@@ -102,7 +105,9 @@ Graders run against all workspace files (scaffold + agent edits) minus the exclu
 **Files:**
 - `package-lock.json` — noise
 - `tsconfig.tsbuildinfo` — TypeScript incremental build cache
+- `CLAUDE.md` — injected agent context
 - `GEMINI.md` — injected agent context
+- `AGENTS.md` — injected agent context
 
 Additionally, the LLM judge excludes `tsconfig*.json` and `angular.json` from its input to save token budget.
 

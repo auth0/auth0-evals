@@ -2,7 +2,7 @@
 
 // Types
 export { GraderLevel } from './types.js';
-export type { GraderResult, GraderDef, GraderOptions, EventToolCall } from './types.js';
+export type { GraderResult, GraderDef, GraderOptions, EventToolCall, EventGraderLevel } from './types.js';
 
 // Grader factory functions
 export {

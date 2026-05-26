@@ -955,4 +955,30 @@ describe('runGraders - event graders', () => {
     const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
     expect(results[0]!.passed).toBe(true);
   });
+
+  it('ranCommand throws when given an invalid level', () => {
+    expect(() => ranCommand('npm install', undefined, 'test', GraderLevel.L1 as never)).toThrow(
+      /event-based graders only support L4.*or L5/,
+    );
+  });
+
+  it('ranCommandOneOf throws when given an invalid level', () => {
+    expect(() => ranCommandOneOf(['npm install'], 'test', GraderLevel.L2 as never)).toThrow(
+      /event-based graders only support L4.*or L5/,
+    );
+  });
+
+  it('wroteFile throws when given an invalid level', () => {
+    expect(() => wroteFile('.env', 'test', GraderLevel.L3 as never)).toThrow(
+      /event-based graders only support L4.*or L5/,
+    );
+  });
+
+  it('ranCommand accepts L5 level', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [ranCommand('npm install', undefined, 'ran npm install', GraderLevel.L5)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
 });

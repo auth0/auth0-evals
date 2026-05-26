@@ -143,6 +143,8 @@ function writeAgentInstructions(workspace: string, agentType: AgentType, evalDef
   } else if (agentType === 'copilot') {
     mkdirSync(join(workspace, '.github'), { recursive: true });
     writeFileSync(join(workspace, '.github', 'copilot-instructions.md'), instructions, 'utf-8');
+  } else if (agentType === 'codex') {
+    writeFileSync(join(workspace, 'AGENTS.md'), instructions, 'utf-8');
   }
 }
 
