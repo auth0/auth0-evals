@@ -154,14 +154,6 @@ export async function runJobInDocker(options: DockerRunOptions): Promise<JobResu
   // Use resolvedWorkspace (canonicalized) to ensure we mount the same path we validated
   const volumeFlags: string[] = ['-v', `${resolvedWorkspace}:${DOCKER_WORKSPACE_MOUNT}:rw`];
   const hostCaCert = process.env.NODE_EXTRA_CA_CERTS;
-  if (hostCaCert && existsSync(hostCaCert)) {
-    const resolvedCa = realpathSync(hostCaCert);
-    const containerCaPath = '/etc/ssl/certs/extra-ca-certificates.pem';
-    volumeFlags.push('-v', `${resolvedCa}:${containerCaPath}:ro`);
-    envFlags.push('-e', `NODE_EXTRA_CA_CERTS=${containerCaPath}`);
-    envFlags.push('-e', `GIT_SSL_CAINFO=${containerCaPath}`);
-    logger.info(`[sandbox] Mounting CA cert: ${resolvedCa} → ${containerCaPath}`);
-  }
 
   const securityFlags: string[] = [
     '--cap-drop=ALL',
@@ -182,6 +174,19 @@ export async function runJobInDocker(options: DockerRunOptions): Promise<JobResu
     '--add-host=host.docker.internal:127.0.0.127',
     '--hostname=sandbox',
   ];
+
+  if (hostCaCert && existsSync(hostCaCert)) {
+    const resolvedCa = realpathSync(hostCaCert);
+    const containerCaPath = '/etc/ssl/certs/extra-ca-certificates.pem';
+    volumeFlags.push('-v', `${resolvedCa}:${containerCaPath}:ro`);
+    envFlags.push('-e', `NODE_EXTRA_CA_CERTS=${containerCaPath}`);
+    // Mount tmpfs over /etc/ssl/certs so entrypoint can restore the system bundle
+    // (from /etc/ssl/certs.bak) and append the extra CA cert. Required because
+    // rustls-native-certs reads ca-certificates.crt directly and cannot be
+    // redirected via env vars, and --read-only blocks writes without this tmpfs.
+    securityFlags.push('--tmpfs=/etc/ssl/certs:size=16m');
+    logger.info(`[sandbox] Mounting CA cert: ${resolvedCa} → ${containerCaPath}`);
+  }
 
   const dockerArgs = ['run', '--rm', ...securityFlags, ...volumeFlags, ...envFlags, DOCKER_IMAGE_NAME];
 
