@@ -33,7 +33,6 @@ export function defineGraders() {
     judge(
       'Does the code implement both onSuccess and onFailure callbacks for WebAuthProvider.login(...) ' +
         'and WebAuthProvider.logout(...), with AuthenticationException handled in onFailure?',
-      'android',
       GraderLevel.L4,
     ),
     judge(
@@ -44,7 +43,6 @@ export function defineGraders() {
         'and recommended Auth0 pattern — do NOT mark this as wrong. ' +
         'Also check that WebAuthProvider.login(...) and WebAuthProvider.logout(...) call withScheme(). ' +
         'Note: SDK v2+ does NOT require a manual redirect activity in AndroidManifest.xml.',
-      'android',
       GraderLevel.L4,
     ),
 
@@ -59,7 +57,6 @@ export function defineGraders() {
         'Specifically: Auth0(context) for auto-configuration from strings.xml, ' +
         'WebAuthProvider for browser-based login/logout, and CredentialsManager for ' +
         'secure credential storage rather than persisting tokens manually in SharedPreferences?',
-      'android',
       GraderLevel.L5,
     ),
 
@@ -71,7 +68,6 @@ export function defineGraders() {
         'IMPORTANT correct patterns to accept: (1) manifestPlaceholders using @string/ resource references is correct and recommended; ' +
         '(2) Auth0(context) or Auth0.getInstance(context) auto-reads from strings.xml — no explicit client ID/domain constructor args needed; ' +
         '(3) SDK v2+ does NOT require a manual redirect activity in AndroidManifest.xml.',
-      'android',
     ),
   ];
 }

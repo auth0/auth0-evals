@@ -30,7 +30,6 @@ export function defineGraders() {
     judge(
       'Are all Auth0 credentials (domain, client ID, client secret, app secret key) ' +
         'stored in environment variables or .env files, not hardcoded in Python source code?',
-      undefined,
       GraderLevel.L3,
     ),
 
@@ -45,7 +44,6 @@ export function defineGraders() {
       'Does the app implement login, callback, profile, and logout routes using auth0-server-python, ' +
         'protect the /profile route so it requires login, and include a route that calls an external API ' +
         'using an access token?',
-      undefined,
       GraderLevel.L4,
     ),
 
@@ -61,7 +59,6 @@ export function defineGraders() {
         'Specifically: does it import ServerClient from auth0_server_python, ' +
         'define concrete state and transaction store classes locally (subclassing StateStore/TransactionStore from the SDK), ' +
         'and configure authorization_params with audience and scope?',
-      undefined,
       GraderLevel.L5,
     ),
 

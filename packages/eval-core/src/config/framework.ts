@@ -77,8 +77,6 @@ export interface JudgeConfig {
   maxTokens?: number;
   /** Maximum characters of combined source code sent to the judge. */
   maxCodeChars?: number;
-  /** Directory containing custom judge prompts. */
-  promptsDir?: string;
 }
 
 export interface ModelsConfig {
