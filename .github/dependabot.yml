@@ -2,7 +2,7 @@ version: 2
 registries:
   npm-registry-a0us-jfrog-io-a0us-api-npm-npm:
     type: npm-registry
-    url: https://a0us.jfrog.io/artifactory/api/npm/npm/
+    url: https://a0us.jfrog.io/artifactory/api/npm/npm
     token: ${{secrets.JFROG_AUTH_TOKEN}}
     replaces-base: true
 
