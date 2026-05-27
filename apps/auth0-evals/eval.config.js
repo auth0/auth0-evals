@@ -47,6 +47,22 @@ export default {
     maxCodeChars: 16_384,
   },
 
+  scoring: {
+    // Add [hostname, pathname-prefix] pairs to extend the allowlist.
+    docUrlSources: [
+      ['auth0.github.io', '/'],
+      ['auth0.com', '/docs'],
+      ['auth0.com', '/blog'],
+      ['community.auth0.com', '/'],
+      ['npmjs.com', '/package/@auth0'],
+      ['github.com', '/auth0/'],
+      ['github.com', '/auth0-samples'],
+      ['jwt.io', '/'],
+      // ['developer.okta.com', '/docs'],
+    ],
+  },
+
+
   braintrust: {
     projectId: '38395851-dd41-46ec-a971-a30402db6921',
     datasetName: 'auth0-evals',

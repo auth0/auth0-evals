@@ -108,6 +108,16 @@ export interface BraintrustConfig {
   datasetName?: string;
 }
 
+export interface ScoringConfig {
+  /**
+   * Allowed documentation URL sources as [hostname, pathname-prefix] pairs.
+   * Replaces the framework default (Auth0 domains) when set.
+   * Add extra entries to extend the list defined in `eval.config.js`.
+   */
+  docUrlSources?: readonly [string, string][];
+}
+
+
 // ── Root config ──────────────────────────────────────────────────────────────
 
 export interface FrameworkConfig {
@@ -129,4 +139,6 @@ export interface FrameworkConfig {
   agents?: Record<string, AgentConfig>;
   /** Braintrust experiment tracking settings. */
   braintrust?: BraintrustConfig;
+  /** Scoring behaviour overrides (e.g. custom doc URL allowlist). */
+  scoring?: ScoringConfig;
 }

@@ -49,4 +49,6 @@ export const DEFAULT_FRAMEWORK_CONFIG: Required<FrameworkConfig> = {
     projectId: '',
     datasetName: '',
   },
+
+  scoring: {},
 };
