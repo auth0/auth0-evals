@@ -39,7 +39,6 @@ export function defineGraders() {
     judge(
       'Are all Auth0 credentials (domain, client ID, client secret, session secret) ' +
         'stored in environment variables, .env or .env.local files, not hardcoded in source code?',
-      undefined,
       GraderLevel.L3,
     ),
 
@@ -50,7 +49,6 @@ export function defineGraders() {
     judge(
       'Does the app correctly register the auth() middleware, protect the /profile route with requiresAuth(), ' +
         'display user profile information, and include a route that calls an external API using the access token?',
-      undefined,
       GraderLevel.L4,
     ),
 
@@ -66,7 +64,6 @@ export function defineGraders() {
         'Specifically: does it use issuerBaseURL (not AUTH0_DOMAIN or domain directly), ' +
         'configure audience via authorizationParams (not as a top-level config key), ' +
         'and use response_type: "code" for the authorization code flow?',
-      undefined,
       GraderLevel.L5,
     ),
 

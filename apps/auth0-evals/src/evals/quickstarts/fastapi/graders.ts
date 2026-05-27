@@ -26,7 +26,6 @@ export function defineGraders() {
     notContainsInSource('api.barkbook.com', 'No hardcoded audience in source files (ok in .env)', GraderLevel.L3),
     judge(
       'Are the Auth0 domain and audience stored in environment variables or a .env file, not hardcoded in Python source code?',
-      undefined,
       GraderLevel.L3,
     ),
 
@@ -41,7 +40,6 @@ export function defineGraders() {
     judge(
       'Does the app correctly create an Auth0FastAPI instance, protect /api/messages with the read:messages scope, ' +
         'and protect /api/private requiring any valid access token?',
-      undefined,
       GraderLevel.L4,
     ),
 
@@ -51,7 +49,6 @@ export function defineGraders() {
         'Specifically: does it use Auth0FastAPI with domain and audience parameters, ' +
         'use require_auth() as a FastAPI Depends dependency (not a decorator), ' +
         'and read credentials from environment variables (not hardcoded)?',
-      undefined,
       GraderLevel.L5,
     ),
 
