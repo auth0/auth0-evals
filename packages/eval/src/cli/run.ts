@@ -33,6 +33,7 @@ import {
   serialiseAgent,
   serialiseError,
   setFrameworkConfig,
+  getFrameworkConfig,
   runGraders,
   gradeText,
   BASELINE_LEVELS,
@@ -161,7 +162,7 @@ async function runAgentJob(
       graderResults = await runGraders(evalDef.graders, workspace, apiKey, undefined, agentLevels);
     }
 
-    const scored = score(record, graderResults);
+    const scored = score(record, graderResults, getFrameworkConfig().scoring);
 
     // Generate recommendations only when skills or MCP are enabled (must happen before workspace cleanup)
     const recommendations = await generateRunRecommendations(
