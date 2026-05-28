@@ -7,7 +7,6 @@
 
 import { describe, it, expect } from 'vitest';
 import { buildJobList, buildSubprocessArgs } from '../src/cli/run.js';
-import { MATRIX_TOOL_SETS } from '../src/cli/constants.js';
 import type { EvalConfig } from '@a0/eval-core';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -124,77 +123,6 @@ describe('buildJobList — mixed modes', () => {
   });
 });
 
-// ── matrix mode ───────────────────────────────────────────────────────────────
-
-describe('buildJobList — matrix mode', () => {
-  it('produces one baseline + two agent jobs for a single model', () => {
-    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['baseline', 'agent'], [], undefined, true);
-    // 1 baseline + 2 agent tool-sets (skills, mcp+skills) = 3 jobs
-    expect(jobs).toHaveLength(3);
-    const baseline = jobs.filter((j) => j[2] === 'baseline');
-    const agent = jobs.filter((j) => j[2] === 'agent');
-    expect(baseline).toHaveLength(1);
-    expect(agent).toHaveLength(2);
-  });
-
-  it('baseline jobs in matrix mode always have empty tools', () => {
-    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['baseline', 'agent'], [], undefined, true);
-    for (const job of jobs.filter((j) => j[2] === 'baseline')) {
-      expect(job[3]).toEqual([]);
-    }
-  });
-
-  it('agent jobs in matrix mode cover every MATRIX_TOOL_SETS combination', () => {
-    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['agent'], [], undefined, true);
-    const toolSets = jobs.map((j) => j[3]);
-    expect(toolSets).toEqual(MATRIX_TOOL_SETS);
-  });
-
-  it('scales correctly across multiple models', () => {
-    const jobs = buildJobList([EVAL], ['gpt-5.2', 'gpt-4o'], ['baseline', 'agent'], [], undefined, true);
-    // 2 models × (1 baseline + 2 agent) = 6 jobs
-    expect(jobs).toHaveLength(6);
-  });
-
-  it('scales correctly across multiple evals', () => {
-    const eval2 = makeEvalCfg('eval_2');
-    const jobs = buildJobList([EVAL, eval2], ['gpt-5.2'], ['baseline', 'agent'], [], undefined, true);
-    // 2 evals × (1 baseline + 2 agent) = 6 jobs
-    expect(jobs).toHaveLength(6);
-  });
-
-  it('claude-code deduplication is per-eval per-tool-set, not per-eval only', () => {
-    const jobs = buildJobList([EVAL], ['gpt-5.2', 'gpt-4o'], ['agent'], [], 'claude-code', true);
-    // 2 tool-sets × 1 eval = 2 sentinel jobs (not 1 or 4)
-    expect(jobs).toHaveLength(2);
-    for (const job of jobs) {
-      expect(job[1]).toBe('claude-code');
-      expect(job[4]).toBe('claude-code');
-    }
-  });
-
-  it('matrix=false preserves existing single-tools behaviour', () => {
-    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['agent'], ['skills'], undefined, false);
-    expect(jobs).toHaveLength(1);
-    expect(jobs[0][3]).toEqual(['skills']);
-  });
-
-  it('explicit tools override matrix tool-set expansion', () => {
-    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['agent'], ['skills'], undefined, true);
-    expect(jobs).toHaveLength(1);
-    expect(jobs[0][3]).toEqual(['skills']);
-  });
-
-  it('explicit tools override matrix for baseline+agent', () => {
-    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['baseline', 'agent'], ['mcp', 'skills'], undefined, true);
-    // 1 baseline + 1 agent (with explicit tools) = 2 jobs
-    expect(jobs).toHaveLength(2);
-    const agent = jobs.filter((j) => j[2] === 'agent');
-    expect(agent).toHaveLength(1);
-    expect(agent[0][3]).toEqual(['mcp', 'skills']);
-  });
-});
-
 // ── buildSubprocessArgs ───────────────────────────────────────────────────────
 
 describe('buildSubprocessArgs', () => {
@@ -222,10 +150,6 @@ describe('buildSubprocessArgs', () => {
     expect(buildSubprocessArgs(['--agent-type', 'claude-code', '--workers', '4'])).toEqual(['--workers', '4']);
   });
 
-  it('strips boolean --matrix flag', () => {
-    expect(buildSubprocessArgs(['--matrix', '--workers', '4'])).toEqual(['--workers', '4']);
-  });
-
   it('strips multiple per-job flags and keeps the rest', () => {
     const argv = [
       '--eval',
@@ -238,7 +162,6 @@ describe('buildSubprocessArgs', () => {
       'skills',
       '--agent-type',
       'copilot',
-      '--matrix',
       '--output',
       'scores.json',
       '--workers',

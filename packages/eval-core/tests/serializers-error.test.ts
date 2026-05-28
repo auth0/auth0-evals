@@ -20,5 +20,4 @@ describe('serialiseError', () => {
       total_cost_usd: 0,
     });
   });
-
 });

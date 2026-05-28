@@ -127,7 +127,13 @@ describe('command_execution events', () => {
         { type: 'item.started', item: { type: 'command_execution', id: 'item_1', command: 'npm install' } },
         {
           type: 'item.completed',
-          item: { type: 'command_execution', id: 'item_1', command: 'npm install', aggregated_output: 'added 10 packages', exit_code: 0 },
+          item: {
+            type: 'command_execution',
+            id: 'item_1',
+            command: 'npm install',
+            aggregated_output: 'added 10 packages',
+            exit_code: 0,
+          },
         },
         turnCompleted(),
       ]),
@@ -148,7 +154,13 @@ describe('command_execution events', () => {
         { type: 'item.started', item: { type: 'command_execution', id: 'item_1', command: 'npm test' } },
         {
           type: 'item.completed',
-          item: { type: 'command_execution', id: 'item_1', command: 'npm test', aggregated_output: 'test failed', exit_code: 1 },
+          item: {
+            type: 'command_execution',
+            id: 'item_1',
+            command: 'npm test',
+            aggregated_output: 'test failed',
+            exit_code: 1,
+          },
         },
         turnCompleted(),
       ]),
@@ -182,7 +194,12 @@ describe('function_call events', () => {
   it('creates ToolCallRecord for standalone function_call + function_call_output', async () => {
     mockSpawn.mockReturnValueOnce(
       makeChild([
-        { type: 'function_call', name: 'read_file', call_id: 'call_1', arguments: JSON.stringify({ path: 'src/app.ts' }) },
+        {
+          type: 'function_call',
+          name: 'read_file',
+          call_id: 'call_1',
+          arguments: JSON.stringify({ path: 'src/app.ts' }),
+        },
         { type: 'function_call_output', call_id: 'call_1', output: 'file contents' },
         turnCompleted(),
       ]),
@@ -218,7 +235,10 @@ describe('function_call events', () => {
         { type: 'function_call', name: 'write_file', call_id: 'call_1', arguments: '{}' },
         { type: 'function_call_output', call_id: 'call_1', output: 'ok' },
         // item.completed stream for same call — should not inflate toolCallCount
-        { type: 'item.completed', item: { type: 'function_call', name: 'write_file', call_id: 'call_1', arguments: '{}' } },
+        {
+          type: 'item.completed',
+          item: { type: 'function_call', name: 'write_file', call_id: 'call_1', arguments: '{}' },
+        },
         { type: 'item.completed', item: { type: 'function_call_output', call_id: 'call_1', output: 'ok' } },
         turnCompleted(),
       ]),
@@ -232,7 +252,12 @@ describe('function_call events', () => {
   it('classifies web_fetch as doc lookup', async () => {
     mockSpawn.mockReturnValueOnce(
       makeChild([
-        { type: 'function_call', name: 'web_fetch', call_id: 'call_1', arguments: JSON.stringify({ url: 'https://auth0.com/docs' }) },
+        {
+          type: 'function_call',
+          name: 'web_fetch',
+          call_id: 'call_1',
+          arguments: JSON.stringify({ url: 'https://auth0.com/docs' }),
+        },
         { type: 'function_call_output', call_id: 'call_1', output: 'doc content' },
         turnCompleted(),
       ]),
@@ -250,7 +275,10 @@ describe('turn metrics', () => {
     mockSpawn.mockReturnValueOnce(
       makeChild([
         { type: 'item.started', item: { type: 'command_execution', id: 'i1', command: 'ls' } },
-        { type: 'item.completed', item: { type: 'command_execution', id: 'i1', command: 'ls', aggregated_output: 'src/', exit_code: 0 } },
+        {
+          type: 'item.completed',
+          item: { type: 'command_execution', id: 'i1', command: 'ls', aggregated_output: 'src/', exit_code: 0 },
+        },
         turnCompleted({ input_tokens: 100, output_tokens: 50 }),
       ]),
     );
@@ -267,10 +295,7 @@ describe('turn metrics', () => {
 
   it('turn with no tool calls has finishReason stop', async () => {
     mockSpawn.mockReturnValueOnce(
-      makeChild([
-        { type: 'message', role: 'assistant', content: 'Done.' },
-        turnCompleted(),
-      ]),
+      makeChild([{ type: 'message', role: 'assistant', content: 'Done.' }, turnCompleted()]),
     );
 
     const record = await runCodexAgent(evalDef, workspace);
@@ -283,10 +308,16 @@ describe('turn metrics', () => {
     mockSpawn.mockReturnValueOnce(
       makeChild([
         { type: 'item.started', item: { type: 'command_execution', id: 'i1', command: 'ls' } },
-        { type: 'item.completed', item: { type: 'command_execution', id: 'i1', command: 'ls', aggregated_output: '', exit_code: 0 } },
+        {
+          type: 'item.completed',
+          item: { type: 'command_execution', id: 'i1', command: 'ls', aggregated_output: '', exit_code: 0 },
+        },
         turnCompleted({ input_tokens: 100, output_tokens: 30 }),
         { type: 'item.started', item: { type: 'command_execution', id: 'i2', command: 'cat' } },
-        { type: 'item.completed', item: { type: 'command_execution', id: 'i2', command: 'cat', aggregated_output: '', exit_code: 0 } },
+        {
+          type: 'item.completed',
+          item: { type: 'command_execution', id: 'i2', command: 'cat', aggregated_output: '', exit_code: 0 },
+        },
         turnCompleted({ input_tokens: 200, output_tokens: 40 }),
       ]),
     );
@@ -303,10 +334,7 @@ describe('turn metrics', () => {
 describe('finalSummary', () => {
   it('sets finalSummary from message event', async () => {
     mockSpawn.mockReturnValueOnce(
-      makeChild([
-        { type: 'message', role: 'assistant', content: 'Auth0 integration complete.' },
-        turnCompleted(),
-      ]),
+      makeChild([{ type: 'message', role: 'assistant', content: 'Auth0 integration complete.' }, turnCompleted()]),
     );
 
     const record = await runCodexAgent(evalDef, workspace);
@@ -378,11 +406,7 @@ describe('status and final state', () => {
   });
 
   it('turn.failed adds to providerErrors', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([
-        { type: 'turn.failed', error: { message: 'rate limit exceeded' } },
-      ]),
-    );
+    mockSpawn.mockReturnValueOnce(makeChild([{ type: 'turn.failed', error: { message: 'rate limit exceeded' } }]));
 
     const record = await runCodexAgent(evalDef, workspace);
     expect(record.providerErrors.some((e) => e.includes('rate limit exceeded'))).toBe(true);
@@ -392,7 +416,10 @@ describe('status and final state', () => {
     const events: JsonlEvent[] = [];
     for (let i = 0; i < MAX_TURNS + 2; i++) {
       events.push({ type: 'item.started', item: { type: 'command_execution', id: `i${i}`, command: 'ls' } });
-      events.push({ type: 'item.completed', item: { type: 'command_execution', id: `i${i}`, command: 'ls', aggregated_output: '', exit_code: 0 } });
+      events.push({
+        type: 'item.completed',
+        item: { type: 'command_execution', id: `i${i}`, command: 'ls', aggregated_output: '', exit_code: 0 },
+      });
       events.push(turnCompleted());
     }
 

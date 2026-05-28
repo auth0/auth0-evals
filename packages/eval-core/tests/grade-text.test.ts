@@ -48,5 +48,4 @@ describe('gradeText', () => {
     expect(result).toEqual([{ name: 'mock', passed: true }]);
     expect(existsSync(workspace as string)).toBe(false);
   });
-
 });

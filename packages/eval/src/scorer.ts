@@ -54,7 +54,6 @@ const DOCS_QUALITY_POINTS_NO_ERROR = 33;
 const DOCS_QUALITY_POINTS_NO_REWRITE = 17;
 const DOCS_QUALITY_POINTS_L4_CORRECTNESS = 16;
 
-
 const DEFAULT_WEIGHTS: DimensionWeights = {
   'Setup Friction': 0.12,
   'Setup Speed': 0.12,
@@ -284,7 +283,6 @@ function scoreDocsQuality(
   const l4Str = l4Results.length > 0 ? `L4 pass rate ${(l4PassRate * 100).toFixed(0)}%` : 'no L4 graders';
   return [rounded, `${docCalls.length} doc lookup(s); ${l4Str}`];
 }
-
 
 // ── Public API ────────────────────────────────────────────────────────────────
 

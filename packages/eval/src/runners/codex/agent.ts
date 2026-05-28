@@ -54,11 +54,7 @@ function tomlEscape(s: string): string {
   return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
-function writeCodexConfig(
-  codexHome: string,
-  proxyBaseUrl: string,
-  workspace: string,
-): void {
+function writeCodexConfig(codexHome: string, proxyBaseUrl: string, workspace: string): void {
   mkdirSync(codexHome, { recursive: true });
   // Resolve canonical path — on macOS /var is a symlink to /private/var.
   // Codex stores trusted project paths canonically, so we must match that.
@@ -297,7 +293,15 @@ function runCodexSpawn(
               const output = (item.aggregated_output as string) ?? '';
               const exitCode = (item.exit_code as number | null | undefined) ?? null;
               const isError = exitCode !== null && exitCode !== 0;
-              pushToolCall(record, 'command_execution', { command }, output, isError, pend?.startTime ?? Date.now() / 1000, isError ? `exit=${exitCode}` : undefined);
+              pushToolCall(
+                record,
+                'command_execution',
+                { command },
+                output,
+                isError,
+                pend?.startTime ?? Date.now() / 1000,
+                isError ? `exit=${exitCode}` : undefined,
+              );
             } else if (itemType === 'function_call') {
               const toolName = (item.name as string) ?? 'unknown';
               const callId = (item.call_id as string) ?? itemId;

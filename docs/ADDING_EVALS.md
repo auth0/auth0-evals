@@ -40,7 +40,7 @@ setup_command: npm install
 | `name` | no | Human-readable display name. Defaults to `id` |
 | `category` | no | Defaults to the parent directory name (e.g. `quickstarts`) |
 | `skills` | no | Comma-separated skill names from [auth0/agent-skills](https://github.com/auth0/agent-skills). Injected into agent context when running with `--tools skills` |
-| `setup_command` | no | Shell command run before the agent starts (e.g. `npm install`) |
+| `setup_command` | no | Command run before the agent starts (e.g. `npm install`). Split on whitespace and executed directly via `spawnSync` — no shell, no operators (`&&`, `\|`, etc.), no quoting. One command only. |
 
 To test a skill before it is pushed to the remote repo, see [TESTING_SKILLS.md](TESTING_SKILLS.md).
 
@@ -318,9 +318,6 @@ No manual registration step is needed. The framework auto-discovers evals by sca
 ## 5. Run and Iterate
 
 ```bash
-# Run the full matrix for your eval (all models × baseline + agent with tool sets)
-npm run evals -- --eval my_new_eval --matrix
-
 # Run a specific combo
 npm run evals -- --eval my_new_eval --mode agent --tools skills
 
@@ -341,7 +338,7 @@ npm run evals -- --eval my_new_eval --mode agent --keep-workspace
 | `agent --tools skills` | Same as `agent`, with the `SKILL.md` injected into agent context |
 | `agent --tools mcp,skills` | Both skill injection and MCP together |
 
-Use `--matrix` to run all combos in parallel and measure the delta that each investment provides.
+To run all combos and measure the delta each investment provides, combine `--mode all` with `--tools` for each tool set you want to compare.
 
 ---
 

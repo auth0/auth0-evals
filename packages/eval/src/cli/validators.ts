@@ -33,9 +33,9 @@ export function validateApiKey(): string {
 
 /**
  * Resolves and validates the model list.
- * `--model all` expands to all known models; `--matrix` without explicit models does the same.
+ * `--model all` expands to all known models.
  */
-export function validateModels(rawModels: string[], matrix: boolean): string[] {
+export function validateModels(rawModels: string[]): string[] {
   if (rawModels.length > 0 && rawModels.includes('all')) {
     logger.info(`Using all known working models: ${KNOWN_WORKING_MODELS.join(', ')}`);
     return KNOWN_WORKING_MODELS;
@@ -43,28 +43,20 @@ export function validateModels(rawModels: string[], matrix: boolean): string[] {
   if (rawModels.length > 0) {
     return rawModels;
   }
-  if (matrix) {
-    logger.info(`Using all known working models: ${KNOWN_WORKING_MODELS.join(', ')}`);
-    return KNOWN_WORKING_MODELS;
-  }
   return [DEFAULT_MODEL];
 }
 
 /**
  * Resolves and validates the execution mode(s).
- * Handles meta-values (`all`) and deprecated formats (`matrix`, `agent+skills`).
+ * Handles meta-values (`all`) and deprecated formats (`agent+skills`).
  */
-export function validateModes(modeArg: string | undefined, matrix: boolean): Mode[] {
+export function validateModes(modeArg: string | undefined): Mode[] {
   if (modeArg == null) {
-    return matrix ? ALL_MODES : ['baseline'];
+    return ['baseline'];
   }
   if (modeArg === 'all') {
     logger.info(`Running all modes: ${ALL_MODES.join(', ')}`);
     return ALL_MODES;
-  }
-  if (modeArg === 'matrix') {
-    logger.error(`'--mode matrix' has been replaced. Use the standalone --matrix flag instead.`);
-    process.exit(1);
   }
   if (!ALL_MODES.includes(modeArg as Mode)) {
     if (modeArg === 'agent+skills') {
@@ -106,9 +98,9 @@ export function validateTools(toolsArg: string): string[] {
   return tools;
 }
 
-/** Parses and validates the `--workers` count. Defaults to 20 in matrix mode, 4 otherwise. */
-export function validateWorkers(raw: string | undefined, matrix: boolean): number {
-  const workers = parseInt(raw ?? (matrix ? '20' : '4'), 10);
+/** Parses and validates the `--workers` count. Defaults to 4. */
+export function validateWorkers(raw: string | undefined): number {
+  const workers = parseInt(raw ?? '4', 10);
   if (!Number.isInteger(workers) || workers < 1) {
     logger.error(`Invalid --workers value: ${JSON.stringify(raw)}. Must be a positive integer.`);
     process.exit(1);

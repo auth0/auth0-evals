@@ -7,11 +7,12 @@
  *
  * Options:
  *   --eval        Eval ID to run (default: all). Can be repeated.
- *   --model       Model(s) to run (default: gpt-5.2). Can be repeated.
+ *   --model       Model(s) to run (default: gpt-5.4). Can be repeated.
  *                 Use 'all' to run all known working models.
  *   --mode        Execution mode: baseline | agent | all (default: baseline)
- *   --matrix      Run all evals × all models × all modes × all tool-set combinations
- *   --agent-type  Agent runner for agent mode: claude-code | copilot | gemini-cli (default: copilot)
+ *   --agent-type  Agent runner: claude-code | copilot | gemini-cli | codex
+ *                 Auto-routed by model prefix when omitted (claude-* → claude-code,
+ *                 gemini-* → gemini-cli, gpt-* → codex, else copilot).
  *   --tools       Tools to inject for agent mode: skills, mcp (default: none). Case-insensitive.
  *   --workers     Parallel workers (default: 4)
  *   --output      JSON output path (default: scores-<mode>.json)
@@ -50,7 +51,7 @@ import type { EvalConfig, EvalDefinition, JobResult, AgentType, Mode } from '@a0
 
 import { parseRunConfig } from './config.js';
 import { spawnEval, mergeIntoOutput } from './subprocess-runner.js';
-import { DEFAULT_AGENT_TYPE, MATRIX_TOOL_SETS } from './constants.js';
+import { DEFAULT_AGENT_TYPE } from './constants.js';
 import { resolveOutputPath, mergeResults, loadResults, saveResults } from '../persistence/index.js';
 import { runBaseline } from '../runners/baseline.js';
 import { score } from '../scorer.js';
@@ -233,7 +234,6 @@ function printSummary(results: JobResult[], elapsed: number): void {
  */
 export function buildSubprocessArgs(argv: string[] = process.argv.slice(2)): string[] {
   const VALUE_FLAGS = new Set(['--eval', '--output', '--model', '--mode', '--tools', '--agent-type']);
-  const BOOL_FLAGS = new Set(['--matrix']);
   const stripped: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -241,9 +241,6 @@ export function buildSubprocessArgs(argv: string[] = process.argv.slice(2)): str
     if (arg !== undefined) {
       if (VALUE_FLAGS.has(arg)) {
         i++; // skip the paired value
-        continue;
-      }
-      if (BOOL_FLAGS.has(arg)) {
         continue;
       }
       stripped.push(arg);
@@ -260,7 +257,7 @@ export function buildSubprocessArgs(argv: string[] = process.argv.slice(2)): str
  * Auto-routing rules for agent mode:
  *   - Claude models (prefix `claude-`) with no explicit --agent-type → `claude-code`
  *   - Gemini models (prefix `gemini-`) with no explicit --agent-type → `gemini-cli`
- *   - GPT models (prefix `gpt-`) with no explicit --agent-type → `copilot`
+ *   - GPT models (prefix `gpt-`) with no explicit --agent-type → `codex`
  *   - Explicit `--agent-type claude-code` with a non-Claude model → deduplicated sentinel job
  *   - Everything else → DEFAULT_AGENT_TYPE (or the explicitly requested type)
  */
@@ -270,12 +267,11 @@ export function buildJobList(
   modes: Mode[],
   tools: string[],
   agentType: AgentType | undefined,
-  matrix = false,
 ): Array<[EvalConfig, string, Mode, string[], AgentType]> {
   const jobs: Array<[EvalConfig, string, Mode, string[], AgentType]> = [];
   const claudeCodeEvalsSeen = new Set<string>();
   const codexEvalsSeen = new Set<string>();
-  const agentToolSets = matrix && tools.length === 0 ? MATRIX_TOOL_SETS : [tools];
+  const agentToolSets = [tools];
   for (const evalCfg of registry) {
     for (const model of models) {
       for (const mode of modes) {
@@ -330,7 +326,6 @@ export async function runCli(): Promise<void> {
   const {
     models,
     modes,
-    matrix,
     tools,
     evalIds,
     workers,
@@ -389,7 +384,7 @@ export async function runCli(): Promise<void> {
     process.exit(1);
   }
 
-  const jobs = buildJobList(registry, models, modes, tools, agentType, matrix);
+  const jobs = buildJobList(registry, models, modes, tools, agentType);
 
   // Ensure Docker image exists before dispatching subprocesses — avoids N parallel builds.
   if (sandbox && modes.includes('agent')) {
@@ -400,7 +395,7 @@ export async function runCli(): Promise<void> {
   // ── Subprocess-per-job parallelism ──────────────────────────────────────────
   if (jobs.length > 1) {
     const selfPath = join(__dirname, 'bin.js');
-    const outputPath = resolveOutputPath(frameworkRoot, matrix ? ['matrix'] : modes, outputOverride);
+    const outputPath = resolveOutputPath(frameworkRoot, modes, outputOverride);
 
     const baseArgs = buildSubprocessArgs();
 
@@ -455,7 +450,7 @@ export async function runCli(): Promise<void> {
   if (braintrust) {
     const btProjectId = frameworkConfig.braintrust.projectId || undefined;
     const btDatasetName = frameworkConfig.braintrust.datasetName || undefined;
-    const modeLabel = matrix ? 'matrix' : modes.join(',');
+    const modeLabel = modes.join(',');
     btReporter = await createBraintrustReporter(modeLabel, tools, { projectId: btProjectId });
 
     if (btDatasetName) {
@@ -510,7 +505,7 @@ export async function runCli(): Promise<void> {
     await btReporter.summarize();
   }
 
-  const outputPath = resolveOutputPath(frameworkRoot, matrix ? ['matrix'] : modes, outputOverride);
+  const outputPath = resolveOutputPath(frameworkRoot, modes, outputOverride);
   const existing = loadResults(outputPath);
   const merged = mergeResults(existing, results);
   saveResults(outputPath, merged);
