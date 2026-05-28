@@ -9,7 +9,7 @@ export function defineGraders() {
     contains('loginWithRedirect', 'Implements loginWithRedirect', GraderLevel.L1),
     contains('logout', 'Implements logout', GraderLevel.L1),
     contains('isAuthenticated', 'Checks isAuthenticated for conditional rendering', GraderLevel.L1),
-    contains('user.name', 'Displays user profile name', GraderLevel.L1),
+    matches(String.raw`user\??\.name`, 'Displays user profile name', GraderLevel.L1),
 
     // ── L2: Negative / anti-pattern detection ─────────────────────────────────
     notContains('@auth0/react', 'No hallucinated @auth0/react package (must be @auth0/auth0-react)', GraderLevel.L2),
