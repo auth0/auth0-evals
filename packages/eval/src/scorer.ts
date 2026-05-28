@@ -1,13 +1,13 @@
 /**
- * 7-dimension scorer.
+ * 8-dimension scorer.
  *
- * Process dimensions (50%): Setup Friction (14%), Setup Speed (14%), Efficiency (14%),
- * Error Recovery (8%)
+ * Process dimensions (50%): Setup Friction (12%), Setup Speed (12%), Efficiency (12%),
+ * Error Recovery (7%), Docs Quality (7%)
  *
  * Output dimensions (50%): Correctness (25%), Hallucination (15%), Security (10%)
  *
  * Each dimension is scored 0–100 and maps to a letter grade.
- * Overall score = weighted sum across all 7 dimensions.
+ * Overall score = weighted sum across all 8 dimensions.
  */
 
 import type {

@@ -1,5 +1,5 @@
 /**
- * Types for the 7-dimension scoring system and agent run records.
+ * Types for the 8-dimension scoring system and agent run records.
  */
 
 import type { ErrorCategory } from './agents.js';
