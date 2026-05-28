@@ -6,10 +6,10 @@ This guide walks through adding a new evaluation to `auth0-evals`.
 
 ## 1. Create the Folder Structure
 
-Pick a short, kebab-case directory name and create a folder under `src/evals/<category>/<eval-dir>/`. The category groups related evals (e.g., `quickstarts`, `api`, `mfa`). Note that the on-disk directory name (e.g. `my-new-eval`) is separate from the snake_case config ID (e.g. `my_new_eval`) you'll declare as `id` in `PROMPT.md` frontmatter and use with `--eval`.
+Pick a short, kebab-case directory name and create a folder under `src/evals/<category>/<eval-dir>/` (relative to the `apps/auth0-evals/` app root). The category groups related evals (e.g., `quickstarts`, `api`, `mfa`). Note that the on-disk directory name (e.g. `my-new-eval`) is separate from the snake_case config ID (e.g. `my_new_eval`) you'll declare as `id` in `PROMPT.md` frontmatter and use with `--eval`.
 
 ```
-src/evals/
+apps/auth0-evals/src/evals/
 └── quickstarts/
     └── my-new-eval/
         ├── PROMPT.md      # required
@@ -21,17 +21,26 @@ src/evals/
 
 ## 2. Write `PROMPT.md`
 
-`PROMPT.md` describes the task. It supports an optional YAML frontmatter block and up to three named sections.
+`PROMPT.md` describes the task. It supports an optional YAML frontmatter block and up to two named sections.
 
-### Frontmatter (optional)
+### Frontmatter
 
 ```yaml
 ---
+id: my_new_eval
+name: My New Eval
 skills: auth0-react
+setup_command: npm install
 ---
 ```
 
-`skills` references entries in the [auth0/agent-skills](https://github.com/auth0/agent-skills) repository. The matching `SKILL.md` is fetched at runtime and prepended to the agent system prompt (`## Agent System`) when running with `--mode agent --tools skills`.
+| Field | Required | Description |
+|---|---|---|
+| `id` | **yes** | Unique snake_case identifier, used with `--eval` on the CLI |
+| `name` | no | Human-readable display name. Defaults to `id` |
+| `category` | no | Defaults to the parent directory name (e.g. `quickstarts`) |
+| `skills` | no | Comma-separated skill names from [auth0/agent-skills](https://github.com/auth0/agent-skills). Injected into agent context when running with `--tools skills` |
+| `setup_command` | no | Shell command run before the agent starts (e.g. `npm install`) |
 
 To test a skill before it is pushed to the remote repo, see [TESTING_SKILLS.md](TESTING_SKILLS.md).
 
@@ -39,22 +48,20 @@ To test a skill before it is pushed to the remote repo, see [TESTING_SKILLS.md](
 
 | Section | Used in | Purpose |
 |---|---|---|
-| `## System` | `baseline` | System prompt for a single-turn LLM call |
-| `## Agent System` | `agent` (all variants) | System prompt for the agent loop |
+| `## System` | `baseline` | System prompt for the single-turn LLM call. If omitted, a default prompt is used. |
 | `## Task` | all modes | The user-facing request sent to the model |
 
-If no sections are present, the entire file is used as the task prompt.
+If no sections are present, the entire body (after frontmatter) is used as the task prompt in all modes.
 
 ### Example
 
 ````markdown
 ---
+id: react_quickstart
+name: React Quickstart
 skills: auth0-react
+setup_command: npm install
 ---
-
-## Agent System
-You are an expert React developer operating inside a project workspace with tools available.
-You MUST use the provided tools to read and write files. Do NOT output code as prose.
 
 ## Task
 Add Auth0 authentication to a React application using the `@auth0/auth0-react` SDK.
@@ -67,7 +74,7 @@ The app should support login, logout, and display the authenticated user's name 
 
 ### Tips
 
-- Be explicit about the SDK, framework version, and any configuration values (domain, client ID, etc.).
+- Do not specify the SDK package name or version in the prompt — the eval should measure whether the model picks the right one.
 - Use fake but realistic credentials so graders can detect hardcoding.
 - Include negative constraints if a hallucinated package is a known failure mode (e.g., "do not use `@auth0/nextjs-sdk`").
 
@@ -81,13 +88,13 @@ Graders define the acceptance criteria. Export a single `defineGraders()` functi
 
 | Primitive | Passes when… |
 |---|---|
-| `contains(needle, description?, level?)` | Any workspace file contains the substring (case-insensitive) |
-| `notContains(needle, description?, level?)` | No workspace file contains the substring (case-insensitive) |
-| `notContainsInSource(needle, description?, level?)` | No **source** file contains the substring (skips `.env`, `.json`, `.plist`, config files) |
+| `contains(needle, description?, level?, options?)` | Any workspace file contains the substring (case-sensitive by default) |
+| `notContains(needle, description?, level?, options?)` | No workspace file contains the substring (case-sensitive by default) |
+| `notContainsInSource(needle, description?, level?, options?)` | No **source** file contains the substring (skips `.env`, `.json`, `.plist`, config files) |
 | `matches(pattern, description?, level?)` | Any workspace file matches the regex pattern |
-| `judge(question, framework?, level?)` | An LLM judge answers "yes" given the full workspace contents |
+| `judge(question, level?)` | An LLM judge answers "yes" given the full workspace contents |
 
-For `judge`, the optional `framework` argument selects a context prompt from `prompts/judge/`. Current options: `react`, `nextjs`, `ios`. Omit it for a generic judgment.
+The `options` parameter is an object with an optional `caseSensitive` field (defaults to `true`).
 
 ---
 
@@ -178,13 +185,11 @@ contains('credentialsManager', 'Uses CredentialsManager for token storage', Grad
 judge(
   'Does the code handle the loading state (isLoading) before checking isAuthenticated? ' +
     'A correct implementation should not render auth-dependent UI while isLoading is true.',
-  'react',
   GraderLevel.L4,
 ),
 judge(
   'Does the code properly handle login and logout flows with appropriate error handling? ' +
     'Does it update UI state after successful authentication?',
-  'ios',
   GraderLevel.L4,
 ),
 ```
@@ -207,7 +212,6 @@ judge(
   'Does the code use current @auth0/auth0-react patterns? ' +
     'Specifically: isLoading (not the deprecated "loading" property), ' +
     'and audience/scope via authorizationParams (not as direct props on Auth0Provider)?',
-  'react',
   GraderLevel.L5,
 ),
 
@@ -217,7 +221,6 @@ judge(
   'Does the code use modern Swift async/await patterns? ' +
     'Specifically: try await webAuth().start(), CredentialsManager, ' +
     'and Auth0.plist for configuration rather than hardcoded strings?',
-  'ios',
   GraderLevel.L5,
 ),
 ```
@@ -233,7 +236,6 @@ In addition to the leveled graders, include **one unlevel `judge` grader** at th
 judge(
   'Does the solution correctly integrate Auth0 into a React SPA with Auth0Provider, ' +
     'useAuth0 hook, login, logout, and user profile display?',
-  'react',
 ),
 ```
 
@@ -274,7 +276,6 @@ export function defineGraders() {
     matches(String.raw`<Auth0Provider[\s\S]*?domain`, 'Auth0Provider has domain prop', GraderLevel.L4),
     judge(
       'Does the code guard auth-dependent UI behind isLoading check?',
-      'react',
       GraderLevel.L4,
     ),
 
@@ -283,7 +284,6 @@ export function defineGraders() {
     judge(
       'Does the code use current @auth0/auth0-react v2 patterns — ' +
         'isLoading (not "loading"), authorizationParams for audience/scope?',
-      'react',
       GraderLevel.L5,
     ),
 
@@ -291,7 +291,6 @@ export function defineGraders() {
     judge(
       'Does the solution correctly integrate Auth0 into a React SPA with Auth0Provider, ' +
         'useAuth0 hook, login, logout, and user profile display?',
-      'react',
     ),
   ];
 }
@@ -299,43 +298,28 @@ export function defineGraders() {
 
 ### Scaffold Files (optional)
 
-If the task needs starter code, add a `scaffold/` directory. Files are copied verbatim into the agent's temporary workspace before the run. Use TODO comments to mark what the agent should fill in.
+If the task needs starter code, add a `scaffold/` directory. Files are copied verbatim into the agent's temporary workspace before the run.
 
 ```
 scaffold/
 └── src/
-    ├── App.js      # TODO: wrap with Auth0Provider, add login/logout buttons
+    ├── App.js
     └── index.js
 ```
 
 ---
 
-## 4. Declare the Eval ID in Frontmatter
+## 4. Auto-Discovery
 
-The framework auto-discovers evals by scanning `evalsDir` for directories containing `PROMPT.md` + `graders.ts`. Each eval must declare its ID in `PROMPT.md` frontmatter:
-
-```yaml
----
-id: my_new_eval
-name: My New Eval
-skills: auth0-react
-setup_command: npm install
----
-```
-
-- `id` — **required**. Unique snake_case identifier, used with `--eval` on the CLI.
-- `name` — optional. Human-readable display name. Defaults to `id`.
-- `category` — optional. Defaults to the parent directory name (e.g. `quickstarts`).
-
-No manual registration step is needed — the framework discovers the eval automatically.
+No manual registration step is needed. The framework auto-discovers evals by scanning `evalsDir` for directories containing both `PROMPT.md` and `graders.ts`. The `id` field in `PROMPT.md` frontmatter is used as the eval identifier.
 
 ---
 
 ## 5. Run and Iterate
 
 ```bash
-# Run only your eval across all 4 combos with the default model
-npm run evals -- --eval my_new_eval --mode matrix
+# Run the full matrix for your eval (all models × baseline + agent with tool sets)
+npm run evals -- --eval my_new_eval --matrix
 
 # Run a specific combo
 npm run evals -- --eval my_new_eval --mode agent --tools skills
@@ -354,10 +338,10 @@ npm run evals -- --eval my_new_eval --mode agent --keep-workspace
 | `baseline` | Single LLM call, no tools; grades extracted code blocks |
 | `agent` | Agent with file/shell tools; grades written workspace files |
 | `agent --tools mcp` | Same as `agent`, with the Auth0 MCP server available |
-| `agent --tools skills` | Same as `agent`, with the fetched `SKILL.md` prepended to the agent system prompt |
-| `agent --tools skills,mcp` | Both skill injection and MCP docs together |
+| `agent --tools skills` | Same as `agent`, with the `SKILL.md` injected into agent context |
+| `agent --tools mcp,skills` | Both skill injection and MCP together |
 
-Use `--mode matrix` to run all 4 combos in parallel and measure the delta that each investment provides.
+Use `--matrix` to run all combos in parallel and measure the delta that each investment provides.
 
 ---
 
@@ -371,11 +355,12 @@ Pass `--agent-type copilot` to route the eval through the `copilot` binary. Skil
 
 - [ ] `PROMPT.md` and `graders.ts` exist in the eval directory
 - [ ] `PROMPT.md` frontmatter includes `id` (snake_case config ID)
-- [ ] All grader imports use the `.js` extension (required for ESM)
+- [ ] Graders import from `@a0/eval-graders` (not relative paths)
 - [ ] Graders are assigned `GraderLevel` values (L1–L5) with at least one holistic `judge` at the end (no level)
 - [ ] `npm run build` completes without errors
 - [ ] `npm test` passes
+- [ ] `npm run lint` passes
 
 ```bash
-npm run build && npm test
+npm run build && npm test && npm run lint
 ```
