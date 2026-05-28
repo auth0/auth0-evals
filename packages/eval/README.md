@@ -1,6 +1,6 @@
 # @a0/eval
 
-CLI and agent runners for the eval framework. Provides the `a0-eval` binary, multi-model agent orchestration, 7-dimension scoring, and result persistence.
+CLI and agent runners for the eval framework. Provides the `a0-eval` binary, multi-model agent orchestration, 8-dimension scoring, and result persistence.
 
 ## Installation
 
@@ -199,16 +199,17 @@ The Gemini CLI runner routes through the LLM proxy. Set `agents['gemini-cli'].pr
 
 ## Scoring
 
-Agent-mode runs are scored across 7 dimensions, each 0–100, combined by weighted sum:
+Agent-mode runs are scored across 8 dimensions, each 0–100, combined by weighted sum:
 
 ### Process dimensions (50%)
 
 | Dimension | Weight | What it measures |
 |---|---|---|
-| Setup Friction | 14% | Clean completion without human intervention |
-| Setup Speed | 14% | Active tool-call time (ideal: ≤60s) |
-| Efficiency | 14% | Focused work vs. thrashing (duplicate reads, overwritten writes) |
-| Error Recovery | 8% | Resilience to provider errors |
+| Setup Friction | 12% | Clean completion without human intervention |
+| Setup Speed | 12% | Active tool-call time (ideal: ≤60s) |
+| Efficiency | 12% | Focused work vs. thrashing (duplicate reads, overwritten writes) |
+| Error Recovery | 7% | Resilience to provider errors |
+| Docs Quality | 7% | Effective use of documentation when fetched |
 
 ### Output dimensions (50%)
 
@@ -228,7 +229,7 @@ Agent-mode runs are scored across 7 dimensions, each 0–100, combined by weight
 | D | 40 |
 | F | < 40 |
 
-Baseline runs only produce grader pass rates — no 7-dimension scoring.
+Baseline runs only produce grader pass rates — no 8-dimension scoring.
 
 ## Grader levels
 
