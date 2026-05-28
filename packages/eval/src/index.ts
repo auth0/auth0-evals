@@ -31,7 +31,6 @@ export {
   KNOWN_WORKING_MODELS,
   DEFAULT_MODEL,
   KNOWN_TOOLS,
-  MATRIX_TOOL_SETS,
   DEFAULT_AGENT_TYPE,
   parseToolsArg,
   parseRunConfig,

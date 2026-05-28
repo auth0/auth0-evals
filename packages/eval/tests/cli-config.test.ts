@@ -120,11 +120,6 @@ describe('defaults', () => {
     expect(config.agentType).toBeUndefined();
   });
 
-  it('sets matrix to false by default', () => {
-    const config = parse();
-    expect(config.matrix).toBe(false);
-  });
-
   it('does not include modeArg in the returned config', () => {
     const config = parse();
     expect(config).not.toHaveProperty('modeArg');
@@ -170,17 +165,6 @@ describe('--mode', () => {
     expect(parse('--mode', 'all').modes).toEqual(ALL_MODES);
   });
 
-  it('--mode matrix exits with migration hint', () => {
-    expect(() => parse('--mode', 'matrix')).toThrow('process.exit(1)');
-    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('--matrix'));
-  });
-
-  it('non-matrix modes set matrix to false', () => {
-    expect(parse('--mode', 'baseline').matrix).toBe(false);
-    expect(parse('--mode', 'agent').matrix).toBe(false);
-    expect(parse('--mode', 'all').matrix).toBe(false);
-  });
-
   it('exits for an unrecognised mode', () => {
     expect(() => parse('--mode', 'unknown')).toThrow('process.exit(1)');
   });
@@ -197,43 +181,6 @@ describe('--mode', () => {
   it('prints a migration hint for agent+skills', () => {
     expect(() => parse('--mode', 'agent+skills')).toThrow();
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining('--mode agent --tools skills'));
-  });
-});
-
-// ── Matrix flag ──────────────────────────────────────────────────────────────
-
-describe('--matrix', () => {
-  it('sets matrix to true', () => {
-    expect(parse('--matrix').matrix).toBe(true);
-  });
-
-  it('defaults modes to all known modes', () => {
-    expect(parse('--matrix').modes).toEqual(ALL_MODES);
-  });
-
-  it('defaults models to all known working models', () => {
-    expect(parse('--matrix').models).toEqual(KNOWN_WORKING_MODELS);
-  });
-
-  it('defaults workers to 20', () => {
-    expect(parse('--matrix').workers).toBe(20);
-  });
-
-  it('explicit --mode narrows the matrix', () => {
-    expect(parse('--matrix', '--mode', 'agent').modes).toEqual(['agent']);
-  });
-
-  it('explicit --model narrows the matrix', () => {
-    expect(parse('--matrix', '--model', 'gpt-5.4').models).toEqual(['gpt-5.4']);
-  });
-
-  it('explicit --workers overrides the matrix default', () => {
-    expect(parse('--matrix', '--workers', '2').workers).toBe(2);
-  });
-
-  it('explicit --eval narrows the matrix', () => {
-    const config = parse('--matrix', '--eval', VALID_EVAL_ID);
-    expect(config.evalIds).toEqual([VALID_EVAL_ID]);
   });
 });
 

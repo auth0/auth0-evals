@@ -46,13 +46,6 @@ export interface RunConfig {
   /** Validated API key read from `LLM_API_KEY`. */
   apiKey: string;
   /**
-   * When `true`, `--matrix` was passed. Shorthand for running all evals × all
-   * models × all modes × all tool-set combinations. Explicit `--eval`, `--model`,
-   * or `--mode` flags narrow the matrix. `buildJobList` uses this to expand
-   * agent mode across all tool-set combinations.
-   */
-  matrix: boolean;
-  /**
    * The agent runner to use for agent-mode jobs.
    * `undefined` when --agent-type was not passed; claude-* models are then auto-routed to claude-code.
    */
@@ -99,14 +92,9 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
     )
     .option(
       '--agent-type <type>',
-      `Agent runner for agent mode: ${KNOWN_AGENT_TYPES.join(' | ')} (default: ${DEFAULT_AGENT_TYPE})`,
+      `Agent runner for agent mode: ${KNOWN_AGENT_TYPES.join(' | ')}. Auto-routed by model prefix when omitted (claude-* → claude-code, gemini-* → gemini-cli, gpt-* → codex, else ${DEFAULT_AGENT_TYPE}).`,
     )
-    .option(
-      '--matrix',
-      'Run the full eval matrix: all evals × all models × all modes × all tool-set combinations',
-      false,
-    )
-    .option('--workers <n>', 'Parallel workers (default: 4; default in matrix mode: 20)')
+    .option('--workers <n>', 'Parallel workers (default: 4)')
     .option('--output <path>', 'JSON output path')
     .option('--keep-workspace', '(agent mode) Keep temp workspace after run', false)
     .option('--braintrust', 'Log results to Braintrust experiment', false)
@@ -121,25 +109,19 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
   const opts = program.opts();
 
   const apiKey = validateApiKey();
-  const matrix = opts.matrix as boolean;
-  const models = validateModels(opts.model as string[], matrix);
-  const modes = validateModes(opts.mode as string | undefined, matrix);
-
-  if (matrix) {
-    logger.info(`Running matrix: ${modes.join(', ')} × ${['none', 'skills', 'mcp+skills'].join(', ')}`);
-  }
+  const models = validateModels(opts.model as string[]);
+  const modes = validateModes(opts.mode as string | undefined);
 
   const evalIds = options.knownEvalIds
     ? validateEvalIds(opts.eval as string[], options.knownEvalIds)
     : (opts.eval as string[]);
   const tools = validateTools(opts.tools as string);
-  const workers = validateWorkers(opts.workers as string | undefined, matrix);
+  const workers = validateWorkers(opts.workers as string | undefined);
   const agentType = validateAgentType(opts.agentType as string | undefined);
 
   return {
     models,
     modes,
-    matrix,
     tools,
     evalIds,
     workers,

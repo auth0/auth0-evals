@@ -392,9 +392,6 @@ npm run evals -- --eval react_quickstart --mode agent
 npm run evals -- --eval react_quickstart --mode agent --tools skills
 npm run evals -- --eval react_quickstart --mode agent --tools mcp,skills
 
-# Full matrix (all evals × all models × baseline + agent with tool sets)
-npm run evals -- --matrix --workers 20
-
 # All modes, all models, limited parallelism
 npm run evals -- --mode all --model all --workers 8
 
@@ -417,8 +414,7 @@ npm run report
 | `--mode <mode>` | `baseline`, `agent`, `all` | `baseline` | `all` expands to both |
 | `--tools <tools>` | `skills`, `mcp`, or comma-separated | none | Only applies to agent mode |
 | `--agent-type <type>` | `claude-code`, `copilot`, `gemini-cli`, `codex` | auto-routed by model | Overrides auto-routing |
-| `--matrix` | flag | off | All evals × models × baseline + agent with tool sets (skills, mcp+skills); defaults workers to 20 |
-| `--workers <n>` | number | 4 (defaults to 20 in matrix) | Parallel job limit |
+| `--workers <n>` | number | 4 | Parallel job limit |
 | `--output <path>` | file path | auto-named | JSON results output |
 | `--keep-workspace` | flag | off | Don't delete temp workspace after run |
 | `--dangerously-skip-sandbox` | flag | off | Disable Docker sandbox — run agent jobs directly on host |

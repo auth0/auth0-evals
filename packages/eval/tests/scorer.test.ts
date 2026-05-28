@@ -820,7 +820,10 @@ describe('score - Docs Quality docUrlSources option', () => {
       }),
     ];
     const result = score(record, [], {
-      docUrlSources: [['auth0.com', '/docs'], ['docs.mycompany.com', '/']],
+      docUrlSources: [
+        ['auth0.com', '/docs'],
+        ['docs.mycompany.com', '/'],
+      ],
     });
     // Both lookups: 34+33+17+16 = 100 each → avg 100
     expect(getDim(result, 'Docs Quality').rawScore).toBe(100.0);
@@ -841,7 +844,6 @@ describe('score - Docs Quality docUrlSources option', () => {
     expect(getDim(result, 'Docs Quality').rawScore).toBe(100.0);
   });
 });
-
 
 // ── score() integration tests ─────────────────────────────────────────────────
 

@@ -117,7 +117,6 @@ export interface ScoringConfig {
   docUrlSources?: readonly [string, string][];
 }
 
-
 // ── Root config ──────────────────────────────────────────────────────────────
 
 export interface FrameworkConfig {
