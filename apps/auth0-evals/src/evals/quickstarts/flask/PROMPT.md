@@ -2,7 +2,7 @@
 id: flask_quickstart
 name: Flask Quickstart
 skills: auth0-flask
-setup_command: pip install -r requirements.txt
+setup_command: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ---
 
 ## Task
