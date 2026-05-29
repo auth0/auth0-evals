@@ -62,11 +62,10 @@ export function notContainsInSource(
   };
 }
 
-export function judge(question: string, framework?: string, level?: GraderLevel): GraderDef {
+export function judge(question: string, level?: GraderLevel): GraderDef {
   return {
     kind: 'judge',
     question,
-    framework,
     name: question,
     level,
   };

@@ -3,7 +3,6 @@ export {
   DEFAULT_MODEL,
   ALL_MODES,
   KNOWN_TOOLS,
-  MATRIX_TOOL_SETS,
   DEFAULT_AGENT_TYPE,
   parseToolsArg,
   type Mode,

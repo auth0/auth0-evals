@@ -28,7 +28,6 @@ export function defineGraders() {
     judge(
       'Does the code handle the loading state (isLoading) before checking isAuthenticated? ' +
         'A correct implementation should not render auth-dependent UI while isLoading is true.',
-      undefined,
       GraderLevel.L4,
     ),
 

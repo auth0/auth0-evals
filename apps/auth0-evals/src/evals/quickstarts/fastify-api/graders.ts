@@ -25,7 +25,6 @@ export function defineGraders() {
     notContainsInSource('api.barkbook.com', 'No hardcoded audience in source files (ok in .env)', GraderLevel.L3),
     judge(
       'Are the Auth0 domain and audience stored in environment variables or a .env file, not hardcoded in source code?',
-      undefined,
       GraderLevel.L3,
     ),
 
@@ -50,7 +49,6 @@ export function defineGraders() {
     judge(
       'Does the app correctly register the @auth0/auth0-fastify-api plugin, protect /api/messages with the read:messages scope, ' +
         'and protect /api/private requiring any valid access token?',
-      undefined,
       GraderLevel.L4,
     ),
 
@@ -61,7 +59,6 @@ export function defineGraders() {
         'use preHandler: fastify.requireAuth() for route protection (not a decorator), ' +
         'access token claims via request.user, ' +
         'and read credentials from environment variables (not hardcoded)?',
-      undefined,
       GraderLevel.L5,
     ),
 

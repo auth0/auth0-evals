@@ -1,5 +1,5 @@
 /**
- * Types for the 7-dimension scoring system and agent run records.
+ * Types for the 8-dimension scoring system and agent run records.
  */
 
 import type { ErrorCategory } from './agents.js';
@@ -132,6 +132,13 @@ export interface ScoringOptions {
 
   /** Custom tool display name mapping for efficiency notes. */
   toolDisplayNames?: Record<string, string>;
+
+  /**
+   * Allowed documentation URL sources as [hostname, pathname-prefix] pairs.
+   * When set, replaces the framework default (Auth0 domains). Spread
+   * Add entries to the list in `eval.config.js` to extend rather than replace.
+   */
+  docUrlSources?: readonly [string, string][];
 }
 
 export interface DimensionWeights {
@@ -139,6 +146,7 @@ export interface DimensionWeights {
   'Setup Speed': number;
   Efficiency: number;
   'Error Recovery': number;
+  'Docs Quality': number;
   Correctness: number;
   Hallucination: number;
   Security: number;

@@ -2,7 +2,7 @@
 id: fastapi_quickstart
 name: FastAPI Quickstart
 skills: auth0-fastapi-api
-setup_command: pip install -r requirements.txt
+setup_command: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ---
 
 ## Task
@@ -16,3 +16,5 @@ I need two protected routes:
 2. /api/private — requires any valid token, returns the user's `sub` claim
 
 Do not prompt for permissions to create any .env files.
+
+A virtual environment is already set up at `.venv`. Use `.venv/bin/pip` to install packages and update `requirements.txt` with any new dependencies.

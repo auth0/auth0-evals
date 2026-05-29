@@ -1,13 +1,13 @@
 /**
- * 7-dimension scorer.
+ * 8-dimension scorer.
  *
- * Process dimensions (50%): Setup Friction (14%), Setup Speed (14%), Efficiency (14%),
- * Error Recovery (8%)
+ * Process dimensions (50%): Setup Friction (12%), Setup Speed (12%), Efficiency (12%),
+ * Error Recovery (7%), Docs Quality (7%)
  *
  * Output dimensions (50%): Correctness (25%), Hallucination (15%), Security (10%)
  *
  * Each dimension is scored 0–100 and maps to a letter grade.
- * Overall score = weighted sum across all 7 dimensions.
+ * Overall score = weighted sum across all 8 dimensions.
  */
 
 import type {
@@ -36,11 +36,30 @@ const SPEED_DEGRADATION_RATE = 0.4;
 
 const ERROR_RECOVERY_PENALTY = 20.0;
 
+// ── Docs Quality constants ────────────────────────────────────────────────────
+
+function isDocUrl(url: string, sources: readonly [string, string][]): boolean {
+  if (!sources.length) return false;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') return false;
+    return sources.some(([host, pathPrefix]) => parsed.hostname === host && parsed.pathname.startsWith(pathPrefix));
+  } catch {
+    return false;
+  }
+}
+
+const DOCS_QUALITY_POINTS_VALID_URL = 34;
+const DOCS_QUALITY_POINTS_NO_ERROR = 33;
+const DOCS_QUALITY_POINTS_NO_REWRITE = 17;
+const DOCS_QUALITY_POINTS_L4_CORRECTNESS = 16;
+
 const DEFAULT_WEIGHTS: DimensionWeights = {
-  'Setup Friction': 0.14,
-  'Setup Speed': 0.14,
-  Efficiency: 0.14,
-  'Error Recovery': 0.08,
+  'Setup Friction': 0.12,
+  'Setup Speed': 0.12,
+  Efficiency: 0.12,
+  'Error Recovery': 0.07,
+  'Docs Quality': 0.07,
   Correctness: 0.25,
   Hallucination: 0.15,
   Security: 0.1,
@@ -190,6 +209,81 @@ function scoreFromGraders(graderResults: GraderResult[], level: GraderLevel, emp
   return [Math.round(s * 10) / 10, notes];
 }
 
+function scoreDocsQuality(
+  record: RunRecord,
+  graderResults: GraderResult[],
+  docUrlSources?: readonly [string, string][],
+): [number, string] {
+  // Only score fetch-style lookups with a real http(s) URL. WebSearch lookups
+  // normalise args.url to a query string which is not a fetchable URL and
+  // should not be scored (they can't satisfy the allowlist check and would
+  // unfairly drag down the average).
+  const docCalls = record.toolCalls.filter(
+    (tc) => tc.isDocLookup && typeof tc.args['url'] === 'string' && (tc.args['url'] as string).startsWith('http'),
+  );
+
+  if (docCalls.length === 0) {
+    return [100.0, 'No doc lookups — full marks (training data was sufficient)'];
+  }
+
+  const l4Results = graderResults.filter((g) => g.level === GraderLevel.L4);
+  const l4PassRate = l4Results.length > 0 ? l4Results.filter((g) => g.passed).length / l4Results.length : 1.0;
+
+  // For the "no rewrite after fetch" signal, build a set of paths written
+  // before each doc lookup and check if any of those paths are written again
+  // between this lookup and the next (or end of trace).
+  const allCalls = record.toolCalls;
+  let totalPoints = 0;
+
+  for (let i = 0; i < docCalls.length; i++) {
+    const docCall = docCalls[i]!;
+    let points = 0;
+
+    // Signal 1: URL is a valid doc domain (+34). Bypassed if no allowlist configured.
+    const url = docCall.args['url'] as string;
+    if (!docUrlSources?.length || isDocUrl(url, docUrlSources)) points += DOCS_QUALITY_POINTS_VALID_URL;
+
+    // Signal 2: Fetch did not error (+33)
+    if (!docCall.causedError) points += DOCS_QUALITY_POINTS_NO_ERROR;
+
+    // Signal 3a: No write_file to an already-written path between this fetch
+    // and the next doc fetch (or end of trace) (+17)
+    const docCallIdx = allCalls.indexOf(docCall);
+    const nextDocCallIdx = i + 1 < docCalls.length ? allCalls.indexOf(docCalls[i + 1]!) : allCalls.length;
+
+    // Collect paths written before this doc lookup
+    const pathsWrittenBefore = new Set<string>();
+    for (let j = 0; j < docCallIdx; j++) {
+      const tc = allCalls[j]!;
+      if (tc.name === 'write_file' && typeof tc.args['path'] === 'string') {
+        pathsWrittenBefore.add(tc.args['path']);
+      }
+    }
+
+    let hasRewrite = false;
+    for (let j = docCallIdx + 1; j < nextDocCallIdx; j++) {
+      const tc = allCalls[j]!;
+      if (tc.name === 'write_file' && typeof tc.args['path'] === 'string') {
+        if (pathsWrittenBefore.has(tc.args['path'])) {
+          hasRewrite = true;
+          break;
+        }
+      }
+    }
+    if (!hasRewrite) points += DOCS_QUALITY_POINTS_NO_REWRITE;
+
+    // Signal 3b: L4 grader pass rate (+16 scaled)
+    points += Math.round(DOCS_QUALITY_POINTS_L4_CORRECTNESS * l4PassRate);
+
+    totalPoints += points;
+  }
+
+  const avgScore = totalPoints / docCalls.length;
+  const rounded = Math.round(avgScore * 10) / 10;
+  const l4Str = l4Results.length > 0 ? `L4 pass rate ${(l4PassRate * 100).toFixed(0)}%` : 'no L4 graders';
+  return [rounded, `${docCalls.length} doc lookup(s); ${l4Str}`];
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export function score(record: RunRecord, graderResults?: GraderResult[], opts?: ScoringOptions): ScoredResult {
@@ -200,6 +294,7 @@ export function score(record: RunRecord, graderResults?: GraderResult[], opts?: 
   const [speedScore, speedNotes] = scoreSpeed(record, opts);
   const [effScore, effNotes] = scoreEfficiency(record, opts);
   const [errScore, errNotes] = scoreErrors(record, opts);
+  const [docsScore, docsNotes] = scoreDocsQuality(record, gr, opts?.docUrlSources);
   const [correctnessScore, correctnessNotes] = scoreCorrectness(gr);
   const [hallucinationScore, hallucinationNotes] = scoreFromGraders(
     gr,
@@ -237,6 +332,12 @@ export function score(record: RunRecord, graderResults?: GraderResult[], opts?: 
       weights['Error Recovery'],
       hasToolCalls ? errScore : 0,
       hasToolCalls ? errNotes : 'Agent did not execute (0 tool calls)',
+    ),
+    makeDim(
+      'Docs Quality',
+      weights['Docs Quality'],
+      hasToolCalls ? docsScore : 0,
+      hasToolCalls ? docsNotes : 'Agent did not execute (0 tool calls)',
     ),
     makeDim('Correctness', weights['Correctness'], correctnessScore, correctnessNotes),
     makeDim('Hallucination', weights['Hallucination'], hallucinationScore, hallucinationNotes),

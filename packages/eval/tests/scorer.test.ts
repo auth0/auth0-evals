@@ -12,6 +12,18 @@ import { collectGraderFiles } from '@a0/eval-core';
 import { score, scoreToGrade } from '../src/scorer.js';
 import { analyzeWaste } from '../src/waste.js';
 
+// Auth0 doc URL allowlist used by tests that verify domain-scoring behaviour.
+const AUTH0_DOC_SOURCES: readonly [string, string][] = [
+  ['auth0.github.io', '/'],
+  ['auth0.com', '/docs'],
+  ['auth0.com', '/blog'],
+  ['community.auth0.com', '/'],
+  ['npmjs.com', '/package/@auth0'],
+  ['github.com', '/auth0/'],
+  ['github.com', '/auth0-samples'],
+  ['jwt.io', '/'],
+];
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeRecord(overrides: Partial<RunRecord> = {}): RunRecord {
@@ -611,6 +623,228 @@ describe('score - Security', () => {
   });
 });
 
+// ── Docs Quality tests ────────────────────────────────────────────────────────
+
+describe('score - Docs Quality', () => {
+  it('no doc lookups = 100', () => {
+    const dir = tmpDir();
+    const result = score(makeRecord({ workspace: dir }));
+    expect(getDim(result, 'Docs Quality').rawScore).toBe(100.0);
+    expect(getDim(result, 'Docs Quality').notes).toContain('No doc lookups');
+  });
+
+  it('valid auth0 domain + no error + no rewrite + no L4 graders = 100', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    record.toolCalls = [
+      makeToolCall('fetch_url', 1, {
+        isDocLookup: true,
+        causedError: false,
+        args: { url: 'https://auth0.com/docs/quickstart/spa/react' },
+      }),
+    ];
+    const result = score(record, [], { docUrlSources: AUTH0_DOC_SOURCES });
+    // 34 (valid URL) + 33 (no error) + 17 (no rewrite) + 16 (no L4 graders → 100%) = 100
+    expect(getDim(result, 'Docs Quality').rawScore).toBe(100.0);
+  });
+
+  it('invalid domain scores 0 on URL signal', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    record.toolCalls = [
+      makeToolCall('fetch_url', 1, {
+        isDocLookup: true,
+        causedError: false,
+        args: { url: 'https://example.com/some-page' },
+      }),
+    ];
+    const result = score(record, [], { docUrlSources: AUTH0_DOC_SOURCES });
+    // 0 (invalid URL) + 33 (no error) + 17 (no rewrite) + 16 (no L4) = 66
+    expect(getDim(result, 'Docs Quality').rawScore).toBe(66.0);
+  });
+
+  it('errored fetch loses the no-error signal', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    record.toolCalls = [
+      makeToolCall('fetch_url', 1, {
+        isDocLookup: true,
+        causedError: true,
+        args: { url: 'https://auth0.com/docs/quickstart' },
+      }),
+    ];
+    const result = score(record, [], { docUrlSources: AUTH0_DOC_SOURCES });
+    // 34 (valid URL) + 0 (errored) + 17 (no rewrite) + 16 (no L4) = 67
+    expect(getDim(result, 'Docs Quality').rawScore).toBe(67.0);
+  });
+
+  it('overwrite after fetch loses the no-rewrite signal', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    record.toolCalls = [
+      makeToolCall('write_file', 1, { args: { path: 'app.ts' } }),
+      makeToolCall('fetch_url', 1, {
+        isDocLookup: true,
+        causedError: false,
+        args: { url: 'https://auth0.com/docs/quickstart' },
+      }),
+      makeToolCall('write_file', 1, { args: { path: 'app.ts' } }), // re-writes a pre-existing path
+    ];
+    const result = score(record, [], { docUrlSources: AUTH0_DOC_SOURCES });
+    // 34 (valid URL) + 33 (no error) + 0 (rewrite detected) + 16 (no L4) = 83
+    expect(getDim(result, 'Docs Quality').rawScore).toBe(83.0);
+  });
+
+  it('failing L4 graders reduces L4 sub-signal proportionally', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    record.toolCalls = [
+      makeToolCall('fetch_url', 1, {
+        isDocLookup: true,
+        causedError: false,
+        args: { url: 'https://auth0.com/docs/quickstart' },
+      }),
+    ];
+    const graders: GraderResult[] = [
+      { name: 'l4-pass', kind: 'judge', passed: true, detail: '', level: GraderLevel.L4 },
+      { name: 'l4-fail', kind: 'judge', passed: false, detail: 'structural issue', level: GraderLevel.L4 },
+    ];
+    const result = score(record, graders, { docUrlSources: AUTH0_DOC_SOURCES });
+    // 34 + 33 + 17 + round(16 * 0.5) = 34 + 33 + 17 + 8 = 92
+    expect(getDim(result, 'Docs Quality').rawScore).toBe(92.0);
+  });
+
+  it('averages score across multiple doc lookups', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    record.toolCalls = [
+      // Perfect lookup: 34+33+17+16 = 100
+      makeToolCall('fetch_url', 1, {
+        isDocLookup: true,
+        causedError: false,
+        args: { url: 'https://auth0.com/docs/quickstart' },
+      }),
+      // Bad lookup: 0+0+17+16 = 33 (wrong domain, errored)
+      makeToolCall('fetch_url', 1, {
+        isDocLookup: true,
+        causedError: true,
+        args: { url: 'https://example.com/bad' },
+      }),
+    ];
+    const result = score(record, [], { docUrlSources: AUTH0_DOC_SOURCES });
+    // avg(100, 33) = 66.5
+    expect(getDim(result, 'Docs Quality').rawScore).toBe(66.5);
+  });
+
+  it('WebSearch query string (non-http args.url) is excluded and scores 100', () => {
+    // WebSearch normalises args.url to a query string, not a real URL.
+    // These should be excluded entirely rather than failing the allowlist.
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    record.toolCalls = [
+      makeToolCall('fetch_url', 1, {
+        isDocLookup: true,
+        causedError: false,
+        args: { url: 'auth0 react quickstart' }, // query string, not http URL
+      }),
+    ];
+    const result = score(record);
+    // Non-http lookup is filtered out → no scored lookups → full marks
+    expect(getDim(result, 'Docs Quality').rawScore).toBe(100.0);
+    expect(getDim(result, 'Docs Quality').notes).toContain('No doc lookups');
+  });
+
+  it('host-spoofing URL does not score valid-domain points', () => {
+    // e.g. https://auth0.com.evil.com/docs should not match auth0.com
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    record.toolCalls = [
+      makeToolCall('fetch_url', 1, {
+        isDocLookup: true,
+        causedError: false,
+        args: { url: 'https://auth0.com.evil.com/docs/quickstart' },
+      }),
+    ];
+    const result = score(record, [], { docUrlSources: AUTH0_DOC_SOURCES });
+    // 0 (spoofed domain) + 33 (no error) + 17 (no rewrite) + 16 (no L4) = 66
+    expect(getDim(result, 'Docs Quality').rawScore).toBe(66.0);
+  });
+});
+
+// ── docUrlSources option tests ────────────────────────────────────────────────
+
+describe('score - Docs Quality docUrlSources option', () => {
+  it('custom docUrlSources replaces defaults — known Auth0 URL no longer scores valid-domain points', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    record.toolCalls = [
+      makeToolCall('fetch_url', 1, {
+        isDocLookup: true,
+        causedError: false,
+        args: { url: 'https://auth0.com/docs/quickstart' },
+      }),
+    ];
+    const result = score(record, [], { docUrlSources: [['docs.mycompany.com', '/']] });
+    // 0 (auth0.com not in custom list) + 33 (no error) + 17 (no rewrite) + 16 (no L4) = 66
+    expect(getDim(result, 'Docs Quality').rawScore).toBe(66.0);
+  });
+
+  it('custom docUrlSources scores valid-domain points for the supplied domain', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    record.toolCalls = [
+      makeToolCall('fetch_url', 1, {
+        isDocLookup: true,
+        causedError: false,
+        args: { url: 'https://docs.mycompany.com/sdk' },
+      }),
+    ];
+    const result = score(record, [], { docUrlSources: [['docs.mycompany.com', '/']] });
+    // 34 (valid) + 33 (no error) + 17 (no rewrite) + 16 (no L4) = 100
+    expect(getDim(result, 'Docs Quality').rawScore).toBe(100.0);
+  });
+
+  it('combining Auth0 and custom domains scores both as valid', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    record.toolCalls = [
+      makeToolCall('fetch_url', 1, {
+        isDocLookup: true,
+        causedError: false,
+        args: { url: 'https://auth0.com/docs/quickstart' },
+      }),
+      makeToolCall('fetch_url', 1, {
+        isDocLookup: true,
+        causedError: false,
+        args: { url: 'https://docs.mycompany.com/sdk' },
+      }),
+    ];
+    const result = score(record, [], {
+      docUrlSources: [
+        ['auth0.com', '/docs'],
+        ['docs.mycompany.com', '/'],
+      ],
+    });
+    // Both lookups: 34+33+17+16 = 100 each → avg 100
+    expect(getDim(result, 'Docs Quality').rawScore).toBe(100.0);
+  });
+
+  it('empty docUrlSources bypasses domain check — scores full valid-domain points', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    record.toolCalls = [
+      makeToolCall('fetch_url', 1, {
+        isDocLookup: true,
+        causedError: false,
+        args: { url: 'https://auth0.com/docs/quickstart' },
+      }),
+    ];
+    const result = score(record, [], { docUrlSources: [] });
+    // 34 (bypassed check) + 33 (no error) + 17 (no rewrite) + 16 (no L4) = 100
+    expect(getDim(result, 'Docs Quality').rawScore).toBe(100.0);
+  });
+});
+
 // ── score() integration tests ─────────────────────────────────────────────────
 
 describe('score - process zero-out gate', () => {
@@ -643,10 +877,10 @@ describe('score - process zero-out gate', () => {
 });
 
 describe('score() integration', () => {
-  it('returns 7 dimensions', () => {
+  it('returns 8 dimensions', () => {
     const dir = tmpDir();
     const result = score(makeRecord({ workspace: dir }), []);
-    expect(result.dimensions.length).toBe(7);
+    expect(result.dimensions.length).toBe(8);
   });
 
   it('overall grade is valid letter', () => {

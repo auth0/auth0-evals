@@ -17,7 +17,7 @@ export const KNOWN_WORKING_MODELS = [
   'claude-opus-4-7',
   'claude-haiku-4-5',
   'gemini-3.1-pro-preview',
-  'gemini-3.1-flash-lite-preview',
+  'gemini-3.5-flash',
 ];
 
 /** Model used when no `--model` flag is provided. */
@@ -25,13 +25,6 @@ export const DEFAULT_MODEL = 'gpt-5.4';
 
 /** Tool names accepted by the `--tools` flag (case-insensitive). */
 export const KNOWN_TOOLS = ['skills', 'mcp'];
-
-/**
- * The agent tool-set combinations used by `--mode matrix`.
- * Each entry is a sorted list of tool names. Baseline always runs without tools
- * and is not represented here.
- */
-export const MATRIX_TOOL_SETS: string[][] = [['skills'], ['mcp', 'skills']];
 
 /** Agent runner used when no `--agent-type` flag is provided. */
 export const DEFAULT_AGENT_TYPE = 'copilot';

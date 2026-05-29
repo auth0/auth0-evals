@@ -24,7 +24,6 @@ export function defineGraders() {
     notContainsInSource('api.barkbook.com', 'No hardcoded audience in source files (ok in .env)', GraderLevel.L3),
     judge(
       'Are all Auth0 configuration values (issuerBaseURL / domain, audience) stored in environment variables, not hardcoded in source code?',
-      undefined,
       GraderLevel.L3,
     ),
 
@@ -51,7 +50,6 @@ export function defineGraders() {
         'GET /api/messages requires read:messages, POST /api/messages requires write:messages, ' +
         'GET /api/profile returns user info from req.auth.payload. ' +
         'Missing or invalid tokens should yield 401, insufficient scope should yield 403.',
-      undefined,
       GraderLevel.L4,
     ),
 
@@ -68,7 +66,6 @@ export function defineGraders() {
         'Specifically: does it configure auth() with issuerBaseURL and audience, ' +
         'use requiredScopes() for scope checks (not manual payload inspection), ' +
         'and access token data via req.auth.payload (not req.user or manually decoded tokens)?',
-      undefined,
       GraderLevel.L5,
     ),
 

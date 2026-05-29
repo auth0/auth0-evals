@@ -40,7 +40,6 @@ export function defineGraders() {
     judge(
       'Are all Auth0 credentials (domain, client ID, client secret, AUTH0_SECRET) ' +
         'stored in environment variables or .env files, not hardcoded in source code?',
-      'nextjs',
       GraderLevel.L3,
     ),
 
@@ -65,7 +64,6 @@ export function defineGraders() {
       'Does the code set up a working authentication flow with login, logout, and a callback route? ' +
         'Is there a protected /dashboard page that checks the user session and redirects unauthenticated users to log in? ' +
         'Note: Next.js 16 supports both middleware.ts (export function middleware) and proxy.ts (export function proxy) — both are valid.',
-      'nextjs',
       GraderLevel.L4,
     ),
 
@@ -92,13 +90,11 @@ export function defineGraders() {
         'Note: Next.js 16 replaces middleware.ts with proxy.ts (export function proxy) — both are valid. ' +
         'There should also be a protected /dashboard page that checks the session and ' +
         'redirects unauthenticated users to log in.',
-      'nextjs',
       GraderLevel.L5,
     ),
     judge(
       'Does the code use current v4 environment variable names (AUTH0_DOMAIN, AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET, AUTH0_SECRET) ' +
         'and NOT deprecated v3 names (AUTH0_BASE_URL, AUTH0_ISSUER_BASE_URL)?',
-      'nextjs',
       GraderLevel.L5,
     ),
 

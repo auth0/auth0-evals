@@ -151,19 +151,9 @@ describe('judge', () => {
     expect(def.name).toBe('Does the code correctly initialize Auth0?');
   });
 
-  it('sets framework when provided', () => {
-    const def = judge('Is this correct?', 'react');
-    expect(def.framework).toBe('react');
-  });
-
   it('sets level when provided', () => {
-    const def = judge('Is this correct?', undefined, GraderLevel.L5);
+    const def = judge('Is this correct?', GraderLevel.L5);
     expect(def.level).toBe(GraderLevel.L5);
-  });
-
-  it('leaves framework undefined when not provided', () => {
-    const def = judge('Is this correct?');
-    expect(def.framework).toBeUndefined();
   });
 
   it('leaves level undefined when not provided', () => {

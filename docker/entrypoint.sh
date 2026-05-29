@@ -87,6 +87,25 @@ iptables -A OUTPUT -j ACCEPT
 
 echo "[sandbox] Network isolation applied — internal/host traffic blocked"
 
+# ─── CA certificate injection ─────────────────────────────────────────────────
+# If a custom CA cert was mounted (e.g. for corporate SSL inspection/MITM proxy),
+# merge it into the system CA bundle so ALL runtimes trust it:
+#   - Node.js:   NODE_EXTRA_CA_CERTS (set by docker.ts)
+#   - Rust/Codex: rustls-native-certs reads /etc/ssl/certs/ca-certificates.crt directly
+#   - Python/curl/OpenSSL: reads the system bundle
+#
+# /etc/ssl/certs is mounted as a tmpfs (writable) by docker.ts when an extra CA
+# cert is present. We restore the original image certs from /etc/ssl/certs.bak
+# (created at image build time), then append the extra cert on top.
+EXTRA_CA="/etc/ssl/certs/extra-ca-certificates.pem"
+SYSTEM_BUNDLE="/etc/ssl/certs/ca-certificates.crt"
+BACKUP_BUNDLE="/etc/ssl/certs.bak/ca-certificates.crt"
+if [ -f "$EXTRA_CA" ]; then
+  cp -a /etc/ssl/certs.bak/. /etc/ssl/certs/
+  cat "$EXTRA_CA" >> "$SYSTEM_BUNDLE"
+  echo "[sandbox] Merged extra CA cert into system bundle"
+fi
+
 # ─── Workspace validation ─────────────────────────────────────────────────────
 # The workspace is bind-mounted from the host's temp directory. It contains the
 # eval scaffold files and is where the agent writes its output. The host reads

@@ -26,15 +26,12 @@ apps/
 ## Quick start
 
 ```bash
-cp .env.example .env
-# add your LLM_API_KEY to .env
-# add GH_TOKEN if running evals that use gh CLI calls (e.g. android_quickstart): gh auth token
-
 npm install
 npm run build
 
 cp apps/auth0-evals/.env.example apps/auth0-evals/.env
-# add your API key to apps/auth0-evals/.env
+# set LLM_API_KEY in apps/auth0-evals/.env
+# add GH_TOKEN if running evals that use gh CLI calls (e.g. android_quickstart): gh auth token
 
 # Run a single eval in baseline mode
 npm run evals -- --eval react_quickstart --mode baseline
@@ -65,7 +62,7 @@ The delta between configurations tells you where to invest:
 - **agent → agent+mcp** — value of MCP server
 - **agent+mcp+skills** — full compound effect
 
-Agent runs are scored across 7 dimensions (process + output quality) into a JSON results file. See [`packages/eval`](packages/eval/) for CLI documentation and scoring details.
+Agent runs are scored across 8 dimensions (process + output quality) into a JSON results file. See [`packages/eval`](packages/eval/) for CLI documentation and scoring details.
 
 ## Documentation
 
@@ -86,3 +83,7 @@ npm run format    # format with Prettier
 ```
 
 Requires Node.js 24+ and Docker (for sandboxed agent runs).
+
+## License
+
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for more info.

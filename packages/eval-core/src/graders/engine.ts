@@ -115,7 +115,6 @@ export async function runGraders(
   const judgeMaxCodeChars = config.judge.maxCodeChars ?? 16_384;
   const judgeMaxTokens = config.judge.maxTokens ?? 1024;
   const judgeBaseUrl = config.proxy.baseUrl;
-  const judgePromptsDir = config.judge.promptsDir;
   const judgeModelMap = getLitellmModelMap();
   const active = allowedLevels
     ? graderDefs.filter((g) => g.level === undefined || allowedLevels.has(g.level))
@@ -137,7 +136,6 @@ export async function runGraders(
       baseUrl: judgeBaseUrl,
       maxTokens: judgeMaxTokens,
       maxCodeChars: judgeMaxCodeChars,
-      promptsDir: judgePromptsDir,
       modelMap: judgeModelMap,
       enforceMaxChars,
     },

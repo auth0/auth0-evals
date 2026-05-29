@@ -119,6 +119,37 @@ The project uses ESLint and Prettier. Run `npm run lint` and `npm run format` be
 
 ---
 
+## Testing
+
+Every new function and every logic change must be accompanied by tests. Each package has its own `tests/` directory (`packages/eval-core/tests/`, `packages/eval/tests/`, `packages/eval-graders/tests/`, etc.) and uses Vitest. Add tests in the package where the changed code lives. Rules:
+
+- **New function** → add at least one happy-path test and one failure/edge-case test.
+- **Logic change** → add or update tests that would have caught the regression. If the change is non-trivial (e.g. new branching, new error handling), cover each new branch.
+- **Bug fix** → add a test that reproduces the bug before the fix and passes after.
+
+Run `npm test` before committing. A change is not done until tests pass.
+
+---
+
+## Documentation — what to update and when
+
+When you make a change, update every doc whose described behavior is affected. The table below maps change types to the docs that must stay in sync.
+
+| Change type | Docs to update |
+|---|---|
+| New eval added (`PROMPT.md` + `graders.ts`) | `AGENTS.md` eval list (if maintaining one); `docs/ADDING_EVALS.md` if the change reveals a gap in the guide |
+| `setup_command` behaviour changed (e.g. new syntax supported) | `docs/ADDING_EVALS.md` — frontmatter table and example; `AGENTS.md` checklist if relevant |
+| New skill added or skill resolution logic changed | `docs/TESTING_SKILLS.md`; `AGENTS.md` if skill tooling or config changed |
+| New CLI flag or runner added | `AGENTS.md` CLI flags table and Agent runners table; `README.md` quick-start if the flag is commonly used |
+| Scoring dimension added, changed, or removed | `docs/SCORING_METHODOLOGY.md` first (per the workflow); then `AGENTS.md` scoring section once merged |
+| New grader level or grader primitive added | `AGENTS.md` grader levels table and grader primitives table; `docs/ADDING_EVALS.md` |
+| Framework package added or restructured | `README.md` monorepo structure table; `packages/eval/README.md` if it exists |
+| Docker/sandbox behaviour changed | `AGENTS.md` if it affects how evals run; no dedicated doc today — add a note here |
+
+**Rule of thumb**: if a developer reading the doc would get the wrong mental model or follow a broken example after your change, update the doc. If the doc is still accurate, leave it alone.
+
+---
+
 ## Adding an eval — checklist
 
 1. `src/evals/<category>/<eval-dir>/PROMPT.md` + `graders.ts`
@@ -295,7 +326,7 @@ Explicit `--agent-type` overrides auto-routing for runner selection. Exception: 
 
 Uses `@anthropic-ai/claude-agent-sdk` `query()` function (not CLI subprocess). Routes through the configured LLM proxy (`proxy.baseUrl` in `eval.config.js`).
 
-By default uses the LiteLLM proxy, which maps supported short aliases via `LITELLM_MODEL_MAP` (underscore-prefixed, e.g. `_claude-opus-4-7`).
+By default uses the LiteLLM proxy, which maps supported short aliases via the `litellm` model map in `eval.config.js`.
 
 Set `CLAUDE_CODE_USE_BEDROCK_PROXY=1` to route through the Bedrock proxy instead (`/anthropic` endpoint), which maps supported short aliases to full Bedrock model IDs:
 - `claude-sonnet-4-6` → `global.anthropic.claude-sonnet-4-6`
@@ -327,7 +358,7 @@ Used when `--model all` is passed:
 - `claude-opus-4-7`
 - `claude-haiku-4-5`
 - `gemini-3.1-pro-preview`
-- `gemini-3.1-flash-lite-preview`
+- `gemini-3.5-flash`
 
 ### Judge model
 
@@ -366,9 +397,6 @@ npm run evals -- --eval react_quickstart --mode agent
 npm run evals -- --eval react_quickstart --mode agent --tools skills
 npm run evals -- --eval react_quickstart --mode agent --tools mcp,skills
 
-# Full matrix (all evals × all models × baseline + agent with tool sets)
-npm run evals -- --matrix --workers 20
-
 # All modes, all models, limited parallelism
 npm run evals -- --mode all --model all --workers 8
 
@@ -391,8 +419,7 @@ npm run report
 | `--mode <mode>` | `baseline`, `agent`, `all` | `baseline` | `all` expands to both |
 | `--tools <tools>` | `skills`, `mcp`, or comma-separated | none | Only applies to agent mode |
 | `--agent-type <type>` | `claude-code`, `copilot`, `gemini-cli`, `codex` | auto-routed by model | Overrides auto-routing |
-| `--matrix` | flag | off | All evals × models × baseline + agent with tool sets (skills, mcp+skills); defaults workers to 20 |
-| `--workers <n>` | number | 4 (defaults to 20 in matrix) | Parallel job limit |
+| `--workers <n>` | number | 4 | Parallel job limit |
 | `--output <path>` | file path | auto-named | JSON results output |
 | `--keep-workspace` | flag | off | Don't delete temp workspace after run |
 | `--dangerously-skip-sandbox` | flag | off | Disable Docker sandbox — run agent jobs directly on host |

@@ -58,29 +58,35 @@ The `skills/` directory is already committed to the repo and gitignored content 
 
 ```bash
 # Run your eval in agent+skills mode
-npm run evals -- --eval react_quickstart --mode agent --tools Skills
+npm run evals -- --eval react_quickstart --mode agent --tools skills
 
 # Keep the workspace to inspect what the agent produced
-npm run evals -- --eval react_quickstart --mode agent --tools Skills --keep-workspace
+npm run evals -- --eval react_quickstart --mode agent --tools skills --keep-workspace
 ```
 
-The runner logs skill delivery. What you see depends on the agent type:
+The runner logs skill delivery. All runners copy skill files into an agent-specific directory in the workspace:
 
-- **Filesystem-native agents** (Claude Code, Copilot, Gemini CLI) copy skill files into the workspace:
-  ```
-  [skills] Copied 2 file(s) for 'auth0-react' → .claude/skills/auth0-react/
-  ```
-- **Copilot / other runners** (default) receive skill files copied directly into the workspace before the agent starts.
+| Runner | Target directory |
+|---|---|
+| Claude Code | `.claude/skills/<name>/` |
+| Copilot | `.github/skills/<name>/` |
+| Codex | `.codex/skills/<name>/` |
+| Gemini CLI | `.gemini/skills/<name>/` |
+
+```
+[skills] Copied 2 file(s) for 'auth0-react' → .claude/skills/auth0-react/
+```
 
 Since local directories are checked before remote repos, your local `skills/auth0-react/` will automatically take precedence over the remote version.
 
 ### 3. Compare against the baseline
 
-Run all 4 combos to measure the delta your skill provides:
+Run both with and without skills to measure the delta:
 
 ```bash
-npm run evals -- --eval react_quickstart --mode matrix --model gpt-5.2
-npm run report -- --input scores-matrix.json && open report.html
+npm run evals -- --eval react_quickstart --mode agent
+npm run evals -- --eval react_quickstart --mode agent --tools skills
+npm run report
 ```
 
 The delta between `agent` and `agent+skills` is the signal. If the skill helps, it will show up as a grader pass-rate or score increase in `agent+skills` vs `agent`.
@@ -99,7 +105,7 @@ Once the skill produces the results you want:
 
 ```bash
 # Verify remote parity
-npm run evals -- --eval react_quickstart --mode agent --tools Skills
+npm run evals -- --eval react_quickstart --mode agent --tools skills
 ```
 
 ---

@@ -531,7 +531,11 @@ describe('runJobInDocker — CA cert mount', () => {
     // Verify NODE_EXTRA_CA_CERTS env var is passed to container
     const envPairs = extractEnvPairs(capturedArgs);
     expect(envPairs).toContain('NODE_EXTRA_CA_CERTS=/etc/ssl/certs/extra-ca-certificates.pem');
-    expect(envPairs).toContain('GIT_SSL_CAINFO=/etc/ssl/certs/extra-ca-certificates.pem');
+    // GIT_SSL_CAINFO is set at image build time to the full system bundle — not overridden here
+    expect(envPairs.some((e) => e.startsWith('GIT_SSL_CAINFO='))).toBe(false);
+
+    // Verify tmpfs is added when CA cert is present
+    expect(capturedArgs).toContain('--tmpfs=/etc/ssl/certs:size=16m');
 
     // Restore
     if (origEnv === undefined) delete process.env.NODE_EXTRA_CA_CERTS;
@@ -572,6 +576,9 @@ describe('runJobInDocker — CA cert mount', () => {
     // Verify no CA cert volume mount
     const volumeArg = capturedArgs.find((a) => a.includes('extra-ca-certificates.pem'));
     expect(volumeArg).toBeUndefined();
+
+    // Verify tmpfs is NOT added when no CA cert is present
+    expect(capturedArgs).not.toContain('--tmpfs=/etc/ssl/certs:size=16m');
 
     // Restore
     if (origEnv !== undefined) process.env.NODE_EXTRA_CA_CERTS = origEnv;

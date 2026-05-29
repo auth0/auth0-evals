@@ -35,13 +35,17 @@ vi.mock('node:fs/promises', () => ({
 
 // ── Mock framework config ─────────────────────────────────────────────────────
 
-vi.mock('@a0/eval-core', async () => ({
-  ...(await vi.importActual('@a0/eval-core')),
-  getAgentProxyBaseUrl: vi.fn().mockReturnValue('https://llm.atko.ai'),
-  getFrameworkConfig: vi.fn().mockReturnValue({
+const mockGetFrameworkConfig = vi.hoisted(() =>
+  vi.fn().mockReturnValue({
     proxy: { baseUrl: 'https://llm.atko.ai/v1' },
     mcp: { servers: {} },
   }),
+);
+
+vi.mock('@a0/eval-core', async () => ({
+  ...(await vi.importActual('@a0/eval-core')),
+  getAgentProxyBaseUrl: vi.fn().mockReturnValue('https://llm.atko.ai'),
+  getFrameworkConfig: mockGetFrameworkConfig,
 }));
 
 // ── Mock spawn ────────────────────────────────────────────────────────────────
@@ -50,6 +54,7 @@ const mockSpawn = vi.hoisted(() => vi.fn());
 vi.mock('node:child_process', () => ({ spawn: mockSpawn }));
 
 import { MAX_TURNS } from '@a0/eval-core';
+import { writeFileSync } from 'node:fs';
 import { runCodexAgent } from '../../src/runners/codex/agent.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -127,7 +132,13 @@ describe('command_execution events', () => {
         { type: 'item.started', item: { type: 'command_execution', id: 'item_1', command: 'npm install' } },
         {
           type: 'item.completed',
-          item: { type: 'command_execution', id: 'item_1', command: 'npm install', aggregated_output: 'added 10 packages', exit_code: 0 },
+          item: {
+            type: 'command_execution',
+            id: 'item_1',
+            command: 'npm install',
+            aggregated_output: 'added 10 packages',
+            exit_code: 0,
+          },
         },
         turnCompleted(),
       ]),
@@ -148,7 +159,13 @@ describe('command_execution events', () => {
         { type: 'item.started', item: { type: 'command_execution', id: 'item_1', command: 'npm test' } },
         {
           type: 'item.completed',
-          item: { type: 'command_execution', id: 'item_1', command: 'npm test', aggregated_output: 'test failed', exit_code: 1 },
+          item: {
+            type: 'command_execution',
+            id: 'item_1',
+            command: 'npm test',
+            aggregated_output: 'test failed',
+            exit_code: 1,
+          },
         },
         turnCompleted(),
       ]),
@@ -182,7 +199,12 @@ describe('function_call events', () => {
   it('creates ToolCallRecord for standalone function_call + function_call_output', async () => {
     mockSpawn.mockReturnValueOnce(
       makeChild([
-        { type: 'function_call', name: 'read_file', call_id: 'call_1', arguments: JSON.stringify({ path: 'src/app.ts' }) },
+        {
+          type: 'function_call',
+          name: 'read_file',
+          call_id: 'call_1',
+          arguments: JSON.stringify({ path: 'src/app.ts' }),
+        },
         { type: 'function_call_output', call_id: 'call_1', output: 'file contents' },
         turnCompleted(),
       ]),
@@ -218,7 +240,10 @@ describe('function_call events', () => {
         { type: 'function_call', name: 'write_file', call_id: 'call_1', arguments: '{}' },
         { type: 'function_call_output', call_id: 'call_1', output: 'ok' },
         // item.completed stream for same call — should not inflate toolCallCount
-        { type: 'item.completed', item: { type: 'function_call', name: 'write_file', call_id: 'call_1', arguments: '{}' } },
+        {
+          type: 'item.completed',
+          item: { type: 'function_call', name: 'write_file', call_id: 'call_1', arguments: '{}' },
+        },
         { type: 'item.completed', item: { type: 'function_call_output', call_id: 'call_1', output: 'ok' } },
         turnCompleted(),
       ]),
@@ -232,7 +257,12 @@ describe('function_call events', () => {
   it('classifies web_fetch as doc lookup', async () => {
     mockSpawn.mockReturnValueOnce(
       makeChild([
-        { type: 'function_call', name: 'web_fetch', call_id: 'call_1', arguments: JSON.stringify({ url: 'https://auth0.com/docs' }) },
+        {
+          type: 'function_call',
+          name: 'web_fetch',
+          call_id: 'call_1',
+          arguments: JSON.stringify({ url: 'https://auth0.com/docs' }),
+        },
         { type: 'function_call_output', call_id: 'call_1', output: 'doc content' },
         turnCompleted(),
       ]),
@@ -243,6 +273,114 @@ describe('function_call events', () => {
   });
 });
 
+// ── mcp_tool_call events ──────────────────────────────────────────────────────
+
+describe('mcp_tool_call events', () => {
+  it('creates ToolCallRecord with mcp__ name for item.started + item.completed[mcp_tool_call]', async () => {
+    mockSpawn.mockReturnValueOnce(
+      makeChild([
+        {
+          type: 'item.started',
+          item: { type: 'mcp_tool_call', id: 'mcp_1', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: { query: 'quickstart' } },
+        },
+        {
+          type: 'item.completed',
+          item: {
+            type: 'mcp_tool_call',
+            id: 'mcp_1',
+            server: 'auth0-docs',
+            tool: 'search_auth0_docs',
+            arguments: { query: 'quickstart' },
+            result: { content: [{ text: 'Auth0 quickstart guide' }] },
+            error: null,
+            status: 'completed',
+          },
+        },
+        turnCompleted(),
+      ]),
+    );
+
+    const record = await runCodexAgent(evalDef, workspace);
+    expect(record.toolCalls).toHaveLength(1);
+    const tc = record.toolCalls[0];
+    expect(tc.name).toBe('mcp__auth0-docs__search_auth0_docs');
+    expect(tc.causedError).toBe(false);
+    expect(tc.isDocLookup).toBe(true);
+  });
+
+  it('marks mcp_tool_call with error as causedError', async () => {
+    mockSpawn.mockReturnValueOnce(
+      makeChild([
+        {
+          type: 'item.started',
+          item: { type: 'mcp_tool_call', id: 'mcp_2', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {} },
+        },
+        {
+          type: 'item.completed',
+          item: {
+            type: 'mcp_tool_call',
+            id: 'mcp_2',
+            server: 'auth0-docs',
+            tool: 'search_auth0_docs',
+            arguments: {},
+            result: null,
+            error: 'server unavailable',
+            status: 'failed',
+          },
+        },
+        turnCompleted(),
+      ]),
+    );
+
+    const record = await runCodexAgent(evalDef, workspace);
+    expect(record.toolCalls[0].causedError).toBe(true);
+    expect(record.toolCalls[0].result).toContain('server unavailable');
+  });
+
+  it('deduplicates mcp_tool_call when item.completed fires twice for same id', async () => {
+    mockSpawn.mockReturnValueOnce(
+      makeChild([
+        {
+          type: 'item.started',
+          item: { type: 'mcp_tool_call', id: 'mcp_3', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {} },
+        },
+        {
+          type: 'item.completed',
+          item: { type: 'mcp_tool_call', id: 'mcp_3', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {}, result: 'ok', error: null, status: 'completed' },
+        },
+        {
+          type: 'item.completed',
+          item: { type: 'mcp_tool_call', id: 'mcp_3', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {}, result: 'ok', error: null, status: 'completed' },
+        },
+        turnCompleted(),
+      ]),
+    );
+
+    const record = await runCodexAgent(evalDef, workspace);
+    expect(record.toolCalls).toHaveLength(1);
+  });
+
+  it('counts mcp_tool_call in turnMetrics toolCallCount', async () => {
+    mockSpawn.mockReturnValueOnce(
+      makeChild([
+        {
+          type: 'item.started',
+          item: { type: 'mcp_tool_call', id: 'mcp_4', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {} },
+        },
+        {
+          type: 'item.completed',
+          item: { type: 'mcp_tool_call', id: 'mcp_4', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {}, result: 'results', error: null, status: 'completed' },
+        },
+        turnCompleted({ input_tokens: 50, output_tokens: 20 }),
+      ]),
+    );
+
+    const record = await runCodexAgent(evalDef, workspace);
+    expect(record.turnMetrics[0].toolCallCount).toBe(1);
+    expect(record.turnMetrics[0].finishReason).toBe('tool_calls');
+  });
+});
+
 // ── turn metrics ──────────────────────────────────────────────────────────────
 
 describe('turn metrics', () => {
@@ -250,7 +388,10 @@ describe('turn metrics', () => {
     mockSpawn.mockReturnValueOnce(
       makeChild([
         { type: 'item.started', item: { type: 'command_execution', id: 'i1', command: 'ls' } },
-        { type: 'item.completed', item: { type: 'command_execution', id: 'i1', command: 'ls', aggregated_output: 'src/', exit_code: 0 } },
+        {
+          type: 'item.completed',
+          item: { type: 'command_execution', id: 'i1', command: 'ls', aggregated_output: 'src/', exit_code: 0 },
+        },
         turnCompleted({ input_tokens: 100, output_tokens: 50 }),
       ]),
     );
@@ -267,10 +408,7 @@ describe('turn metrics', () => {
 
   it('turn with no tool calls has finishReason stop', async () => {
     mockSpawn.mockReturnValueOnce(
-      makeChild([
-        { type: 'message', role: 'assistant', content: 'Done.' },
-        turnCompleted(),
-      ]),
+      makeChild([{ type: 'message', role: 'assistant', content: 'Done.' }, turnCompleted()]),
     );
 
     const record = await runCodexAgent(evalDef, workspace);
@@ -283,10 +421,16 @@ describe('turn metrics', () => {
     mockSpawn.mockReturnValueOnce(
       makeChild([
         { type: 'item.started', item: { type: 'command_execution', id: 'i1', command: 'ls' } },
-        { type: 'item.completed', item: { type: 'command_execution', id: 'i1', command: 'ls', aggregated_output: '', exit_code: 0 } },
+        {
+          type: 'item.completed',
+          item: { type: 'command_execution', id: 'i1', command: 'ls', aggregated_output: '', exit_code: 0 },
+        },
         turnCompleted({ input_tokens: 100, output_tokens: 30 }),
         { type: 'item.started', item: { type: 'command_execution', id: 'i2', command: 'cat' } },
-        { type: 'item.completed', item: { type: 'command_execution', id: 'i2', command: 'cat', aggregated_output: '', exit_code: 0 } },
+        {
+          type: 'item.completed',
+          item: { type: 'command_execution', id: 'i2', command: 'cat', aggregated_output: '', exit_code: 0 },
+        },
         turnCompleted({ input_tokens: 200, output_tokens: 40 }),
       ]),
     );
@@ -303,10 +447,7 @@ describe('turn metrics', () => {
 describe('finalSummary', () => {
   it('sets finalSummary from message event', async () => {
     mockSpawn.mockReturnValueOnce(
-      makeChild([
-        { type: 'message', role: 'assistant', content: 'Auth0 integration complete.' },
-        turnCompleted(),
-      ]),
+      makeChild([{ type: 'message', role: 'assistant', content: 'Auth0 integration complete.' }, turnCompleted()]),
     );
 
     const record = await runCodexAgent(evalDef, workspace);
@@ -378,11 +519,7 @@ describe('status and final state', () => {
   });
 
   it('turn.failed adds to providerErrors', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([
-        { type: 'turn.failed', error: { message: 'rate limit exceeded' } },
-      ]),
-    );
+    mockSpawn.mockReturnValueOnce(makeChild([{ type: 'turn.failed', error: { message: 'rate limit exceeded' } }]));
 
     const record = await runCodexAgent(evalDef, workspace);
     expect(record.providerErrors.some((e) => e.includes('rate limit exceeded'))).toBe(true);
@@ -392,7 +529,10 @@ describe('status and final state', () => {
     const events: JsonlEvent[] = [];
     for (let i = 0; i < MAX_TURNS + 2; i++) {
       events.push({ type: 'item.started', item: { type: 'command_execution', id: `i${i}`, command: 'ls' } });
-      events.push({ type: 'item.completed', item: { type: 'command_execution', id: `i${i}`, command: 'ls', aggregated_output: '', exit_code: 0 } });
+      events.push({
+        type: 'item.completed',
+        item: { type: 'command_execution', id: `i${i}`, command: 'ls', aggregated_output: '', exit_code: 0 },
+      });
       events.push(turnCompleted());
     }
 
@@ -414,5 +554,122 @@ describe('status and final state', () => {
 
     expect(record.endTime).toBeGreaterThanOrEqual(before);
     expect(record.endTime).toBeLessThanOrEqual(after + 0.1);
+  });
+});
+
+// ── MCP integration ───────────────────────────────────────────────────────────
+
+describe('MCP integration', () => {
+  beforeEach(() => {
+    mockGetFrameworkConfig.mockReturnValue({
+      proxy: { baseUrl: 'https://llm.atko.ai/v1' },
+      mcp: { servers: {} },
+    });
+  });
+
+  it('writes http MCP server block to config.toml', async () => {
+    mockGetFrameworkConfig.mockReturnValue({
+      proxy: { baseUrl: 'https://llm.atko.ai/v1' },
+      mcp: {
+        servers: {
+          'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' },
+        },
+      },
+    });
+    mockSpawn.mockReturnValueOnce(
+      makeChild([{ type: 'message', role: 'assistant', content: 'Done.' }, turnCompleted()]),
+    );
+
+    await runCodexAgent(evalDef, workspace, { tools: ['mcp'] });
+
+    const written = (writeFileSync as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).endsWith('config.toml'),
+    );
+    expect(written).toBeDefined();
+    if (!written) return;
+    const toml = written[1] as string;
+    expect(toml).toContain('[mcp_servers."auth0-docs"]');
+    expect(toml).toContain('url = "https://auth0.com/docs/mcp"');
+  });
+
+  it('writes stdio MCP server block with args and env_vars to config.toml', async () => {
+    mockGetFrameworkConfig.mockReturnValue({
+      proxy: { baseUrl: 'https://llm.atko.ai/v1' },
+      mcp: {
+        servers: {
+          'local-tool': {
+            type: 'stdio',
+            command: 'npx',
+            args: ['-y', '@auth0/mcp-tool'],
+            env: { AUTH0_TOKEN: 'tok_abc' },
+          },
+        },
+      },
+    });
+    mockSpawn.mockReturnValueOnce(
+      makeChild([{ type: 'message', role: 'assistant', content: 'Done.' }, turnCompleted()]),
+    );
+
+    await runCodexAgent(evalDef, workspace, { tools: ['mcp'] });
+
+    const written = (writeFileSync as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).endsWith('config.toml'),
+    );
+    expect(written).toBeDefined();
+    if (!written) return;
+    const toml = written[1] as string;
+    expect(toml).toContain('[mcp_servers."local-tool"]');
+    expect(toml).toContain('command = "npx"');
+    expect(toml).toContain('"-y"');
+    expect(toml).toContain('"@auth0/mcp-tool"');
+    expect(toml).toContain('"AUTH0_TOKEN"');
+  });
+
+  it('injects stdio MCP server env vars into codexEnv', async () => {
+    mockGetFrameworkConfig.mockReturnValue({
+      proxy: { baseUrl: 'https://llm.atko.ai/v1' },
+      mcp: {
+        servers: {
+          'local-tool': {
+            type: 'stdio',
+            command: 'npx',
+            args: [],
+            env: { MY_SECRET_TOKEN: 'secret123' },
+          },
+        },
+      },
+    });
+    mockSpawn.mockReturnValueOnce(
+      makeChild([{ type: 'message', role: 'assistant', content: 'Done.' }, turnCompleted()]),
+    );
+
+    await runCodexAgent(evalDef, workspace, { tools: ['mcp'] });
+
+    const spawnCall = mockSpawn.mock.calls[0] as [string, string[], { env: Record<string, string> }];
+    expect(spawnCall[2].env['MY_SECRET_TOKEN']).toBe('secret123');
+  });
+
+  it('does not write MCP sections when tools does not include mcp', async () => {
+    mockGetFrameworkConfig.mockReturnValue({
+      proxy: { baseUrl: 'https://llm.atko.ai/v1' },
+      mcp: {
+        servers: {
+          'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' },
+        },
+      },
+    });
+    mockSpawn.mockReturnValueOnce(
+      makeChild([{ type: 'message', role: 'assistant', content: 'Done.' }, turnCompleted()]),
+    );
+
+    await runCodexAgent(evalDef, workspace, { tools: [] });
+
+    const written = (writeFileSync as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).endsWith('config.toml'),
+    );
+    expect(written).toBeDefined();
+    if (!written) return;
+    const toml = written[1] as string;
+    expect(toml).not.toContain('mcp_servers');
   });
 });

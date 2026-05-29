@@ -37,7 +37,6 @@ export function defineGraders() {
     judge(
       'Does the code check isAuthenticated to show/hide UI elements and only render ' +
         'user profile information when the user is authenticated?',
-      undefined,
       GraderLevel.L4,
     ),
 

@@ -37,6 +37,7 @@ import { score } from '../scorer.js';
 import { ClaudeCodeRunner } from '../runners/claude-code/runner.js';
 import { CopilotCliRunner } from '../runners/copilot/runner.js';
 import { GeminiCliRunner } from '../runners/gemini-cli/runner.js';
+import { CodexRunner } from '../runners/codex/runner.js';
 import { SANDBOX_RESULTS_FILE } from './constants.js';
 
 // ── Runner registration ──────────────────────────────────────────────────────
@@ -50,6 +51,7 @@ async function initRunners(): Promise<void> {
   registerRunner('claude-code', new ClaudeCodeRunner());
   registerRunner('copilot', new CopilotCliRunner());
   registerRunner('gemini-cli', new GeminiCliRunner());
+  registerRunner('codex', new CodexRunner());
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────

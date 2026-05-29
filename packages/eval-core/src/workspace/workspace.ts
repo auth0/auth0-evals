@@ -53,29 +53,37 @@ export function setupWorkspace(scaffold: Record<string, string>, options?: Setup
  * Runs a setup command inside the workspace (e.g. `npm install`).
  * Called after scaffold files are written and before the agent starts.
  *
- * Only simple commands are supported — no quoting, escaping, or shell
- * operators. The command string is split on whitespace into argv tokens.
- * This is intentional: setup commands come from our own PROMPT.md
- * frontmatter, not from user input.
+ * Supports `&&`-chained commands by splitting on `&&` and running each
+ * sub-command in sequence. Each sub-command is split on whitespace into argv
+ * tokens — no quoting, escaping, or other shell operators are supported.
+ * This is intentional: setup commands come from our own PROMPT.md frontmatter,
+ * not from user input.
  */
 export function runSetupCommand(workspace: string, command: string, options?: RunSetupCommandOptions): void {
   const timeout = options?.timeoutMs ?? DEFAULT_FRAMEWORK_CONFIG.workspace.setupCommandTimeoutMs!;
-  logger.info(`  [Setup] Running: ${command}`);
-  const args = command.trim().split(/\s+/);
-  const cmd = args.shift();
-  if (!cmd) {
+  if (!command.trim()) {
     throw new Error('Setup command is empty');
   }
-  const result = spawnSync(cmd, args, { cwd: workspace, stdio: 'inherit', timeout });
-  if (result.error) {
-    throw new Error(`Setup command failed: ${command}`, { cause: result.error });
+  const subCommands = command.split('&&').map((s) => s.trim());
+  const emptyIndex = subCommands.findIndex((s) => !s);
+  if (emptyIndex !== -1) {
+    throw new Error(`Setup command has an empty segment at position ${emptyIndex}: ${command}`);
   }
-  if (result.signal) {
-    const timeoutNote = result.signal === 'SIGTERM' ? ` (possibly timed out after ${timeout}ms)` : '';
-    throw new Error(`Setup command failed with signal ${result.signal}${timeoutNote}: ${command}`);
-  }
-  if (result.status !== 0) {
-    throw new Error(`Setup command failed with exit code ${result.status}: ${command}`);
+  for (const subCommand of subCommands) {
+    logger.info(`  [Setup] Running: ${subCommand}`);
+    const args = subCommand.split(/\s+/);
+    const cmd = args.shift()!;
+    const result = spawnSync(cmd, args, { cwd: workspace, stdio: 'inherit', timeout });
+    if (result.error) {
+      throw new Error(`Setup command failed: ${subCommand}`, { cause: result.error });
+    }
+    if (result.signal) {
+      const timeoutNote = result.signal === 'SIGTERM' ? ` (possibly timed out after ${timeout}ms)` : '';
+      throw new Error(`Setup command failed with signal ${result.signal}${timeoutNote}: ${subCommand}`);
+    }
+    if (result.status !== 0) {
+      throw new Error(`Setup command failed with exit code ${result.status}: ${subCommand}`);
+    }
   }
 }
 

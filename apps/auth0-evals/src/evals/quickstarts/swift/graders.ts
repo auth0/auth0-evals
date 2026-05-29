@@ -31,7 +31,6 @@ export function defineGraders() {
     judge(
       'Does the code properly handle login and logout flows with appropriate error handling? ' +
         'Does it update the UI state after successful authentication?',
-      'ios',
       GraderLevel.L4,
     ),
 
@@ -45,7 +44,6 @@ export function defineGraders() {
       'Does the code use modern Swift async/await patterns with the Auth0.swift SDK? ' +
         'Specifically: does it use try await webAuth().start() and CredentialsManager, ' +
         'and configure via Auth0.plist rather than hardcoded strings?',
-      'ios',
       GraderLevel.L5,
     ),
 
@@ -53,7 +51,6 @@ export function defineGraders() {
     judge(
       'Does the solution correctly integrate Auth0 into a Swift iOS app with ' +
         'webAuth() login/logout, credential management, and proper SwiftUI state handling?',
-      'ios',
     ),
   ];
 }

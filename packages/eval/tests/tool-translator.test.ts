@@ -287,7 +287,9 @@ describe('CodexTranslator — normalizeArgs', () => {
   const translator = new CodexTranslator();
 
   it('normalizes command_execution command field', () => {
-    expect(translator.normalizeArgs('command_execution', { command: 'npm install' })).toEqual({ command: 'npm install' });
+    expect(translator.normalizeArgs('command_execution', { command: 'npm install' })).toEqual({
+      command: 'npm install',
+    });
   });
 
   it('normalizes exec_command with cmd fallback', () => {
@@ -303,11 +305,17 @@ describe('CodexTranslator — normalizeArgs', () => {
   });
 
   it('normalizes write_file to path and content', () => {
-    expect(translator.normalizeArgs('write_file', { path: 'out.ts', content: 'hello' })).toEqual({ path: 'out.ts', content: 'hello' });
+    expect(translator.normalizeArgs('write_file', { path: 'out.ts', content: 'hello' })).toEqual({
+      path: 'out.ts',
+      content: 'hello',
+    });
   });
 
   it('normalizes edit_file new_content to content', () => {
-    expect(translator.normalizeArgs('edit_file', { path: 'a.ts', new_content: 'updated' })).toEqual({ path: 'a.ts', content: 'updated' });
+    expect(translator.normalizeArgs('edit_file', { path: 'a.ts', new_content: 'updated' })).toEqual({
+      path: 'a.ts',
+      content: 'updated',
+    });
   });
 
   it('normalizes delete_file to rm command', () => {

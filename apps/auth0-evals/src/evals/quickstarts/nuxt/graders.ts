@@ -47,7 +47,6 @@ export function defineGraders() {
     judge(
       'Are all Auth0 credentials (domain, client ID, client secret, session secret) ' +
         'stored in environment variables or .env files using NUXT_AUTH0_* names, not hardcoded in nuxt.config.ts?',
-      undefined,
       GraderLevel.L3,
     ),
     notContains('localStorage.setItem', 'No tokens stored in localStorage', GraderLevel.L3),
@@ -68,7 +67,6 @@ export function defineGraders() {
     judge(
       'Is there a protected /profile route that uses a Nuxt route middleware (via definePageMeta) ' +
         'to check authentication with useUser() and redirect unauthenticated users to /auth/login?',
-      undefined,
       GraderLevel.L4,
     ),
 

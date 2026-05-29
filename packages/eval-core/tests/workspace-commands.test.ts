@@ -61,6 +61,24 @@ describe('runSetupCommand', () => {
     // sleep 10 with a 100ms timeout should be killed
     expect(() => runSetupCommand(dir, 'sleep 10', { timeoutMs: 100 })).toThrow();
   });
+
+  it('runs &&-chained commands in order', () => {
+    const dir = tmpDir();
+    runSetupCommand(dir, 'mkdir -p sub && touch sub/second.txt');
+    expect(existsSync(join(dir, 'sub/second.txt'))).toBe(true);
+  });
+
+  it('stops on first failure in &&-chained commands', () => {
+    const dir = tmpDir();
+    expect(() => runSetupCommand(dir, 'false && touch should_not_exist.txt')).toThrow('exit code');
+    expect(existsSync(join(dir, 'should_not_exist.txt'))).toBe(false);
+  });
+
+  it('throws on empty segment in &&-chained command', () => {
+    const dir = tmpDir();
+    expect(() => runSetupCommand(dir, 'touch foo.txt &&')).toThrow('empty segment');
+    expect(() => runSetupCommand(dir, 'touch foo.txt && && touch bar.txt')).toThrow('empty segment');
+  });
 });
 
 // ── cleanupWorkspace ──────────────────────────────────────────────────────────

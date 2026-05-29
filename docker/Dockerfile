@@ -75,6 +75,11 @@ RUN chmod +x /app/entrypoint.sh
 RUN mkdir -p /workspace && chown node:node /workspace
 RUN mkdir -p /app/skills-remote && chown node:node /app/skills-remote
 
+# Backup system CA certs so entrypoint.sh can restore them after the tmpfs
+# overlay shadows /etc/ssl/certs at runtime (needed for rustls-native-certs,
+# used by the Codex CLI, which reads ca-certificates.crt directly at startup).
+RUN cp -a /etc/ssl/certs /etc/ssl/certs.bak
+
 # Make application code read-only to prevent tampering
 RUN chmod -R a-w /app/node_modules /app/packages /app/apps
 

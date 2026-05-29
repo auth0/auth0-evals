@@ -9,7 +9,7 @@ export function defineGraders() {
     contains('loginWithRedirect', 'Implements loginWithRedirect', GraderLevel.L1),
     contains('logout', 'Implements logout', GraderLevel.L1),
     contains('isAuthenticated', 'Checks isAuthenticated for conditional rendering', GraderLevel.L1),
-    contains('user.name', 'Displays user profile name', GraderLevel.L1),
+    matches(String.raw`user\??\.name`, 'Displays user profile name', GraderLevel.L1),
 
     // ── L2: Negative / anti-pattern detection ─────────────────────────────────
     notContains('@auth0/react', 'No hallucinated @auth0/react package (must be @auth0/auth0-react)', GraderLevel.L2),
@@ -28,7 +28,6 @@ export function defineGraders() {
     judge(
       'Does the code handle the loading state (isLoading) before checking isAuthenticated? ' +
         'A correct implementation should not render auth-dependent UI while isLoading is true.',
-      'react',
       GraderLevel.L4,
     ),
 
@@ -43,7 +42,6 @@ export function defineGraders() {
       'Does the code use the current @auth0/auth0-react SDK patterns? ' +
         'Specifically: does it use isLoading (not the deprecated "loading" property), ' +
         'and pass audience/scope via authorizationParams object (not as direct props)?',
-      'react',
       GraderLevel.L5,
     ),
 
@@ -52,7 +50,6 @@ export function defineGraders() {
       'Does the solution correctly integrate Auth0 into a React SPA with Auth0Provider, ' +
         'useAuth0 hook, login, logout, user profile display, and getAccessTokenSilently ' +
         'to make authenticated API calls?',
-      'react',
     ),
   ];
 }

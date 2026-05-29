@@ -38,7 +38,6 @@ export interface GraderDef {
   needle?: string;
   pattern?: string;
   question?: string;
-  framework?: string;
   level?: GraderLevel;
   caseSensitive?: boolean;
   predicate?: (toolCalls: EventToolCall[]) => boolean;

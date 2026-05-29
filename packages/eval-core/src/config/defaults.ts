@@ -33,7 +33,7 @@ export const DEFAULT_FRAMEWORK_CONFIG: Required<FrameworkConfig> = {
     excludedDirs: ['node_modules', '.git', 'dist', '.next', '.nuxt', '__pycache__', '.venv', 'venv', '.build'],
     maxListedFiles: 200,
     tempDirPrefix: 'auth0_eval_',
-    setupCommandTimeoutMs: 120_000,
+    setupCommandTimeoutMs: 300_000,
   },
 
   models: {
@@ -49,4 +49,6 @@ export const DEFAULT_FRAMEWORK_CONFIG: Required<FrameworkConfig> = {
     projectId: '',
     datasetName: '',
   },
+
+  scoring: {},
 };
