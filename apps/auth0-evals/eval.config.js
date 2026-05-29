@@ -69,7 +69,7 @@ export default {
   },
 
   models: {
-    known: ['gpt-5.4', 'gpt-5.4-mini', 'claude-sonnet-4-6', 'claude-opus-4-6', 'claude-opus-4-7', 'claude-haiku-4-5', 'gemini-3.1-pro-preview', 'gemini-3.1-flash-lite-preview'],
+    known: ['gpt-5.4', 'gpt-5.4-mini', 'claude-sonnet-4-6', 'claude-opus-4-6', 'claude-opus-4-7', 'claude-haiku-4-5', 'gemini-3.1-pro-preview', 'gemini-3.5-flash'],
     default: 'gpt-5.4',
     bedrock: {
       'claude-sonnet-4-6': 'global.anthropic.claude-sonnet-4-6',
