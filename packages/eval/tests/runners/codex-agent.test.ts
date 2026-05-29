@@ -35,13 +35,17 @@ vi.mock('node:fs/promises', () => ({
 
 // ── Mock framework config ─────────────────────────────────────────────────────
 
-vi.mock('@a0/eval-core', async () => ({
-  ...(await vi.importActual('@a0/eval-core')),
-  getAgentProxyBaseUrl: vi.fn().mockReturnValue('<LLM_PROXY_URL>'),
-  getFrameworkConfig: vi.fn().mockReturnValue({
+const mockGetFrameworkConfig = vi.hoisted(() =>
+  vi.fn().mockReturnValue({
     proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
     mcp: { servers: {} },
   }),
+);
+
+vi.mock('@a0/eval-core', async () => ({
+  ...(await vi.importActual('@a0/eval-core')),
+  getAgentProxyBaseUrl: vi.fn().mockReturnValue('<LLM_PROXY_URL>'),
+  getFrameworkConfig: mockGetFrameworkConfig,
 }));
 
 // ── Mock spawn ────────────────────────────────────────────────────────────────
@@ -50,6 +54,7 @@ const mockSpawn = vi.hoisted(() => vi.fn());
 vi.mock('node:child_process', () => ({ spawn: mockSpawn }));
 
 import { MAX_TURNS } from '@a0/eval-core';
+import { writeFileSync } from 'node:fs';
 import { runCodexAgent } from '../../src/runners/codex/agent.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -268,6 +273,114 @@ describe('function_call events', () => {
   });
 });
 
+// ── mcp_tool_call events ──────────────────────────────────────────────────────
+
+describe('mcp_tool_call events', () => {
+  it('creates ToolCallRecord with mcp__ name for item.started + item.completed[mcp_tool_call]', async () => {
+    mockSpawn.mockReturnValueOnce(
+      makeChild([
+        {
+          type: 'item.started',
+          item: { type: 'mcp_tool_call', id: 'mcp_1', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: { query: 'quickstart' } },
+        },
+        {
+          type: 'item.completed',
+          item: {
+            type: 'mcp_tool_call',
+            id: 'mcp_1',
+            server: 'auth0-docs',
+            tool: 'search_auth0_docs',
+            arguments: { query: 'quickstart' },
+            result: { content: [{ text: 'Auth0 quickstart guide' }] },
+            error: null,
+            status: 'completed',
+          },
+        },
+        turnCompleted(),
+      ]),
+    );
+
+    const record = await runCodexAgent(evalDef, workspace);
+    expect(record.toolCalls).toHaveLength(1);
+    const tc = record.toolCalls[0];
+    expect(tc.name).toBe('mcp__auth0-docs__search_auth0_docs');
+    expect(tc.causedError).toBe(false);
+    expect(tc.isDocLookup).toBe(true);
+  });
+
+  it('marks mcp_tool_call with error as causedError', async () => {
+    mockSpawn.mockReturnValueOnce(
+      makeChild([
+        {
+          type: 'item.started',
+          item: { type: 'mcp_tool_call', id: 'mcp_2', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {} },
+        },
+        {
+          type: 'item.completed',
+          item: {
+            type: 'mcp_tool_call',
+            id: 'mcp_2',
+            server: 'auth0-docs',
+            tool: 'search_auth0_docs',
+            arguments: {},
+            result: null,
+            error: 'server unavailable',
+            status: 'failed',
+          },
+        },
+        turnCompleted(),
+      ]),
+    );
+
+    const record = await runCodexAgent(evalDef, workspace);
+    expect(record.toolCalls[0].causedError).toBe(true);
+    expect(record.toolCalls[0].result).toContain('server unavailable');
+  });
+
+  it('deduplicates mcp_tool_call when item.completed fires twice for same id', async () => {
+    mockSpawn.mockReturnValueOnce(
+      makeChild([
+        {
+          type: 'item.started',
+          item: { type: 'mcp_tool_call', id: 'mcp_3', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {} },
+        },
+        {
+          type: 'item.completed',
+          item: { type: 'mcp_tool_call', id: 'mcp_3', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {}, result: 'ok', error: null, status: 'completed' },
+        },
+        {
+          type: 'item.completed',
+          item: { type: 'mcp_tool_call', id: 'mcp_3', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {}, result: 'ok', error: null, status: 'completed' },
+        },
+        turnCompleted(),
+      ]),
+    );
+
+    const record = await runCodexAgent(evalDef, workspace);
+    expect(record.toolCalls).toHaveLength(1);
+  });
+
+  it('counts mcp_tool_call in turnMetrics toolCallCount', async () => {
+    mockSpawn.mockReturnValueOnce(
+      makeChild([
+        {
+          type: 'item.started',
+          item: { type: 'mcp_tool_call', id: 'mcp_4', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {} },
+        },
+        {
+          type: 'item.completed',
+          item: { type: 'mcp_tool_call', id: 'mcp_4', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {}, result: 'results', error: null, status: 'completed' },
+        },
+        turnCompleted({ input_tokens: 50, output_tokens: 20 }),
+      ]),
+    );
+
+    const record = await runCodexAgent(evalDef, workspace);
+    expect(record.turnMetrics[0].toolCallCount).toBe(1);
+    expect(record.turnMetrics[0].finishReason).toBe('tool_calls');
+  });
+});
+
 // ── turn metrics ──────────────────────────────────────────────────────────────
 
 describe('turn metrics', () => {
@@ -441,5 +554,122 @@ describe('status and final state', () => {
 
     expect(record.endTime).toBeGreaterThanOrEqual(before);
     expect(record.endTime).toBeLessThanOrEqual(after + 0.1);
+  });
+});
+
+// ── MCP integration ───────────────────────────────────────────────────────────
+
+describe('MCP integration', () => {
+  beforeEach(() => {
+    mockGetFrameworkConfig.mockReturnValue({
+      proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+      mcp: { servers: {} },
+    });
+  });
+
+  it('writes http MCP server block to config.toml', async () => {
+    mockGetFrameworkConfig.mockReturnValue({
+      proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+      mcp: {
+        servers: {
+          'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' },
+        },
+      },
+    });
+    mockSpawn.mockReturnValueOnce(
+      makeChild([{ type: 'message', role: 'assistant', content: 'Done.' }, turnCompleted()]),
+    );
+
+    await runCodexAgent(evalDef, workspace, { tools: ['mcp'] });
+
+    const written = (writeFileSync as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).endsWith('config.toml'),
+    );
+    expect(written).toBeDefined();
+    if (!written) return;
+    const toml = written[1] as string;
+    expect(toml).toContain('[mcp_servers."auth0-docs"]');
+    expect(toml).toContain('url = "https://auth0.com/docs/mcp"');
+  });
+
+  it('writes stdio MCP server block with args and env_vars to config.toml', async () => {
+    mockGetFrameworkConfig.mockReturnValue({
+      proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+      mcp: {
+        servers: {
+          'local-tool': {
+            type: 'stdio',
+            command: 'npx',
+            args: ['-y', '@auth0/mcp-tool'],
+            env: { AUTH0_TOKEN: 'tok_abc' },
+          },
+        },
+      },
+    });
+    mockSpawn.mockReturnValueOnce(
+      makeChild([{ type: 'message', role: 'assistant', content: 'Done.' }, turnCompleted()]),
+    );
+
+    await runCodexAgent(evalDef, workspace, { tools: ['mcp'] });
+
+    const written = (writeFileSync as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).endsWith('config.toml'),
+    );
+    expect(written).toBeDefined();
+    if (!written) return;
+    const toml = written[1] as string;
+    expect(toml).toContain('[mcp_servers."local-tool"]');
+    expect(toml).toContain('command = "npx"');
+    expect(toml).toContain('"-y"');
+    expect(toml).toContain('"@auth0/mcp-tool"');
+    expect(toml).toContain('"AUTH0_TOKEN"');
+  });
+
+  it('injects stdio MCP server env vars into codexEnv', async () => {
+    mockGetFrameworkConfig.mockReturnValue({
+      proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+      mcp: {
+        servers: {
+          'local-tool': {
+            type: 'stdio',
+            command: 'npx',
+            args: [],
+            env: { MY_SECRET_TOKEN: 'secret123' },
+          },
+        },
+      },
+    });
+    mockSpawn.mockReturnValueOnce(
+      makeChild([{ type: 'message', role: 'assistant', content: 'Done.' }, turnCompleted()]),
+    );
+
+    await runCodexAgent(evalDef, workspace, { tools: ['mcp'] });
+
+    const spawnCall = mockSpawn.mock.calls[0] as [string, string[], { env: Record<string, string> }];
+    expect(spawnCall[2].env['MY_SECRET_TOKEN']).toBe('secret123');
+  });
+
+  it('does not write MCP sections when tools does not include mcp', async () => {
+    mockGetFrameworkConfig.mockReturnValue({
+      proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+      mcp: {
+        servers: {
+          'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' },
+        },
+      },
+    });
+    mockSpawn.mockReturnValueOnce(
+      makeChild([{ type: 'message', role: 'assistant', content: 'Done.' }, turnCompleted()]),
+    );
+
+    await runCodexAgent(evalDef, workspace, { tools: [] });
+
+    const written = (writeFileSync as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).endsWith('config.toml'),
+    );
+    expect(written).toBeDefined();
+    if (!written) return;
+    const toml = written[1] as string;
+    expect(toml).not.toContain('mcp_servers');
   });
 });

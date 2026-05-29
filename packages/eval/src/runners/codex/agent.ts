@@ -26,11 +26,12 @@ import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import type { RunRecord, ToolCallRecord, TurnMetric, EvalDefinition } from '@a0/eval-core';
+import type { RunRecord, ToolCallRecord, TurnMetric, EvalDefinition, MCPServerConfig } from '@a0/eval-core';
 import {
   CODEX_TASK_TIMEOUT_MS,
   MAX_TURNS,
   getAgentProxyBaseUrl,
+  getFrameworkConfig,
   estimateCost,
   logger,
   filteredEnv,
@@ -54,7 +55,35 @@ function tomlEscape(s: string): string {
   return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
-function writeCodexConfig(codexHome: string, proxyBaseUrl: string, workspace: string): void {
+function buildMcpToml(servers: Record<string, MCPServerConfig>): string {
+  let toml = '';
+  for (const [name, server] of Object.entries(servers)) {
+    const safeName = tomlEscape(name);
+    if (server.type === 'http') {
+      toml += `\n[mcp_servers."${safeName}"]\nurl = "${tomlEscape(server.url)}"\n`;
+    } else {
+      toml += `\n[mcp_servers."${safeName}"]\ncommand = "${tomlEscape(server.command)}"\n`;
+      if (server.args && server.args.length > 0) {
+        const argsToml = server.args.map((a) => `"${tomlEscape(a)}"`).join(', ');
+        toml += `args = [${argsToml}]\n`;
+      }
+      if (server.env && Object.keys(server.env).length > 0) {
+        const envKeys = Object.keys(server.env)
+          .map((k) => `"${tomlEscape(k)}"`)
+          .join(', ');
+        toml += `env_vars = [${envKeys}]\n`;
+      }
+    }
+  }
+  return toml;
+}
+
+function writeCodexConfig(
+  codexHome: string,
+  proxyBaseUrl: string,
+  workspace: string,
+  mcpServers: Record<string, MCPServerConfig> = {},
+): void {
   mkdirSync(codexHome, { recursive: true });
   // Resolve canonical path — on macOS /var is a symlink to /private/var.
   // Codex stores trusted project paths canonically, so we must match that.
@@ -71,7 +100,7 @@ wire_api = "responses"
 
 [projects."${resolvedWorkspace}"]
 trust_level = "trusted"
-`;
+${buildMcpToml(mcpServers)}`;
   writeFileSync(join(codexHome, 'config.toml'), configToml, 'utf-8');
 }
 
@@ -260,7 +289,8 @@ function runCodexSpawn(
           case 'item.started': {
             const item = event.item as Record<string, unknown> | undefined;
             if (!item) break;
-            if ((item.type as string) === 'command_execution') {
+            const startedType = item.type as string;
+            if (startedType === 'command_execution') {
               const itemId = (item.id as string) ?? String(Date.now());
               const cmd = (item.command as string) ?? '';
               ctx.pending.set(itemId, {
@@ -271,6 +301,18 @@ function runCodexSpawn(
               ctx.turnToolCount++;
               ctx.toolCallsInSpawn++;
               logger.info(`  [Codex] command_execution started (${itemId}): ${cmd.slice(0, 80)}`);
+            } else if (startedType === 'mcp_tool_call') {
+              const itemId = (item.id as string) ?? String(Date.now());
+              const server = (item.server as string) ?? '';
+              const tool = (item.tool as string) ?? '';
+              const mcpName = `mcp__${server}__${tool}`;
+              const rawArgs = item.arguments;
+              const args =
+                typeof rawArgs === 'object' && rawArgs !== null ? (rawArgs as Record<string, unknown>) : {};
+              ctx.pending.set(itemId, { name: mcpName, args, startTime: Date.now() / 1000 });
+              ctx.turnToolCount++;
+              ctx.toolCallsInSpawn++;
+              logger.info(`  [Codex] mcp_tool_call started (${itemId}): ${mcpName} args=${JSON.stringify(args).slice(0, 80)}`);
             }
             break;
           }
@@ -334,6 +376,30 @@ function runCodexSpawn(
               const rawName = pend?.name ?? 'unknown';
               const isError = output.startsWith('Error:') || output.startsWith('error:');
               pushToolCall(record, rawName, pend?.args ?? {}, output, isError, pend?.startTime ?? Date.now() / 1000);
+            } else if (itemType === 'mcp_tool_call') {
+              if (ctx.recordedCallIds.has(itemId)) break;
+              ctx.recordedCallIds.add(itemId);
+
+              const pend = ctx.pending.get(itemId);
+              if (pend) ctx.pending.delete(itemId);
+
+              const server = (item.server as string) ?? '';
+              const tool = (item.tool as string) ?? '';
+              const mcpName = pend?.name ?? `mcp__${server}__${tool}`;
+              const mcpArgs = pend?.args ?? {};
+
+              const mcpError = item.error as string | null | undefined;
+              const mcpStatus = (item.status as string) ?? '';
+              const isError = !!mcpError || mcpStatus === 'failed';
+
+              let output = '';
+              if (mcpError) {
+                output = `Error: ${mcpError}`;
+              } else if (item.result !== null && item.result !== undefined) {
+                output = typeof item.result === 'string' ? item.result : JSON.stringify(item.result);
+              }
+
+              pushToolCall(record, mcpName, mcpArgs, output, isError, pend?.startTime ?? Date.now() / 1000);
             }
             break;
           }
@@ -507,11 +573,17 @@ export async function runCodexAgent(
   const codexHome = join(homedir(), '.codex-eval', record.sessionId);
   mkdirSync(codexHome, { recursive: true });
 
+  // Resolve MCP servers from framework config when --tools mcp is requested.
+  const mcpServers: Record<string, MCPServerConfig> = tools.includes('mcp') ? getFrameworkConfig().mcp.servers : {};
+
   const normalizedBaseUrl = proxyBaseUrl.replace(/\/+$/, '');
   const codexApiUrl = normalizedBaseUrl.endsWith('/v1') ? normalizedBaseUrl : `${normalizedBaseUrl}/v1`;
-  writeCodexConfig(codexHome, codexApiUrl, workspace);
+  writeCodexConfig(codexHome, codexApiUrl, workspace, mcpServers);
   logger.info(`[Codex] Proxy: ${proxyBaseUrl}`);
   logger.info(`[Codex] CODEX_HOME: ${codexHome}`);
+  if (Object.keys(mcpServers).length > 0) {
+    logger.info(`[Codex] MCP servers: ${Object.keys(mcpServers).join(', ')}`);
+  }
 
   // Build environment — inherit from process, injecting the API key for the proxy.
   const codexEnv: Record<string, string> = { ...filteredEnv() };
@@ -522,11 +594,16 @@ export async function runCodexAgent(
   }
   codexEnv.CODEX_HOME = codexHome;
 
-  // skills are injected into the workspace by CodexRunner.prepareSkills().
-  // MCP tools are not yet supported by the Codex runner.
-  if (tools.includes('mcp')) {
-    logger.warn('[Codex] MCP tools requested but not yet supported — MCP will be skipped for this run.');
+  // Inject env vars declared by stdio MCP servers so Codex can pass them to server processes.
+  for (const server of Object.values(mcpServers)) {
+    if (server.type === 'stdio' && server.env) {
+      for (const [key, value] of Object.entries(server.env)) {
+        codexEnv[key] = value;
+      }
+    }
   }
+
+  // Skills are injected into the workspace by CodexRunner.prepareSkills().
 
   const ctx: SpawnCtx = {
     pending: new Map(),
@@ -552,9 +629,8 @@ export async function runCodexAgent(
     model,
   ];
 
-  // Initial exec. We prepend a short action directive because reasoning models
-  // often output a planning message before calling tools.
-  // The directive nudges the model to act immediately without preamble.
+  // Build the exec prompt. Prepend a short action directive because reasoning
+  // models often output a planning message before calling tools.
   const execArgs = [
     'exec',
     `Start immediately — use shell commands and file writes to complete the task. Do not explain your plan first.\n\n${evalDef.userPrompt}`,
