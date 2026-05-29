@@ -8,7 +8,7 @@ on:
 jobs:
   build:
     runs-on:
-      labels: ubuntu-22.04-2cpu-8ram-75ssd
+      labels: ubuntu-22.04-4cpu-16ram-150ssd
 
     permissions:
       contents: read
@@ -28,7 +28,7 @@ jobs:
 
   test:
     runs-on:
-      labels: ubuntu-22.04-2cpu-8ram-75ssd
+      labels: ubuntu-22.04-4cpu-16ram-150ssd
 
     permissions:
       contents: read
@@ -48,7 +48,7 @@ jobs:
 
   lint:
     runs-on:
-      labels: ubuntu-22.04-2cpu-8ram-75ssd
+      labels: ubuntu-22.04-4cpu-16ram-150ssd
 
     permissions:
       contents: read

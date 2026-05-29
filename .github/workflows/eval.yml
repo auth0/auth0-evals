@@ -35,7 +35,7 @@ jobs:
   build:
     name: Install & Build
     runs-on:
-      labels: ubuntu-22.04-2cpu-8ram-75ssd
+      labels: ubuntu-22.04-4cpu-16ram-150ssd
     permissions:
       contents: read
       id-token: write
@@ -48,7 +48,7 @@ jobs:
     name: Setup matrix
     needs: build
     runs-on:
-      labels: ubuntu-22.04-2cpu-8ram-75ssd
+      labels: ubuntu-22.04-4cpu-16ram-150ssd
     permissions:
       contents: read
       id-token: write
@@ -76,7 +76,7 @@ jobs:
     needs: [setup, build]
 
     runs-on:
-      labels: ubuntu-22.04-2cpu-8ram-75ssd
+      labels: ubuntu-22.04-4cpu-16ram-150ssd
 
     permissions:
       contents: read
@@ -133,7 +133,7 @@ jobs:
     needs: run-evals
     if: always()
     runs-on:
-      labels: ubuntu-22.04-2cpu-8ram-75ssd
+      labels: ubuntu-22.04-4cpu-16ram-150ssd
     permissions:
       contents: read
       id-token: write
