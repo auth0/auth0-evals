@@ -346,7 +346,7 @@ describe('generateRecommendations', () => {
     await generateRecommendations(input);
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.model).toBe('_claude-sonnet-4-6'); // verifies map-hit branch
+    expect(body.model).toBe('claude-sonnet-4-6'); // verifies map-hit branch
   });
 
   it('truncates workspace files at MAX_WORKSPACE_CHARS', async () => {

@@ -321,7 +321,7 @@ Explicit `--agent-type` overrides auto-routing for runner selection. Exception: 
 
 Uses `@anthropic-ai/claude-agent-sdk` `query()` function (not CLI subprocess). Routes through the configured LLM proxy (`proxy.baseUrl` in `eval.config.js`).
 
-By default uses the LiteLLM proxy, which maps supported short aliases via `LITELLM_MODEL_MAP` (underscore-prefixed, e.g. `_claude-opus-4-7`).
+By default uses the LiteLLM proxy, which maps supported short aliases via the `litellm` model map in `eval.config.js`.
 
 Set `CLAUDE_CODE_USE_BEDROCK_PROXY=1` to route through the Bedrock proxy instead (`/anthropic` endpoint), which maps supported short aliases to full Bedrock model IDs:
 - `claude-sonnet-4-6` → `global.anthropic.claude-sonnet-4-6`
