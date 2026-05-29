@@ -24,11 +24,8 @@ export const GPT_MODELS = ['gpt-'];
 
 /**
  * Maps friendly model aliases to the LiteLLM proxy model IDs.
- * LiteLLM requires an underscore prefix to route to the correct deployment
- * (e.g. `_claude-opus-4-7` instead of `claude-opus-4-7`).
  *
- * IMPORTANT: These prefixed names must ONLY be used when sending requests to the LiteLLM proxy.
- * Reports, score files, and RunRecords must always use the friendly alias (without underscore).
+ * Reports, score files, and RunRecords must always use the friendly alias.
  */
 export function getLitellmModelMap(): Record<string, string> {
   return getFrameworkConfig().models.litellm ?? {};

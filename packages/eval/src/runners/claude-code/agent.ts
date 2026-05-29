@@ -123,7 +123,7 @@ export async function runClaudeCodeAgent(
 
   // In Bedrock mode, resolve short alias to the full Bedrock model ID
   // (e.g. claude-sonnet-4-6 → global.anthropic.claude-sonnet-4-6).
-  // In LiteLLM mode, resolve via getLitellmModelMap() (adds underscore prefix).
+  // In LiteLLM mode, resolve via getLitellmModelMap().
   const resolvedModel = model
     ? USE_BEDROCK
       ? (getBedrockModelAliasMap()[model] ?? model)
