@@ -141,6 +141,35 @@ describe('tool events', () => {
     expect(record.toolCalls[0].causedError).toBe(true);
   });
 
+  it('marks an auto-cancelled (timed-out) command as causedError even when status is success', async () => {
+    // Gemini CLI cancels a command that exceeds its own internal timeout but still
+    // reports the tool_result with status:"success", placing the cancellation notice
+    // only in the output text. The timeout must still count as an error.
+    mockSpawn.mockReturnValue(
+      makeChild([
+        {
+          type: 'tool_use',
+          tool_id: 't1',
+          tool_name: 'run_shell_command',
+          parameters: { command: 'npx nuxi typecheck' },
+        },
+        {
+          type: 'tool_result',
+          tool_id: 't1',
+          status: 'success',
+          output:
+            'Command was automatically cancelled because it exceeded the timeout of 5.0 minutes without output.\n\nOutput before cancellation:\n\nℹ Nuxt collects completely anonymous data about usage.',
+        },
+        { type: 'message', role: 'assistant', content: 'Timed out.', delta: true },
+        resultEvent(),
+      ]),
+    );
+
+    const record = await runGeminiCliAgent(evalDef, workspace);
+    expect(record.toolCalls[0].causedError).toBe(true);
+    expect(record.toolCalls[0].errorCategory).toBe('timeout');
+  });
+
   it.each([
     ['read_file', 'read_file'],
     ['write_file', 'write_file'],
