@@ -140,12 +140,13 @@ export function ranCommandOneOf(
 // Tool names that represent file writes across runners (Claude/Copilot: write_file, Gemini: write/edit).
 const WRITE_TOOL_NAMES = new Set(['write_file', 'write', 'edit']);
 
+// Runners normalize write-tool args to { path, content } before they reach graders.
 function getWritePath(tc: EventToolCall): string {
-  return String(tc.args.path ?? tc.args.filename ?? tc.args.file_path ?? '');
+  return String(tc.args.path ?? '');
 }
 
 function getWriteContent(tc: EventToolCall): string {
-  return String(tc.args.content ?? tc.args.new_string ?? tc.args.file_text ?? '');
+  return String(tc.args.content ?? '');
 }
 
 function getFileWrites(toolCalls: EventToolCall[]): EventToolCall[] {

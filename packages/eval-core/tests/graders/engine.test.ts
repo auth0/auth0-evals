@@ -985,17 +985,6 @@ describe('runGraders - event graders', () => {
     expect(results[0]!.passed).toBe(false);
   });
 
-  it('wroteFile with expected matches Gemini new_string content arg', async () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, 'x.ts'), '');
-    const graders = [wroteFile('.env', 'wrote env', GraderLevel.L4, ['AUTH0_DOMAIN'])];
-    const toolCalls: EventToolCall[] = [
-      { name: 'edit', args: { path: '.env', new_string: 'AUTH0_DOMAIN=x\n' }, result: 'ok', causedError: false },
-    ];
-    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
-    expect(results[0]!.passed).toBe(true);
-  });
-
   it('event graders fail gracefully when no toolCalls provided', async () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'x.ts'), '');
@@ -1012,28 +1001,6 @@ describe('runGraders - event graders', () => {
     const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, []);
     expect(results[0]!.passed).toBe(false);
     expect(results[0]!.detail).toBe('Event condition NOT met');
-  });
-
-  it('wroteFile matches filename arg key', async () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, 'x.ts'), '');
-    const toolCalls: EventToolCall[] = [
-      { name: 'write_file', args: { filename: 'src/App.tsx' }, result: 'ok', causedError: false },
-    ];
-    const graders = [wroteFile('App.tsx', 'Wrote App.tsx', GraderLevel.L4)];
-    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
-    expect(results[0]!.passed).toBe(true);
-  });
-
-  it('wroteFile matches file_path arg key', async () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, 'x.ts'), '');
-    const toolCalls: EventToolCall[] = [
-      { name: 'write_file', args: { file_path: 'src/App.tsx' }, result: 'ok', causedError: false },
-    ];
-    const graders = [wroteFile('App.tsx', 'Wrote App.tsx', GraderLevel.L4)];
-    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
-    expect(results[0]!.passed).toBe(true);
   });
 
   it('wroteFile excludes errored writes', async () => {
