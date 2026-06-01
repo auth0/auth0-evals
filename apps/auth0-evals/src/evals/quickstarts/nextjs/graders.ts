@@ -104,7 +104,6 @@ export function defineGraders() {
         'using Auth0Client from @auth0/nextjs-auth0/server, middleware-based auth routing, ' +
         'getSession for server-side session access, getAccessToken for API calls, ' +
         'and a protected /dashboard page that redirects unauthenticated users to login?',
-      'nextjs',
     ),
   ];
 }
