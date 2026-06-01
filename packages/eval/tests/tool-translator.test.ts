@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { classifyActionType } from '@a0/eval-core';
 import { ClaudeCodeTranslator } from '../src/runners/claude-code/translator.js';
 import { CopilotCliTranslator } from '../src/runners/copilot/translator.js';
 import { GeminiCliTranslator } from '../src/runners/gemini-cli/translator.js';
@@ -93,6 +94,19 @@ describe('CopilotCliTranslator — mapping and args', () => {
       path: 'src/App.tsx',
       content: 'hello',
     });
+  });
+
+  it('preserves full name for mcp__-prefixed tools', () => {
+    expect(translator.mapName('mcp__auth0-docs__search_auth0_docs')).toBe('mcp__auth0-docs__search_auth0_docs');
+  });
+
+  it('normalizes <server>-<tool> MCP names to the mcp__ prefix', () => {
+    expect(translator.mapName('auth0-docs-search_auth0_docs')).toBe('mcp__auth0-docs-search_auth0_docs');
+  });
+
+  it('classifies MCP tool calls as Discovery after mapping (both formats)', () => {
+    expect(classifyActionType(translator.mapName('mcp__auth0-docs__search_auth0_docs'), false)).toBe('Discovery');
+    expect(classifyActionType(translator.mapName('auth0-docs-search_auth0_docs'), false)).toBe('Discovery');
   });
 });
 
