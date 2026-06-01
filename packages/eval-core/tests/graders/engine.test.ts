@@ -666,7 +666,14 @@ describe('llmJudge - code corpus overflow', () => {
   it('throws when code exceeds JUDGE_MAX_CODE_CHARS', async () => {
     const oversized = 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1);
     await expect(
-      llmJudge({ question: 'question', code: oversized, apiKey: 'key', model: 'model', baseUrl: 'http://test' }),
+      llmJudge({
+        question: 'question',
+        code: oversized,
+        apiKey: 'key',
+        model: 'model',
+        baseUrl: 'http://test',
+        maxCodeChars: JUDGE_MAX_CODE_CHARS,
+      }),
     ).rejects.toThrow(/Code corpus exceeds limit/);
   });
 

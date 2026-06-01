@@ -17,7 +17,7 @@ describe('DEFAULT_FRAMEWORK_CONFIG', () => {
   it('has generic judge defaults', () => {
     expect(DEFAULT_FRAMEWORK_CONFIG.judge.model).toBe('');
     expect(DEFAULT_FRAMEWORK_CONFIG.judge.maxTokens).toBe(1024);
-    expect(DEFAULT_FRAMEWORK_CONFIG.judge.maxCodeChars).toBe(16_384);
+    expect(DEFAULT_FRAMEWORK_CONFIG.judge.maxCodeChars).toBe(32_768);
   });
 
   it('has empty models.default', () => {
