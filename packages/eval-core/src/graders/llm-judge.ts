@@ -34,7 +34,7 @@ export interface LlmJudgeResult {
 
 export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
   const { question, code, apiKey, model, baseUrl, enforceMaxChars = true } = opts;
-  const judgeMaxCodeChars = opts.maxCodeChars ?? 16_384;
+  const judgeMaxCodeChars = opts.maxCodeChars ?? 32_768;
   const judgeMaxTokens = opts.maxTokens ?? 1024;
 
   if (!model) {
