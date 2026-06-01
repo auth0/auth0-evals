@@ -34,6 +34,12 @@ export class CopilotCliTranslator extends BaseToolTranslator {
     return key.startsWith('mcp__') || (key.includes('-') && key.includes('_'));
   }
 
+  // Prefix the `<server>-<tool>` form with mcp__ so classifyActionType
+  // recognizes it as an MCP call and classifies it as Discovery.
+  protected override mapMcpName(key: string): string {
+    return key.startsWith('mcp__') ? key : `mcp__${key}`;
+  }
+
   normalizeArgs(copilotName: string, input: Record<string, unknown>): Record<string, unknown> {
     switch (copilotName.toLowerCase()) {
       case 'bash':
