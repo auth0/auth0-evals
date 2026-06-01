@@ -42,7 +42,7 @@ export default {
   },
 
   judge: {
-    model: 'claude-opus-4-7',
+    model: 'claude-opus-4-8',
     maxTokens: 1024,
     maxCodeChars: 32_768,
   },
