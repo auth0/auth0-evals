@@ -87,6 +87,16 @@ describe('filteredEnv', () => {
     expect(env).toHaveProperty('PATH', '');
   });
 
+  it('forces CI=1 so child tooling stays non-interactive', () => {
+    delete process.env.CI;
+    expect(filteredEnv().CI).toBe('1');
+  });
+
+  it('overrides a falsy host CI value with 1', () => {
+    process.env.CI = '';
+    expect(filteredEnv().CI).toBe('1');
+  });
+
   it('includes NODE_OPTIONS when set', () => {
     process.env.NODE_OPTIONS = '--max-old-space-size=4096';
 

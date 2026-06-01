@@ -32,5 +32,11 @@ export function filteredEnv(): Record<string, string> {
       env[actualKey] = process.env[actualKey]!;
     }
   }
+
+  // Agent runs are categorically non-interactive. Forcing CI makes child
+  // tooling (npx, Nuxt telemetry, etc.) skip consent/install prompts that
+  // would otherwise hang the agent loop until the command times out.
+  env.CI = '1';
+
   return env;
 }
