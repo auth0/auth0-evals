@@ -45,6 +45,15 @@ export const GEMINI_CLI_DEFAULT_MODEL = 'gemini-3.1-pro-preview';
 const GEMINI_CLI_TIMEOUT_MS = CLAUDE_CODE_TASK_TIMEOUT_MS;
 
 /**
+ * Detects a Gemini CLI command auto-cancellation notice in tool output. The CLI
+ * cancels a command exceeding its own per-command timeout but reports the result
+ * with status:"success", so the only signal is this text in the output.
+ */
+function isAutoCancelled(output: string): boolean {
+  return /automatically cancelled because it exceeded the timeout/i.test(output);
+}
+
+/**
  * Writes .gemini/settings.json into the workspace so the Gemini CLI picks up
  * the Auth0 docs MCP server for the duration of the eval run.
  *
@@ -209,8 +218,11 @@ export async function runGeminiCliAgent(
             const pend = pending.get(toolId);
             if (pend) pending.delete(toolId);
 
-            const isError = event.status !== 'success';
             const output = (event.output as string) ?? '';
+            // Gemini CLI cancels a command that exceeds its own internal timeout but
+            // still reports status:"success", placing the cancellation notice only in
+            // the output text. Treat that as an error so it counts against scoring.
+            const isError = event.status !== 'success' || isAutoCancelled(output);
             const rawName = pend?.name ?? 'unknown';
             const mappedName = translator.mapName(rawName);
             const toolArgs = translator.normalizeArgs(rawName, pend?.args ?? {});
