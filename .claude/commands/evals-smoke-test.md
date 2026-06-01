@@ -5,9 +5,9 @@ Smoke-test the eval framework to verify changes work end-to-end.
 npm run build
 ```
 
-2. **Full matrix for react_quickstart:**
+2. **Run baseline and agent modes for react_quickstart:**
 ```bash
-npm run evals -- --eval react_quickstart --matrix
+npm run evals -- --eval react_quickstart --mode all --model all
 ```
 
 After each command completes, summarize the results (pass/fail counts, any errors).

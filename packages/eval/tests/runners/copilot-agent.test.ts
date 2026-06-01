@@ -159,9 +159,9 @@ describe('CopilotCliTranslator', () => {
     expect(translator.mapName(copilotName)).toBe(expected);
   });
 
-  it('preserves MCP tool names in legacy and hyphen formats', () => {
+  it('normalizes MCP tool names to the mcp__ prefix (legacy preserved, hyphen prefixed)', () => {
     expect(translator.mapName('mcp__auth0-docs__search_auth0_docs')).toBe('mcp__auth0-docs__search_auth0_docs');
-    expect(translator.mapName('auth0-docs-search_auth0_docs')).toBe('auth0-docs-search_auth0_docs');
+    expect(translator.mapName('auth0-docs-search_auth0_docs')).toBe('mcp__auth0-docs-search_auth0_docs');
   });
 
   it('does not map prototype keys from Object inheritance chain', () => {

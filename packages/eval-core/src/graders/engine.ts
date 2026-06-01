@@ -112,7 +112,7 @@ export async function runGraders(
 ): Promise<GraderResult[]> {
   const config = getFrameworkConfig();
   const resolvedJudgeModel = judgeModel ?? config.judge.model ?? '';
-  const judgeMaxCodeChars = config.judge.maxCodeChars ?? 16_384;
+  const judgeMaxCodeChars = config.judge.maxCodeChars ?? 32_768;
   const judgeMaxTokens = config.judge.maxTokens ?? 1024;
   const judgeBaseUrl = config.proxy.baseUrl;
   const judgeModelMap = getLitellmModelMap();

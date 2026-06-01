@@ -2,6 +2,9 @@
 
 An evaluation framework for measuring how accurately LLM agents complete Auth0 integration tasks. It runs each task across multiple configurations — from a single LLM call with no tools, to a full agentic loop with MCP servers and skills — and compares the results so you can see exactly where each investment pays off.
 
+> [!NOTE]
+> We develop `auth0-evals` transparently in public for our own internal use. It is not intended for external use cases, and we provide no support, guarantees, or stability commitments for anyone building on top of it. You're welcome to read it, learn from it, and use it — but do so at your own risk.
+
 ## Monorepo structure
 
 ```
@@ -35,9 +38,6 @@ cp apps/auth0-evals/.env.example apps/auth0-evals/.env
 
 # Run a single eval in baseline mode
 npm run evals -- --eval react_quickstart --mode baseline
-
-# Run the matrix (all evals × all models × baseline + agent+skills + agent+mcp+skills)
-npm run evals -- --matrix
 
 # Generate an HTML report
 npm run report

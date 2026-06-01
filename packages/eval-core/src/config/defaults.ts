@@ -26,7 +26,7 @@ export const DEFAULT_FRAMEWORK_CONFIG: Required<FrameworkConfig> = {
   judge: {
     model: '',
     maxTokens: 1024,
-    maxCodeChars: 16_384,
+    maxCodeChars: 32_768,
   },
 
   workspace: {

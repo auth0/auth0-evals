@@ -371,7 +371,7 @@ All LLM-as-judge graders use `claude-sonnet-4-5` via the configured LLM proxy (`
 | Base URL | Configured in `eval.config.js` (`proxy.baseUrl`) |
 | Judge model | `claude-sonnet-4-5` |
 | Judge max tokens | 1024 |
-| Judge max code chars | 16,384 |
+| Judge max code chars | 32,768 |
 | Max agent turns | 75 |
 | Runner task timeout | 30 min (per eval, graceful abort) |
 | Docker host timeout | 35 min (per container, hard kill — sandbox only) |

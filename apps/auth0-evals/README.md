@@ -26,11 +26,8 @@ npm run run -- --eval react_quickstart --mode agent --tools skills
 # Agent mode with MCP + skills
 npm run run -- --eval react_quickstart --mode agent --tools mcp,skills
 
-# Matrix: all evals × all models × baseline + agent+skills + agent+mcp+skills
-npm run run -- --matrix
-
-# Generate HTML report
-npm run report -- --input scores-matrix.json
+# Generate HTML report (auto-discovers scores-*.json)
+npm run report
 ```
 
 See [`@a0/eval` CLI docs](../../packages/eval/) for the full list of flags and options.
