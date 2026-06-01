@@ -15,6 +15,7 @@ export const KNOWN_WORKING_MODELS = [
   'claude-sonnet-4-6',
   'claude-opus-4-6',
   'claude-opus-4-7',
+  'claude-opus-4-8',
   'claude-haiku-4-5',
   'gemini-3.1-pro-preview',
   'gemini-3.5-flash',

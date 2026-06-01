@@ -7,11 +7,12 @@ export const MAX_TURNS = 75;
 export const BEDROCK_MODELS = ['claude-'];
 
 // Claude models that support output_config.effort to cap reasoning effort and reduce latency.
-// Supported here: Claude Opus 4.6, Sonnet 4.6, Opus 4.7, and Opus 4.5.
+// Supported here: Claude Opus 4.6, Sonnet 4.6, Opus 4.7, Opus 4.8, and Opus 4.5.
 export const CLAUDE_EFFORT_MODELS = new Set([
   'claude-opus-4-6',
   'claude-sonnet-4-6',
   'claude-opus-4-7',
+  'claude-opus-4-8',
   'claude-opus-4-5',
 ]);
 
