@@ -281,7 +281,13 @@ describe('mcp_tool_call events', () => {
       makeChild([
         {
           type: 'item.started',
-          item: { type: 'mcp_tool_call', id: 'mcp_1', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: { query: 'quickstart' } },
+          item: {
+            type: 'mcp_tool_call',
+            id: 'mcp_1',
+            server: 'auth0-docs',
+            tool: 'search_auth0_docs',
+            arguments: { query: 'quickstart' },
+          },
         },
         {
           type: 'item.completed',
@@ -346,11 +352,29 @@ describe('mcp_tool_call events', () => {
         },
         {
           type: 'item.completed',
-          item: { type: 'mcp_tool_call', id: 'mcp_3', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {}, result: 'ok', error: null, status: 'completed' },
+          item: {
+            type: 'mcp_tool_call',
+            id: 'mcp_3',
+            server: 'auth0-docs',
+            tool: 'search_auth0_docs',
+            arguments: {},
+            result: 'ok',
+            error: null,
+            status: 'completed',
+          },
         },
         {
           type: 'item.completed',
-          item: { type: 'mcp_tool_call', id: 'mcp_3', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {}, result: 'ok', error: null, status: 'completed' },
+          item: {
+            type: 'mcp_tool_call',
+            id: 'mcp_3',
+            server: 'auth0-docs',
+            tool: 'search_auth0_docs',
+            arguments: {},
+            result: 'ok',
+            error: null,
+            status: 'completed',
+          },
         },
         turnCompleted(),
       ]),
@@ -369,7 +393,16 @@ describe('mcp_tool_call events', () => {
         },
         {
           type: 'item.completed',
-          item: { type: 'mcp_tool_call', id: 'mcp_4', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {}, result: 'results', error: null, status: 'completed' },
+          item: {
+            type: 'mcp_tool_call',
+            id: 'mcp_4',
+            server: 'auth0-docs',
+            tool: 'search_auth0_docs',
+            arguments: {},
+            result: 'results',
+            error: null,
+            status: 'completed',
+          },
         },
         turnCompleted({ input_tokens: 50, output_tokens: 20 }),
       ]),

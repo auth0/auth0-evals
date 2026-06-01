@@ -307,12 +307,13 @@ function runCodexSpawn(
               const tool = (item.tool as string) ?? '';
               const mcpName = `mcp__${server}__${tool}`;
               const rawArgs = item.arguments;
-              const args =
-                typeof rawArgs === 'object' && rawArgs !== null ? (rawArgs as Record<string, unknown>) : {};
+              const args = typeof rawArgs === 'object' && rawArgs !== null ? (rawArgs as Record<string, unknown>) : {};
               ctx.pending.set(itemId, { name: mcpName, args, startTime: Date.now() / 1000 });
               ctx.turnToolCount++;
               ctx.toolCallsInSpawn++;
-              logger.info(`  [Codex] mcp_tool_call started (${itemId}): ${mcpName} args=${JSON.stringify(args).slice(0, 80)}`);
+              logger.info(
+                `  [Codex] mcp_tool_call started (${itemId}): ${mcpName} args=${JSON.stringify(args).slice(0, 80)}`,
+              );
             }
             break;
           }
