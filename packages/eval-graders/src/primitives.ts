@@ -121,7 +121,11 @@ export function ranCommand(
  * Asserts that the agent ran at least one command from a list of alternatives.
  * Each entry is matched as a substring against executed commands.
  */
-export function ranCommandOneOf(commands: string[], description: string | undefined, level: EventGraderLevel): GraderDef {
+export function ranCommandOneOf(
+  commands: string[],
+  description: string | undefined,
+  level: EventGraderLevel,
+): GraderDef {
   validateEventLevel(level, 'ranCommandOneOf');
   const label = commands.join(' | ');
   return {
@@ -136,18 +140,53 @@ export function ranCommandOneOf(commands: string[], description: string | undefi
 // Tool names that represent file writes across runners (Claude/Copilot: write_file, Gemini: write/edit).
 const WRITE_TOOL_NAMES = new Set(['write_file', 'write', 'edit']);
 
+function getWritePath(tc: EventToolCall): string {
+  return String(tc.args.path ?? tc.args.filename ?? tc.args.file_path ?? '');
+}
+
+function getWriteContent(tc: EventToolCall): string {
+  return String(tc.args.content ?? tc.args.new_string ?? tc.args.file_text ?? '');
+}
+
+function getFileWrites(toolCalls: EventToolCall[]): EventToolCall[] {
+  return toolCalls.filter((tc) => WRITE_TOOL_NAMES.has(tc.name) && !tc.causedError);
+}
+
 /**
  * Asserts that the agent wrote a file whose path contains the given substring.
+ *
+ * When `expected` is provided, additionally asserts that the combined content of
+ * all writes to that path contains every `expected` substring. Combining content
+ * across writes handles agents that build a file incrementally (e.g. appending env
+ * vars one line at a time). Use the content form to verify env vars landed in a
+ * .env file when the file itself is excluded from the judge's view.
+ *
+ * @param path - Substring that must appear in the written file's path
+ * @param description - Human-readable grader name
+ * @param level - Event grader level (L4 or L5)
+ * @param expected - Optional substring(s) that must ALL appear in the combined written content
  */
-export function wroteFile(path: string, description: string | undefined, level: EventGraderLevel): GraderDef {
+export function wroteFile(
+  path: string,
+  description: string | undefined,
+  level: EventGraderLevel,
+  expected?: string | string[],
+): GraderDef {
   validateEventLevel(level, 'wroteFile');
+  const expectedList = expected === undefined ? [] : Array.isArray(expected) ? expected : [expected];
+  const defaultName =
+    expectedList.length > 0
+      ? `wrote file matching '${path}' containing [${expectedList.join(', ')}]`
+      : `wrote file matching '${path}'`;
   return {
     kind: 'event',
-    name: description ?? `wrote file matching '${path}'`,
+    name: description ?? defaultName,
     level,
-    predicate: (toolCalls: EventToolCall[]) =>
-      toolCalls
-        .filter((tc) => WRITE_TOOL_NAMES.has(tc.name) && !tc.causedError)
-        .some((tc) => String(tc.args.path ?? tc.args.filename ?? tc.args.file_path ?? '').includes(path)),
+    predicate: (toolCalls: EventToolCall[]) => {
+      const writes = getFileWrites(toolCalls).filter((tc) => getWritePath(tc).includes(path));
+      if (expectedList.length === 0) return writes.length > 0;
+      const combined = writes.map(getWriteContent).join('\n');
+      return combined.length > 0 && expectedList.every((needle) => combined.includes(needle));
+    },
   };
 }

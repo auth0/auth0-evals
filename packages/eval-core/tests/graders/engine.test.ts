@@ -901,6 +901,101 @@ describe('runGraders - event graders', () => {
     expect(results[0]!.passed).toBe(true);
   });
 
+  it('wroteFile with expected passes when content has all substrings', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [wroteFile('.env.local', 'wrote env', GraderLevel.L4, ['AUTH0_DOMAIN', 'AUTH0_CLIENT_ID'])];
+    const toolCalls: EventToolCall[] = [
+      {
+        name: 'write_file',
+        args: { path: '.env.local', content: 'AUTH0_DOMAIN=x\nAUTH0_CLIENT_ID=y\n' },
+        result: 'ok',
+        causedError: false,
+      },
+    ];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('wroteFile with expected accepts a single string', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [wroteFile('.env', 'wrote secret', GraderLevel.L4, 'AUTH0_SECRET')];
+    const toolCalls: EventToolCall[] = [
+      { name: 'write_file', args: { path: '.env', content: 'AUTH0_SECRET=shh\n' }, result: 'ok', causedError: false },
+    ];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('wroteFile with expected fails when a substring is missing', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [wroteFile('.env.local', 'wrote env', GraderLevel.L4, ['AUTH0_DOMAIN', 'AUTH0_SECRET'])];
+    const toolCalls: EventToolCall[] = [
+      {
+        name: 'write_file',
+        args: { path: '.env.local', content: 'AUTH0_DOMAIN=x\n' },
+        result: 'ok',
+        causedError: false,
+      },
+    ];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('wroteFile with expected combines content across multiple writes to the path', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [wroteFile('.env.local', 'wrote env', GraderLevel.L4, ['AUTH0_DOMAIN', 'AUTH0_CLIENT_ID'])];
+    const toolCalls: EventToolCall[] = [
+      {
+        name: 'write_file',
+        args: { path: '.env.local', content: 'AUTH0_DOMAIN=x\n' },
+        result: 'ok',
+        causedError: false,
+      },
+      { name: 'edit', args: { path: '.env.local', content: 'AUTH0_CLIENT_ID=y\n' }, result: 'ok', causedError: false },
+    ];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('wroteFile with expected fails when the file was never written', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [wroteFile('.env.local', 'wrote env', GraderLevel.L4, ['AUTH0_DOMAIN'])];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('wroteFile with expected ignores writes that caused an error', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [wroteFile('.env', 'wrote env', GraderLevel.L4, ['AUTH0_DOMAIN'])];
+    const toolCalls: EventToolCall[] = [
+      {
+        name: 'write_file',
+        args: { path: '.env', content: 'AUTH0_DOMAIN=x\n' },
+        result: 'disk full',
+        causedError: true,
+      },
+    ];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('wroteFile with expected matches Gemini new_string content arg', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [wroteFile('.env', 'wrote env', GraderLevel.L4, ['AUTH0_DOMAIN'])];
+    const toolCalls: EventToolCall[] = [
+      { name: 'edit', args: { path: '.env', new_string: 'AUTH0_DOMAIN=x\n' }, result: 'ok', causedError: false },
+    ];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
   it('event graders fail gracefully when no toolCalls provided', async () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'x.ts'), '');
