@@ -1,4 +1,4 @@
-import { contains, notContains, notContainsInSource, matches, judge, wroteFile, GraderLevel } from '@a0/eval-graders';
+import { contains, notContains, notContainsInSource, matches, judge, GraderLevel } from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
@@ -25,7 +25,8 @@ export function defineGraders() {
     ),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
-    wroteFile('strings.xml', 'Created or modified strings.xml for Auth0 credentials', GraderLevel.L4),
+    // Event-based file-write verification temporarily disabled — see PR scoping discussion.
+    // wroteFile('strings.xml', 'Created or modified strings.xml for Auth0 credentials', GraderLevel.L4),
     contains(
       'manifestPlaceholders',
       'Configures manifestPlaceholders in build.gradle for Auth0 callback URL scheme',

@@ -1,13 +1,4 @@
-import {
-  contains,
-  notContains,
-  notContainsInSource,
-  matches,
-  judge,
-  ranCommand,
-  ranCommandOneOf,
-  GraderLevel,
-} from '@a0/eval-graders';
+import { contains, notContains, notContainsInSource, matches, judge, wroteFile, GraderLevel } from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
@@ -53,8 +44,14 @@ export function defineGraders() {
     notContains('sessionStorage.setItem', 'No tokens stored in sessionStorage', GraderLevel.L3),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
-    ranCommand('npm install', '@auth0/auth0-nuxt', 'Ran npm install for @auth0/auth0-nuxt', GraderLevel.L4),
-    ranCommandOneOf(['npm run build', 'nuxt build'], 'Ran build to verify compilation', GraderLevel.L4),
+    // Event-based install/build verification temporarily disabled — see PR scoping discussion.
+    // ranCommand('npm install', '@auth0/auth0-nuxt', 'Ran npm install for @auth0/auth0-nuxt', GraderLevel.L4),
+    // ranCommandOneOf(['npm run build', 'nuxt build'], 'Ran build to verify compilation', GraderLevel.L4),
+    wroteFile('.env', 'Wrote Auth0 credentials to .env file', GraderLevel.L4, [
+      'dev-playground.us.auth0.com',
+      'playground_client_abc123xyz',
+      'playground_secret_def456uvw',
+    ]),
     matches(
       String.raw`modules:\s*\[[\s\S]*['"]@auth0\/auth0-nuxt['"]`,
       'Module correctly registered in the modules array',

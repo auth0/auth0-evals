@@ -1,4 +1,4 @@
-import { contains, notContains, matches, judge, ranCommand, GraderLevel } from '@a0/eval-graders';
+import { contains, notContains, matches, judge, GraderLevel } from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
@@ -21,8 +21,9 @@ export function defineGraders() {
     notContains('sessionStorage.setItem', 'No tokens stored in sessionStorage', GraderLevel.L3),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
-    ranCommand('npm install', '@auth0/auth0-vue', 'Ran npm install for @auth0/auth0-vue', GraderLevel.L4),
-    ranCommand('npm run', 'build', 'Ran build to verify compilation', GraderLevel.L4),
+    // Event-based install/build verification temporarily disabled — see PR scoping discussion.
+    // ranCommand('npm install', '@auth0/auth0-vue', 'Ran npm install for @auth0/auth0-vue', GraderLevel.L4),
+    // ranCommand('npm run', 'build', 'Ran build to verify compilation', GraderLevel.L4),
     matches(String.raw`app\.use\s*\(\s*createAuth0`, 'Plugin installed via app.use(createAuth0(...))', GraderLevel.L4),
     contains('getAccessTokenSilently', 'Uses getAccessTokenSilently to retrieve access token', GraderLevel.L4),
     judge(

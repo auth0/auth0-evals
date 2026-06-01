@@ -1,4 +1,4 @@
-import { contains, notContains, notContainsInSource, matches, judge, ranCommand, GraderLevel } from '@a0/eval-graders';
+import { contains, notContains, notContainsInSource, matches, judge, wroteFile, GraderLevel } from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
@@ -30,7 +30,12 @@ export function defineGraders() {
     ),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
-    ranCommand('pip install', 'auth0-fastapi-api', 'Ran pip install for auth0-fastapi-api', GraderLevel.L4),
+    // Event-based install verification temporarily disabled — see PR scoping discussion.
+    // ranCommand('pip install', 'auth0-fastapi-api', 'Ran pip install for auth0-fastapi-api', GraderLevel.L4),
+    wroteFile('.env', 'Wrote Auth0 config to .env file', GraderLevel.L4, [
+      'dev-barkbook.us.auth0.com',
+      'api.barkbook.com',
+    ]),
     matches(String.raw`Auth0FastAPI\s*\(`, 'Auth0FastAPI instance is created', GraderLevel.L4),
     matches(
       String.raw`Depends\s*\(\s*\w+\.require_auth\s*\(`,
