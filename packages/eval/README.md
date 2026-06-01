@@ -134,8 +134,7 @@ a0-eval [options]
 | `--mode <mode>` | `baseline`, `agent`, `all` | `baseline` | `all` runs both modes in parallel |
 | `--tools <tools>` | `skills`, `mcp`, or comma-separated | none | Agent-mode only |
 | `--agent-type <type>` | `claude-code`, `copilot`, `gemini-cli` | auto-routed | Override agent runner selection |
-| `--matrix` | flag | off | All evals × models × baseline + agent+skills + agent+mcp+skills (does not include plain agent or agent+mcp) |
-| `--workers <n>` | number | 4 (20 in matrix) | Parallel job limit |
+| `--workers <n>` | number | 4 | Parallel job limit |
 | `--output <path>` | file path | auto-named | JSON results output path |
 | `--keep-workspace` | flag | off | Don't delete temp workspace after run |
 | `--dangerously-skip-sandbox` | flag | off | Skip Docker sandbox (see warning below) |
@@ -151,8 +150,8 @@ a0-eval --eval react_quickstart --mode baseline
 # Agent mode with skills
 a0-eval --eval react_quickstart --mode agent --tools skills
 
-# Full matrix across all known models
-a0-eval --matrix
+# All modes across all known models
+a0-eval --mode all --model all
 
 # Multiple models, agent mode with MCP
 a0-eval --model claude-sonnet-4-6 --model gpt-5.4 --mode agent --tools mcp
