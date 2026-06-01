@@ -977,4 +977,26 @@ describe('collectFiles - skill file exclusion', () => {
     expect(paths).toContain('app.ts');
     expect(paths).not.toContain('GEMINI.md');
   });
+
+  it('excludes CLAUDE.md from grading corpus (injected agent instructions)', () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'app.ts'), 'import { Auth0Provider } from "@auth0/auth0-react"');
+    writeFileSync(join(dir, 'CLAUDE.md'), 'Run npm install and npm run build to verify');
+
+    const files = collectGraderFiles(dir);
+    const paths = Object.keys(files);
+    expect(paths).toContain('app.ts');
+    expect(paths).not.toContain('CLAUDE.md');
+  });
+
+  it('excludes AGENTS.md from grading corpus (injected agent instructions)', () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'app.ts'), 'import { Auth0Provider } from "@auth0/auth0-react"');
+    writeFileSync(join(dir, 'AGENTS.md'), 'Run npm install and npm run build to verify');
+
+    const files = collectGraderFiles(dir);
+    const paths = Object.keys(files);
+    expect(paths).toContain('app.ts');
+    expect(paths).not.toContain('AGENTS.md');
+  });
 });
