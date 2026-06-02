@@ -9,8 +9,17 @@ import type { GraderContext, GraderExecutor } from './types.js';
 import { llmJudge } from '../llm-judge.js';
 import { logger } from '../../utils/logger.js';
 
-/** File patterns excluded from the LLM judge input to save token budget. */
+/** File patterns (matched against the basename) excluded from the LLM judge input to save token budget. */
 const JUDGE_EXCLUDED_PATTERNS = [/^tsconfig(\.\w+)?\.json$/, /^angular\.json$/, /^tsconfig\.tsbuildinfo$/];
+
+/** Directory paths (matched against the relative path) excluded from the LLM judge input — large Android build artifacts. */
+const JUDGE_EXCLUDED_DIRS = ['.gradle', 'app/build'];
+
+export function isJudgeExcluded(relPath: string): boolean {
+  const basename = relPath.split('/').pop()!;
+  if (JUDGE_EXCLUDED_PATTERNS.some((p) => p.test(basename))) return true;
+  return JUDGE_EXCLUDED_DIRS.some((dir) => relPath === dir || relPath.startsWith(dir + '/'));
+}
 
 export const llmJudgeExecutor: GraderExecutor = {
   kind: 'judge',
@@ -28,9 +37,7 @@ export const llmJudgeExecutor: GraderExecutor = {
 
     const { model, baseUrl, maxTokens, maxCodeChars, modelMap, enforceMaxChars } = ctx.judge;
 
-    const judgeEntries = Object.entries(ctx.files).filter(
-      ([k]) => !JUDGE_EXCLUDED_PATTERNS.some((p) => p.test(k.split('/').pop()!)),
-    );
+    const judgeEntries = Object.entries(ctx.files).filter(([k]) => !isJudgeExcluded(k));
     const judgeText = judgeEntries.map(([k, v]) => `// FILE: ${k}\n${v}`).join('\n\n');
 
     logger.info(`[judge] ${judgeEntries.length} files, ${judgeText.length} chars total (limit: ${maxCodeChars})`);

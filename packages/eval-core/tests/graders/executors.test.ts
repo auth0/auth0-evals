@@ -5,6 +5,7 @@ import { containsExecutor } from '../../src/graders/executors/contains.js';
 import { notContainsExecutor } from '../../src/graders/executors/not-contains.js';
 import { notContainsInSourceExecutor } from '../../src/graders/executors/not-contains-in-source.js';
 import { matchesExecutor } from '../../src/graders/executors/matches.js';
+import { isJudgeExcluded } from '../../src/graders/executors/llm-judge.js';
 import type { GraderContext } from '../../src/graders/executors/types.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -275,5 +276,41 @@ describe('matchesExecutor', () => {
     const def = makeDef({ kind: 'matches', pattern: '^Auth0Provider$' });
     const result = await matchesExecutor.execute(def, ctx);
     expect(result.passed).toBe(true);
+  });
+});
+
+// ── isJudgeExcluded ─────────────────────────────────────────────────────────
+
+describe('isJudgeExcluded', () => {
+  it('excludes tsconfig variants by basename', () => {
+    expect(isJudgeExcluded('tsconfig.json')).toBe(true);
+    expect(isJudgeExcluded('tsconfig.app.json')).toBe(true);
+    expect(isJudgeExcluded('tsconfig.tsbuildinfo')).toBe(true);
+    expect(isJudgeExcluded('src/tsconfig.json')).toBe(true);
+  });
+
+  it('excludes angular.json by basename', () => {
+    expect(isJudgeExcluded('angular.json')).toBe(true);
+  });
+
+  it('excludes the .gradle directory and its contents', () => {
+    expect(isJudgeExcluded('.gradle')).toBe(true);
+    expect(isJudgeExcluded('.gradle/caches/file.bin')).toBe(true);
+  });
+
+  it('excludes the app/build directory and its contents', () => {
+    expect(isJudgeExcluded('app/build')).toBe(true);
+    expect(isJudgeExcluded('app/build/outputs/apk/app.apk')).toBe(true);
+  });
+
+  it('does not exclude source files', () => {
+    expect(isJudgeExcluded('app/src/main/MainActivity.kt')).toBe(false);
+    expect(isJudgeExcluded('src/index.ts')).toBe(false);
+    expect(isJudgeExcluded('build.gradle.kts')).toBe(false);
+  });
+
+  it('does not exclude paths that merely contain the excluded dir name as a prefix', () => {
+    expect(isJudgeExcluded('app/build-config.json')).toBe(false);
+    expect(isJudgeExcluded('.gradle-wrapper/file')).toBe(false);
   });
 });
