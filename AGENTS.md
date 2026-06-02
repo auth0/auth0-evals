@@ -104,7 +104,7 @@ Graders run against all workspace files (scaffold + agent edits) minus the exclu
 - `tsconfig.tsbuildinfo` — TypeScript incremental build cache
 - `GEMINI.md` — injected agent context
 
-Additionally, the LLM judge excludes `tsconfig*.json` and `angular.json` from its input to save token budget.
+Additionally, the LLM judge excludes `tsconfig*.json` and `angular.json` files, plus the `.gradle` and `app/build` directories (large Android build artifacts), from its input to save token budget.
 
 ---
 
