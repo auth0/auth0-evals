@@ -28,7 +28,7 @@ import { resolveInside } from './path-utils.js';
  * files so graders see only source code. Written into each agent's native
  * context file (see {@link AGENT_CONTEXT_FILENAMES}).
  */
-export const AGENT_GUIDANCE = `Do not create any documentation files (README.md, SETUP.md, QUICKSTART.md, IMPLEMENTATION_SUMMARY.md, or any other .md files). Do not create any .txt summary or verification files. Only create and modify source code files needed to complete the task.
+export const AGENT_GUIDANCE = `Do not create any documentation files (README.md, SETUP.md, QUICKSTART.md, IMPLEMENTATION_SUMMARY.md, or any other .md files). Do not create any .txt summary or verification files. Do not create standalone summary or status files of any kind (e.g. AUTH0_SETUP.ts, IMPLEMENTATION_COMPLETE.ts, QUICK_START.ts, FILES_CREATED.txt) — these are not application source code. Only create and modify source code files that are part of the application.
 `;
 
 /**
