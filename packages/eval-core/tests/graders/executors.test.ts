@@ -313,4 +313,10 @@ describe('isJudgeExcluded', () => {
     expect(isJudgeExcluded('app/build-config.json')).toBe(false);
     expect(isJudgeExcluded('.gradle-wrapper/file')).toBe(false);
   });
+
+  it('excludes markdown files', () => {
+    expect(isJudgeExcluded('README.md')).toBe(true);
+    expect(isJudgeExcluded('docs/SETUP.md')).toBe(true);
+    expect(isJudgeExcluded('CHANGELOG.MD')).toBe(true);
+  });
 });
