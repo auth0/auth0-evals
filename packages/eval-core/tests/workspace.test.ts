@@ -2,7 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmpDir } from './tmp.js';
-import { setupWorkspace, cleanupWorkspace } from '../src/workspace/workspace.js';
+import {
+  setupWorkspace,
+  cleanupWorkspace,
+  writeAgentGuidance,
+  AGENT_GUIDANCE,
+  AGENT_CONTEXT_FILENAMES,
+} from '../src/workspace/workspace.js';
 import { resolveInside } from '../src/workspace/path-utils.js';
 
 const tmpDir = makeTmpDir('workspace_test_');
@@ -68,6 +74,44 @@ describe('setupWorkspace - path traversal protection', () => {
     const workspace = setupWorkspace({ gradlew: '#!/bin/sh' });
     const mode = statSync(join(workspace, 'gradlew')).mode;
     expect(mode & 0o755).toBe(0o755);
+
+    cleanupWorkspace(workspace);
+  });
+});
+
+describe('writeAgentGuidance - runner-aware context file', () => {
+  it('does not write any context file in setupWorkspace itself', () => {
+    const workspace = setupWorkspace({ 'index.js': 'ok' });
+
+    expect(existsSync(join(workspace, 'CLAUDE.md'))).toBe(false);
+    expect(existsSync(join(workspace, 'AGENTS.md'))).toBe(false);
+    expect(existsSync(join(workspace, 'GEMINI.md'))).toBe(false);
+
+    cleanupWorkspace(workspace);
+  });
+
+  it.each([
+    ['claude-code', 'CLAUDE.md'],
+    ['gemini-cli', 'GEMINI.md'],
+    ['codex', 'AGENTS.md'],
+    ['copilot', '.github/copilot-instructions.md'],
+  ] as const)('writes guidance to %s context file %s', (agentType, filename) => {
+    const workspace = setupWorkspace({ 'index.js': 'ok' });
+    writeAgentGuidance(workspace, agentType);
+
+    expect(AGENT_CONTEXT_FILENAMES[agentType]).toBe(filename);
+    expect(readFileSync(join(workspace, filename), 'utf-8')).toBe(AGENT_GUIDANCE);
+
+    cleanupWorkspace(workspace);
+  });
+
+  it('appends to an existing context file, preserving its content', () => {
+    const workspace = setupWorkspace({ 'CLAUDE.md': 'Scaffold guidance.\n' });
+    writeAgentGuidance(workspace, 'claude-code');
+
+    const content = readFileSync(join(workspace, 'CLAUDE.md'), 'utf-8');
+    expect(content.startsWith('Scaffold guidance.\n')).toBe(true);
+    expect(content.endsWith(AGENT_GUIDANCE)).toBe(true);
 
     cleanupWorkspace(workspace);
   });

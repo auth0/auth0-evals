@@ -102,7 +102,7 @@ Graders run against all workspace files (scaffold + agent edits) minus the exclu
 **Files:**
 - `package-lock.json` — noise
 - `tsconfig.tsbuildinfo` — TypeScript incremental build cache
-- `GEMINI.md` — injected agent context
+- `CLAUDE.md`, `GEMINI.md`, `AGENTS.md` — injected agent guidance. Before each agent run, the framework writes the "no documentation files" guidance into the context file the chosen runner reads (`CLAUDE.md` for Claude Code, `GEMINI.md` for Gemini CLI, `AGENTS.md` for Codex, and `.github/copilot-instructions.md` for Copilot — the `.github` dir is already excluded). All three are excluded so the injected text is never graded.
 
 Additionally, the LLM judge excludes `tsconfig*.json` and `angular.json` files, plus the `.gradle` and `app/build` directories (large Android build artifacts), from its input to save token budget.
 

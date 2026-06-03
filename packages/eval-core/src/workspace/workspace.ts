@@ -5,13 +5,63 @@
  * in. Shared by all agent runners — not specific to any one agent type.
  */
 
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { logger } from '../utils/logger.js';
 import { DEFAULT_FRAMEWORK_CONFIG } from '../config/defaults.js';
+import type { AgentType } from '../types/agents.js';
 import { resolveInside } from './path-utils.js';
+
+/**
+ * Agent guidance steering the agent away from producing documentation/summary
+ * files so graders see only source code. Written into each agent's native
+ * context file (see {@link AGENT_CONTEXT_FILENAMES}).
+ */
+export const AGENT_GUIDANCE = `Do not create any documentation files (README.md, SETUP.md, QUICKSTART.md, IMPLEMENTATION_SUMMARY.md, or any other .md files). Do not create any .txt summary or verification files. Only create and modify source code files needed to complete the task.
+`;
+
+/**
+ * The context/memory file each runner reads, relative to the workspace root.
+ * Writing guidance to the wrong file means the agent silently ignores it:
+ *   - Claude Code reads CLAUDE.md.
+ *   - Gemini CLI reads GEMINI.md by default (AGENTS.md needs extra config).
+ *   - Codex reads AGENTS.md (official agents.md standard supporter).
+ *   - Copilot reads .github/copilot-instructions.md reliably; AGENTS.md is
+ *     "not supported by all Copilot features" per GitHub's docs.
+ */
+export const AGENT_CONTEXT_FILENAMES: Record<AgentType, string> = {
+  'claude-code': 'CLAUDE.md',
+  'gemini-cli': 'GEMINI.md',
+  codex: 'AGENTS.md',
+  copilot: '.github/copilot-instructions.md',
+};
+
+/**
+ * Writes {@link AGENT_GUIDANCE} into the context file the given runner reads.
+ * Appends (preserving any scaffold-provided content) when the file already
+ * exists; creates it otherwise.
+ */
+export function writeAgentGuidance(workspace: string, agentType: AgentType): void {
+  const filename = AGENT_CONTEXT_FILENAMES[agentType];
+  const dest = join(workspace, filename);
+  if (existsSync(dest)) {
+    appendFileSync(dest, `\n${AGENT_GUIDANCE}`, 'utf-8');
+  } else {
+    mkdirSync(join(dest, '..'), { recursive: true });
+    writeFileSync(dest, AGENT_GUIDANCE, 'utf-8');
+  }
+}
 
 export interface SetupWorkspaceOptions {
   /** Prefix for the temp directory name. Defaults to {@link DEFAULT_FRAMEWORK_CONFIG}.workspace.tempDirPrefix. */

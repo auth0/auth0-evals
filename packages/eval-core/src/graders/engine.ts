@@ -56,7 +56,14 @@ export const EXCLUDED_EVAL_DIRS = new Set([
   '.angular',
   'out-tsc',
 ]);
-export const EXCLUDED_EVAL_FILES = new Set(['package-lock.json', 'tsconfig.tsbuildinfo']);
+export const EXCLUDED_EVAL_FILES = new Set([
+  'package-lock.json',
+  'tsconfig.tsbuildinfo',
+  // Injected agent guidance — one of these per runner (see AGENT_CONTEXT_FILENAMES).
+  'AGENTS.md',
+  'CLAUDE.md',
+  'GEMINI.md',
+]);
 
 export function collectFiles(workspace: string): Record<string, string> {
   const files: Record<string, string> = {};
