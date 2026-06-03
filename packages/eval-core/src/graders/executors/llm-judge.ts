@@ -10,7 +10,7 @@ import { llmJudge } from '../llm-judge.js';
 import { logger } from '../../utils/logger.js';
 
 /** File patterns (matched against the basename) excluded from the LLM judge input to save token budget. */
-const JUDGE_EXCLUDED_PATTERNS = [/^tsconfig(\.\w+)?\.json$/, /^angular\.json$/, /^tsconfig\.tsbuildinfo$/];
+const JUDGE_EXCLUDED_PATTERNS = [/^tsconfig(\.\w+)?\.json$/, /^angular\.json$/, /^tsconfig\.tsbuildinfo$/, /\.md$/i];
 
 /** Directory paths (matched against the relative path) excluded from the LLM judge input — large Android build artifacts. */
 const JUDGE_EXCLUDED_DIRS = ['.gradle', 'app/build'];
