@@ -36,6 +36,9 @@ describe('walkFiles', () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'package-lock.json'), '');
     writeFileSync(join(dir, 'tsconfig.tsbuildinfo'), '');
+    writeFileSync(join(dir, 'AGENTS.md'), '');
+    writeFileSync(join(dir, 'CLAUDE.md'), '');
+    writeFileSync(join(dir, 'GEMINI.md'), '');
     writeFileSync(join(dir, 'index.ts'), '');
 
     const files = [...walkFiles(dir)];

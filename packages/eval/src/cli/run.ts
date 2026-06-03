@@ -126,11 +126,15 @@ async function runAgentJob(
   agentType: AgentType,
   sandbox: boolean,
 ): Promise<JobResult> {
-  const { setupWorkspace, runSetupCommand, cleanupWorkspace } = await import('@a0/eval-core');
+  const { setupWorkspace, runSetupCommand, cleanupWorkspace, writeAgentGuidance } = await import('@a0/eval-core');
   const { generateRunRecommendations } = await import('../recommendations/index.js');
   await initRunners();
 
   const workspace = setupWorkspace(evalDef.scaffold);
+  // Inject "no docs files" guidance into the context file this runner reads
+  // (CLAUDE.md / GEMINI.md / AGENTS.md). Must run before both the docker and
+  // local execution paths so every runner picks it up.
+  writeAgentGuidance(workspace, agentType);
   try {
     if (!sandbox && evalDef.setupCommand) {
       runSetupCommand(workspace, evalDef.setupCommand);
