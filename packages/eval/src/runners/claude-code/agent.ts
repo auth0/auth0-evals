@@ -319,8 +319,12 @@ export function handleMessage(
     const nextTurnNum = turnNum + 1;
     const { message: msg } = asst;
 
-    const turnInput = msg.usage?.input_tokens ?? 0;
-    const turnOutput = msg.usage?.output_tokens ?? 0;
+    const usage = msg.usage;
+    const turnInput =
+      (usage?.input_tokens ?? 0) +
+      (usage?.cache_read_input_tokens ?? 0) +
+      (usage?.cache_creation_input_tokens ?? 0);
+    const turnOutput = usage?.output_tokens ?? 0;
     record.inputTokens += turnInput;
     record.outputTokens += turnOutput;
 
@@ -447,7 +451,10 @@ export function handleMessage(
     }
 
     if (res.usage) {
-      record.inputTokens = res.usage.input_tokens;
+      record.inputTokens =
+        res.usage.input_tokens +
+        (res.usage.cache_read_input_tokens ?? 0) +
+        (res.usage.cache_creation_input_tokens ?? 0);
       record.outputTokens = res.usage.output_tokens;
     }
     record.costUsd = res.total_cost_usd ?? 0;
