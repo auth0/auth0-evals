@@ -105,4 +105,43 @@ for (const model of models) {
 }
 md += '\n> **' + results.length + ' total job(s)** | grand total: $' + grandTotal.toFixed(4) + '\n';
 
+// ── Skill recommendations ─────────────────────────────────────────────────────
+// Collect all skill-category recommendations from runs that produced them.
+// Group by eval+model so each combo appears at most once (prefer agent+mcp+skills,
+// fall back to agent+skills, then any run that has recommendations).
+const SKILLS_MODE_PRIORITY = ['agent+mcp+skills', 'agent+skills', 'agent+mcp', 'agent'];
+const skillRecs = [];
+for (const evalId of evals) {
+  for (const model of models) {
+    let sourceResult;
+    for (const c of SKILLS_MODE_PRIORITY) {
+      const candidate = byKey[evalId + '|' + c + '|' + model];
+      if (candidate && candidate.recommendations && Array.isArray(candidate.recommendations.recommendations)) {
+        sourceResult = candidate;
+        break;
+      }
+    }
+    if (!sourceResult) continue;
+    const recs = sourceResult.recommendations.recommendations.filter(r => r.category === 'skill');
+    if (recs.length === 0) continue;
+    skillRecs.push({ evalId, model, mode: modeKey(sourceResult), recs });
+  }
+}
+
+if (skillRecs.length > 0) {
+  const SEVERITY_ICON = { high: '🔴', medium: '🟡', low: '🔵' };
+  md += '\n## Skill Recommendations\n\n';
+  md += '<details>\n<summary>Skill improvement suggestions from this run</summary>\n\n';
+  for (const { evalId, model, mode, recs } of skillRecs) {
+    md += '**`' + evalId + '` / `' + model + '` (' + mode + ')**\n\n';
+    for (const rec of recs) {
+      const icon = SEVERITY_ICON[rec.severity] || '⚪';
+      md += icon + ' **' + rec.severity.toUpperCase() + '** — ' + rec.issue + '\n\n';
+      md += '> ' + rec.suggestion + '\n\n';
+      if (rec.context) md += '*Context: ' + rec.context + '*\n\n';
+    }
+  }
+  md += '</details>\n';
+}
+
 appendFileSync(process.env.GITHUB_STEP_SUMMARY, md);
