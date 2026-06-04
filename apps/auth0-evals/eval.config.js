@@ -14,7 +14,7 @@ export default {
       proxy: { baseUrl: useBedrock ? '<LLM_PROXY_URL>/anthropic' : '<LLM_PROXY_URL>' },
     },
     'gemini-cli': {
-      proxy: { baseUrl: '<LLM_PROXY_URL>' },
+      proxy: { baseUrl: 'http://127.0.0.1:9876' },
     },
     'codex': {
       proxy: { baseUrl: '<LLM_PROXY_URL>' },

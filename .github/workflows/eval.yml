@@ -94,6 +94,12 @@ jobs:
       - name: Add node_modules/.bin to PATH
         run: echo "${{ github.workspace }}/node_modules/.bin" >> "$GITHUB_PATH"
 
+      - name: Start Gemini SSE proxy
+        if: matrix.agent_type == 'gemini-cli'
+        run: |
+          node scripts/gemini-sse-proxy.js &
+          sleep 1
+
       - name: Run eval
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
