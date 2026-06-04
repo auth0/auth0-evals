@@ -115,6 +115,30 @@ describe('writeAgentGuidance - runner-aware context file', () => {
 
     cleanupWorkspace(workspace);
   });
+
+  it('renames scaffold AGENTS.md to the runner context file when runner is not codex', () => {
+    const workspace = setupWorkspace({ 'AGENTS.md': 'No-build guidance.\n' });
+    writeAgentGuidance(workspace, 'claude-code');
+
+    // AGENTS.md should be gone — renamed to CLAUDE.md
+    expect(existsSync(join(workspace, 'AGENTS.md'))).toBe(false);
+    const content = readFileSync(join(workspace, 'CLAUDE.md'), 'utf-8');
+    expect(content.startsWith('No-build guidance.\n')).toBe(true);
+    expect(content.endsWith(AGENT_GUIDANCE)).toBe(true);
+
+    cleanupWorkspace(workspace);
+  });
+
+  it('keeps scaffold AGENTS.md in place when runner is codex', () => {
+    const workspace = setupWorkspace({ 'AGENTS.md': 'No-build guidance.\n' });
+    writeAgentGuidance(workspace, 'codex');
+
+    const content = readFileSync(join(workspace, 'AGENTS.md'), 'utf-8');
+    expect(content.startsWith('No-build guidance.\n')).toBe(true);
+    expect(content.endsWith(AGENT_GUIDANCE)).toBe(true);
+
+    cleanupWorkspace(workspace);
+  });
 });
 
 describe('resolveInside - symlink escape protection', () => {

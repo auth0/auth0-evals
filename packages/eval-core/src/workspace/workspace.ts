@@ -12,6 +12,7 @@ import {
   mkdirSync,
   mkdtempSync,
   realpathSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -55,6 +56,15 @@ export const AGENT_CONTEXT_FILENAMES: Record<AgentType, string> = {
 export function writeAgentGuidance(workspace: string, agentType: AgentType): void {
   const filename = AGENT_CONTEXT_FILENAMES[agentType];
   const dest = join(workspace, filename);
+
+  // If the scaffold shipped AGENTS.md but the active runner reads a different
+  // file, rename it so the guidance reaches the right runner.
+  const scaffoldAgentsMd = join(workspace, 'AGENTS.md');
+  if (filename !== 'AGENTS.md' && existsSync(scaffoldAgentsMd) && !existsSync(dest)) {
+    mkdirSync(join(dest, '..'), { recursive: true });
+    renameSync(scaffoldAgentsMd, dest);
+  }
+
   if (existsSync(dest)) {
     appendFileSync(dest, `\n${AGENT_GUIDANCE}`, 'utf-8');
   } else {
