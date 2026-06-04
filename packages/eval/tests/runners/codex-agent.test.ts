@@ -1,21 +1,21 @@
 /**
  * Unit tests for runCodexAgent in codex/agent.ts.
  *
- * Mocks `spawn` to return a controlled child process that emits JSONL events
- * via stdout, verifying that RunRecord fields (toolCalls, turnMetrics, status,
- * finalSummary, etc.) are populated correctly for the common event sequences:
+ * Mocks `@openai/codex-sdk` so that `Codex` → `startThread`/`resumeThread` →
+ * `runStreamed` returns `{ events: asyncGenerator }`, emitting typed ThreadEvents.
+ * Verifies that RunRecord fields (toolCalls, turnMetrics, status, finalSummary,
+ * etc.) are populated correctly for the common event sequences:
  *
- *   - item.started + item.completed[command_execution] → ToolCallRecord
- *   - function_call + function_call_output (standalone) → ToolCallRecord
- *   - duplicate events for same callId → deduplicated to one ToolCallRecord
- *   - exit_code undefined → not treated as error
- *   - turn.completed → TurnMetric with token counts
- *   - orphaned pending calls drained on close
+ *   - item.completed[command_execution] → run_command ToolCallRecord
+ *   - item.completed[file_change]       → write_file (add/update); delete → run_command (rm <path>)
+ *   - item.completed[mcp_tool_call]     → mcp__ ToolCallRecord
+ *   - item.completed[agent_message]     → finalSummary
+ *   - turn.completed                    → TurnMetric with token counts
+ *   - turn limit reached                → abort + failure
+ *   - SDK generator throw               → provider error + failure
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EventEmitter } from 'node:events';
-import { Readable } from 'node:stream';
 
 // ── Mock fs to avoid touching the filesystem ─────────────────────────────────
 
@@ -48,10 +48,50 @@ vi.mock('@a0/eval-core', async () => ({
   getFrameworkConfig: mockGetFrameworkConfig,
 }));
 
-// ── Mock spawn ────────────────────────────────────────────────────────────────
+// ── Mock @openai/codex-sdk ──────────────────────────────────────────────────
 
-const mockSpawn = vi.hoisted(() => vi.fn());
-vi.mock('node:child_process', () => ({ spawn: mockSpawn }));
+type JsonlEvent = Record<string, unknown>;
+
+const sdk = vi.hoisted(() => {
+  const state = {
+    constructorCalls: [] as Array<Record<string, unknown>>,
+    startThreadCalls: [] as Array<Record<string, unknown>>,
+    resumeThreadCalls: [] as Array<{ id: string; options: Record<string, unknown> }>,
+    // FIFO queue of event arrays — one entry consumed per runStreamed call (turn).
+    turns: [] as Array<Array<Record<string, unknown>>>,
+  };
+
+  async function* gen(events: Array<Record<string, unknown>>, signal?: AbortSignal) {
+    for (const ev of events) {
+      if (signal?.aborted) throw new Error('aborted');
+      if (ev.type === '__throw__') throw new Error((ev.message as string) ?? 'sdk error');
+      yield ev;
+    }
+  }
+
+  const runStreamed = (_input: string, turnOptions?: { signal?: AbortSignal }) => {
+    const events = state.turns.shift() ?? [];
+    return Promise.resolve({ events: gen(events, turnOptions?.signal) });
+  };
+
+  return { state, runStreamed };
+});
+
+vi.mock('@openai/codex-sdk', () => ({
+  Codex: class {
+    constructor(options?: Record<string, unknown>) {
+      sdk.state.constructorCalls.push(options ?? {});
+    }
+    startThread(options: Record<string, unknown>) {
+      sdk.state.startThreadCalls.push(options);
+      return { runStreamed: sdk.runStreamed };
+    }
+    resumeThread(id: string, options: Record<string, unknown>) {
+      sdk.state.resumeThreadCalls.push({ id, options });
+      return { runStreamed: sdk.runStreamed };
+    }
+  },
+}));
 
 import { MAX_TURNS } from '@a0/eval-core';
 import { writeFileSync } from 'node:fs';
@@ -59,34 +99,9 @@ import { runCodexAgent } from '../../src/runners/codex/agent.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-type JsonlEvent = Record<string, unknown>;
-
-/**
- * Returns a fake child process whose stdout emits `events` as JSONL lines then
- * closes with `exitCode`.
- */
-function makeChild(events: JsonlEvent[], exitCode = 0) {
-  const stdout = new Readable({ read() {} });
-  const stderr = new Readable({ read() {} });
-  const child = new EventEmitter() as EventEmitter & {
-    stdout: Readable;
-    stderr: Readable;
-    kill: ReturnType<typeof vi.fn>;
-  };
-  child.stdout = stdout;
-  child.stderr = stderr;
-  child.kill = vi.fn();
-
-  setImmediate(() => {
-    for (const ev of events) {
-      stdout.push(JSON.stringify(ev) + '\n');
-    }
-    stdout.push(null);
-    stderr.push(null);
-    child.emit('close', exitCode);
-  });
-
-  return child;
+/** Queues the event arrays returned by successive runStreamed calls (turns). */
+function queueTurns(...turns: JsonlEvent[][]): void {
+  sdk.state.turns = turns.map((t) => [...t]);
 }
 
 /** Minimal turn.completed event. */
@@ -104,19 +119,18 @@ const evalDef = { id: 'react_quickstart', userPrompt: 'Add Auth0 login.' };
 const workspace = '/tmp/test-workspace';
 
 beforeEach(() => {
-  mockSpawn.mockReset();
   vi.clearAllMocks();
-  // Default: resume spawns get an empty immediately-closing child.
-  mockSpawn.mockImplementation(() => makeChild([]));
+  sdk.state.constructorCalls = [];
+  sdk.state.startThreadCalls = [];
+  sdk.state.resumeThreadCalls = [];
+  sdk.state.turns = [];
 });
 
 // ── thread.started ────────────────────────────────────────────────────────────
 
 describe('thread.started event', () => {
   it('sets sessionId from thread_id', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([{ type: 'thread.started', thread_id: 'thread-abc-123' }, turnCompleted()]),
-    );
+    queueTurns([{ type: 'thread.started', thread_id: 'thread-abc-123' }, turnCompleted()]);
 
     const record = await runCodexAgent(evalDef, workspace);
     expect(record.sessionId).toBe('thread-abc-123');
@@ -126,23 +140,20 @@ describe('thread.started event', () => {
 // ── command_execution ─────────────────────────────────────────────────────────
 
 describe('command_execution events', () => {
-  it('creates ToolCallRecord for item.started + item.completed[command_execution]', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([
-        { type: 'item.started', item: { type: 'command_execution', id: 'item_1', command: 'npm install' } },
-        {
-          type: 'item.completed',
-          item: {
-            type: 'command_execution',
-            id: 'item_1',
-            command: 'npm install',
-            aggregated_output: 'added 10 packages',
-            exit_code: 0,
-          },
+  it('creates ToolCallRecord for item.completed[command_execution]', async () => {
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: {
+          type: 'command_execution',
+          id: 'item_1',
+          command: 'npm install',
+          aggregated_output: 'added 10 packages',
+          exit_code: 0,
         },
-        turnCompleted(),
-      ]),
-    );
+      },
+      turnCompleted(),
+    ]);
 
     const record = await runCodexAgent(evalDef, workspace);
     expect(record.toolCalls).toHaveLength(1);
@@ -154,121 +165,150 @@ describe('command_execution events', () => {
   });
 
   it('marks command_execution with non-zero exit_code as causedError', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([
-        { type: 'item.started', item: { type: 'command_execution', id: 'item_1', command: 'npm test' } },
-        {
-          type: 'item.completed',
-          item: {
-            type: 'command_execution',
-            id: 'item_1',
-            command: 'npm test',
-            aggregated_output: 'test failed',
-            exit_code: 1,
-          },
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: {
+          type: 'command_execution',
+          id: 'item_1',
+          command: 'npm test',
+          aggregated_output: 'test failed',
+          exit_code: 1,
         },
-        turnCompleted(),
-      ]),
-    );
+      },
+      turnCompleted(),
+    ]);
 
     const record = await runCodexAgent(evalDef, workspace);
     expect(record.toolCalls[0].causedError).toBe(true);
   });
 
-  it('treats undefined exit_code as success (not error)', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([
-        { type: 'item.started', item: { type: 'command_execution', id: 'item_1', command: 'ls' } },
-        {
-          type: 'item.completed',
-          item: { type: 'command_execution', id: 'item_1', command: 'ls', aggregated_output: 'src/' },
-          // exit_code intentionally omitted
+  it('maps a read-only shell command to a read_file tool call', async () => {
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: {
+          type: 'command_execution',
+          id: 'item_r',
+          command: `/bin/zsh -lc "sed -n '1,220p' src/App.jsx"`,
+          aggregated_output: 'file contents',
+          exit_code: 0,
         },
-        turnCompleted(),
-      ]),
-    );
+      },
+      turnCompleted(),
+    ]);
+
+    const record = await runCodexAgent(evalDef, workspace);
+    expect(record.toolCalls).toHaveLength(1);
+    expect(record.toolCalls[0].name).toBe('read_file');
+    expect(record.toolCalls[0].args).toEqual({ path: 'src/App.jsx' });
+  });
+
+  it('keeps a failed read-only command as run_command (error)', async () => {
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: {
+          type: 'command_execution',
+          id: 'item_re',
+          command: 'cat missing.txt',
+          aggregated_output: 'cat: missing.txt: No such file',
+          exit_code: 1,
+        },
+      },
+      turnCompleted(),
+    ]);
+
+    const record = await runCodexAgent(evalDef, workspace);
+    expect(record.toolCalls[0].name).toBe('run_command');
+    expect(record.toolCalls[0].causedError).toBe(true);
+  });
+
+  it('treats undefined exit_code as success (not error)', async () => {
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: { type: 'command_execution', id: 'item_1', command: 'ls', aggregated_output: 'src/' },
+        // exit_code intentionally omitted
+      },
+      turnCompleted(),
+    ]);
 
     const record = await runCodexAgent(evalDef, workspace);
     expect(record.toolCalls[0].causedError).toBe(false);
   });
 });
 
-// ── function_call / function_call_output ──────────────────────────────────────
+// ── file_change ────────────────────────────────────────────────────────────────
 
-describe('function_call events', () => {
-  it('creates ToolCallRecord for standalone function_call + function_call_output', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([
-        {
-          type: 'function_call',
-          name: 'read_file',
-          call_id: 'call_1',
-          arguments: JSON.stringify({ path: 'src/app.ts' }),
+describe('file_change events', () => {
+  it('maps file_change changes to write_file / delete_file ToolCallRecords', async () => {
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: {
+          type: 'file_change',
+          id: 'fc_1',
+          status: 'completed',
+          changes: [
+            { path: 'src/App.tsx', kind: 'add' },
+            { path: 'src/auth.ts', kind: 'update' },
+            { path: 'old.ts', kind: 'delete' },
+          ],
         },
-        { type: 'function_call_output', call_id: 'call_1', output: 'file contents' },
-        turnCompleted(),
-      ]),
-    );
+      },
+      turnCompleted(),
+    ]);
 
     const record = await runCodexAgent(evalDef, workspace);
-    expect(record.toolCalls).toHaveLength(1);
-    const tc = record.toolCalls[0];
-    expect(tc.name).toBe('read_file');
-    expect(tc.args).toEqual({ path: 'src/app.ts' });
-    expect(tc.result).toBe('file contents');
-    expect(tc.causedError).toBe(false);
+    expect(record.toolCalls).toHaveLength(3);
+
+    const writes = record.toolCalls.filter((tc) => tc.name === 'write_file');
+    expect(writes.map((w) => w.args.path).sort()).toEqual(['src/App.tsx', 'src/auth.ts']);
+    expect(writes.every((w) => w.causedError === false)).toBe(true);
+
+    // delete_file maps to run_command (rm <path>) via the translator.
+    const del = record.toolCalls.find((tc) => tc.name === 'run_command');
+    expect(del?.args.command).toBe('rm old.ts');
+
+    expect(record.turnMetrics[0].toolCallCount).toBe(3);
   });
 
-  it('marks function_call_output starting with "Error:" as causedError', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([
-        { type: 'function_call', name: 'read_file', call_id: 'call_1', arguments: '{}' },
-        { type: 'function_call_output', call_id: 'call_1', output: 'Error: file not found' },
-        turnCompleted(),
-      ]),
-    );
+  it('marks failed file_change as causedError', async () => {
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: {
+          type: 'file_change',
+          id: 'fc_2',
+          status: 'failed',
+          changes: [{ path: 'src/App.tsx', kind: 'add' }],
+        },
+      },
+      turnCompleted(),
+    ]);
 
     const record = await runCodexAgent(evalDef, workspace);
+    expect(record.toolCalls[0].name).toBe('write_file');
     expect(record.toolCalls[0].causedError).toBe(true);
   });
+});
 
-  it('deduplicates when both standalone and item.completed fire for same callId', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([
-        { type: 'turn.started' },
-        // Standalone stream
-        { type: 'function_call', name: 'write_file', call_id: 'call_1', arguments: '{}' },
-        { type: 'function_call_output', call_id: 'call_1', output: 'ok' },
-        // item.completed stream for same call — should not inflate toolCallCount
-        {
-          type: 'item.completed',
-          item: { type: 'function_call', name: 'write_file', call_id: 'call_1', arguments: '{}' },
-        },
-        { type: 'item.completed', item: { type: 'function_call_output', call_id: 'call_1', output: 'ok' } },
-        turnCompleted(),
-      ]),
-    );
+// ── web_search ─────────────────────────────────────────────────────────────────
+
+describe('web_search events', () => {
+  it('records web_search as a doc-lookup fetch_url call', async () => {
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: { type: 'web_search', id: 'ws_1', query: 'auth0 react quickstart' },
+      },
+      turnCompleted(),
+    ]);
 
     const record = await runCodexAgent(evalDef, workspace);
     expect(record.toolCalls).toHaveLength(1);
-    expect(record.turnMetrics[0].toolCallCount).toBe(1);
-  });
-
-  it('classifies web_fetch as doc lookup', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([
-        {
-          type: 'function_call',
-          name: 'web_fetch',
-          call_id: 'call_1',
-          arguments: JSON.stringify({ url: 'https://auth0.com/docs' }),
-        },
-        { type: 'function_call_output', call_id: 'call_1', output: 'doc content' },
-        turnCompleted(),
-      ]),
-    );
-
-    const record = await runCodexAgent(evalDef, workspace);
+    expect(record.toolCalls[0].name).toBe('fetch_url');
     expect(record.toolCalls[0].isDocLookup).toBe(true);
   });
 });
@@ -276,29 +316,23 @@ describe('function_call events', () => {
 // ── mcp_tool_call events ──────────────────────────────────────────────────────
 
 describe('mcp_tool_call events', () => {
-  it('creates ToolCallRecord with mcp__ name for item.started + item.completed[mcp_tool_call]', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([
-        {
-          type: 'item.started',
-          item: { type: 'mcp_tool_call', id: 'mcp_1', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: { query: 'quickstart' } },
+  it('creates ToolCallRecord with mcp__ name for item.completed[mcp_tool_call]', async () => {
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: {
+          type: 'mcp_tool_call',
+          id: 'mcp_1',
+          server: 'auth0-docs',
+          tool: 'search_auth0_docs',
+          arguments: { query: 'quickstart' },
+          result: { content: [{ text: 'Auth0 quickstart guide' }] },
+          error: null,
+          status: 'completed',
         },
-        {
-          type: 'item.completed',
-          item: {
-            type: 'mcp_tool_call',
-            id: 'mcp_1',
-            server: 'auth0-docs',
-            tool: 'search_auth0_docs',
-            arguments: { query: 'quickstart' },
-            result: { content: [{ text: 'Auth0 quickstart guide' }] },
-            error: null,
-            status: 'completed',
-          },
-        },
-        turnCompleted(),
-      ]),
-    );
+      },
+      turnCompleted(),
+    ]);
 
     const record = await runCodexAgent(evalDef, workspace);
     expect(record.toolCalls).toHaveLength(1);
@@ -309,71 +343,45 @@ describe('mcp_tool_call events', () => {
   });
 
   it('marks mcp_tool_call with error as causedError', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([
-        {
-          type: 'item.started',
-          item: { type: 'mcp_tool_call', id: 'mcp_2', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {} },
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: {
+          type: 'mcp_tool_call',
+          id: 'mcp_2',
+          server: 'auth0-docs',
+          tool: 'search_auth0_docs',
+          arguments: {},
+          result: null,
+          error: { message: 'server unavailable' },
+          status: 'failed',
         },
-        {
-          type: 'item.completed',
-          item: {
-            type: 'mcp_tool_call',
-            id: 'mcp_2',
-            server: 'auth0-docs',
-            tool: 'search_auth0_docs',
-            arguments: {},
-            result: null,
-            error: 'server unavailable',
-            status: 'failed',
-          },
-        },
-        turnCompleted(),
-      ]),
-    );
+      },
+      turnCompleted(),
+    ]);
 
     const record = await runCodexAgent(evalDef, workspace);
     expect(record.toolCalls[0].causedError).toBe(true);
     expect(record.toolCalls[0].result).toContain('server unavailable');
   });
 
-  it('deduplicates mcp_tool_call when item.completed fires twice for same id', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([
-        {
-          type: 'item.started',
-          item: { type: 'mcp_tool_call', id: 'mcp_3', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {} },
-        },
-        {
-          type: 'item.completed',
-          item: { type: 'mcp_tool_call', id: 'mcp_3', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {}, result: 'ok', error: null, status: 'completed' },
-        },
-        {
-          type: 'item.completed',
-          item: { type: 'mcp_tool_call', id: 'mcp_3', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {}, result: 'ok', error: null, status: 'completed' },
-        },
-        turnCompleted(),
-      ]),
-    );
-
-    const record = await runCodexAgent(evalDef, workspace);
-    expect(record.toolCalls).toHaveLength(1);
-  });
-
   it('counts mcp_tool_call in turnMetrics toolCallCount', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([
-        {
-          type: 'item.started',
-          item: { type: 'mcp_tool_call', id: 'mcp_4', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {} },
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: {
+          type: 'mcp_tool_call',
+          id: 'mcp_4',
+          server: 'auth0-docs',
+          tool: 'search_auth0_docs',
+          arguments: {},
+          result: 'results',
+          error: null,
+          status: 'completed',
         },
-        {
-          type: 'item.completed',
-          item: { type: 'mcp_tool_call', id: 'mcp_4', server: 'auth0-docs', tool: 'search_auth0_docs', arguments: {}, result: 'results', error: null, status: 'completed' },
-        },
-        turnCompleted({ input_tokens: 50, output_tokens: 20 }),
-      ]),
-    );
+      },
+      turnCompleted({ input_tokens: 50, output_tokens: 20 }),
+    ]);
 
     const record = await runCodexAgent(evalDef, workspace);
     expect(record.turnMetrics[0].toolCallCount).toBe(1);
@@ -385,16 +393,13 @@ describe('mcp_tool_call events', () => {
 
 describe('turn metrics', () => {
   it('turn.completed creates TurnMetric with token counts', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([
-        { type: 'item.started', item: { type: 'command_execution', id: 'i1', command: 'ls' } },
-        {
-          type: 'item.completed',
-          item: { type: 'command_execution', id: 'i1', command: 'ls', aggregated_output: 'src/', exit_code: 0 },
-        },
-        turnCompleted({ input_tokens: 100, output_tokens: 50 }),
-      ]),
-    );
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: { type: 'command_execution', id: 'i1', command: 'ls', aggregated_output: 'src/', exit_code: 0 },
+      },
+      turnCompleted({ input_tokens: 100, output_tokens: 50 }),
+    ]);
 
     const record = await runCodexAgent(evalDef, workspace);
     expect(record.turnMetrics).toHaveLength(1);
@@ -407,9 +412,7 @@ describe('turn metrics', () => {
   });
 
   it('turn with no tool calls has finishReason stop', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([{ type: 'message', role: 'assistant', content: 'Done.' }, turnCompleted()]),
-    );
+    queueTurns([{ type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } }, turnCompleted()]);
 
     const record = await runCodexAgent(evalDef, workspace);
     expect(record.turnMetrics).toHaveLength(1);
@@ -418,22 +421,18 @@ describe('turn metrics', () => {
   });
 
   it('accumulates tokens across multiple turns', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([
-        { type: 'item.started', item: { type: 'command_execution', id: 'i1', command: 'ls' } },
-        {
-          type: 'item.completed',
-          item: { type: 'command_execution', id: 'i1', command: 'ls', aggregated_output: '', exit_code: 0 },
-        },
-        turnCompleted({ input_tokens: 100, output_tokens: 30 }),
-        { type: 'item.started', item: { type: 'command_execution', id: 'i2', command: 'cat' } },
-        {
-          type: 'item.completed',
-          item: { type: 'command_execution', id: 'i2', command: 'cat', aggregated_output: '', exit_code: 0 },
-        },
-        turnCompleted({ input_tokens: 200, output_tokens: 40 }),
-      ]),
-    );
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: { type: 'command_execution', id: 'i1', command: 'ls', aggregated_output: '', exit_code: 0 },
+      },
+      turnCompleted({ input_tokens: 100, output_tokens: 30 }),
+      {
+        type: 'item.completed',
+        item: { type: 'command_execution', id: 'i2', command: 'cat', aggregated_output: '', exit_code: 0 },
+      },
+      turnCompleted({ input_tokens: 200, output_tokens: 40 }),
+    ]);
 
     const record = await runCodexAgent(evalDef, workspace);
     expect(record.turnMetrics).toHaveLength(2);
@@ -445,44 +444,14 @@ describe('turn metrics', () => {
 // ── finalSummary ──────────────────────────────────────────────────────────────
 
 describe('finalSummary', () => {
-  it('sets finalSummary from message event', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([{ type: 'message', role: 'assistant', content: 'Auth0 integration complete.' }, turnCompleted()]),
-    );
+  it('sets finalSummary from item.completed[agent_message]', async () => {
+    queueTurns([
+      { type: 'item.completed', item: { type: 'agent_message', text: 'Auth0 integration complete.' } },
+      turnCompleted(),
+    ]);
 
     const record = await runCodexAgent(evalDef, workspace);
     expect(record.finalSummary).toBe('Auth0 integration complete.');
-  });
-
-  it('sets finalSummary from item.completed[agent_message]', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([
-        { type: 'item.completed', item: { type: 'agent_message', text: 'Done via item.completed.' } },
-        turnCompleted(),
-      ]),
-    );
-
-    const record = await runCodexAgent(evalDef, workspace);
-    expect(record.finalSummary).toBe('Done via item.completed.');
-  });
-});
-
-// ── orphaned tool calls ───────────────────────────────────────────────────────
-
-describe('orphaned tool calls', () => {
-  it('drains pending command_execution with no completion into toolCalls with causedError on close', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild(
-        [{ type: 'item.started', item: { type: 'command_execution', id: 'orphan1', command: 'npm install' } }],
-        1,
-      ),
-    );
-
-    const record = await runCodexAgent(evalDef, workspace);
-    const orphaned = record.toolCalls.find((tc) => tc.args?.command === 'npm install');
-    expect(orphaned).toBeDefined();
-    expect(orphaned?.causedError).toBe(true);
-    expect(record.providerErrors.some((e) => e.includes('orphaned tool call'))).toBe(true);
   });
 });
 
@@ -490,28 +459,17 @@ describe('orphaned tool calls', () => {
 
 describe('status and final state', () => {
   it('successful run sets status success', async () => {
-    mockSpawn.mockReturnValueOnce(
-      makeChild([
-        { type: 'message', role: 'assistant', content: 'Done.' },
-        turnCompleted({ input_tokens: 100, output_tokens: 20 }),
-      ]),
-    );
+    queueTurns([
+      { type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } },
+      turnCompleted({ input_tokens: 100, output_tokens: 20 }),
+    ]);
 
     const record = await runCodexAgent(evalDef, workspace);
     expect(record.status).toBe('success');
   });
 
-  it('spawn error event sets status to failure', async () => {
-    const child = new EventEmitter() as EventEmitter & {
-      stdout: Readable;
-      stderr: Readable;
-      kill: ReturnType<typeof vi.fn>;
-    };
-    child.stdout = new Readable({ read() {} });
-    child.stderr = new Readable({ read() {} });
-    child.kill = vi.fn();
-    setImmediate(() => child.emit('error', new Error('spawn ENOENT')));
-    mockSpawn.mockReturnValueOnce(child);
+  it('SDK generator throw sets status to failure', async () => {
+    queueTurns([{ type: '__throw__', message: 'spawn ENOENT' }]);
 
     const record = await runCodexAgent(evalDef, workspace);
     expect(record.status).toBe('failure');
@@ -519,34 +477,48 @@ describe('status and final state', () => {
   });
 
   it('turn.failed adds to providerErrors', async () => {
-    mockSpawn.mockReturnValueOnce(makeChild([{ type: 'turn.failed', error: { message: 'rate limit exceeded' } }]));
+    queueTurns([{ type: 'turn.failed', error: { message: 'rate limit exceeded' } }]);
 
     const record = await runCodexAgent(evalDef, workspace);
     expect(record.providerErrors.some((e) => e.includes('rate limit exceeded'))).toBe(true);
   });
 
-  it('kills subprocess when MAX_TURNS is reached', async () => {
+  it('item.completed[error] pushes to providerErrors', async () => {
+    queueTurns([
+      { type: 'item.completed', item: { type: 'error', message: 'sandbox initialization failed' } },
+      turnCompleted(),
+    ]);
+
+    const record = await runCodexAgent(evalDef, workspace);
+    expect(record.providerErrors).toContain('sandbox initialization failed');
+  });
+
+  it('top-level error event pushes to providerErrors', async () => {
+    queueTurns([{ type: 'error', message: 'connection reset' }]);
+
+    const record = await runCodexAgent(evalDef, workspace);
+    expect(record.providerErrors).toContain('connection reset');
+  });
+
+  it('aborts and fails when MAX_TURNS is reached', async () => {
     const events: JsonlEvent[] = [];
     for (let i = 0; i < MAX_TURNS + 2; i++) {
-      events.push({ type: 'item.started', item: { type: 'command_execution', id: `i${i}`, command: 'ls' } });
       events.push({
         type: 'item.completed',
         item: { type: 'command_execution', id: `i${i}`, command: 'ls', aggregated_output: '', exit_code: 0 },
       });
       events.push(turnCompleted());
     }
-
-    const child = makeChild(events);
-    mockSpawn.mockReturnValueOnce(child);
+    queueTurns(events);
 
     const record = await runCodexAgent(evalDef, workspace);
     expect(record.status).toBe('failure');
     expect(record.providerErrors.some((e) => e.includes('turn limit'))).toBe(true);
-    expect(child.kill).toHaveBeenCalledWith('SIGTERM');
+    expect(record.turnMetrics.length).toBe(MAX_TURNS);
   });
 
   it('endTime is always set after completion', async () => {
-    mockSpawn.mockReturnValueOnce(makeChild([], 1));
+    queueTurns([]);
 
     const before = Date.now() / 1000;
     const record = await runCodexAgent(evalDef, workspace);
@@ -554,6 +526,68 @@ describe('status and final state', () => {
 
     expect(record.endTime).toBeGreaterThanOrEqual(before);
     expect(record.endTime).toBeLessThanOrEqual(after + 0.1);
+  });
+});
+
+// ── resume nudge loop ─────────────────────────────────────────────────────────
+
+describe('resume nudge loop', () => {
+  it('resumes with a nudge when the first turn is text-only', async () => {
+    queueTurns(
+      // Turn 1: text-only planning message (0 tool calls).
+      [
+        { type: 'thread.started', thread_id: 'thread-resume-1' },
+        { type: 'item.completed', item: { type: 'agent_message', text: 'Let me plan...' } },
+        turnCompleted({ input_tokens: 50, output_tokens: 30 }),
+      ],
+      // Turn 2 (resume): an actual tool call.
+      [
+        {
+          type: 'item.completed',
+          item: { type: 'command_execution', id: 'i1', command: 'npm install', aggregated_output: 'ok', exit_code: 0 },
+        },
+        turnCompleted({ input_tokens: 100, output_tokens: 50 }),
+      ],
+    );
+
+    const record = await runCodexAgent(evalDef, workspace);
+    expect(sdk.state.resumeThreadCalls).toHaveLength(1);
+    expect(sdk.state.resumeThreadCalls[0].id).toBe('thread-resume-1');
+    expect(record.toolCalls).toHaveLength(1);
+    expect(record.status).toBe('success');
+  });
+
+  it('does not resume when the first turn already used a tool', async () => {
+    queueTurns([
+      { type: 'thread.started', thread_id: 'thread-no-resume' },
+      {
+        type: 'item.completed',
+        item: { type: 'command_execution', id: 'i1', command: 'npm install', aggregated_output: 'ok', exit_code: 0 },
+      },
+      turnCompleted(),
+    ]);
+
+    const record = await runCodexAgent(evalDef, workspace);
+    expect(sdk.state.resumeThreadCalls).toHaveLength(0);
+    expect(record.status).toBe('success');
+  });
+});
+
+// ── thread options ────────────────────────────────────────────────────────────
+
+describe('thread options', () => {
+  it('starts the thread with sandbox, cwd, and model options', async () => {
+    queueTurns([{ type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } }, turnCompleted()]);
+
+    await runCodexAgent(evalDef, workspace, { model: 'gpt-5.4' });
+
+    expect(sdk.state.startThreadCalls).toHaveLength(1);
+    const opts = sdk.state.startThreadCalls[0];
+    expect(opts.model).toBe('gpt-5.4');
+    expect(opts.workingDirectory).toBe(workspace);
+    expect(opts.sandboxMode).toBe('danger-full-access');
+    expect(opts.skipGitRepoCheck).toBe(true);
+    expect(opts.approvalPolicy).toBe('never');
   });
 });
 
@@ -576,9 +610,7 @@ describe('MCP integration', () => {
         },
       },
     });
-    mockSpawn.mockReturnValueOnce(
-      makeChild([{ type: 'message', role: 'assistant', content: 'Done.' }, turnCompleted()]),
-    );
+    queueTurns([{ type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } }, turnCompleted()]);
 
     await runCodexAgent(evalDef, workspace, { tools: ['mcp'] });
 
@@ -606,9 +638,7 @@ describe('MCP integration', () => {
         },
       },
     });
-    mockSpawn.mockReturnValueOnce(
-      makeChild([{ type: 'message', role: 'assistant', content: 'Done.' }, turnCompleted()]),
-    );
+    queueTurns([{ type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } }, turnCompleted()]);
 
     await runCodexAgent(evalDef, workspace, { tools: ['mcp'] });
 
@@ -625,7 +655,7 @@ describe('MCP integration', () => {
     expect(toml).toContain('"AUTH0_TOKEN"');
   });
 
-  it('injects stdio MCP server env vars into codexEnv', async () => {
+  it('injects stdio MCP server env vars into the Codex env', async () => {
     mockGetFrameworkConfig.mockReturnValue({
       proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
       mcp: {
@@ -639,14 +669,13 @@ describe('MCP integration', () => {
         },
       },
     });
-    mockSpawn.mockReturnValueOnce(
-      makeChild([{ type: 'message', role: 'assistant', content: 'Done.' }, turnCompleted()]),
-    );
+    queueTurns([{ type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } }, turnCompleted()]);
 
     await runCodexAgent(evalDef, workspace, { tools: ['mcp'] });
 
-    const spawnCall = mockSpawn.mock.calls[0] as [string, string[], { env: Record<string, string> }];
-    expect(spawnCall[2].env['MY_SECRET_TOKEN']).toBe('secret123');
+    const codexOptions = sdk.state.constructorCalls[0];
+    const env = codexOptions.env as Record<string, string>;
+    expect(env['MY_SECRET_TOKEN']).toBe('secret123');
   });
 
   it('does not write MCP sections when tools does not include mcp', async () => {
@@ -658,9 +687,7 @@ describe('MCP integration', () => {
         },
       },
     });
-    mockSpawn.mockReturnValueOnce(
-      makeChild([{ type: 'message', role: 'assistant', content: 'Done.' }, turnCompleted()]),
-    );
+    queueTurns([{ type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } }, turnCompleted()]);
 
     await runCodexAgent(evalDef, workspace, { tools: [] });
 
