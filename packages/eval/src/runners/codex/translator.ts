@@ -1,5 +1,60 @@
 import { BaseToolTranslator } from '../base-translator.js';
 
+/** Shell commands that read a file without mutating it. */
+const READ_ONLY_COMMANDS = new Set(['cat', 'head', 'tail', 'nl', 'sed']);
+
+/**
+ * Detects whether a shell command is an unambiguous, read-only read of a
+ * single file and returns that file path (else null).
+ *
+ * Codex performs file reads through the shell (`cat`, `sed -n`, `nl`, …), so
+ * without this they record as `run_command` — unlike file-native runners whose
+ * reads are `read_file`. That asymmetry skews the Efficiency dimension, whose
+ * duplicate-read detection only fires for `read_file` (and is reset by every
+ * `run_command`). Mapping clean reads to `read_file` restores parity.
+ *
+ * Deliberately strict: any shell metacharacter (pipe, redirect, chain, glob,
+ * subshell, variable expansion, background) or follow/in-place flag disqualifies
+ * the command, so a mutating or compound command is never misread as a plain read.
+ */
+export function detectReadOnlyFileRead(rawCommand: string): string | null {
+  let cmd = rawCommand.trim();
+
+  // Unwrap at most one shell wrapper: `/bin/zsh -lc "…"`, `bash -c '…'`, `sh -c "…"`.
+  const wrapper = /^(?:\/[\w./-]+\/)?(?:zsh|bash|sh)\s+-[a-z]*c\s+(['"])([\s\S]*)\1$/.exec(cmd);
+  if (wrapper?.[2]) cmd = wrapper[2].trim();
+
+  // Reject shell metacharacters that could chain, redirect, pipe, glob, expand,
+  // or background — these make single-file attribution unsafe.
+  if (/[|&;<>`$*?(){}[\]]/.test(cmd) || cmd.includes('\n')) return null;
+
+  const tokens = cmd.split(/\s+/).filter(Boolean);
+  if (tokens.length < 2) return null;
+
+  const command = tokens[0]!;
+  if (!READ_ONLY_COMMANDS.has(command)) return null;
+
+  const flags = tokens.slice(1).filter((t) => t.startsWith('-'));
+  // `tail -f` follows (long-running, not a one-shot read).
+  if (flags.some((f) => f === '-f' || f === '--follow')) return null;
+  // `sed` only reads when `-n` is present and it is not editing in place (`-i`).
+  if (command === 'sed') {
+    if (flags.some((f) => f === '-i' || f.startsWith('-i') || f === '--in-place')) return null;
+    if (!flags.includes('-n')) return null;
+  }
+
+  // The file is the last token. Strip one layer of matching surrounding quotes.
+  let path = tokens[tokens.length - 1]!;
+  const quoted = /^(['"])([\s\S]*)\1$/.exec(path);
+  if (quoted) path = quoted[2]!;
+
+  // Must look like a real path (has a directory separator or extension) so we
+  // never mistake a `sed` script (e.g. `1,220p`) or bare token for a filename.
+  if (path.startsWith('-') || !/[./]/.test(path)) return null;
+
+  return path;
+}
+
 /**
  * Maps Codex CLI tool names to the internal taxonomy.
  *
