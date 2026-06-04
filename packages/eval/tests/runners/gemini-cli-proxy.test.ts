@@ -23,10 +23,10 @@ vi.mock('@a0/eval-core', async () => ({
       },
     },
     agents: {
-      'gemini-cli': { proxy: { baseUrl: 'https://llm.example.com' } },
+      'gemini-cli': { proxy: { baseUrl: 'http://127.0.0.1:12345' } },
     },
   }),
-  getAgentProxyBaseUrl: vi.fn().mockReturnValue('https://llm.example.com'),
+  getAgentProxyBaseUrl: vi.fn().mockReturnValue('http://127.0.0.1:12345'),
 }));
 
 vi.mock('node:child_process', () => ({
@@ -73,10 +73,10 @@ async function triggerRun() {
 }
 
 describe('runGeminiCliAgent proxy env injection', () => {
-  it('sets GOOGLE_GEMINI_BASE_URL to LLM proxy when LLM_API_KEY is set', async () => {
+  it('sets GOOGLE_GEMINI_BASE_URL to local proxy when LLM_API_KEY is set', async () => {
     vi.stubEnv('LLM_API_KEY', 'test-llm-token');
     await triggerRun();
-    expect(capturedEnv().GOOGLE_GEMINI_BASE_URL).toBe('https://llm.example.com');
+    expect(capturedEnv().GOOGLE_GEMINI_BASE_URL).toBe('http://127.0.0.1:12345');
   });
 
   it('sets GEMINI_API_KEY to the value of LLM_API_KEY', async () => {

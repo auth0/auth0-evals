@@ -14,7 +14,7 @@ export default {
       proxy: { baseUrl: useBedrock ? 'https://llm.atko.ai/anthropic' : 'https://llm.atko.ai' },
     },
     'gemini-cli': {
-      proxy: { baseUrl: 'https://llm.atko.ai' },
+      proxy: { baseUrl: 'http://127.0.0.1:9876' },
     },
     'codex': {
       proxy: { baseUrl: 'https://llm.atko.ai' },

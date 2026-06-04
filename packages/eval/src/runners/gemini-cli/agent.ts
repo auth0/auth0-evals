@@ -138,10 +138,10 @@ export async function runGeminiCliAgent(
 
   const args: string[] = ['-p', evalDef.userPrompt, '--approval-mode', 'yolo', '-o', 'stream-json', '-m', model];
 
-  // Route through the LiteLLM proxy — same pattern as the Claude Code runner.
   const geminiEnv: Record<string, string> = {
     ...filteredEnv(),
     GEMINI_CLI_TRUSTED_FOLDERS_PATH: trustedFoldersPath,
+    GEMINI_CLI_TRUST_WORKSPACE: 'true',
   };
   if (process.env.GH_TOKEN) {
     geminiEnv.GH_TOKEN = process.env.GH_TOKEN;
