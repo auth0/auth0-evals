@@ -74,6 +74,7 @@ export type {
 export { DEFAULT_FRAMEWORK_CONFIG } from './config/defaults.js';
 export { defineConfig, loadConfig, deepMerge } from './config/loader.js';
 export type { LoadConfigOptions } from './config/loader.js';
+export { mintMcpToken } from './config/mcp-auth.js';
 
 // Workspace
 export {
