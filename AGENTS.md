@@ -83,6 +83,8 @@ Use `notContainsInSource` (not `notContains`) when a value like a client ID is a
 | `ranCommand(command, args, description, level)` | Agent ran a shell command containing `command` (and all `args`) — event-based, level required (L4 or L5) |
 | `ranCommandOneOf(commands, description, level)` | Agent ran at least one command from the list — event-based, level required (L4 or L5) |
 | `wroteFile(path, description, level, expected?)` | Agent wrote a file whose path contains the substring. With optional `expected` (string or string array), the combined content of all writes to that path must also contain every `expected` substring — event-based, level required (L4 or L5) |
+| `calledTool(toolName, description, level)` | Agent invoked an MCP tool whose name contains `toolName` — event-based, level required (L4 or L5) |
+| `calledToolOneOf(toolNames, description, level)` | Agent invoked at least one of the named MCP tools — event-based, level required (L4 or L5) |
 
 ## Grading exclusions
 
@@ -342,6 +344,8 @@ Set `CLAUDE_CODE_USE_BEDROCK_PROXY=1` to route through the Bedrock proxy instead
 All agent runners have access to file/shell tools in their respective environments. When using the Copilot runner, the equivalent capabilities are provided natively by the `@github/copilot-sdk` agent loop.
 
 When MCP tools are enabled (`--tools mcp`), MCP server tool definitions are appended to the tool list.
+
+Authenticated HTTP MCP servers are configured with an `auth` block (`tokenUrl`, `clientId`, `clientSecret`, `audience`). The framework mints a Management API token per agent job via a client-credentials exchange and forwards it as an `Authorization: Bearer` header (claude-code runner only for now; codex/copilot drop the header today).
 
 ---
 
