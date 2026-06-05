@@ -345,7 +345,7 @@ All agent runners have access to file/shell tools in their respective environmen
 
 When MCP tools are enabled (`--tools mcp`), MCP server tool definitions are appended to the tool list.
 
-Authenticated HTTP MCP servers are configured with an `auth` block (`tokenUrl`, `clientId`, `clientSecret`, `audience`). The framework mints a Management API token per agent job via a client-credentials exchange and forwards it as an `Authorization: Bearer` header (claude-code runner only for now; codex/copilot drop the header today).
+Authenticated HTTP MCP servers are configured with an `auth` block (`tokenUrl`, `clientId`, `clientSecret`, `audience`). The framework mints a Management API token per agent job via a client-credentials exchange and forwards it as an `Authorization: Bearer` header (claude-code runner only for now; codex/copilot drop the header today). Full setup guide: [docs/HOSTED_MCP_EVALS.md](docs/HOSTED_MCP_EVALS.md).
 
 ---
 
