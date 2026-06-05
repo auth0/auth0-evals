@@ -14,4 +14,6 @@ export {
   ranCommand,
   ranCommandOneOf,
   wroteFile,
+  calledTool,
+  calledToolOneOf,
 } from './primitives.js';
