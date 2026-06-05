@@ -59,6 +59,7 @@ function buildMcpToml(servers: Record<string, MCPServerConfig>): string {
   let toml = '';
   for (const [name, server] of Object.entries(servers)) {
     const safeName = tomlEscape(name);
+    // TODO(poc/mcp): forward MCP auth headers for authenticated HTTP servers (server.auth) — codex config drops them today.
     if (server.type === 'http') {
       toml += `\n[mcp_servers."${safeName}"]\nurl = "${tomlEscape(server.url)}"\n`;
     } else {

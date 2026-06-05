@@ -54,6 +54,7 @@ export function getMcpServers(): Record<string, MCPServerConfig> {
   const servers = getFrameworkConfig().mcp.servers;
   const result: Record<string, MCPServerConfig> = {};
   for (const [name, server] of Object.entries(servers)) {
+    // TODO(poc/mcp): forward MCP auth headers for authenticated HTTP servers (server.auth) — copilot config drops them today.
     if (server.type === 'http') {
       result[name] = { type: 'http', url: server.url, tools: ['*'] };
     }
