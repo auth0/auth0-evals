@@ -62,6 +62,7 @@ export type {
   MCPServerConfig,
   MCPStdioServerConfig,
   MCPHttpServerConfig,
+  MCPOAuthConfig,
   SkillsConfig,
   RemoteSkillRepo,
   JudgeConfig,

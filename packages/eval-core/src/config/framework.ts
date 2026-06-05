@@ -37,11 +37,28 @@ export interface MCPStdioServerConfig {
   env?: Record<string, string>;
 }
 
+export interface MCPOAuthConfig {
+  /** OAuth token endpoint, e.g. https://TENANT/oauth/token */
+  tokenUrl: string;
+  /** OAuth client ID for the client-credentials grant. */
+  clientId: string;
+  /** OAuth client secret for the client-credentials grant. */
+  clientSecret: string;
+  /** API audience the token is requested for, e.g. https://TENANT/api/v2/ */
+  audience: string;
+}
+
 export interface MCPHttpServerConfig {
   /** URL-based MCP server. */
   type: 'http';
   /** HTTP URL for the remote MCP server. */
   url: string;
+  /**
+   * Optional OAuth config. When present, the framework mints a fresh Bearer
+   * token per agent job and injects it as an Authorization header. If any
+   * field is empty (e.g. a missing env var), the server is omitted with a warning.
+   */
+  auth?: MCPOAuthConfig;
 }
 
 /** Discriminated union — either a stdio (command-based) or http (URL-based) MCP server. */
