@@ -153,6 +153,16 @@ function getFileWrites(toolCalls: EventToolCall[]): EventToolCall[] {
   return toolCalls.filter((tc) => WRITE_TOOL_NAMES.has(tc.name) && !tc.causedError);
 }
 
+// Tool names from any runner that represent MCP tool invocations are prefixed `mcp__`.
+const MCP_TOOL_PREFIX = 'mcp__';
+
+/**
+ * Successful (non-errored) MCP tool calls — names are `mcp__<server>__<tool>`.
+ */
+function getSuccessfulMcpCalls(toolCalls: EventToolCall[]): EventToolCall[] {
+  return toolCalls.filter((tc) => tc.name.startsWith(MCP_TOOL_PREFIX) && !tc.causedError);
+}
+
 /**
  * Asserts that the agent wrote a file whose path contains the given substring.
  *
@@ -192,19 +202,12 @@ export function wroteFile(
   };
 }
 
-// Tool names from any runner that represent MCP tool invocations are prefixed `mcp__`.
-const MCP_TOOL_PREFIX = 'mcp__';
-
 /**
  * Asserts that the agent invoked an MCP tool whose (lowercased) name contains
  * the given substring. MCP calls are recorded as `mcp__<server>__<tool>`.
  * Errored calls are excluded — a failed MCP call is not a successful invocation.
  */
-export function calledTool(
-  toolName: string,
-  description: string | undefined,
-  level: EventGraderLevel,
-): GraderDef {
+export function calledTool(toolName: string, description: string | undefined, level: EventGraderLevel): GraderDef {
   validateEventLevel(level, 'calledTool');
   const lc = toolName.toLowerCase();
   return {
@@ -212,9 +215,7 @@ export function calledTool(
     name: description ?? `called MCP tool '${toolName}'`,
     level,
     predicate: (toolCalls: EventToolCall[]) =>
-      toolCalls.some(
-        (tc) => tc.name.startsWith(MCP_TOOL_PREFIX) && !tc.causedError && tc.name.toLowerCase().includes(lc),
-      ),
+      getSuccessfulMcpCalls(toolCalls).some((tc) => tc.name.toLowerCase().includes(lc)),
   };
 }
 
@@ -234,11 +235,6 @@ export function calledToolOneOf(
     name: description ?? `called one of MCP tools [${toolNames.join(', ')}]`,
     level,
     predicate: (toolCalls: EventToolCall[]) =>
-      toolCalls.some(
-        (tc) =>
-          tc.name.startsWith(MCP_TOOL_PREFIX) &&
-          !tc.causedError &&
-          lcs.some((lc) => tc.name.toLowerCase().includes(lc)),
-      ),
+      getSuccessfulMcpCalls(toolCalls).some((tc) => lcs.some((lc) => tc.name.toLowerCase().includes(lc))),
   };
 }
