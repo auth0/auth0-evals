@@ -2,9 +2,14 @@
 const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY === '1';
 const remoteSkillsBranch = process.env.REMOTE_SKILLS_BRANCH || 'main';
 
-// Base URL of the LLM proxy that fronts the model providers. Override via the
-// LLM_PROXY_BASE_URL env var; the default is a placeholder that must be set.
+// Base host of the LLM proxy that fronts the model providers, used by the agent
+// runners below. Override via the LLM_PROXY_BASE_URL env var; the default is a
+// placeholder that must be set.
 const PROXY_BASE_URL = process.env.LLM_PROXY_BASE_URL || 'https://your-llm-proxy.example.com';
+
+// OpenAI-compatible endpoint used for the judge and baseline runs. Set the full
+// URL (including any path such as /v1) in the LLM_PROXY_OPENAI_URL env var.
+const OPENAI_PROXY_URL = process.env.LLM_PROXY_OPENAI_URL || 'https://your-llm-proxy.example.com/v1';
 
 // Per-agent proxy overrides. Each falls back to the shared PROXY_BASE_URL when
 // its agent-specific env var is unset.
@@ -17,7 +22,7 @@ export default {
   evalsDir: 'src/evals',
 
   proxy: {
-    baseUrl: `${PROXY_BASE_URL}/v1`,
+    baseUrl: OPENAI_PROXY_URL,
   },
 
   agents: {
