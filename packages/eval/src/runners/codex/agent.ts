@@ -35,6 +35,7 @@ import {
   estimateCost,
   logger,
   filteredEnv,
+  readWorkspaceFile,
 } from '@a0/eval-core';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/eval-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
@@ -122,6 +123,8 @@ interface RunCtx {
   toolCallsInTurn: number;
   /** Set to true once the master timeout or turn limit fires — stops further turns. */
   timedOut: boolean;
+  /** Absolute workspace root — used to read back content of patched files. */
+  workspace: string;
 }
 
 /** Builds a ToolCallRecord and appends it to record.toolCalls. */
@@ -200,13 +203,20 @@ function handleItem(item: ThreadItem, record: RunRecord, ctx: RunCtx, now: numbe
 
     case 'file_change': {
       // Structured patch from Codex's apply_patch — one tool call per changed
-      // path, giving per-file observability the scorer relies on.
+      // path, giving per-file observability the scorer relies on. The SDK event
+      // carries only path + kind (no content), so for a successful add/update we
+      // read the patched file back from the workspace. This lets content-checking
+      // graders (wroteFile with an `expected` arg) work on par with file-native
+      // runners; reading the cumulative on-disk file also captures incremental
+      // patches (e.g. env vars appended across several edits).
       const isError = item.status === 'failed';
       for (const change of item.changes) {
         const rawName = change.kind === 'delete' ? 'delete_file' : 'write_file';
+        const content =
+          !isError && change.kind !== 'delete' ? readWorkspaceFile(ctx.workspace, change.path) : '';
         ctx.turnToolCount++;
         ctx.toolCallsInTurn++;
-        pushToolCall(record, rawName, { path: change.path }, '', isError, now);
+        pushToolCall(record, rawName, { path: change.path, content }, '', isError, now);
       }
       break;
     }
@@ -461,6 +471,7 @@ export async function runCodexAgent(
     threadId: '',
     toolCallsInTurn: 0,
     timedOut: false,
+    workspace,
   };
 
   // The SDK spawns the `codex` binary with this env, so it reads

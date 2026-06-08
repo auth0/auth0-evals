@@ -22,6 +22,9 @@ export function defineGraders() {
     notContains('sessionStorage.setItem', 'No tokens manually stored in sessionStorage', GraderLevel.L3),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
+    // Event-based install/build verification temporarily disabled — see PR scoping discussion.
+    // ranCommand('npm install', '@auth0/auth0-spa-js', 'Ran npm install for @auth0/auth0-spa-js', GraderLevel.L4),
+    // ranCommand('npm run', 'build', 'Ran build to verify compilation', GraderLevel.L4),
     matches(
       String.raw`createAuth0Client\s*\(\s*\{[\s\S]*?domain`,
       'Auth0Client configured with domain',

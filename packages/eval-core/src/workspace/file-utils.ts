@@ -1,7 +1,41 @@
-import { Dirent, readdirSync, realpathSync, statSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { Dirent, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 import { isPathInside } from './path-utils.js';
 import { DEFAULT_FRAMEWORK_CONFIG } from '../config/defaults.js';
+
+/**
+ * Reads the content of a file inside a workspace, given the workspace root and
+ * a path that may be relative (`src/App.tsx`) or absolute
+ * (`/private/var/.../workspace/.env`). Returns '' on any failure — a missing or
+ * unreadable file simply yields empty content rather than throwing.
+ *
+ * Workspaces often live under a symlinked tmp dir (macOS /var → /private/var),
+ * so both the workspace and the candidate file are canonicalized with
+ * realpathSync before comparison; this keeps a symlink from making an
+ * in-workspace file look like an escape. Anything that resolves outside the
+ * workspace yields ''.
+ */
+export function readWorkspaceFile(workspace: string, filePath: string): string {
+  try {
+    let wsReal: string;
+    try {
+      wsReal = realpathSync(workspace);
+    } catch {
+      wsReal = resolve(workspace);
+    }
+    const candidate = isAbsolute(filePath) ? filePath : join(wsReal, filePath);
+    let fileReal: string;
+    try {
+      fileReal = realpathSync(candidate);
+    } catch {
+      return '';
+    }
+    if (!isPathInside(wsReal, fileReal)) return '';
+    return readFileSync(fileReal, 'utf-8');
+  } catch {
+    return '';
+  }
+}
 
 export interface CollectFilesOptions {
   /** Directory names to skip during traversal. Defaults to {@link DEFAULT_FRAMEWORK_CONFIG}.workspace.excludedDirs. */

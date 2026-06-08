@@ -6,14 +6,8 @@
  * shared so runners and skills strategies can reference them.
  */
 
-export interface GraderDef {
-  kind: string;
-  name: string;
-  needle?: string;
-  pattern?: string;
-  question?: string;
-  framework?: string;
-}
+import type { GraderDef } from '@a0/eval-graders';
+export type { GraderDef } from '@a0/eval-graders';
 
 export interface EvalDefinition {
   id: string;

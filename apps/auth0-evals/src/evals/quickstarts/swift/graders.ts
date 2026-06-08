@@ -26,6 +26,8 @@ export function defineGraders() {
     ),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
+    // Event-based file-write verification temporarily disabled — see PR scoping discussion.
+    // wroteFile('Auth0.plist', 'Created Auth0.plist for credentials', GraderLevel.L4),
     contains('credentialsManager', 'Uses CredentialsManager for token storage', GraderLevel.L4),
     judge(
       'Does the code properly handle login and logout flows with appropriate error handling? ' +

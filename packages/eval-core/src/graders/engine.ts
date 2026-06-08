@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { getFrameworkConfig } from '../config/framework-config.js';
 import { getLitellmModelMap } from '../config/settings.js';
 import { collectFiles as collectFilePaths } from '../workspace/index.js';
-import type { GraderDef, GraderResult } from '@a0/eval-graders';
+import type { GraderDef, GraderResult, EventToolCall } from '@a0/eval-graders';
 import { GraderLevel } from '@a0/eval-graders';
 import { registerExecutor, executeGrader } from './executors/index.js';
 import { containsExecutor } from './executors/contains.js';
@@ -20,6 +20,7 @@ import { notContainsExecutor } from './executors/not-contains.js';
 import { notContainsInSourceExecutor } from './executors/not-contains-in-source.js';
 import { matchesExecutor } from './executors/matches.js';
 import { llmJudgeExecutor } from './executors/llm-judge.js';
+import { eventExecutor } from './executors/event.js';
 
 // Re-export llmJudge from its dedicated module for backward compatibility.
 export { llmJudge } from './llm-judge.js';
@@ -31,6 +32,7 @@ registerExecutor(notContainsExecutor);
 registerExecutor(notContainsInSourceExecutor);
 registerExecutor(matchesExecutor);
 registerExecutor(llmJudgeExecutor);
+registerExecutor(eventExecutor);
 
 // ── Workspace helpers ─────────────────────────────────────────────────────────
 
@@ -113,6 +115,7 @@ export async function runGraders(
   judgeModel?: string,
   allowedLevels?: Set<GraderLevel>,
   enforceMaxChars: boolean = true,
+  toolCalls?: EventToolCall[],
 ): Promise<GraderResult[]> {
   const config = getFrameworkConfig();
   const resolvedJudgeModel = judgeModel ?? config.judge.model ?? '';
@@ -124,9 +127,10 @@ export async function runGraders(
     ? graderDefs.filter((g) => g.level === undefined || allowedLevels.has(g.level))
     : graderDefs;
 
-  const files = collectFiles(workspace);
-  const combinedText = combined(files);
-  const combinedLower = combinedText.toLowerCase();
+  const hasTextGraders = active.some((g) => g.kind !== 'event');
+  const files = hasTextGraders ? collectFiles(workspace) : {};
+  const combinedText = hasTextGraders ? combined(files) : '';
+  const combinedLower = hasTextGraders ? combinedText.toLowerCase() : '';
 
   const context = {
     workspace,
@@ -142,6 +146,7 @@ export async function runGraders(
       modelMap: judgeModelMap,
       enforceMaxChars,
     },
+    toolCalls,
   };
 
   const results: GraderResult[] = [];

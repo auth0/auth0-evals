@@ -83,6 +83,7 @@ export {
   AGENT_GUIDANCE,
   AGENT_CONTEXT_FILENAMES,
   collectFiles,
+  readWorkspaceFile,
   isPathInside,
   resolveInside,
   validatePathFormat,

@@ -93,8 +93,15 @@ Graders define the acceptance criteria. Export a single `defineGraders()` functi
 | `notContainsInSource(needle, description?, level?, options?)` | No **source** file contains the substring (skips `.env`, `.json`, `.plist`, config files) |
 | `matches(pattern, description?, level?)` | Any workspace file matches the regex pattern |
 | `judge(question, level?)` | An LLM judge answers "yes" given the full workspace contents |
+| `ranCommand(command, args, description, level)` | Agent ran a successful shell command containing `command` and all `args` substrings |
+| `ranCommandOneOf(commands, description, level)` | Agent ran at least one successful command from the list (substring match) |
+| `wroteFile(path, description, level, expected?)` | Agent wrote a file whose path contains the substring. With optional `expected` (string or string array), the combined content of all writes to that path must also contain every `expected` substring |
 
 The `options` parameter is an object with an optional `caseSensitive` field (defaults to `true`).
+
+The event-based primitives (`ranCommand`, `ranCommandOneOf`, `wroteFile`) inspect the agent's tool-call trace rather than workspace file contents. They only produce meaningful results in agent mode — in baseline mode (no tool calls), they gracefully fail. The `level` parameter is **required** and must be `GraderLevel.L4` or `GraderLevel.L5` (the type system enforces this). Use L4 for behavioral checks like verifying the agent explicitly installed dependencies or ran a build.
+
+The optional `expected` argument on `wroteFile` is useful when a file is excluded from the LLM judge's view (e.g. `.env` / `.env.local`) but you still need to verify the agent wrote the expected variables into it. Because it concatenates content across all writes to the path, it tolerates agents that build the file incrementally.
 
 ---
 
