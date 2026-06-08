@@ -303,10 +303,25 @@ describe('isJudgeExcluded', () => {
     expect(isJudgeExcluded('app/build/outputs/apk/app.apk')).toBe(true);
   });
 
+  it('excludes .env so credential values never reach the judge', () => {
+    expect(isJudgeExcluded('.env')).toBe(true);
+  });
+
+  it('excludes .env variants (.env.local, .env.production) including nested', () => {
+    expect(isJudgeExcluded('.env.local')).toBe(true);
+    expect(isJudgeExcluded('.env.production')).toBe(true);
+    expect(isJudgeExcluded('config/.env.staging')).toBe(true);
+  });
+
   it('does not exclude source files', () => {
     expect(isJudgeExcluded('app/src/main/MainActivity.kt')).toBe(false);
     expect(isJudgeExcluded('src/index.ts')).toBe(false);
     expect(isJudgeExcluded('build.gradle.kts')).toBe(false);
+  });
+
+  it('does not exclude files that merely contain "env" in the name', () => {
+    expect(isJudgeExcluded('environment.ts')).toBe(false);
+    expect(isJudgeExcluded('src/env.config.ts')).toBe(false);
   });
 
   it('does not exclude paths that merely contain the excluded dir name as a prefix', () => {

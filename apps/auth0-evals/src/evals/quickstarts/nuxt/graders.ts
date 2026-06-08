@@ -35,9 +35,9 @@ export function defineGraders() {
       'No hardcoded client secret in source files (ok in .env)',
       GraderLevel.L3,
     ),
-    judge(
-      'Are all Auth0 credentials (domain, client ID, client secret, session secret) ' +
-        'stored in environment variables or .env files using NUXT_AUTH0_* names, not hardcoded in nuxt.config.ts?',
+    notContainsInSource(
+      'dev-playground.us.auth0.com',
+      'No hardcoded Auth0 domain in source files (ok in .env)',
       GraderLevel.L3,
     ),
     notContains('localStorage.setItem', 'No tokens stored in localStorage', GraderLevel.L3),

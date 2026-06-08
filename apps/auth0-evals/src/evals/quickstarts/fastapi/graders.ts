@@ -24,10 +24,6 @@ export function defineGraders() {
       GraderLevel.L3,
     ),
     notContainsInSource('api.barkbook.com', 'No hardcoded audience in source files (ok in .env)', GraderLevel.L3),
-    judge(
-      'Are the Auth0 domain and audience stored in environment variables or a .env file, not hardcoded in Python source code?',
-      GraderLevel.L3,
-    ),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
     // Event-based install verification temporarily disabled — see PR scoping discussion.

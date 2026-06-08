@@ -9,8 +9,21 @@ import type { GraderContext, GraderExecutor } from './types.js';
 import { llmJudge } from '../llm-judge.js';
 import { logger } from '../../utils/logger.js';
 
-/** File patterns (matched against the basename) excluded from the LLM judge input to save token budget. */
-const JUDGE_EXCLUDED_PATTERNS = [/^tsconfig(\.\w+)?\.json$/, /^angular\.json$/, /^tsconfig\.tsbuildinfo$/, /\.md$/i];
+/**
+ * File patterns (matched against the basename) excluded from the LLM judge input.
+ *
+ * `tsconfig*.json` / `angular.json` are dropped to save token budget. `.env*` files
+ * are dropped so credential values never reach the judge LLM — security graders verify
+ * secret absence in source deterministically via `notContainsInSource`, and "wired into
+ * .env" is an event-based (`wroteFile`) concern, so the judge never needs `.env` content.
+ */
+const JUDGE_EXCLUDED_PATTERNS = [
+  /^tsconfig(\.\w+)?\.json$/,
+  /^angular\.json$/,
+  /^tsconfig\.tsbuildinfo$/,
+  /\.md$/i,
+  /^\.env(\..*)?$/,
+];
 
 /** Directory paths (matched against the relative path) excluded from the LLM judge input — large Android build artifacts. */
 const JUDGE_EXCLUDED_DIRS = ['.gradle', 'app/build'];

@@ -36,9 +36,9 @@ export function defineGraders() {
       'No hardcoded client ID in source files (ok in .env)',
       GraderLevel.L3,
     ),
-    judge(
-      'Are all Auth0 credentials (domain, client ID, client secret, session secret) ' +
-        'stored in environment variables, .env or .env.local files, not hardcoded in source code?',
+    notContainsInSource(
+      'dev-barkbook.us.auth0.com',
+      'No hardcoded Auth0 domain in source files (ok in .env)',
       GraderLevel.L3,
     ),
 
