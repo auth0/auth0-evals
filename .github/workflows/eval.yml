@@ -25,6 +25,10 @@ on:
           - codex
           - copilot
           - gemini-cli
+      remote_skills_branch:
+        description: 'Branch of the remote agent-skills repo to use for skills config'
+        default: 'main'
+        type: string
 
 concurrency:
   group: eval-${{ github.ref }}
@@ -112,6 +116,7 @@ jobs:
           EVAL_MODEL: ${{ matrix.model }}
           EVAL_AGENT_TYPE: ${{ matrix.agent_type }}
           EVAL_TOOLS: ${{ matrix.mode.tools }}
+          REMOTE_SKILLS_BRANCH: ${{ inputs.remote_skills_branch || 'main' }}
         run: |
           ARGS=(
             --eval        "${EVAL_ID}"

@@ -1,5 +1,6 @@
 // @ts-check
 const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY === '1';
+const remoteSkillsBranch = process.env.REMOTE_SKILLS_BRANCH || 'main';
 
 /** @type {import('@a0/eval').FrameworkConfig} */
 export default {
@@ -34,6 +35,7 @@ export default {
     remoteRepos: [
       {
         url: 'https://github.com/auth0/agent-skills.git',
+        branch: remoteSkillsBranch,
         localPath: 'skills-remote/auth0-skills',
         skillsPath: 'plugins/auth0/skills',
       },
