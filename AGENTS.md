@@ -141,7 +141,7 @@ When you make a change, update every doc whose described behavior is affected. T
 | New CLI flag or runner added | `AGENTS.md` CLI flags table and Agent runners table; `README.md` quick-start if the flag is commonly used |
 | Scoring dimension added, changed, or removed | `docs/SCORING_METHODOLOGY.md` first (per the workflow); then `AGENTS.md` scoring section once merged |
 | New grader level or grader primitive added | `AGENTS.md` grader levels table and grader primitives table; `docs/ADDING_EVALS.md` |
-| Framework package added or restructured | `README.md` monorepo structure table; `packages/eval/README.md` if it exists |
+| Framework package added or restructured | `README.md` Packages list; `packages/eval/README.md` if it exists |
 | Docker/sandbox behaviour changed | `AGENTS.md` if it affects how evals run; no dedicated doc today — add a note here |
 
 **Rule of thumb**: if a developer reading the doc would get the wrong mental model or follow a broken example after your change, update the doc. If the doc is still accurate, leave it alone.
