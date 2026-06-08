@@ -84,10 +84,10 @@ export interface ModelsConfig {
   known?: string[];
   /** Default model when none is specified via CLI. */
   default?: string;
-  /** Maps short model aliases to full Bedrock model IDs. */
-  bedrock?: Record<string, string>;
-  /** Maps friendly model aliases to LiteLLM proxy model IDs. */
-  litellm?: Record<string, string>;
+  /** Maps short model aliases to the IDs the active proxy expects.
+   * Bedrock proxy needs full `global.anthropic.*` IDs; LiteLLM serves models
+   * under the alias itself, so the map is empty and aliases pass through. */
+  modelIds?: Record<string, string>;
 }
 
 export interface WorkspaceConfig {

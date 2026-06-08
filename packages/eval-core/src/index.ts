@@ -118,8 +118,8 @@ export { getFrameworkConfig, setFrameworkConfig, getAgentProxyBaseUrl } from './
 export {
   MAX_TURNS,
   CLAUDE_EFFORT_MODELS,
-  getLitellmModelMap,
-  getLitellmModelReverseMap,
+  getModelIdMap,
+  getModelIdReverseMap,
   CLAUDE_CODE_TASK_TIMEOUT_MS,
   COPILOT_TASK_TIMEOUT_MS,
   BASELINE_TASK_TIMEOUT_MS,

@@ -34,8 +34,7 @@ const TEST_CONFIG: Required<FrameworkConfig> = {
   models: {
     known: ['gpt-5.4'],
     default: 'gpt-5.4',
-    bedrock: {},
-    litellm: {},
+    modelIds: {},
   },
 };
 

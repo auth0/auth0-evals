@@ -206,6 +206,42 @@ describe('handleMessage — system', () => {
     expect(record.sessionId).toBe('sess_abc');
   });
 
+  it('init reverses a mapped proxy model ID back to its friendly alias', () => {
+    setFrameworkConfig({
+      ...TEST_CONFIG,
+      models: { ...TEST_CONFIG.models, modelIds: { 'claude-opus-4-7': 'global.anthropic.claude-opus-4-7' } },
+      agents: { 'claude-code': { proxy: { baseUrl: 'https://llm.example.com/anthropic' } } },
+    });
+    try {
+      const record = makeRecord();
+      const msg = {
+        type: 'system',
+        subtype: 'init',
+        session_id: 'sess_rev',
+        model: 'global.anthropic.claude-opus-4-7',
+      } as unknown as SDKSystemMessage;
+      handleMessage(msg, record, makePending(), 0, 0);
+      expect(record.model).toBe('claude-opus-4-7');
+    } finally {
+      setFrameworkConfig({
+        ...TEST_CONFIG,
+        agents: { 'claude-code': { proxy: { baseUrl: 'https://llm.example.com/anthropic' } } },
+      });
+    }
+  });
+
+  it('init prefixes an unknown model with claude-code/', () => {
+    const record = makeRecord();
+    const msg = {
+      type: 'system',
+      subtype: 'init',
+      session_id: 'sess_unk',
+      model: 'some-unknown-model',
+    } as unknown as SDKSystemMessage;
+    handleMessage(msg, record, makePending(), 0, 0);
+    expect(record.model).toBe('claude-code/some-unknown-model');
+  });
+
   it('init with empty model falls back to CLAUDE_CODE_MODEL_ID', () => {
     const record = makeRecord();
     const msg = {

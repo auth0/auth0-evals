@@ -22,8 +22,8 @@ import type { RunRecord, ToolCallRecord, TurnMetric, FinishReason, EvalDefinitio
 import {
   CLAUDE_CODE_TASK_TIMEOUT_MS,
   MAX_TURNS,
-  getLitellmModelMap,
-  getLitellmModelReverseMap,
+  getModelIdMap,
+  getModelIdReverseMap,
   getFrameworkConfig,
   getAgentProxyBaseUrl,
   estimateCost,
@@ -40,19 +40,8 @@ const translator = new ClaudeCodeTranslator();
 
 // ── Model alias mapping ───────────────────────────────────────────────────────
 
-/** Whether the runner should use Bedrock model IDs (via the /anthropic proxy endpoint). */
-const USE_BEDROCK = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY === '1';
-
-function getBedrockModelAliasMap(): Record<string, string> {
-  return getFrameworkConfig().models.bedrock ?? {};
-}
-
-function getBedrockModelReverseMap(): Record<string, string> {
-  return Object.fromEntries(Object.entries(getBedrockModelAliasMap()).map(([alias, full]) => [full, alias]));
-}
-
-function getKnownBedrockAliases(): Set<string> {
-  return new Set(Object.keys(getBedrockModelAliasMap()));
+function getKnownModelAliases(): Set<string> {
+  return new Set(getFrameworkConfig().models.known ?? []);
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -121,14 +110,10 @@ export async function runClaudeCodeAgent(
     workspace,
   };
 
-  // In Bedrock mode, resolve short alias to the full Bedrock model ID
-  // (e.g. claude-sonnet-4-6 → global.anthropic.claude-sonnet-4-6).
-  // In LiteLLM mode, resolve via getLitellmModelMap().
-  const resolvedModel = model
-    ? USE_BEDROCK
-      ? (getBedrockModelAliasMap()[model] ?? model)
-      : (getLitellmModelMap()[model] ?? model)
-    : undefined;
+  // Resolve the short alias to the ID the active proxy expects. The Bedrock
+  // proxy needs full `global.anthropic.*` IDs; the LiteLLM proxy serves models
+  // under the alias itself (empty map), so the alias passes through unchanged.
+  const resolvedModel = model ? (getModelIdMap()[model] ?? model) : undefined;
 
   // Build environment variables for the SDK process.
   // Route through the proxy's Anthropic pass-through endpoint.
@@ -304,9 +289,8 @@ export function handleMessage(
     const sys = message as SDKSystemMessage;
     if (sys.subtype !== 'init') return null;
     record.model = sys.model
-      ? (getBedrockModelReverseMap()[sys.model] ??
-        getLitellmModelReverseMap()[sys.model] ??
-        (getKnownBedrockAliases().has(sys.model) ? sys.model : `claude-code/${sys.model}`))
+      ? (getModelIdReverseMap()[sys.model] ??
+        (getKnownModelAliases().has(sys.model) ? sys.model : `claude-code/${sys.model}`))
       : CLAUDE_CODE_MODEL_ID;
     record.sessionId = sys.session_id;
     logger.info(`[ClaudeCode] Session ${sys.session_id} model=${sys.model}`);

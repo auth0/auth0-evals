@@ -342,11 +342,11 @@ describe('generateRecommendations', () => {
     globalThis.fetch = fetchMock;
 
     const input = makeInput(dir);
-    input.judgeModel = 'claude-sonnet-4-6'; // present in TEST_CONFIG.models.litellm
+    input.judgeModel = 'claude-sonnet-4-6';
     await generateRecommendations(input);
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.model).toBe('claude-sonnet-4-6'); // verifies map-hit branch
+    expect(body.model).toBe('claude-sonnet-4-6'); // empty modelIds map → alias passes through
   });
 
   it('truncates workspace files at MAX_WORKSPACE_CHARS', async () => {

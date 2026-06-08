@@ -39,8 +39,7 @@ export const DEFAULT_FRAMEWORK_CONFIG: Required<FrameworkConfig> = {
   models: {
     known: [],
     default: '',
-    bedrock: {},
-    litellm: {},
+    modelIds: {},
   },
 
   agents: {},

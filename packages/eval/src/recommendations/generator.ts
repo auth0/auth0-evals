@@ -5,7 +5,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { collectFiles, logger, getLitellmModelMap } from '@a0/eval-core';
+import { collectFiles, logger, getModelIdMap } from '@a0/eval-core';
 import type { RunRecord, ScoredResult, Recommendations, Recommendation } from '@a0/eval-core';
 
 /** Maximum characters of workspace code to include in the prompt. */
@@ -165,7 +165,7 @@ Analyze this run and provide your recommendations as JSON.`;
 // ── LLM call ──────────────────────────────────────────────────────────────────
 
 async function callLlm(system: string, user: string, apiKey: string, baseUrl: string, model: string): Promise<string> {
-  const modelMap = getLitellmModelMap();
+  const modelMap = getModelIdMap();
   const apiModel = modelMap[model] ?? model;
   const url = `${baseUrl}/chat/completions`;
   const body = {
