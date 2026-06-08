@@ -1,4 +1,4 @@
-import { contains, notContains, notContainsInSource, matches, judge, GraderLevel } from '@a0/eval-graders';
+import { contains, notContains, notContainsInSource, matches, judge, wroteFile, GraderLevel } from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
@@ -35,6 +35,14 @@ export function defineGraders() {
     ),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
+    // Event-based install/build verification temporarily disabled — see PR scoping discussion.
+    // ranCommand('npm install', '@auth0/nextjs-auth0', 'Ran npm install for @auth0/nextjs-auth0', GraderLevel.L4),
+    // ranCommandOneOf(['npm run build', 'next build'], 'Ran build to verify compilation', GraderLevel.L4),
+    wroteFile('.env', 'Wrote Auth0 credentials to .env file', GraderLevel.L4, [
+      'dev-barkbook.us.auth0.com',
+      'barkbook_client_abc123xyz',
+      'barkbook_secret_def456uvw',
+    ]),
     matches(
       String.raw`export\s+(default\s+)?(async\s+)?function\s+(middleware|proxy)`,
       'Middleware function is exported from middleware or proxy file',

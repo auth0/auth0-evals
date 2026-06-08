@@ -25,6 +25,8 @@ export function defineGraders() {
     ),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
+    // Event-based file-write verification temporarily disabled — see PR scoping discussion.
+    // wroteFile('strings.xml', 'Created or modified strings.xml for Auth0 credentials', GraderLevel.L4),
     contains(
       'manifestPlaceholders',
       'Configures manifestPlaceholders in build.gradle for Auth0 callback URL scheme',

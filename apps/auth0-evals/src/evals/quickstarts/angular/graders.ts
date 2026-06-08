@@ -20,6 +20,13 @@ export function defineGraders() {
     notContains('sessionStorage.setItem', 'No tokens stored in sessionStorage', GraderLevel.L3),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
+    // Event-based install/build verification temporarily disabled — see PR scoping discussion.
+    // ranCommand('npm install', '@auth0/auth0-angular', 'Ran npm install for @auth0/auth0-angular', GraderLevel.L4),
+    // ranCommandOneOf(
+    //   ['npm run build', 'ng build'],
+    //   'Ran build to verify compilation (npm run build, ng build, or npx ng build)',
+    //   GraderLevel.L4,
+    // ),
     matches(String.raw`provideAuth0\s*\(`, 'Auth0 configured via provideAuth0()', GraderLevel.L4),
     matches(
       String.raw`canActivate\s*:\s*\[?\s*(AuthGuard|authGuardFn)`,

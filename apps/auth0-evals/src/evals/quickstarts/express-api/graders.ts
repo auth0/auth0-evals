@@ -1,4 +1,4 @@
-import { contains, notContains, notContainsInSource, matches, judge, GraderLevel } from '@a0/eval-graders';
+import { contains, notContains, notContainsInSource, matches, judge, wroteFile, GraderLevel } from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
@@ -28,6 +28,18 @@ export function defineGraders() {
     ),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
+    // Event-based install verification temporarily disabled — see PR scoping discussion.
+    // ranCommand(
+    //   'npm install',
+    //   'express-oauth2-jwt-bearer',
+    //   'Ran npm install for express-oauth2-jwt-bearer',
+    //   GraderLevel.L4,
+    // ),
+    wroteFile('.env', 'Wrote Auth0 config to .env file', GraderLevel.L4, [
+      'dev-barkbook.us.auth0.com',
+      'api.barkbook.com',
+    ]),
+
     matches(
       String.raw`requiredScopes\s*\(\s*.*read:messages`,
       'GET /api/messages protected with read:messages scope',

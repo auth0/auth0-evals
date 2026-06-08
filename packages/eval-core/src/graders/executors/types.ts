@@ -5,7 +5,7 @@
  * kinds to executors and dispatches grader evaluation through them.
  */
 
-import type { GraderDef, GraderResult } from '@a0/eval-graders';
+import type { GraderDef, GraderResult, EventToolCall } from '@a0/eval-graders';
 
 /**
  * Context passed to every executor. Each executor uses what it needs:
@@ -39,6 +39,8 @@ export interface GraderContext {
     /** Whether to enforce the max chars limit (throws vs warns). */
     enforceMaxChars: boolean;
   };
+  /** Tool call trace from the agent run — used by event-based graders. */
+  toolCalls?: EventToolCall[];
 }
 
 /**

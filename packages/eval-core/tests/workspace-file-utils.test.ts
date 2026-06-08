@@ -5,11 +5,12 @@
  * and truncation behavior using real filesystem operations.
  */
 
-import { describe, it, expect } from 'vitest';
-import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import { describe, it, expect, afterEach } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, realpathSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeTmpDir } from './tmp.js';
-import { collectFiles } from '../src/workspace/file-utils.js';
+import { collectFiles, readWorkspaceFile } from '../src/workspace/file-utils.js';
 
 const tmpDir = makeTmpDir('file_utils_test_');
 
@@ -166,5 +167,66 @@ describe('collectFiles — symlinks', () => {
     expect(files).toContain('local.ts');
     // Symlinked directory pointing outside should not be traversed
     expect(files.every((f) => !f.includes('link-dir'))).toBe(true);
+  });
+});
+
+// ── readWorkspaceFile ───────────────────────────────────────────────────────
+//
+// Deliberately does NOT use makeTmpDir (which realpath-resolves) — the symlink
+// failure mode it guards against only appears with a workspace kept in its
+// /var symlink form (macOS /var → /private/var) and with absolute paths like
+// those Codex's apply_patch emits. A realpath-resolved workspace hides it.
+
+describe('readWorkspaceFile', () => {
+  const created: string[] = [];
+  function makeWorkspace(): string {
+    const dir = mkdtempSync(join(tmpdir(), 'ws_read_'));
+    created.push(dir);
+    return dir;
+  }
+
+  afterEach(() => {
+    for (const d of created) rmSync(d, { recursive: true, force: true });
+    created.length = 0;
+  });
+
+  it('reads content via a relative path even when the workspace is a symlink', () => {
+    const ws = makeWorkspace();
+    writeFileSync(join(ws, '.env'), 'AUTH0_DOMAIN=dev-barkbook.us.auth0.com\nAUTH0_CLIENT_ID=abc123\n');
+
+    const content = readWorkspaceFile(ws, '.env');
+    expect(content).toContain('AUTH0_DOMAIN=dev-barkbook.us.auth0.com');
+    expect(content).toContain('AUTH0_CLIENT_ID=abc123');
+  });
+
+  it('reads content via an absolute path in /var (symlink) form', () => {
+    const ws = makeWorkspace();
+    writeFileSync(join(ws, '.env'), 'AUTH0_SECRET=barkbook_secret_def456uvw\n');
+
+    const absVar = join(ws, '.env');
+    const content = readWorkspaceFile(ws, absVar);
+    expect(content).toContain('AUTH0_SECRET=barkbook_secret_def456uvw');
+  });
+
+  it('reads content via an absolute path in canonical /private/var form', () => {
+    const ws = makeWorkspace();
+    writeFileSync(join(ws, 'src.txt'), 'hello world');
+
+    const absReal = join(realpathSync(ws), 'src.txt');
+    const content = readWorkspaceFile(ws, absReal);
+    expect(content).toBe('hello world');
+  });
+
+  it('returns empty string for a path that escapes the workspace', () => {
+    const outside = makeWorkspace();
+    writeFileSync(join(outside, 'secret.txt'), 'top secret');
+    const ws = makeWorkspace();
+
+    expect(readWorkspaceFile(ws, join(outside, 'secret.txt'))).toBe('');
+  });
+
+  it('returns empty string when the file does not exist', () => {
+    const ws = makeWorkspace();
+    expect(readWorkspaceFile(ws, 'nope.txt')).toBe('');
   });
 });

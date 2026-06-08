@@ -19,6 +19,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ── Mock fs to avoid touching the filesystem ─────────────────────────────────
 
+// In-memory file contents the mocked readFileSync serves. Keyed by absolute path.
+const fakeFiles = vi.hoisted(() => new Map<string, string>());
+
 vi.mock('node:fs', async () => {
   const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
   return {
@@ -26,6 +29,12 @@ vi.mock('node:fs', async () => {
     mkdirSync: vi.fn(),
     writeFileSync: vi.fn(),
     realpathSync: vi.fn((p: string) => p),
+    readFileSync: vi.fn((p: string) => {
+      if (fakeFiles.has(p)) return fakeFiles.get(p)!;
+      const err = new Error(`ENOENT: no such file '${p}'`) as NodeJS.ErrnoException;
+      err.code = 'ENOENT';
+      throw err;
+    }),
   };
 });
 
@@ -124,6 +133,7 @@ beforeEach(() => {
   sdk.state.startThreadCalls = [];
   sdk.state.resumeThreadCalls = [];
   sdk.state.turns = [];
+  fakeFiles.clear();
 });
 
 // ── thread.started ────────────────────────────────────────────────────────────
@@ -291,6 +301,70 @@ describe('file_change events', () => {
     const record = await runCodexAgent(evalDef, workspace);
     expect(record.toolCalls[0].name).toBe('write_file');
     expect(record.toolCalls[0].causedError).toBe(true);
+  });
+
+  it('captures written file content from the workspace for add/update changes', async () => {
+    fakeFiles.set(`${workspace}/.env`, 'AUTH0_DOMAIN=example.auth0.com\nAUTH0_CLIENT_ID=abc123\n');
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: {
+          type: 'file_change',
+          id: 'fc_3',
+          status: 'completed',
+          changes: [{ path: '.env', kind: 'add' }],
+        },
+      },
+      turnCompleted(),
+    ]);
+
+    const record = await runCodexAgent(evalDef, workspace);
+    const write = record.toolCalls.find((tc) => tc.name === 'write_file');
+    expect(write?.args.path).toBe('.env');
+    expect(write?.args.content).toContain('AUTH0_DOMAIN=example.auth0.com');
+    expect(write?.args.content).toContain('AUTH0_CLIENT_ID=abc123');
+  });
+
+  it('leaves content empty when the written file cannot be read back', async () => {
+    // No entry in fakeFiles → readFileSync throws ENOENT.
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: {
+          type: 'file_change',
+          id: 'fc_4',
+          status: 'completed',
+          changes: [{ path: 'src/App.tsx', kind: 'update' }],
+        },
+      },
+      turnCompleted(),
+    ]);
+
+    const record = await runCodexAgent(evalDef, workspace);
+    const write = record.toolCalls.find((tc) => tc.name === 'write_file');
+    expect(write?.args.path).toBe('src/App.tsx');
+    expect(write?.args.content).toBe('');
+  });
+
+  it('does not read content for deleted or failed changes', async () => {
+    fakeFiles.set(`${workspace}/gone.ts`, 'should not be read');
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: {
+          type: 'file_change',
+          id: 'fc_5',
+          status: 'failed',
+          changes: [{ path: 'gone.ts', kind: 'add' }],
+        },
+      },
+      turnCompleted(),
+    ]);
+
+    const record = await runCodexAgent(evalDef, workspace);
+    const write = record.toolCalls.find((tc) => tc.name === 'write_file');
+    expect(write?.causedError).toBe(true);
+    expect(write?.args.content).toBe('');
   });
 });
 
