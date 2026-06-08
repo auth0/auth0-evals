@@ -1,6 +1,7 @@
 ---
 id: react_quickstart
 name: React Quickstart
+scaffold: src/evals/scaffolds/react/basic
 skills: auth0-react
 setup_command: npm install
 ---
