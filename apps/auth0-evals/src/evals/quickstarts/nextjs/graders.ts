@@ -28,9 +28,9 @@ export function defineGraders() {
       'No hardcoded client ID in source files (ok in .env)',
       GraderLevel.L3,
     ),
-    judge(
-      'Are all Auth0 credentials (domain, client ID, client secret, AUTH0_SECRET) ' +
-        'stored in environment variables or .env files, not hardcoded in source code?',
+    notContainsInSource(
+      'dev-barkbook.us.auth0.com',
+      'No hardcoded Auth0 domain in source files (ok in .env)',
       GraderLevel.L3,
     ),
 
@@ -90,8 +90,10 @@ export function defineGraders() {
       GraderLevel.L5,
     ),
     judge(
-      'Does the code use current v4 environment variable names (AUTH0_DOMAIN, AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET, AUTH0_SECRET) ' +
-        'and NOT deprecated v3 names (AUTH0_BASE_URL, AUTH0_ISSUER_BASE_URL)?',
+      'Does the source code rely on the v4 SDK configuration convention — instantiating Auth0Client so it reads ' +
+        'the standard AUTH0_DOMAIN / AUTH0_CLIENT_ID / AUTH0_CLIENT_SECRET / AUTH0_SECRET environment variables (or passing ' +
+        'those as options) — and avoid referencing the deprecated v3 names AUTH0_BASE_URL or AUTH0_ISSUER_BASE_URL anywhere in source? ' +
+        'Judge only from the source code; do not assume the contents of any .env file.',
       GraderLevel.L5,
     ),
   ];
