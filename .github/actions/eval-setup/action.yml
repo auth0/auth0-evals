@@ -4,7 +4,7 @@ description: 'Restore node_modules, download pre-built dist artifact, and link w
 runs:
   using: composite
   steps:
-    - name: Setup Node.js and npm (Artifactory)
+    - name: Setup Node.js and npm
       uses: ./.github/actions/setup-npm
 
     - name: Restore node_modules cache

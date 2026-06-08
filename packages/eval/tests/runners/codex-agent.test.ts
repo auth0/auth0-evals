@@ -46,14 +46,14 @@ vi.mock('node:fs/promises', () => ({
 
 const mockGetFrameworkConfig = vi.hoisted(() =>
   vi.fn().mockReturnValue({
-    proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+    proxy: { baseUrl: 'https://your-llm-proxy.example.com/v1' },
     mcp: { servers: {} },
   }),
 );
 
 vi.mock('@a0/eval-core', async () => ({
   ...(await vi.importActual('@a0/eval-core')),
-  getAgentProxyBaseUrl: vi.fn().mockReturnValue('<LLM_PROXY_URL>'),
+  getAgentProxyBaseUrl: vi.fn().mockReturnValue('https://your-llm-proxy.example.com'),
   getFrameworkConfig: mockGetFrameworkConfig,
 }));
 
@@ -670,14 +670,14 @@ describe('thread options', () => {
 describe('MCP integration', () => {
   beforeEach(() => {
     mockGetFrameworkConfig.mockReturnValue({
-      proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+      proxy: { baseUrl: 'https://your-llm-proxy.example.com/v1' },
       mcp: { servers: {} },
     });
   });
 
   it('writes http MCP server block to config.toml', async () => {
     mockGetFrameworkConfig.mockReturnValue({
-      proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+      proxy: { baseUrl: 'https://your-llm-proxy.example.com/v1' },
       mcp: {
         servers: {
           'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' },
@@ -700,7 +700,7 @@ describe('MCP integration', () => {
 
   it('writes stdio MCP server block with args and env_vars to config.toml', async () => {
     mockGetFrameworkConfig.mockReturnValue({
-      proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+      proxy: { baseUrl: 'https://your-llm-proxy.example.com/v1' },
       mcp: {
         servers: {
           'local-tool': {
@@ -731,7 +731,7 @@ describe('MCP integration', () => {
 
   it('injects stdio MCP server env vars into the Codex env', async () => {
     mockGetFrameworkConfig.mockReturnValue({
-      proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+      proxy: { baseUrl: 'https://your-llm-proxy.example.com/v1' },
       mcp: {
         servers: {
           'local-tool': {
@@ -754,7 +754,7 @@ describe('MCP integration', () => {
 
   it('does not write MCP sections when tools does not include mcp', async () => {
     mockGetFrameworkConfig.mockReturnValue({
-      proxy: { baseUrl: '<LLM_PROXY_URL>/v1' },
+      proxy: { baseUrl: 'https://your-llm-proxy.example.com/v1' },
       mcp: {
         servers: {
           'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' },

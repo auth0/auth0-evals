@@ -2,23 +2,35 @@
 const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY === '1';
 const remoteSkillsBranch = process.env.REMOTE_SKILLS_BRANCH || 'main';
 
+// Base URL of the LLM proxy that fronts the model providers. Override via the
+// LLM_PROXY_BASE_URL env var; the default is a placeholder that must be set.
+const PROXY_BASE_URL = process.env.LLM_PROXY_BASE_URL || 'https://your-llm-proxy.example.com';
+
+// Per-agent proxy overrides. Each falls back to the shared PROXY_BASE_URL when
+// its agent-specific env var is unset.
+const CLAUDE_PROXY_BASE_URL = process.env.CLAUDE_PROXY_BASE_URL || PROXY_BASE_URL;
+const GEMINI_PROXY_BASE_URL = process.env.GEMINI_PROXY_BASE_URL || 'http://127.0.0.1:9876';
+const CODEX_PROXY_BASE_URL = process.env.CODEX_PROXY_BASE_URL || PROXY_BASE_URL;
+
 /** @type {import('@a0/eval').FrameworkConfig} */
 export default {
   evalsDir: 'src/evals',
 
   proxy: {
-    baseUrl: '<LLM_PROXY_URL>/v1',
+    baseUrl: `${PROXY_BASE_URL}/v1`,
   },
 
   agents: {
     'claude-code': {
-      proxy: { baseUrl: useBedrock ? '<LLM_PROXY_URL>/anthropic' : '<LLM_PROXY_URL>' },
+      proxy: {
+        baseUrl: useBedrock ? `${CLAUDE_PROXY_BASE_URL}/anthropic` : CLAUDE_PROXY_BASE_URL,
+      },
     },
     'gemini-cli': {
-      proxy: { baseUrl: 'http://127.0.0.1:9876' },
+      proxy: { baseUrl: GEMINI_PROXY_BASE_URL },
     },
     'codex': {
-      proxy: { baseUrl: '<LLM_PROXY_URL>' },
+      proxy: { baseUrl: CODEX_PROXY_BASE_URL },
     },
   },
 

@@ -82,7 +82,7 @@ iptables -A OUTPUT -d 169.254.0.0/16 -j REJECT --reject-with icmp-net-unreachabl
 
 # Everything else is public internet — allow it.
 # This enables: npm install, pip install, fetching documentation, calling the
-# LLM proxy (<LLM_PROXY_HOST>), and any other public API the agent needs.
+# LLM proxy, and any other public API the agent needs.
 iptables -A OUTPUT -j ACCEPT
 
 echo "[sandbox] Network isolation applied — internal/host traffic blocked"

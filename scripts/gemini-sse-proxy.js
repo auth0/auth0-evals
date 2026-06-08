@@ -18,7 +18,7 @@ import { createServer, request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { parseArgs } from 'node:util';
 
-const UPSTREAM_URL = '<LLM_PROXY_URL>';
+const UPSTREAM_URL = process.env.LLM_PROXY_BASE_URL || 'https://your-llm-proxy.example.com';
 
 const { values } = parseArgs({
   options: {
