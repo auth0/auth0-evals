@@ -1,34 +1,29 @@
 // @ts-check
-const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY === '1';
 const remoteSkillsBranch = process.env.REMOTE_SKILLS_BRANCH || 'main';
 
 // Base host of the LLM proxy that fronts the model providers, used by the agent
-// runners below. Override via the LLM_PROXY_BASE_URL env var; the default is a
-// placeholder that must be set.
-const PROXY_BASE_URL = process.env.LLM_PROXY_BASE_URL || 'https://your-llm-proxy.example.com';
-
-// OpenAI-compatible endpoint used for the judge and baseline runs. Set the full
-// URL (including any path such as /v1) in the LLM_PROXY_OPENAI_URL env var.
-const OPENAI_PROXY_URL = process.env.LLM_PROXY_OPENAI_URL || 'https://your-llm-proxy.example.com/v1';
+// runners below. Set via the LLM_PROXY_BASE_URL env var; unset by default, and
+// required at runtime (the CLI fails fast if proxy.baseUrl is empty).
+const PROXY_BASE_URL = process.env.LLM_PROXY_BASE_URL ?? '';
 
 // Per-agent proxy overrides. Each falls back to the shared PROXY_BASE_URL when
 // its agent-specific env var is unset.
-const CLAUDE_PROXY_BASE_URL = process.env.CLAUDE_PROXY_BASE_URL || PROXY_BASE_URL;
-const GEMINI_PROXY_BASE_URL = process.env.GEMINI_PROXY_BASE_URL || 'http://127.0.0.1:9876';
-const CODEX_PROXY_BASE_URL = process.env.CODEX_PROXY_BASE_URL || PROXY_BASE_URL;
+const CLAUDE_PROXY_BASE_URL = process.env.CLAUDE_PROXY_BASE_URL ?? PROXY_BASE_URL;
+const GEMINI_PROXY_BASE_URL = process.env.GEMINI_PROXY_BASE_URL ?? PROXY_BASE_URL;
+const CODEX_PROXY_BASE_URL = process.env.CODEX_PROXY_BASE_URL ?? PROXY_BASE_URL;
 
 /** @type {import('@a0/eval').FrameworkConfig} */
 export default {
   evalsDir: 'src/evals',
 
   proxy: {
-    baseUrl: OPENAI_PROXY_URL,
+    baseUrl: PROXY_BASE_URL,
   },
 
   agents: {
     'claude-code': {
       proxy: {
-        baseUrl: useBedrock ? `${CLAUDE_PROXY_BASE_URL}/anthropic` : CLAUDE_PROXY_BASE_URL,
+        baseUrl: CLAUDE_PROXY_BASE_URL,
       },
     },
     'gemini-cli': {
