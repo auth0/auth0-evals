@@ -82,6 +82,7 @@ export {
   writeAgentGuidance,
   AGENT_GUIDANCE,
   AGENT_CONTEXT_FILENAMES,
+  compileGuidance,
   collectFiles,
   readWorkspaceFile,
   isPathInside,

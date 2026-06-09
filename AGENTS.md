@@ -137,6 +137,7 @@ When you make a change, update every doc whose described behavior is affected. T
 |---|---|
 | New eval added (`PROMPT.md` + `graders.ts`) | `AGENTS.md` eval list (if maintaining one); `docs/ADDING_EVALS.md` if the change reveals a gap in the guide |
 | `setup_command` behaviour changed (e.g. new syntax supported) | `docs/ADDING_EVALS.md` — frontmatter table and example; `AGENTS.md` checklist if relevant |
+| `compile_command` added to an eval or its context-injection behaviour changed | `docs/ADDING_EVALS.md` — frontmatter table and example; `AGENTS.md` checklist if relevant |
 | New skill added or skill resolution logic changed | `docs/TESTING_SKILLS.md`; `AGENTS.md` if skill tooling or config changed |
 | New CLI flag or runner added | `AGENTS.md` CLI flags table and Agent runners table; `README.md` quick-start if the flag is commonly used |
 | Scoring dimension added, changed, or removed | `docs/SCORING_METHODOLOGY.md` first (per the workflow); then `AGENTS.md` scoring section once merged |
@@ -151,7 +152,7 @@ When you make a change, update every doc whose described behavior is affected. T
 ## Adding an eval — checklist
 
 1. `src/evals/<category>/<eval-dir>/PROMPT.md` + `graders.ts`
-2. Add `id` (required) and optionally `name`/`category` to `PROMPT.md` frontmatter — the framework auto-discovers evals from `evalsDir`
+2. Add `id` (required) and optionally `name`/`category`/`compile_command` to `PROMPT.md` frontmatter — the framework auto-discovers evals from `evalsDir`. Set `compile_command` to point the agent at a verify-compiles command (injected into the agent's context file, e.g. `CLAUDE.md`); omit for evals with no CLI compile step (e.g. mobile).
 3. All imports use `.js` extensions; `import type` for type-only
 4. All graders have `GraderLevel`; one final holistic `judge` with no level
 5. `npm run build && npm test` passes

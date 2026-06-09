@@ -4,6 +4,7 @@ name: React Quickstart
 scaffold: src/evals/scaffolds/react/basic
 skills: auth0-react
 setup_command: npm install
+compile_command: npm run build
 ---
 
 ## Task

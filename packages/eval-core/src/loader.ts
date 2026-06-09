@@ -63,6 +63,7 @@ export async function loadEval(
     .filter(Boolean);
 
   const setupCommand = meta.setup_command || undefined;
+  const compileCommand = meta.compile_command || undefined;
 
   return {
     id: evalConfig.id,
@@ -74,6 +75,7 @@ export async function loadEval(
     graders,
     scaffold,
     setupCommand,
+    compileCommand,
     skills,
     metadata: {
       provider_name: meta.provider_name ?? 'Auth0',
