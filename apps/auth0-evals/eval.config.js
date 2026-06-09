@@ -79,6 +79,13 @@ export default {
   },
 
 
+  sandbox: {
+    // Host env vars forwarded into the Docker sandbox (names only; values resolved
+    // from process.env at launch). Needed so the authenticated auth0-hosted-mcp
+    // server can mint its token inside the container.
+    passthroughEnv: ['MCP_TENANT_DOMAIN', 'MCP_CLIENT_ID', 'MCP_CLIENT_SECRET'],
+  },
+
   braintrust: {
     projectId: '38395851-dd41-46ec-a971-a30402db6921',
     datasetName: 'auth0-evals',

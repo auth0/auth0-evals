@@ -136,6 +136,16 @@ export interface ScoringConfig {
 
 // ── Root config ──────────────────────────────────────────────────────────────
 
+export interface SandboxConfig {
+  /**
+   * Names of host environment variables to forward into the Docker sandbox.
+   * Each name is resolved from `process.env` at job launch; only currently-set
+   * vars are forwarded. Use for app-specific secrets the framework can't know
+   * about (e.g. MCP server credentials). Names only — values are never stored here.
+   */
+  passthroughEnv?: string[];
+}
+
 export interface FrameworkConfig {
   /** Directory containing evaluation definitions (required). */
   evalsDir: string;
@@ -157,4 +167,6 @@ export interface FrameworkConfig {
   braintrust?: BraintrustConfig;
   /** Scoring behaviour overrides (e.g. custom doc URL allowlist). */
   scoring?: ScoringConfig;
+  /** Docker sandbox settings (e.g. env vars to forward into the container). */
+  sandbox?: SandboxConfig;
 }

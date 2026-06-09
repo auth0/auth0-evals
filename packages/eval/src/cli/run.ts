@@ -184,6 +184,7 @@ async function runAgentJob(
         agentType,
         apiKey,
         ghToken: process.env.GH_TOKEN,
+        passthroughEnv: getFrameworkConfig().sandbox.passthroughEnv,
       });
     }
 
