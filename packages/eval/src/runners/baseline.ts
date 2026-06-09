@@ -74,7 +74,6 @@ export async function llmCall(
     model: openai(apiModel),
     system: systemPrompt,
     prompt: userPrompt,
-    temperature: 0,
     abortSignal: AbortSignal.timeout(BASELINE_TASK_TIMEOUT_MS),
   });
 }

@@ -150,7 +150,6 @@ describe('runBaseline', () => {
       expect.objectContaining({
         system: 'You are a React developer.',
         prompt: 'Add Auth0 authentication to the app.',
-        temperature: 0,
       }),
     );
   });
