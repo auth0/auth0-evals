@@ -8,6 +8,7 @@ import {
   writeAgentGuidance,
   AGENT_GUIDANCE,
   AGENT_CONTEXT_FILENAMES,
+  compileGuidance,
 } from '../src/workspace/workspace.js';
 import { resolveInside } from '../src/workspace/path-utils.js';
 
@@ -138,6 +139,38 @@ describe('writeAgentGuidance - runner-aware context file', () => {
     expect(content.endsWith(AGENT_GUIDANCE)).toBe(true);
 
     cleanupWorkspace(workspace);
+  });
+
+  it('appends compile guidance containing the command when compileCommand is provided', () => {
+    const workspace = setupWorkspace({ 'index.js': 'ok' });
+    writeAgentGuidance(workspace, 'claude-code', 'npm run build');
+
+    const content = readFileSync(join(workspace, 'CLAUDE.md'), 'utf-8');
+    expect(content).toContain(AGENT_GUIDANCE);
+    expect(content).toContain('npm run build');
+    expect(content).toContain('verify your integration compiles');
+
+    cleanupWorkspace(workspace);
+  });
+
+  it('omits compile guidance when compileCommand is not provided', () => {
+    const workspace = setupWorkspace({ 'index.js': 'ok' });
+    writeAgentGuidance(workspace, 'claude-code');
+
+    const content = readFileSync(join(workspace, 'CLAUDE.md'), 'utf-8');
+    expect(content).toBe(AGENT_GUIDANCE);
+    expect(content).not.toContain('verify your integration compiles');
+
+    cleanupWorkspace(workspace);
+  });
+});
+
+describe('compileGuidance', () => {
+  it('embeds the command and the verification instruction', () => {
+    const result = compileGuidance('npm run build');
+
+    expect(result).toContain('npm run build');
+    expect(result).toContain('verify your integration compiles');
   });
 });
 

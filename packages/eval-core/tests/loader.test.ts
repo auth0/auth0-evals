@@ -151,6 +151,26 @@ describe('loadEval - setupCommand', () => {
   });
 });
 
+// ── compile_command frontmatter tests ────────────────────────────────────────
+
+describe('loadEval - compileCommand', () => {
+  it('parses compile_command from frontmatter', async () => {
+    makeEvalDir(tmpBase, '---\nskills: auth0-react\ncompile_command: npm run build\n---\n\n## Task\nDo the task.\n');
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.compileCommand).toBe('npm run build');
+  });
+
+  it('returns undefined when compile_command is absent', async () => {
+    makeEvalDir(tmpBase, '---\nskills: auth0-react\n---\n\n## Task\nDo the task.\n');
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.compileCommand).toBeUndefined();
+  });
+});
+
 // ── System prompt tests ───────────────────────────────────────────────────────
 
 describe('loadEval - system prompt', () => {
@@ -239,9 +259,7 @@ describe('loadEval - scaffold loading', () => {
     expect(result.scaffold['readable.txt']).toBe('this is fine');
     expect(result.scaffold['unreadable.txt']).toBeUndefined();
   });
-
 });
-
 
 // ── frontmatter scaffold field tests ─────────────────────────────────────────
 
