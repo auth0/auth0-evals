@@ -19,7 +19,7 @@
   "dependencies": {
     "@a0/eval-core": "*",
     "@a0/eval-graders": "*",
-    "marked": "^18.0.2",
+    "marked": "^18.0.5",
     "nunjucks": "^3.2.4"
   },
   "devDependencies": {
