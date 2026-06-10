@@ -38,7 +38,7 @@ export const AGENT_GUIDANCE = `Do not create any documentation files (README.md,
  * means it appears in the tool trace and the agent can fix any failures.
  */
 export function compileGuidance(compileCommand: string): string {
-  return `To verify your integration compiles, you can use this command:\n\n\`${compileCommand}\`\n`;
+  return `After making your changes, you MUST run this command to verify your integration compiles, and fix any errors it reports before finishing:\n\n\`${compileCommand}\`\n`;
 }
 
 /**

@@ -172,6 +172,13 @@ describe('compileGuidance', () => {
     expect(result).toContain('npm run build');
     expect(result).toContain('verify your integration compiles');
   });
+
+  it('phrases the instruction as mandatory, not optional', () => {
+    const result = compileGuidance('npm run build');
+
+    expect(result).toContain('MUST');
+    expect(result).not.toContain('you can use');
+  });
 });
 
 describe('resolveInside - symlink escape protection', () => {
