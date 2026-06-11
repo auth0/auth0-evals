@@ -3,6 +3,7 @@ id: fastapi_quickstart
 name: FastAPI Quickstart
 skills: auth0-fastapi-api
 setup_command: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+compile_command: .venv/bin/python -m py_compile main.py
 ---
 
 ## Task

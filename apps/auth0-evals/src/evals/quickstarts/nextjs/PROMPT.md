@@ -3,6 +3,7 @@ id: nextjs_quickstart
 name: Next.js App Router Quickstart
 skills: auth0-nextjs
 setup_command: npm install
+compile_command: npm run build
 ---
 
 ## Task
