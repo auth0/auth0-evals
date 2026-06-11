@@ -21,7 +21,7 @@
     "@anthropic-ai/claude-code": "2.1.153",
     "@github/copilot-sdk": "^0.3.0",
     "@google/gemini-cli": "^0.45.2",
-    "@openai/codex": "^0.136.0",
+    "@openai/codex": "^0.139.0",
     "@openai/codex-sdk": "^0.136.0",
     "ai": "^6.0.198",
     "braintrust": "^3.9.0",
