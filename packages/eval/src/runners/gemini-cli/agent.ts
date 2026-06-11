@@ -41,6 +41,19 @@ export const GEMINI_CLI_MODEL_ID = 'gemini-cli';
 /** Default model — flash has a higher free-tier quota than pro. */
 export const GEMINI_CLI_DEFAULT_MODEL = 'gemini-3.1-pro-preview';
 
+/**
+ * Auth method pinned in .gemini/settings.json. Gemini CLI 0.45+ added a new
+ * `gateway` auth type that getAuthTypeFromEnv() returns whenever
+ * GOOGLE_GEMINI_BASE_URL is set — and it checks that before GEMINI_API_KEY. But
+ * the non-interactive validator (validateAuthMethod) has no `gateway` case, so
+ * it rejects the run with "Invalid auth method selected." We route through a
+ * proxy (GOOGLE_GEMINI_BASE_URL) and authenticate with GEMINI_API_KEY, so we
+ * pin the validated `gemini-api-key` type explicitly. The CLI prefers the
+ * configured auth type over env detection, and `gemini-api-key` still honours
+ * GOOGLE_GEMINI_BASE_URL for the endpoint, so proxy routing is preserved.
+ */
+const GEMINI_AUTH_TYPE = 'gemini-api-key';
+
 /** Reuse the Claude Code timeout budget. */
 const GEMINI_CLI_TIMEOUT_MS = CLAUDE_CODE_TASK_TIMEOUT_MS;
 
@@ -54,27 +67,40 @@ function isAutoCancelled(output: string): boolean {
 }
 
 /**
- * Writes .gemini/settings.json into the workspace so the Gemini CLI picks up
- * the Auth0 docs MCP server for the duration of the eval run.
+ * Writes <workspace>/.gemini/settings.json so the Gemini CLI picks up our
+ * config for the duration of the eval run. Always pins the auth method (see
+ * GEMINI_AUTH_TYPE); when `includeMcp` is set, also registers the configured
+ * HTTP MCP servers.
  *
- * Gemini CLI discovers per-project MCP config from <workspace>/.gemini/settings.json.
+ * Gemini CLI discovers per-project config from <workspace>/.gemini/settings.json.
  * MCP tool calls appear in the stream-json output as tool_use events with names
  * using the format `mcp__<serverName>__<toolName>` (e.g. `mcp__auth0-docs__search_auth0_docs`).
+ *
+ * Returns the names of the registered MCP servers (empty when MCP is disabled).
  */
-function writeMcpSettings(workspace: string): string[] {
-  const configServers = getFrameworkConfig().mcp.servers;
+function writeGeminiSettings(workspace: string, includeMcp: boolean): string[] {
+  const settings: {
+    security: { auth: { selectedType: string } };
+    mcpServers?: Record<string, { httpUrl: string; timeout: number }>;
+  } = {
+    security: { auth: { selectedType: GEMINI_AUTH_TYPE } },
+  };
+
   const mcpServers: Record<string, { httpUrl: string; timeout: number }> = {};
-  for (const [name, server] of Object.entries(configServers)) {
-    if (server.type === 'http') {
-      mcpServers[name] = { httpUrl: server.url, timeout: 30000 };
+  if (includeMcp) {
+    const configServers = getFrameworkConfig().mcp.servers;
+    for (const [name, server] of Object.entries(configServers)) {
+      if (server.type === 'http') {
+        mcpServers[name] = { httpUrl: server.url, timeout: 30000 };
+      }
     }
+    if (Object.keys(mcpServers).length > 0) settings.mcpServers = mcpServers;
   }
-  const names = Object.keys(mcpServers);
-  if (names.length === 0) return names;
+
   const geminiDir = join(workspace, '.gemini');
   mkdirSync(geminiDir, { recursive: true });
-  writeFileSync(join(geminiDir, 'settings.json'), JSON.stringify({ mcpServers }, null, 2), 'utf-8');
-  return names;
+  writeFileSync(join(geminiDir, 'settings.json'), JSON.stringify(settings, null, 2), 'utf-8');
+  return Object.keys(mcpServers);
 }
 
 /**
@@ -128,10 +154,8 @@ export async function runGeminiCliAgent(
   logger.info(`\n[GeminiCLI] Starting task: ${evalDef.id}`);
   logger.info(`[GeminiCLI] Workspace: ${workspace}`);
   logger.info(`[GeminiCLI] Model: ${model}`);
-  if (tools.includes('mcp')) {
-    const mcpNames = writeMcpSettings(workspace);
-    if (mcpNames.length > 0) logger.info(`[GeminiCLI] MCP: ${mcpNames.join(', ')}`);
-  }
+  const mcpNames = writeGeminiSettings(workspace, tools.includes('mcp'));
+  if (mcpNames.length > 0) logger.info(`[GeminiCLI] MCP: ${mcpNames.join(', ')}`);
 
   // Trust only this workspace so YOLO mode isn't overridden in CI/headless environments.
   const trustedFoldersPath = writeTrustedFolders(workspace);
