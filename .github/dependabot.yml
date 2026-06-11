@@ -18,3 +18,10 @@ updates:
       include: scope
     labels:
       - "dependencies"
+    groups:
+      # Keep the Codex CLI and its SDK in lockstep — the SDK spawns the codex
+      # binary it pins, so bumping one without the other has no effect.
+      openai-codex:
+        patterns:
+          - "@openai/codex"
+          - "@openai/codex-sdk"
