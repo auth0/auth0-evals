@@ -11,9 +11,12 @@
  *   - orphaned tool_use (no result) → drained on close
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
+import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // ── Mock framework config ────────────────────────────────────────────────────
 
@@ -490,6 +493,58 @@ describe('status and final state', () => {
 
     const record = await runGeminiCliAgent(evalDef, workspace);
     expect(record.finalSummary).toBe('Final response.');
+  });
+});
+
+// ── .gemini/settings.json ──────────────────────────────────────────────────
+
+describe('.gemini/settings.json', () => {
+  let tmpWorkspace: string;
+
+  beforeEach(() => {
+    tmpWorkspace = mkdtempSync(join(tmpdir(), 'gemini-settings-'));
+  });
+
+  afterEach(() => {
+    rmSync(tmpWorkspace, { recursive: true, force: true });
+  });
+
+  function readSettings(): Record<string, unknown> {
+    const path = join(tmpWorkspace, '.gemini', 'settings.json');
+    return JSON.parse(readFileSync(path, 'utf-8')) as Record<string, unknown>;
+  }
+
+  it('pins gemini-api-key auth type even when MCP is disabled', async () => {
+    // Gemini CLI 0.45+ returns the unvalidated `gateway` auth type when
+    // GOOGLE_GEMINI_BASE_URL is set; pinning the validated type prevents the
+    // "Invalid auth method selected." failure.
+    mockSpawn.mockReturnValue(makeChild([resultEvent()]));
+
+    await runGeminiCliAgent(evalDef, tmpWorkspace, { tools: [] });
+
+    const settings = readSettings();
+    expect(settings.security).toEqual({ auth: { selectedType: 'gemini-api-key' } });
+    expect(settings).not.toHaveProperty('mcpServers');
+  });
+
+  it('registers HTTP MCP servers alongside the pinned auth type when MCP is enabled', async () => {
+    mockSpawn.mockReturnValue(makeChild([resultEvent()]));
+
+    await runGeminiCliAgent(evalDef, tmpWorkspace, { tools: ['mcp'] });
+
+    const settings = readSettings();
+    expect(settings.security).toEqual({ auth: { selectedType: 'gemini-api-key' } });
+    expect(settings.mcpServers).toEqual({
+      'auth0-docs': { httpUrl: 'https://auth0.com/docs/mcp', timeout: 30000 },
+    });
+  });
+
+  it('always writes settings.json so auth is pinned for every run', async () => {
+    mockSpawn.mockReturnValue(makeChild([resultEvent()]));
+
+    await runGeminiCliAgent(evalDef, tmpWorkspace, { tools: ['skills'] });
+
+    expect(existsSync(join(tmpWorkspace, '.gemini', 'settings.json'))).toBe(true);
   });
 });
 
