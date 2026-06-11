@@ -12,6 +12,10 @@ const CLAUDE_PROXY_BASE_URL = process.env.CLAUDE_PROXY_BASE_URL ?? PROXY_BASE_UR
 const GEMINI_PROXY_BASE_URL = process.env.GEMINI_PROXY_BASE_URL ?? PROXY_BASE_URL;
 const CODEX_PROXY_BASE_URL = process.env.CODEX_PROXY_BASE_URL ?? PROXY_BASE_URL;
 
+// When set, route Claude models through the Bedrock proxy, which needs full
+// `global.anthropic.*` model IDs instead of the short aliases.
+const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY === '1';
+
 /** @type {import('@a0/eval').FrameworkConfig} */
 export default {
   evalsDir: 'src/evals',
