@@ -17,6 +17,16 @@ export function defineGraders() {
     notContains('speakeasy', 'No server-side TOTP library (speakeasy)', GraderLevel.L2),
     notContains('otplib', 'No server-side TOTP library (otplib)', GraderLevel.L2),
     notContains('@auth0/guardian', 'No fake Guardian client SDK referenced', GraderLevel.L2),
+    notContains(
+      'acr_values',
+      'Does not hand-roll step-up by passing acr_values in app code (challengeWithPopup supplies it)',
+      GraderLevel.L2,
+    ),
+    notContains(
+      '/auth/login?',
+      'Does not hand-roll a popup to the login route with query params instead of mfa.challengeWithPopup',
+      GraderLevel.L2,
+    ),
 
     // ── L3: Security ──────────────────────────────────────────────────────
     notContainsInSource(
