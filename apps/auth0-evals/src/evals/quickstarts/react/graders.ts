@@ -1,4 +1,4 @@
-import { contains, notContains, matches, judge, GraderLevel } from '@a0/eval-graders';
+import { contains, notContains, matches, judge, runtime, GraderLevel } from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
@@ -10,6 +10,9 @@ export function defineGraders() {
     contains('logout', 'Implements logout', GraderLevel.L1),
     contains('isAuthenticated', 'Checks isAuthenticated for conditional rendering', GraderLevel.L1),
     matches(String.raw`user\??\.name`, 'Displays user profile name', GraderLevel.L1),
+    contains('data-testid="login"', 'Login button has data-testid="login"', GraderLevel.L1),
+    contains('data-testid="logout"', 'Logout button has data-testid="logout"', GraderLevel.L1),
+    contains('data-testid="profile"', 'Profile element has data-testid="profile"', GraderLevel.L1),
 
     // ── L2: Negative / anti-pattern detection ─────────────────────────────────
     notContains('@auth0/react', 'No hallucinated @auth0/react package (must be @auth0/auth0-react)', GraderLevel.L2),
@@ -31,6 +34,7 @@ export function defineGraders() {
         'A correct implementation should not render auth-dependent UI while isLoading is true.',
       GraderLevel.L4,
     ),
+    runtime('./playwright.ts', 'App performs a real Auth0 login and shows the user profile'),
 
     // ── L5: Version-specific API correctness ──────────────────────────────────
     contains('authorizationParams', 'Uses authorizationParams (not audience directly on provider)', GraderLevel.L5),
