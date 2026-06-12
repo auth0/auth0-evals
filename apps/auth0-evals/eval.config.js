@@ -87,7 +87,7 @@ export default {
   },
 
   models: {
-    known: ['gpt-5.4', 'gpt-5.4-mini', 'claude-sonnet-4-6', 'claude-opus-4-6', 'claude-opus-4-7', 'claude-opus-4-8', 'claude-haiku-4-5', 'gemini-3.1-pro-preview', 'gemini-3.5-flash'],
+    known: ['gpt-5.4', 'gpt-5.4-mini', 'claude-sonnet-4-6', 'claude-opus-4-6', 'claude-opus-4-7', 'claude-opus-4-8', 'claude-fable-5', 'claude-haiku-4-5', 'gemini-3.1-pro-preview', 'gemini-3.5-flash'],
     default: 'gpt-5.4',
     // Maps short model aliases to the IDs the active proxy expects.
     // Bedrock proxy needs full `global.anthropic.*` IDs; LiteLLM proxy serves
@@ -98,6 +98,7 @@ export default {
           'claude-opus-4-6': 'global.anthropic.claude-opus-4-6-v1',
           'claude-opus-4-7': 'global.anthropic.claude-opus-4-7',
           'claude-opus-4-8': 'global.anthropic.claude-opus-4-8',
+          'claude-fable-5': 'global.anthropic.claude-fable-5',
           'claude-opus-4-5': 'global.anthropic.claude-opus-4-5-20251101-v1:0',
           'claude-haiku-4-5': 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
         }

@@ -14,6 +14,7 @@ export const CLAUDE_EFFORT_MODELS = new Set([
   'claude-opus-4-7',
   'claude-opus-4-8',
   'claude-opus-4-5',
+  'claude-fable-5',
 ]);
 
 // Model name prefixes that use the older functions/function_call API
