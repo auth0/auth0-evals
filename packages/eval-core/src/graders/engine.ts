@@ -20,6 +20,10 @@ import { notContainsInSourceExecutor } from './executors/not-contains-in-source.
 import { matchesExecutor } from './executors/matches.js';
 import { llmJudgeExecutor } from './executors/llm-judge.js';
 import { eventExecutor } from './executors/event.js';
+import { runtimeExecutor } from './executors/runtime.js';
+import { resolveRuntimeConfig } from './runtime/resolve-config.js';
+import type { GraderContext } from './executors/types.js';
+type GraderContextRuntime = NonNullable<GraderContext['runtime']>;
 
 // Re-export llmJudge from its dedicated module for backward compatibility.
 export { llmJudge } from './llm-judge.js';
@@ -32,6 +36,7 @@ registerExecutor(notContainsInSourceExecutor);
 registerExecutor(matchesExecutor);
 registerExecutor(llmJudgeExecutor);
 registerExecutor(eventExecutor);
+registerExecutor(runtimeExecutor);
 
 // ── Workspace helpers ─────────────────────────────────────────────────────────
 
@@ -107,6 +112,13 @@ function combined(files: Record<string, string>): string {
 
 // ── Runner ────────────────────────────────────────────────────────────────────
 
+export interface RuntimeGradingOptions {
+  frontmatter: { serveCommand?: string; servePort?: number; runtimeSwap?: string };
+  evalDir: string;
+  /** Defaults to process.env. Injectable for tests. */
+  env?: Record<string, string | undefined>;
+}
+
 export async function runGraders(
   graderDefs: GraderDef[],
   workspace: string,
@@ -115,6 +127,7 @@ export async function runGraders(
   allowedLevels?: Set<GraderLevel>,
   enforceMaxChars: boolean = true,
   toolCalls?: EventToolCall[],
+  runtimeOptions?: RuntimeGradingOptions,
 ): Promise<GraderResult[]> {
   const config = getFrameworkConfig();
   const resolvedJudgeModel = judgeModel ?? config.judge.model ?? '';
@@ -125,10 +138,22 @@ export async function runGraders(
     ? graderDefs.filter((g) => g.level === undefined || allowedLevels.has(g.level))
     : graderDefs;
 
-  const hasTextGraders = active.some((g) => g.kind !== 'event');
+  const hasTextGraders = active.some((g) => g.kind !== 'event' && g.kind !== 'runtime');
   const files = hasTextGraders ? collectFiles(workspace) : {};
   const combinedText = hasTextGraders ? combined(files) : '';
   const combinedLower = hasTextGraders ? combinedText.toLowerCase() : '';
+
+  // Build runtime config only when a runtime grader is active and options were provided.
+  let runtime: GraderContextRuntime | undefined;
+  const hasRuntimeGrader = active.some((g) => g.kind === 'runtime');
+  if (hasRuntimeGrader && runtimeOptions) {
+    const resolved = resolveRuntimeConfig(runtimeOptions.frontmatter, runtimeOptions.env ?? process.env);
+    if (resolved.ok) {
+      runtime = { ...resolved.config, evalDir: runtimeOptions.evalDir };
+    }
+    // When resolution fails, leave runtime undefined — the executor returns a
+    // failed result naming the missing prerequisites.
+  }
 
   const context = {
     workspace,
@@ -144,6 +169,7 @@ export async function runGraders(
       enforceMaxChars,
     },
     toolCalls,
+    runtime,
   };
 
   const results: GraderResult[] = [];

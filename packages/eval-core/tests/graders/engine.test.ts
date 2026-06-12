@@ -15,6 +15,7 @@ import {
   ranCommandOneOf,
   wroteFile,
   GraderLevel,
+  type GraderDef,
   type GraderResult,
   type EventToolCall,
 } from '@a0/eval-graders';
@@ -1070,5 +1071,36 @@ describe('runGraders - event graders', () => {
     const graders = [ranCommand('npm install', undefined, 'ran npm install', GraderLevel.L5)];
     const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
     expect(results[0]!.passed).toBe(true);
+  });
+});
+
+describe('runGraders — runtime grader', () => {
+  const tmp = makeTmpDir('engine-rt-');
+
+  it('fails a runtime grader when RUNTIME_* env vars are missing', async () => {
+    const ws = tmp();
+    const def: GraderDef = {
+      kind: 'runtime',
+      name: 'logs in',
+      scriptPath: './playwright.ts',
+      level: GraderLevel.L4,
+    };
+    const results = await runGraders(
+      [def],
+      ws,
+      'key',
+      undefined,
+      new Set([GraderLevel.L4]),
+      true,
+      [],
+      {
+        frontmatter: { serveCommand: 'npm run dev', servePort: 5173, runtimeSwap: 'fake=$RUNTIME_AUTH0_DOMAIN' },
+        evalDir: ws,
+        env: {}, // nothing set → must fail
+      },
+    );
+    expect(results).toHaveLength(1);
+    expect(results[0]!.passed).toBe(false);
+    expect(results[0]!.detail).toMatch(/runtime grading|RUNTIME_/i);
   });
 });
