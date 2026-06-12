@@ -119,6 +119,14 @@ async function main(): Promise<void> {
         agentLevels,
         true,
         record.toolCalls,
+        {
+          frontmatter: {
+            serveCommand: evalDef.serveCommand,
+            servePort: evalDef.servePort,
+            runtimeSwap: evalDef.runtimeSwap,
+          },
+          evalDir: evalDef.path,
+        },
       );
     }
 

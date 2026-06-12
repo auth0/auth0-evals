@@ -172,6 +172,14 @@ async function runAgentJob(
         agentLevels,
         true,
         record.toolCalls,
+        {
+          frontmatter: {
+            serveCommand: evalDef.serveCommand,
+            servePort: evalDef.servePort,
+            runtimeSwap: evalDef.runtimeSwap,
+          },
+          evalDir: evalDef.path,
+        },
       );
     }
 
