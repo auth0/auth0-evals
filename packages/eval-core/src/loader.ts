@@ -63,6 +63,9 @@ export async function loadEval(
     .filter(Boolean);
 
   const setupCommand = meta.setup_command || undefined;
+  const serveCommand = meta.serve_command || undefined;
+  const servePort = meta.serve_port ? Number(meta.serve_port) : undefined;
+  const runtimeSwap = meta.runtime_swap || undefined;
 
   return {
     id: evalConfig.id,
@@ -74,6 +77,9 @@ export async function loadEval(
     graders,
     scaffold,
     setupCommand,
+    serveCommand,
+    servePort,
+    runtimeSwap,
     skills,
     metadata: {
       provider_name: meta.provider_name ?? 'Auth0',
@@ -131,11 +137,7 @@ async function loadGraders(gradersPath: string): Promise<GraderDef[]> {
  * Resolve the scaffold directory from the optional `scaffold` frontmatter field.
  * Falls back to the local scaffold/ subdirectory when the field is absent.
  */
-function resolveScaffoldFromMeta(
-  scaffoldMeta: string | undefined,
-  evalPath: string,
-  frameworkRoot: string,
-): string {
+function resolveScaffoldFromMeta(scaffoldMeta: string | undefined, evalPath: string, frameworkRoot: string): string {
   if (!scaffoldMeta) {
     return join(evalPath, 'scaffold');
   }
@@ -151,10 +153,7 @@ function resolveScaffoldFromMeta(
   }
 
   if (!existsSync(resolvedPath)) {
-    throw new EvalConfigError(
-      `scaffold path does not exist: ${resolvedPath}`,
-      join(evalPath, 'PROMPT.md'),
-    );
+    throw new EvalConfigError(`scaffold path does not exist: ${resolvedPath}`, join(evalPath, 'PROMPT.md'));
   }
 
   return resolvedPath;

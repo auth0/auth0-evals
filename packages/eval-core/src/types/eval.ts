@@ -19,6 +19,12 @@ export interface EvalDefinition {
   graders: GraderDef[];
   scaffold: Record<string, string>;
   setupCommand?: string;
+  /** Command that starts the built app for runtime grading (e.g. "npm run dev"). */
+  serveCommand?: string;
+  /** Port the served app listens on (e.g. 5173). */
+  servePort?: number;
+  /** Raw `runtime_swap` frontmatter string: "fake=$ENV, fake2=$ENV2". */
+  runtimeSwap?: string;
   skills: string[];
   metadata: Record<string, string>;
 }
