@@ -150,6 +150,21 @@ export async function runJobInDocker(options: DockerRunOptions): Promise<JobResu
     envFlags.push('-e', `GH_TOKEN=${ghToken}`);
   }
 
+  // Forward runtime-grading credentials (test tenant + test user) when present.
+  // These let the in-container runtime grader drive a real Auth0 login.
+  const RUNTIME_ENV_VARS = [
+    'RUNTIME_AUTH0_DOMAIN',
+    'RUNTIME_AUTH0_CLIENT_ID',
+    'RUNTIME_AUTH0_AUDIENCE',
+    'RUNTIME_TEST_USER_EMAIL',
+    'RUNTIME_TEST_USER_PASSWORD',
+    'RUNTIME_TEST_USER_NAME',
+  ];
+  for (const name of RUNTIME_ENV_VARS) {
+    const value = process.env[name];
+    if (value) envFlags.push('-e', `${name}=${value}`);
+  }
+
   // Mount host CA certificates for corporate SSL inspection (MITM proxies)
   // Use resolvedWorkspace (canonicalized) to ensure we mount the same path we validated
   const volumeFlags: string[] = ['-v', `${resolvedWorkspace}:${DOCKER_WORKSPACE_MOUNT}:rw`];
