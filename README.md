@@ -2,6 +2,8 @@
 
 An evaluation framework for measuring how accurately LLM agents complete Auth0 integration tasks. It runs each task across multiple configurations - from a single LLM call with no tools, to a full agentic loop with MCP servers and skills - and compares the results so you can see exactly where each investment pays off.
 
+[DO NOT MERGE] - Testing CI
+
 [![License](https://img.shields.io/:license-apache-blue.svg?style=flat)](https://opensource.org/licenses/Apache-2.0)
 
 ## What it's used for
