@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { contains, notContains, notContainsInSource, matches, judge } from '../src/primitives.js';
+import { contains, notContains, notContainsInSource, matches, judge, runtime } from '../src/primitives.js';
 import { GraderLevel } from '../src/types.js';
 
 // ── contains ──────────────────────────────────────────────────────────────────
@@ -159,5 +159,25 @@ describe('judge', () => {
   it('leaves level undefined when not provided', () => {
     const def = judge('Is this correct?');
     expect(def.level).toBeUndefined();
+  });
+});
+
+// ── runtime ───────────────────────────────────────────────────────────────────
+
+describe('runtime', () => {
+  it('creates a GraderDef with kind "runtime"', () => {
+    const def = runtime('./playwright.ts', 'logs in via Auth0');
+    expect(def.kind).toBe('runtime');
+    expect(def.scriptPath).toBe('./playwright.ts');
+  });
+
+  it('uses the description as the name', () => {
+    const def = runtime('./playwright.ts', 'logs in via Auth0');
+    expect(def.name).toBe('logs in via Auth0');
+  });
+
+  it('is always tagged L4', () => {
+    const def = runtime('./playwright.ts', 'logs in via Auth0');
+    expect(def.level).toBe(GraderLevel.L4);
   });
 });

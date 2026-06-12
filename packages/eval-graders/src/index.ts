@@ -2,7 +2,17 @@
 
 // Types
 export { GraderLevel } from './types.js';
-export type { GraderResult, GraderDef, GraderOptions, EventToolCall, EventGraderLevel } from './types.js';
+export type {
+  GraderResult,
+  GraderDef,
+  GraderOptions,
+  EventToolCall,
+  EventGraderLevel,
+  RuntimeContext,
+  RuntimeOutcome,
+  RuntimeTestUser,
+  RuntimeScript,
+} from './types.js';
 
 // Grader factory functions
 export {
@@ -14,4 +24,5 @@ export {
   ranCommand,
   ranCommandOneOf,
   wroteFile,
+  runtime,
 } from './primitives.js';

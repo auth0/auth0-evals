@@ -191,3 +191,25 @@ export function wroteFile(
     },
   };
 }
+
+// ── Runtime (Playwright) grader ───────────────────────────────────────────────
+
+/**
+ * Asserts that the agent's built app passes a runtime browser check.
+ *
+ * The executor copies the workspace, swaps fake Auth0 values for real ones,
+ * serves the app, launches headless Chromium, and runs the per-eval Playwright
+ * script at `scriptPath` (its default export). Always tagged L4 (runs in agent
+ * configurations only).
+ *
+ * @param scriptPath - Path to the Playwright script, relative to the eval directory.
+ * @param description - Human-readable grader name.
+ */
+export function runtime(scriptPath: string, description: string): GraderDef {
+  return {
+    kind: 'runtime',
+    name: description,
+    scriptPath,
+    level: GraderLevel.L4,
+  };
+}
