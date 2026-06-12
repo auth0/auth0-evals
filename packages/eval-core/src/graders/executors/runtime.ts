@@ -74,7 +74,11 @@ export function makeRuntimeExecutor(deps: RuntimeDeps): GraderExecutor {
       } finally {
         if (browser) await browser.close().catch(() => {});
         if (server) await server.stop().catch(() => {});
-        prepared.cleanup();
+        try {
+          prepared.cleanup();
+        } catch {
+          // Teardown failure must not mask the grader result.
+        }
       }
     },
   };
