@@ -20,9 +20,7 @@ export interface RuntimeFrontmatter {
   runtimeSwap?: string;
 }
 
-export type ResolveResult =
-  | { ok: true; config: RuntimeConfig }
-  | { ok: false; missing: string[] };
+export type ResolveResult = { ok: true; config: RuntimeConfig } | { ok: false; missing: string[] };
 
 const TEST_USER_VARS = {
   email: 'RUNTIME_TEST_USER_EMAIL',
@@ -61,10 +59,7 @@ function parseSwap(
   return { pairs, missing };
 }
 
-export function resolveRuntimeConfig(
-  fm: RuntimeFrontmatter,
-  env: Record<string, string | undefined>,
-): ResolveResult {
+export function resolveRuntimeConfig(fm: RuntimeFrontmatter, env: Record<string, string | undefined>): ResolveResult {
   const missing: string[] = [];
 
   if (!fm.serveCommand) missing.push('serve_command');

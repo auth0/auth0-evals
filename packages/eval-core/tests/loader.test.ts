@@ -239,9 +239,7 @@ describe('loadEval - scaffold loading', () => {
     expect(result.scaffold['readable.txt']).toBe('this is fine');
     expect(result.scaffold['unreadable.txt']).toBeUndefined();
   });
-
 });
-
 
 // ── frontmatter scaffold field tests ─────────────────────────────────────────
 

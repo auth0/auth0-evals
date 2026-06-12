@@ -212,8 +212,7 @@ function handleItem(item: ThreadItem, record: RunRecord, ctx: RunCtx, now: numbe
       const isError = item.status === 'failed';
       for (const change of item.changes) {
         const rawName = change.kind === 'delete' ? 'delete_file' : 'write_file';
-        const content =
-          !isError && change.kind !== 'delete' ? readWorkspaceFile(ctx.workspace, change.path) : '';
+        const content = !isError && change.kind !== 'delete' ? readWorkspaceFile(ctx.workspace, change.path) : '';
         ctx.turnToolCount++;
         ctx.toolCallsInTurn++;
         pushToolCall(record, rawName, { path: change.path, content }, '', isError, now);

@@ -38,9 +38,7 @@ describe('prepareRuntimeWorkspace', () => {
 
   it('leaves the original workspace untouched', () => {
     const ws = makeWorkspace();
-    const { copyPath, cleanup } = prepareRuntimeWorkspace(ws, [
-      { from: 'fake.auth0.com', to: 'real.us.auth0.com' },
-    ]);
+    const { copyPath, cleanup } = prepareRuntimeWorkspace(ws, [{ from: 'fake.auth0.com', to: 'real.us.auth0.com' }]);
     created.push(copyPath);
 
     const original = readFileSync(join(ws, 'src/App.jsx'), 'utf-8');

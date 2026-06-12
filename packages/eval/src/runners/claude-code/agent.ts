@@ -305,9 +305,7 @@ export function handleMessage(
 
     const usage = msg.usage;
     const turnInput =
-      (usage?.input_tokens ?? 0) +
-      (usage?.cache_read_input_tokens ?? 0) +
-      (usage?.cache_creation_input_tokens ?? 0);
+      (usage?.input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0) + (usage?.cache_creation_input_tokens ?? 0);
     const turnOutput = usage?.output_tokens ?? 0;
     record.inputTokens += turnInput;
     record.outputTokens += turnOutput;

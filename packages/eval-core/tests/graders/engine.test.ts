@@ -1085,20 +1085,11 @@ describe('runGraders — runtime grader', () => {
       scriptPath: './playwright.ts',
       level: GraderLevel.L4,
     };
-    const results = await runGraders(
-      [def],
-      ws,
-      'key',
-      undefined,
-      new Set([GraderLevel.L4]),
-      true,
-      [],
-      {
-        frontmatter: { serveCommand: 'npm run dev', servePort: 5173, runtimeSwap: 'fake=$RUNTIME_AUTH0_DOMAIN' },
-        evalDir: ws,
-        env: {}, // nothing set → must fail
-      },
-    );
+    const results = await runGraders([def], ws, 'key', undefined, new Set([GraderLevel.L4]), true, [], {
+      frontmatter: { serveCommand: 'npm run dev', servePort: 5173, runtimeSwap: 'fake=$RUNTIME_AUTH0_DOMAIN' },
+      evalDir: ws,
+      env: {}, // nothing set → must fail
+    });
     expect(results).toHaveLength(1);
     expect(results[0]!.passed).toBe(false);
     expect(results[0]!.detail).toMatch(/runtime grading|RUNTIME_/i);

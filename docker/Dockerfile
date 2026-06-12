@@ -43,6 +43,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     default-jdk-headless \
     && rm -rf /var/lib/apt/lists/*
 
+# ── Playwright Chromium for runtime (browser) grading ─────────────────────────
+# PLAYWRIGHT_BROWSERS_PATH points at a world-readable location so the dropped
+# 'node' user (UID 1000) can launch the browser. --with-deps pulls the required
+# system libraries (libnss3, libatk, etc.) via apt.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
+RUN npx --yes playwright@1.50.0 install --with-deps chromium \
+    && chmod -R a+rX /opt/playwright-browsers \
+    && rm -rf /var/lib/apt/lists/*
+
 
 # Use existing 'node' user (UID 1000) from the base image
 

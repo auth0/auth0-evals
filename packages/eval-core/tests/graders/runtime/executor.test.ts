@@ -69,16 +69,24 @@ describe('runtime executor', () => {
     const exec = makeRuntimeExecutor({
       serve: async () => {
         served = true;
-        return { stop: async () => { stopped = true; } };
+        return {
+          stop: async () => {
+            stopped = true;
+          },
+        };
       },
       launchBrowser: async () => ({
         page: {} as never,
-        close: async () => { browserClosed = true; },
+        close: async () => {
+          browserClosed = true;
+        },
       }),
-      loadScript: async () => async ({ baseURL, testUser }) => ({
-        passed: true,
-        detail: `ok ${baseURL} ${testUser.expectedName}`,
-      }),
+      loadScript:
+        async () =>
+        async ({ baseURL, testUser }) => ({
+          passed: true,
+          detail: `ok ${baseURL} ${testUser.expectedName}`,
+        }),
     });
     const res = await exec.execute(def, baseContext(ws));
     expect(res.passed).toBe(true);
@@ -92,7 +100,11 @@ describe('runtime executor', () => {
     const ws = workspace();
     let stopped = false;
     const exec = makeRuntimeExecutor({
-      serve: async () => ({ stop: async () => { stopped = true; } }),
+      serve: async () => ({
+        stop: async () => {
+          stopped = true;
+        },
+      }),
       launchBrowser: async () => ({ page: {} as never, close: async () => {} }),
       loadScript: async () => async () => {
         throw new Error('login failed: selector not found');
