@@ -83,6 +83,7 @@ Use `notContainsInSource` (not `notContains`) when a value like a client ID is a
 | `ranCommand(command, args, description, level)` | Agent ran a shell command containing `command` (and all `args`) — event-based, level required (L4 or L5) |
 | `ranCommandOneOf(commands, description, level)` | Agent ran at least one command from the list — event-based, level required (L4 or L5) |
 | `wroteFile(path, description, level, expected?)` | Agent wrote a file whose path contains the substring. With optional `expected` (string or string array), the combined content of all writes to that path must also contain every `expected` substring — event-based, level required (L4 or L5) |
+| `runtime(scriptPath, description)` | Spins up the app, swaps fake creds for real test-tenant creds in a throwaway copy, launches headless Chromium, and runs the eval's per-eval Playwright `scriptPath` to drive a real login — always tagged L4. See `docs/RUNTIME_GRADING.md` |
 
 ## Grading exclusions
 
@@ -152,6 +153,7 @@ When you make a change, update every doc whose described behavior is affected. T
 
 1. `src/evals/<category>/<eval-dir>/PROMPT.md` + `graders.ts`
 2. Add `id` (required) and optionally `name`/`category` to `PROMPT.md` frontmatter — the framework auto-discovers evals from `evalsDir`
+   - For runtime (Playwright) evals, also add `serve_command`, `serve_port`, and `runtime_swap` to frontmatter, ship a `playwright.ts`, and add a `runtime()` grader. See `docs/RUNTIME_GRADING.md`.
 3. All imports use `.js` extensions; `import type` for type-only
 4. All graders have `GraderLevel`; one final holistic `judge` with no level
 5. `npm run build && npm test` passes

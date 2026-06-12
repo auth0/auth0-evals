@@ -41,6 +41,9 @@ setup_command: npm install
 | `category` | no | Defaults to the parent directory name (e.g. `quickstarts`) |
 | `skills` | no | Comma-separated skill names from [auth0/agent-skills](https://github.com/auth0/agent-skills). Injected into agent context when running with `--tools skills` |
 | `setup_command` | no | Command run before the agent starts (e.g. `npm install`). Split on whitespace and executed directly via `spawnSync` — no shell, no operators (`&&`, `\|`, etc.), no quoting. One command only. |
+| `serve_command` | no | Command that starts the built app for runtime grading (e.g. `npm run dev`). Required only for runtime (Playwright) evals. |
+| `serve_port` | no | Port the served app listens on (e.g. `5173`). Required only for runtime evals. |
+| `runtime_swap` | no | Comma-separated `fakeValue=$ENV_VAR` pairs. The runtime grader replaces each fake value with the resolved env var in a throwaway workspace copy before launching the app. |
 
 To test a skill before it is pushed to the remote repo, see [TESTING_SKILLS.md](TESTING_SKILLS.md).
 
@@ -352,6 +355,17 @@ To run all combos and measure the delta each investment provides, combine `--mod
 ### Running with GitHub Copilot CLI
 
 Pass `--agent-type copilot` to route the eval through the `copilot` binary. Skills and MCP are both supported.
+
+---
+
+### Runtime (Playwright) grading
+
+For evals that verify a real login end-to-end, add `serve_command`, `serve_port`,
+and `runtime_swap` to the frontmatter, ship a `playwright.ts` next to `graders.ts`
+(default-exporting an async `({ page, baseURL, testUser }) => Promise<{ passed, detail }>`),
+and add a `runtime('./playwright.ts', '...')` grader. The full guide, including the
+required test-tenant setup and environment variables, is in
+[RUNTIME_GRADING.md](RUNTIME_GRADING.md).
 
 ---
 
