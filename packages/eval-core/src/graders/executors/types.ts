@@ -5,7 +5,7 @@
  * kinds to executors and dispatches grader evaluation through them.
  */
 
-import type { GraderDef, GraderResult, EventToolCall } from '@a0/eval-graders';
+import type { GraderDef, GraderResult, EventToolCall, RuntimeTestUser } from '@a0/eval-graders';
 
 /**
  * Context passed to every executor. Each executor uses what it needs:
@@ -39,6 +39,15 @@ export interface GraderContext {
   };
   /** Tool call trace from the agent run — used by event-based graders. */
   toolCalls?: EventToolCall[];
+  /** Runtime grading config — present only when an eval declares runtime grading. */
+  runtime?: {
+    serveCommand: string;
+    servePort: number;
+    swap: Array<{ from: string; to: string }>;
+    testUser: RuntimeTestUser;
+    /** Absolute path to the eval directory (to resolve scriptPath). */
+    evalDir: string;
+  };
 }
 
 /**

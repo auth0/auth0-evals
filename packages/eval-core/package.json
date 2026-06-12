@@ -11,7 +11,8 @@
     }
   },
   "dependencies": {
-    "@a0/eval-graders": "*"
+    "@a0/eval-graders": "*",
+    "playwright": "^1.50.0"
   },
   "scripts": {
     "build": "node scripts/generate-prompts.mjs && tsc",
