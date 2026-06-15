@@ -145,14 +145,22 @@ export async function runGraders(
 
   // Build runtime config only when a runtime grader is active and options were provided.
   let runtime: GraderContextRuntime | undefined;
+  let runtimeMissing: string[] | undefined;
   const hasRuntimeGrader = active.some((g) => g.kind === 'runtime');
-  if (hasRuntimeGrader && runtimeOptions) {
-    const resolved = resolveRuntimeConfig(runtimeOptions.frontmatter, runtimeOptions.env ?? process.env);
-    if (resolved.ok) {
-      runtime = { ...resolved.config, evalDir: runtimeOptions.evalDir };
+  if (hasRuntimeGrader) {
+    if (!runtimeOptions) {
+      // The caller never passed runtime options — the runtime grader cannot run.
+      runtimeMissing = ['serve_command', 'serve_port', 'runtime_swap'];
+    } else {
+      const resolved = resolveRuntimeConfig(runtimeOptions.frontmatter, runtimeOptions.env ?? process.env);
+      if (resolved.ok) {
+        runtime = { ...resolved.config, evalDir: runtimeOptions.evalDir };
+      } else {
+        // Resolution failed — surface exactly which prerequisites are missing so
+        // the executor can report them instead of a generic message.
+        runtimeMissing = resolved.missing;
+      }
     }
-    // When resolution fails, leave runtime undefined — the executor returns a
-    // failed result naming the missing prerequisites.
   }
 
   const context = {
@@ -170,6 +178,7 @@ export async function runGraders(
     },
     toolCalls,
     runtime,
+    runtimeMissing,
   };
 
   const results: GraderResult[] = [];

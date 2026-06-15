@@ -44,10 +44,10 @@ export function makeRuntimeExecutor(deps: RuntimeDeps): GraderExecutor {
     async execute(def: GraderDef, ctx: GraderContext): Promise<GraderResult> {
       const rt = ctx.runtime;
       if (!rt) {
-        return fail(
-          def,
-          'runtime grading requires serve_command, serve_port, runtime_swap and RUNTIME_* env vars — none resolved',
-        );
+        const missing = ctx.runtimeMissing?.length
+          ? ctx.runtimeMissing.join(', ')
+          : 'serve_command, serve_port, runtime_swap and RUNTIME_* env vars';
+        return fail(def, `runtime grading prerequisites not resolved — missing: ${missing}`);
       }
       if (!def.scriptPath) {
         return fail(def, 'runtime grader missing scriptPath');

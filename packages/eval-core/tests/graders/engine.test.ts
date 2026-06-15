@@ -1093,5 +1093,24 @@ describe('runGraders — runtime grader', () => {
     expect(results).toHaveLength(1);
     expect(results[0]!.passed).toBe(false);
     expect(results[0]!.detail).toMatch(/runtime grading|RUNTIME_/i);
+    // The message must name the specific missing prerequisites so CI failures
+    // are diagnosable (regression: a generic message hid that the RUNTIME_*
+    // secrets were never exposed to the eval step).
+    expect(results[0]!.detail).toContain('RUNTIME_AUTH0_DOMAIN');
+    expect(results[0]!.detail).toContain('RUNTIME_TEST_USER_EMAIL');
+  });
+
+  it('names serve_command/serve_port when runtime options are not passed at all', async () => {
+    const ws = tmp();
+    const def: GraderDef = {
+      kind: 'runtime',
+      name: 'logs in',
+      scriptPath: './playwright.ts',
+      level: GraderLevel.L4,
+    };
+    // No runtimeOptions argument — e.g. a caller that never wired them up.
+    const results = await runGraders([def], ws, 'key', undefined, new Set([GraderLevel.L4]), true, []);
+    expect(results[0]!.passed).toBe(false);
+    expect(results[0]!.detail).toContain('serve_command');
   });
 });

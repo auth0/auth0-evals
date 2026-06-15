@@ -50,6 +50,13 @@ export interface GraderContext {
     /** Command to install deps in the throwaway copy before serving (e.g. "npm install"). */
     installCommand?: string;
   };
+  /**
+   * Names of the runtime prerequisites (frontmatter fields and/or RUNTIME_* env
+   * vars) that failed to resolve. Set only when a runtime grader is active but
+   * its config could not be built — lets the executor report exactly what is
+   * missing instead of a generic message.
+   */
+  runtimeMissing?: string[];
 }
 
 /**

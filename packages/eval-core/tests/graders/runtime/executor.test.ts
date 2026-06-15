@@ -62,6 +62,25 @@ describe('runtime executor', () => {
     expect(res.level).toBe(GraderLevel.L4);
   });
 
+  it('names the missing prerequisites when runtimeMissing is provided', async () => {
+    const ws = workspace();
+    const exec = makeRuntimeExecutor({
+      install: async () => {},
+      launchBrowser: async () => {
+        throw new Error('should not launch');
+      },
+      loadScript: async () => async () => ({ passed: true, detail: 'x' }),
+      serve: async () => ({ stop: async () => {} }),
+    });
+    const ctx = baseContext(ws);
+    delete ctx.runtime;
+    ctx.runtimeMissing = ['RUNTIME_AUTH0_DOMAIN', 'RUNTIME_TEST_USER_PASSWORD'];
+    const res = await exec.execute(def, ctx);
+    expect(res.passed).toBe(false);
+    expect(res.detail).toContain('RUNTIME_AUTH0_DOMAIN');
+    expect(res.detail).toContain('RUNTIME_TEST_USER_PASSWORD');
+  });
+
   it('passes when the injected script returns passed:true', async () => {
     const ws = workspace();
     let served = false;
