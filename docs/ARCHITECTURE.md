@@ -172,21 +172,3 @@ Every eval ends with one holistic `judge()` with **no level** — it always runs
 | `baseline` | any (no tools) | `ai` + `@ai-sdk/openai` single-shot |
 
 New runners plug in via `registerRunner(id, impl)` with no dispatcher changes (Registry + Strategy).
-
-## Integration points
-
-- **LLM proxy** (`proxy.baseUrl`) — fronts all providers; Bedrock (`/anthropic`) or LiteLLM endpoints. Per-agent overrides (`agents.<id>.proxy.baseUrl`) fall back to the shared base URL. The recommendation generator hits the plain `/chat/completions` endpoint (alias sent as-is, no Bedrock map).
-- **Auth0 docs MCP** (`https://auth0.com/docs/mcp`) — injected when `--tools mcp`.
-- **Skills sources** — local `skills/` dirs **plus** the [auth0/agent-skills](https://github.com/auth0/agent-skills) repo (branch via `REMOTE_SKILLS_BRANCH`, skills under `plugins/auth0/skills`) cloned to `skills-remote/`; injected when `--tools skills`.
-- **Braintrust** — optional experiment logging (`--braintrust`).
-- **No database** — results are JSON files (`scores-*.json`); **no cloud IaC** in repo.
-
-## Sandbox
-
-`docker/Dockerfile` builds `auth0-evals:latest` (node:24-bookworm builder → slim runtime). Each job runs in a container with `--cap-drop=ALL`, `--read-only`, tmpfs `/tmp` (2g) + `/home/node` (1g), `--memory=6g --cpus=2 --pids-limit=512`, IPv6 disabled, `host.docker.internal` → loopback, 35-min hard timeout. `--dangerously-skip-sandbox` runs on the host instead.
-
-## Conventions
-
-- **ESM** — every import uses a `.js` extension (even for `.ts` sources); `node:` prefix for builtins; `import type` for type-only.
-- **Tools return tuples, never throw** — `[message, isDoc, isInterrupt, isError]`; paths resolved via `resolveInside()` (throws on traversal).
-- **Build** — Turbo (`^build` topological ordering, `dist/**` outputs); Vitest tests per package; ESLint flat config + Prettier; husky + lint-staged pre-commit.
