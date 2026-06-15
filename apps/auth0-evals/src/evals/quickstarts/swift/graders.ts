@@ -36,8 +36,11 @@ export function defineGraders() {
     ),
 
     // ── L5: Version-specific API correctness ──────────────────────────────────
+    // Allow chained builder calls (e.g. `.scope(...)`, `.useEphemeralSession()`)
+    // and newlines between webAuth() and .start() — the idiomatic fluent form
+    // `Auth0.webAuth().scope("...").start()` is correct async/await usage.
     matches(
-      String.raw`webAuth\(\)\.start\(\)`,
+      String.raw`webAuth\(\)(?:\s*\.\w+\([^)]*\))*\s*\.start\(\)`,
       'Uses async/await webAuth().start() syntax (not completion handlers)',
       GraderLevel.L5,
     ),
