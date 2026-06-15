@@ -26,6 +26,21 @@ describe('resolveRuntimeConfig', () => {
     });
   });
 
+  it('carries installCommand through to the config', () => {
+    const res = resolveRuntimeConfig(
+      {
+        serveCommand: 'npm run dev',
+        servePort: 5173,
+        runtimeSwap: 'fake.auth0.com=$RUNTIME_AUTH0_DOMAIN',
+        installCommand: 'npm install',
+      },
+      fullEnv,
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.config.installCommand).toBe('npm install');
+  });
+
   it('reports missing test-user env vars', () => {
     const res = resolveRuntimeConfig(
       { serveCommand: 'npm run dev', servePort: 5173, runtimeSwap: 'fake.auth0.com=$RUNTIME_AUTH0_DOMAIN' },

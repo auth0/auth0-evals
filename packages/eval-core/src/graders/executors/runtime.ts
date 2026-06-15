@@ -17,6 +17,7 @@ import type { GraderDef, GraderResult, RuntimeContext, RuntimeScript, RuntimeTes
 import type { GraderContext, GraderExecutor } from './types.js';
 import { prepareRuntimeWorkspace } from '../runtime/prepare-workspace.js';
 import { startServer, type ServeHandle } from '../runtime/serve.js';
+import { runSetupCommand } from '../../workspace/workspace.js';
 
 /** A minimal browser handle the executor needs. */
 export interface RuntimeBrowser {
@@ -25,6 +26,8 @@ export interface RuntimeBrowser {
 }
 
 export interface RuntimeDeps {
+  /** Installs deps in the throwaway copy (node_modules is not copied from the original). */
+  install: (cwd: string, installCommand: string) => Promise<void>;
   serve: (cwd: string, serveCommand: string, port: number) => Promise<ServeHandle>;
   launchBrowser: () => Promise<RuntimeBrowser>;
   loadScript: (scriptPath: string) => Promise<RuntimeScript>;
@@ -58,6 +61,11 @@ export function makeRuntimeExecutor(deps: RuntimeDeps): GraderExecutor {
       let browser: RuntimeBrowser | undefined;
 
       try {
+        // node_modules is not copied into the throwaway workspace, so install
+        // dependencies there before serving (otherwise the dev server can't start).
+        if (rt.installCommand) {
+          await deps.install(prepared.copyPath, rt.installCommand);
+        }
         server = await deps.serve(prepared.copyPath, rt.serveCommand, rt.servePort);
         browser = await deps.launchBrowser();
         const script = await deps.loadScript(join(rt.evalDir, def.scriptPath));
@@ -87,6 +95,10 @@ export function makeRuntimeExecutor(deps: RuntimeDeps): GraderExecutor {
 // ── Production dependencies ────────────────────────────────────────────────────
 
 const realDeps: RuntimeDeps = {
+  install: async (cwd, installCommand) => {
+    // runSetupCommand is synchronous (spawnSync); wrap so the dep is async-uniform.
+    runSetupCommand(cwd, installCommand);
+  },
   serve: (cwd, serveCommand, port) => startServer(cwd, serveCommand, port),
   launchBrowser: async () => {
     const { chromium } = await import('playwright');

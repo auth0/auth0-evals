@@ -113,7 +113,7 @@ function combined(files: Record<string, string>): string {
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export interface RuntimeGradingOptions {
-  frontmatter: { serveCommand?: string; servePort?: number; runtimeSwap?: string };
+  frontmatter: { serveCommand?: string; servePort?: number; runtimeSwap?: string; installCommand?: string };
   evalDir: string;
   /** Defaults to process.env. Injectable for tests. */
   env?: Record<string, string | undefined>;

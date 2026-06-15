@@ -12,12 +12,16 @@ export interface RuntimeConfig {
   servePort: number;
   swap: Array<{ from: string; to: string }>;
   testUser: RuntimeTestUser;
+  /** Command to install dependencies in the throwaway copy before serving (the eval's setup_command). */
+  installCommand?: string;
 }
 
 export interface RuntimeFrontmatter {
   serveCommand?: string;
   servePort?: number;
   runtimeSwap?: string;
+  /** The eval's setup_command (e.g. "npm install"), re-run in the copy so the dev server has its deps. */
+  installCommand?: string;
 }
 
 export type ResolveResult = { ok: true; config: RuntimeConfig } | { ok: false; missing: string[] };
@@ -87,6 +91,7 @@ export function resolveRuntimeConfig(fm: RuntimeFrontmatter, env: Record<string,
       servePort: fm.servePort!,
       swap: pairs,
       testUser,
+      installCommand: fm.installCommand,
     },
   };
 }

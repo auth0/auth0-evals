@@ -47,6 +47,8 @@ export interface GraderContext {
     testUser: RuntimeTestUser;
     /** Absolute path to the eval directory (to resolve scriptPath). */
     evalDir: string;
+    /** Command to install deps in the throwaway copy before serving (e.g. "npm install"). */
+    installCommand?: string;
   };
 }
 

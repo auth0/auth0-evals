@@ -19,7 +19,7 @@ export interface StartServerOptions {
   pollMs?: number;
 }
 
-function portOpen(port: number, host = '127.0.0.1'): Promise<boolean> {
+function connectOnce(port: number, host: string): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = connect({ port, host });
     const done = (ok: boolean) => {
@@ -30,6 +30,16 @@ function portOpen(port: number, host = '127.0.0.1'): Promise<boolean> {
     socket.once('error', () => done(false));
     socket.setTimeout(1000, () => done(false));
   });
+}
+
+/**
+ * True if the port accepts a TCP connection on EITHER IPv4 or IPv6 loopback.
+ * Dev servers differ: Vite 5+ binds IPv6 `[::1]` only, while others bind
+ * IPv4 `127.0.0.1`. Checking just one stack yields false negatives.
+ */
+async function portOpen(port: number): Promise<boolean> {
+  const [v4, v6] = await Promise.all([connectOnce(port, '127.0.0.1'), connectOnce(port, '::1')]);
+  return v4 || v6;
 }
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));

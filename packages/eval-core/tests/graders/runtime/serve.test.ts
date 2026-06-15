@@ -36,4 +36,13 @@ describe('startServer', () => {
     const cmd = `node -e "process.exit(0)"`;
     await expect(startServer(dir, cmd, port, { timeoutMs: 1500, pollMs: 100 })).rejects.toThrow(/never opened port/);
   });
+
+  it('resolves for an IPv6-only server (e.g. Vite binds [::1])', async () => {
+    const dir = tmp();
+    const port = 47215;
+    // Bind the loopback on IPv6 only, mirroring Vite 5+ which listens on [::1].
+    const cmd = `node -e "require('http').createServer((_, r) => r.end('ok')).listen(${port}, '::1')"`;
+    handle = await startServer(dir, cmd, port, { timeoutMs: 10_000, pollMs: 100 });
+    expect(handle).toBeDefined();
+  });
 });

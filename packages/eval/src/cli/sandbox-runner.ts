@@ -124,6 +124,7 @@ async function main(): Promise<void> {
             serveCommand: evalDef.serveCommand,
             servePort: evalDef.servePort,
             runtimeSwap: evalDef.runtimeSwap,
+            installCommand: evalDef.setupCommand,
           },
           evalDir: evalDef.path,
         },

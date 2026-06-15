@@ -177,6 +177,7 @@ async function runAgentJob(
             serveCommand: evalDef.serveCommand,
             servePort: evalDef.servePort,
             runtimeSwap: evalDef.runtimeSwap,
+            installCommand: evalDef.setupCommand,
           },
           evalDir: evalDef.path,
         },

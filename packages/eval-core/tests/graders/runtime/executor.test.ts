@@ -47,6 +47,7 @@ describe('runtime executor', () => {
   it('fails when runtime context is absent', async () => {
     const ws = workspace();
     const exec = makeRuntimeExecutor({
+      install: async () => {},
       launchBrowser: async () => {
         throw new Error('should not launch');
       },
@@ -67,6 +68,7 @@ describe('runtime executor', () => {
     let stopped = false;
     let browserClosed = false;
     const exec = makeRuntimeExecutor({
+      install: async () => {},
       serve: async () => {
         served = true;
         return {
@@ -100,6 +102,7 @@ describe('runtime executor', () => {
     const ws = workspace();
     let stopped = false;
     const exec = makeRuntimeExecutor({
+      install: async () => {},
       serve: async () => ({
         stop: async () => {
           stopped = true;
@@ -119,6 +122,7 @@ describe('runtime executor', () => {
   it('fails when serve never opens the port', async () => {
     const ws = workspace();
     const exec = makeRuntimeExecutor({
+      install: async () => {},
       serve: async () => {
         throw new Error('serve_command never opened port 5173 within 1000ms');
       },
@@ -130,5 +134,42 @@ describe('runtime executor', () => {
     const res = await exec.execute(def, baseContext(ws));
     expect(res.passed).toBe(false);
     expect(res.detail).toContain('never opened port');
+  });
+
+  it('runs install before serve when installCommand is set', async () => {
+    const ws = workspace();
+    const order: string[] = [];
+    const exec = makeRuntimeExecutor({
+      install: async (_cwd, cmd) => {
+        order.push(`install:${cmd}`);
+      },
+      serve: async () => {
+        order.push('serve');
+        return { stop: async () => {} };
+      },
+      launchBrowser: async () => ({ page: {} as never, close: async () => {} }),
+      loadScript: async () => async () => ({ passed: true, detail: 'ok' }),
+    });
+    const ctx = baseContext(ws);
+    ctx.runtime!.installCommand = 'npm install';
+    const res = await exec.execute(def, ctx);
+    expect(res.passed).toBe(true);
+    expect(order).toEqual(['install:npm install', 'serve']);
+  });
+
+  it('skips install when no installCommand is set', async () => {
+    const ws = workspace();
+    let installCalled = false;
+    const exec = makeRuntimeExecutor({
+      install: async () => {
+        installCalled = true;
+      },
+      serve: async () => ({ stop: async () => {} }),
+      launchBrowser: async () => ({ page: {} as never, close: async () => {} }),
+      loadScript: async () => async () => ({ passed: true, detail: 'ok' }),
+    });
+    const res = await exec.execute(def, baseContext(ws)); // baseContext has no installCommand
+    expect(res.passed).toBe(true);
+    expect(installCalled).toBe(false);
   });
 });
