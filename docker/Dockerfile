@@ -30,7 +30,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Ensure git can find the CA bundle regardless of which user runs the container
 ENV GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt
 
-# Install additional runtimes: Python 3, Java, git, curl, gh, CA certs, iptables (for network isolation)
+# Install additional runtimes: Python 3, Java, git, curl, gh, CA certs, iptables
+# (for network isolation), plus the system libraries Chromium needs for runtime
+# (Playwright) grading. The Chromium deps are installed here via the normal
+# apt-get path rather than via `playwright install --with-deps`, whose internal
+# apt invocation hangs behind TLS-inspecting proxies. The list mirrors
+# `playwright install-deps chromium` (Playwright 1.50, Debian bookworm).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
@@ -41,16 +46,41 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     python3-venv \
     default-jdk-headless \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libatspi2.0-0 \
+    libcairo2 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libglib2.0-0 \
+    libnspr4 \
+    libnss3 \
+    libpango-1.0-0 \
+    libx11-6 \
+    libxcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxkbcommon0 \
+    libxrandr2 \
+    libfontconfig1 \
+    libfreetype6 \
+    fonts-liberation \
+    fonts-freefont-ttf \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Playwright Chromium for runtime (browser) grading ─────────────────────────
 # PLAYWRIGHT_BROWSERS_PATH points at a world-readable location so the dropped
-# 'node' user (UID 1000) can launch the browser. --with-deps pulls the required
-# system libraries (libnss3, libatk, etc.) via apt.
+# 'node' user (UID 1000) can launch the browser. System libraries are installed
+# in the apt block above, so this only downloads the browser binary (no
+# --with-deps, which hangs on this network).
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
-RUN npx --yes playwright@1.50.0 install --with-deps chromium \
-    && chmod -R a+rX /opt/playwright-browsers \
-    && rm -rf /var/lib/apt/lists/*
+RUN npx --yes playwright@1.50.0 install chromium \
+    && chmod -R a+rX /opt/playwright-browsers
 
 
 # Use existing 'node' user (UID 1000) from the base image
