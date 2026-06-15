@@ -465,6 +465,28 @@ describe('llmJudge', () => {
     expect(capturedBody?.max_tokens).toBe(512);
   });
 
+  it('sends the model as-is (no Bedrock ID mapping on the chat endpoint)', async () => {
+    // Regression: the judge hits the /chat/completions endpoint, which serves
+    // models under their plain alias. Mapping the alias to a Bedrock ID here
+    // produced model="global.anthropic.*" → 400.
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
+    await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'claude-opus-4-8',
+      baseUrl: 'http://test',
+    });
+    expect(capturedBody?.model).toBe('claude-opus-4-8');
+  });
+
   it('throws JudgeError when baseUrl is empty', async () => {
     await expect(
       llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: '' }),
