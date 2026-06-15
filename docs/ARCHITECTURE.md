@@ -1,8 +1,6 @@
 # Architecture
 
-`auth0-evals` is a **TypeScript monorepo** (npm workspaces + Turbo) that runs LLM coding agents against Auth0 SDK integration tasks and scores the code they produce. It is the measurement engine behind Auth0's [Agent Experience](https://auth0.com/agent-experience) — the investments that make Auth0 work well for AI coding agents: **Auth0 skills** (`SKILL.md`), the **Auth0 docs MCP server**, and the **Auth0 docs** themselves. It is the measurement half of an "agent-experience flywheel": run a realistic integration task across multiple agents and investment levels, grade the generated code, and turn each score into a concrete fix for a skill, the docs MCP server, or the docs. The guiding belief — **every score must point to a fix**.
-
-A single command expands into a **job matrix** (eval × model × mode × tools). Each job runs as an **isolated subprocess** that executes the agent in a **Docker sandbox** (or locally), grades the resulting workspace, scores it across **8 dimensions**, and — when an investment (skills/MCP) is active — asks the judge LLM for **structured recommendations** that close the loop back to the docs. Everything consolidates into an HTML **leaderboard** comparing documentation investments side-by-side.
+`auth0-evals` is a **TypeScript monorepo** (npm workspaces + Turbo) that runs LLM coding agents against Auth0 SDK integration tasks and scores the code they produce. It **measures the Agent Experience (AX) of integrating Auth0** — how well AI coding agents complete real Auth0 integration tasks — and, just as importantly, **produces actionable insights to improve the three investments behind Auth0's [Agent Experience](https://auth0.com/agent-experience)**: **Auth0 skills** ([auth0/agent-skills](https://github.com/auth0/agent-skills)), the **Auth0 docs MCP server**, and the **Auth0 docs** themselves. Run a realistic integration task across multiple agents and investment levels, grade the generated code, and turn each score into a concrete fix for a skill, the docs MCP server, or the docs. The guiding belief — **every score must point to a fix**.
 
 ## Layers
 
@@ -179,7 +177,7 @@ New runners plug in via `registerRunner(id, impl)` with no dispatcher changes (R
 
 - **LLM proxy** (`proxy.baseUrl`) — fronts all providers; Bedrock (`/anthropic`) or LiteLLM endpoints. Per-agent overrides (`agents.<id>.proxy.baseUrl`) fall back to the shared base URL. The recommendation generator hits the plain `/chat/completions` endpoint (alias sent as-is, no Bedrock map).
 - **Auth0 docs MCP** (`https://auth0.com/docs/mcp`) — injected when `--tools mcp`.
-- **Skills sources** — local `skills/` dirs **plus** a remote repo (`auth0/agent-skills`, branch via `REMOTE_SKILLS_BRANCH`) cloned to `skills-remote/`; injected when `--tools skills`.
+- **Skills sources** — local `skills/` dirs **plus** the [auth0/agent-skills](https://github.com/auth0/agent-skills) repo (branch via `REMOTE_SKILLS_BRANCH`, skills under `plugins/auth0/skills`) cloned to `skills-remote/`; injected when `--tools skills`.
 - **Braintrust** — optional experiment logging (`--braintrust`).
 - **No database** — results are JSON files (`scores-*.json`); **no cloud IaC** in repo.
 
