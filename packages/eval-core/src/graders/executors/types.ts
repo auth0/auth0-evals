@@ -32,8 +32,6 @@ export interface GraderContext {
     baseUrl: string;
     /** Maximum tokens for judge response. */
     maxTokens: number;
-    /** LiteLLM model alias map resolved from FrameworkConfig. */
-    modelMap: Record<string, string>;
     /** Maximum code characters for judge input. */
     maxCodeChars: number;
     /** Whether to enforce the max chars limit (throws vs warns). */

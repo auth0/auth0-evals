@@ -329,24 +329,43 @@ describe('generateRecommendations', () => {
     expect(result).toBeUndefined();
   });
 
-  it('resolves model through LiteLLM model map when present', async () => {
-    const { generateRecommendations } = await import('../src/recommendations/generator.js');
-    const dir = tmpDir();
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        choices: [{ message: { content: JSON.stringify({ recommendations: [], summary: '' }) } }],
-      }),
+  it('sends the model alias as-is, ignoring the Bedrock modelIds map', async () => {
+    // The modelIds map holds Bedrock IDs for the agent runner's /anthropic
+    // endpoint. Recommendations hit the /chat/completions endpoint, which serves
+    // models under their plain alias — so even when a Bedrock map is configured,
+    // the alias must be sent unchanged (regression: applying the map here
+    // produced model="global.anthropic.claude-opus-4-8" → 400).
+    const { setFrameworkConfig } = await import('@a0/eval-core');
+    const { TEST_CONFIG } = await import('./test-config.js');
+    setFrameworkConfig({
+      ...TEST_CONFIG,
+      models: {
+        ...TEST_CONFIG.models,
+        modelIds: { 'claude-sonnet-4-6': 'global.anthropic.claude-sonnet-4-6' },
+      },
     });
-    globalThis.fetch = fetchMock;
 
-    const input = makeInput(dir);
-    input.judgeModel = 'claude-sonnet-4-6';
-    await generateRecommendations(input);
+    try {
+      const { generateRecommendations } = await import('../src/recommendations/generator.js');
+      const dir = tmpDir();
 
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.model).toBe('claude-sonnet-4-6'); // empty modelIds map → alias passes through
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: JSON.stringify({ recommendations: [], summary: '' }) } }],
+        }),
+      });
+      globalThis.fetch = fetchMock;
+
+      const input = makeInput(dir);
+      input.judgeModel = 'claude-sonnet-4-6';
+      await generateRecommendations(input);
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(body.model).toBe('claude-sonnet-4-6');
+    } finally {
+      setFrameworkConfig(TEST_CONFIG);
+    }
   });
 
   it('truncates workspace files at MAX_WORKSPACE_CHARS', async () => {

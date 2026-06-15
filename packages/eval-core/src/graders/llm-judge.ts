@@ -21,8 +21,6 @@ export interface LlmJudgeOptions {
   maxTokens?: number;
   enforceMaxChars?: boolean;
   maxCodeChars?: number;
-  /** LiteLLM model alias map. When provided, model is resolved via this map before the API call. */
-  modelMap?: Record<string, string>;
 }
 
 export interface LlmJudgeResult {
@@ -61,10 +59,11 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
     logger.warn(`[judge] Code corpus exceeds limit (${code.length} > ${judgeMaxCodeChars} chars) — proceeding anyway`);
   }
   const user = USER_TEMPLATE.replace('{question}', question).replace('{code}', code);
-  const apiModel = (opts.modelMap ?? {})[model] ?? model;
 
+  // The judge hits the /chat/completions endpoint, which serves models under
+  // their plain alias, so the model is sent as-is (no Bedrock ID mapping).
   const payload = JSON.stringify({
-    model: apiModel,
+    model,
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: user },

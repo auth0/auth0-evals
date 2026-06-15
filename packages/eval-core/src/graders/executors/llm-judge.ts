@@ -48,7 +48,7 @@ export const llmJudgeExecutor: GraderExecutor = {
       };
     }
 
-    const { model, baseUrl, maxTokens, maxCodeChars, modelMap, enforceMaxChars } = ctx.judge;
+    const { model, baseUrl, maxTokens, maxCodeChars, enforceMaxChars } = ctx.judge;
 
     const judgeEntries = Object.entries(ctx.files).filter(([k]) => !isJudgeExcluded(k));
     const judgeText = judgeEntries.map(([k, v]) => `// FILE: ${k}\n${v}`).join('\n\n');
@@ -68,7 +68,6 @@ export const llmJudgeExecutor: GraderExecutor = {
       model,
       baseUrl,
       maxTokens,
-      modelMap,
       enforceMaxChars,
       maxCodeChars,
     });
