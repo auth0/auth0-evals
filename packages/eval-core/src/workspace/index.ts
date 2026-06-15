@@ -3,7 +3,9 @@ export {
   runSetupCommand,
   cleanupWorkspace,
   writeAgentGuidance,
+  buildStagingDocsGuidance,
   AGENT_GUIDANCE,
+  STAGING_DOCS_URL_ENV,
   AGENT_CONTEXT_FILENAMES,
 } from './workspace.js';
 export type { SetupWorkspaceOptions, RunSetupCommandOptions } from './workspace.js';

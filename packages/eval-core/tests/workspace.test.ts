@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmpDir } from './tmp.js';
@@ -6,7 +6,9 @@ import {
   setupWorkspace,
   cleanupWorkspace,
   writeAgentGuidance,
+  buildStagingDocsGuidance,
   AGENT_GUIDANCE,
+  STAGING_DOCS_URL_ENV,
   AGENT_CONTEXT_FILENAMES,
 } from '../src/workspace/workspace.js';
 import { resolveInside } from '../src/workspace/path-utils.js';
@@ -138,6 +140,64 @@ describe('writeAgentGuidance - runner-aware context file', () => {
     expect(content.endsWith(AGENT_GUIDANCE)).toBe(true);
 
     cleanupWorkspace(workspace);
+  });
+});
+
+describe('writeAgentGuidance - staging docs URL injection (MCP mode)', () => {
+  const ORIGINAL = process.env[STAGING_DOCS_URL_ENV];
+  afterEach(() => {
+    if (ORIGINAL === undefined) delete process.env[STAGING_DOCS_URL_ENV];
+    else process.env[STAGING_DOCS_URL_ENV] = ORIGINAL;
+  });
+
+  it('injects the staging URL into CLAUDE.md when tools include mcp and the env var is set', () => {
+    process.env[STAGING_DOCS_URL_ENV] = 'https://staging.example.app';
+    const workspace = setupWorkspace({ 'index.js': 'ok' });
+    writeAgentGuidance(workspace, 'claude-code', ['mcp']);
+
+    const content = readFileSync(join(workspace, 'CLAUDE.md'), 'utf-8');
+    expect(content).toContain(AGENT_GUIDANCE);
+    expect(content).toContain('https://staging.example.app');
+    expect(content).toContain('https://staging.example.app/docs/quickstart/native/ios-swift.md');
+
+    cleanupWorkspace(workspace);
+  });
+
+  it('does NOT inject staging guidance when mcp is absent, even if the env var is set', () => {
+    process.env[STAGING_DOCS_URL_ENV] = 'https://staging.example.app';
+    const workspace = setupWorkspace({ 'index.js': 'ok' });
+    writeAgentGuidance(workspace, 'claude-code', ['skills']);
+
+    const content = readFileSync(join(workspace, 'CLAUDE.md'), 'utf-8');
+    expect(content).toBe(AGENT_GUIDANCE);
+    expect(content).not.toContain('staging.example.app');
+
+    cleanupWorkspace(workspace);
+  });
+
+  it('does NOT inject staging guidance when the env var is unset, even in mcp mode', () => {
+    delete process.env[STAGING_DOCS_URL_ENV];
+    const workspace = setupWorkspace({ 'index.js': 'ok' });
+    writeAgentGuidance(workspace, 'claude-code', ['mcp']);
+
+    expect(readFileSync(join(workspace, 'CLAUDE.md'), 'utf-8')).toBe(AGENT_GUIDANCE);
+
+    cleanupWorkspace(workspace);
+  });
+});
+
+describe('buildStagingDocsGuidance', () => {
+  it('returns guidance text containing the normalised base URL', () => {
+    const out = buildStagingDocsGuidance('https://staging.example.app/');
+    // Trailing slash stripped; sample .md path uses the clean base.
+    expect(out).toContain('https://staging.example.app/docs/quickstart/native/ios-swift.md');
+    expect(out).not.toContain('app//docs');
+  });
+
+  it('returns an empty string for undefined, empty, or whitespace input', () => {
+    expect(buildStagingDocsGuidance(undefined)).toBe('');
+    expect(buildStagingDocsGuidance('')).toBe('');
+    expect(buildStagingDocsGuidance('   ')).toBe('');
   });
 });
 

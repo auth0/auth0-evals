@@ -344,6 +344,15 @@ All agent runners have access to file/shell tools in their respective environmen
 
 When MCP tools are enabled (`--tools mcp`), MCP server tool definitions are appended to the tool list.
 
+### Testing against staging docs (`AUTH0_DOCS_STAGING_URL`)
+
+To evaluate in-progress documentation changes (e.g. a Mintlify staging preview) instead of production docs, set the `AUTH0_DOCS_STAGING_URL` env var to the staging docs base URL. When it is set **and** the run is in MCP tool mode (`--tools mcp`), the framework appends guidance to the agent's context file (`CLAUDE.md` / `GEMINI.md` / `AGENTS.md`) instructing it to fetch docs from that base — by appending `.md` to a docs path to get raw markdown — and to prefer it over production. With the var unset, behaviour is unchanged (production docs).
+
+```bash
+AUTH0_DOCS_STAGING_URL=https://docs-staging-…auth0-mintlify.app \
+  npm run evals -- --eval swift_quickstart --mode agent --tools mcp
+```
+
 ---
 
 ## Models

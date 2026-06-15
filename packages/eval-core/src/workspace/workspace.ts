@@ -33,6 +33,33 @@ export const AGENT_GUIDANCE = `Do not create any documentation files (README.md,
 `;
 
 /**
+ * Env var naming a staging docs base URL. When set and the run is in MCP tool
+ * mode, {@link buildStagingDocsGuidance} injects an instruction steering the
+ * agent to fetch Auth0 documentation from this base instead of the default
+ * production docs — used to test in-progress docs changes (e.g. a Mintlify
+ * staging preview) against the eval suite.
+ */
+export const STAGING_DOCS_URL_ENV = 'AUTH0_DOCS_STAGING_URL';
+
+/**
+ * Builds CLAUDE.md guidance that points the agent at a staging docs base URL.
+ *
+ * Returns an empty string (no guidance) unless `stagingUrl` is a non-empty
+ * value, so the default — production docs — is unchanged when the env var is
+ * absent. The base URL is normalised (trailing slash stripped); the agent is
+ * told to append `.md` to a docs path to fetch raw markdown, which is how
+ * Mintlify-hosted docs expose page source.
+ *
+ * @param stagingUrl staging docs base URL (typically from {@link STAGING_DOCS_URL_ENV})
+ */
+export function buildStagingDocsGuidance(stagingUrl: string | undefined): string {
+  const base = (stagingUrl ?? '').trim().replace(/\/+$/, '');
+  if (!base) return '';
+  return `When you look up Auth0 documentation, use the staging docs at ${base} as the source of truth — prefer it over any other documentation source, including MCP/search results that reference production docs. To read a docs page, fetch its raw markdown by appending \`.md\` to the page path (e.g. \`${base}/docs/quickstart/native/ios-swift.md\`). Follow the SDK setup, credential configuration, and code patterns from the staging docs.
+`;
+}
+
+/**
  * The context/memory file each runner reads, relative to the workspace root.
  * Writing guidance to the wrong file means the agent silently ignores it:
  *   - Claude Code reads CLAUDE.md.
@@ -52,8 +79,14 @@ export const AGENT_CONTEXT_FILENAMES: Record<AgentType, string> = {
  * Writes {@link AGENT_GUIDANCE} into the context file the given runner reads.
  * Appends (preserving any scaffold-provided content) when the file already
  * exists; creates it otherwise.
+ *
+ * When `tools` includes `'mcp'` and the {@link STAGING_DOCS_URL_ENV} env var is
+ * set, also appends {@link buildStagingDocsGuidance} so the agent fetches docs
+ * from the staging base URL. With the env var unset, behaviour is unchanged.
+ *
+ * @param tools active tool flags for the run (e.g. `['mcp', 'skills']`)
  */
-export function writeAgentGuidance(workspace: string, agentType: AgentType): void {
+export function writeAgentGuidance(workspace: string, agentType: AgentType, tools: string[] = []): void {
   const filename = AGENT_CONTEXT_FILENAMES[agentType];
   const dest = join(workspace, filename);
 
@@ -65,11 +98,15 @@ export function writeAgentGuidance(workspace: string, agentType: AgentType): voi
     renameSync(scaffoldAgentsMd, dest);
   }
 
+  // In MCP tool mode, optionally steer the agent at a staging docs base URL.
+  const stagingGuidance = tools.includes('mcp') ? buildStagingDocsGuidance(process.env[STAGING_DOCS_URL_ENV]) : '';
+  const guidance = stagingGuidance ? `${AGENT_GUIDANCE}\n${stagingGuidance}` : AGENT_GUIDANCE;
+
   if (existsSync(dest)) {
-    appendFileSync(dest, `\n${AGENT_GUIDANCE}`, 'utf-8');
+    appendFileSync(dest, `\n${guidance}`, 'utf-8');
   } else {
     mkdirSync(join(dest, '..'), { recursive: true });
-    writeFileSync(dest, AGENT_GUIDANCE, 'utf-8');
+    writeFileSync(dest, guidance, 'utf-8');
   }
 }
 
