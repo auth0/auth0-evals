@@ -11,7 +11,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getFrameworkConfig } from '../config/framework-config.js';
 import { collectFiles as collectFilePaths } from '../workspace/index.js';
-import type { GraderDef, GraderResult, EventToolCall } from '@a0/eval-graders';
+import type { GraderDef, GraderResult, EventToolCall, CompileResult } from '@a0/eval-graders';
 import { GraderLevel } from '@a0/eval-graders';
 import { registerExecutor, executeGrader } from './executors/index.js';
 import { containsExecutor } from './executors/contains.js';
@@ -117,6 +117,7 @@ export async function runGraders(
   allowedLevels?: Set<GraderLevel>,
   enforceMaxChars: boolean = true,
   toolCalls?: EventToolCall[],
+  compileResult?: CompileResult,
 ): Promise<GraderResult[]> {
   const config = getFrameworkConfig();
   const resolvedJudgeModel = judgeModel ?? config.judge.model ?? '';
@@ -146,6 +147,7 @@ export async function runGraders(
       enforceMaxChars,
     },
     toolCalls,
+    compileResult,
   };
 
   const results: GraderResult[] = [];
