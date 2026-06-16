@@ -166,6 +166,13 @@ describe('GeminiCliTranslator — mapping', () => {
     expect(translator.mapName('mcp__anything__tool')).toBe('mcp__anything__tool');
   });
 
+  it('normalizes single-underscore mcp_ names (Gemini >=0.46) to the mcp__ prefix', () => {
+    expect(translator.mapName('mcp_auth0-hosted-mcp_auth0_list_applications')).toBe(
+      'mcp__auth0-hosted-mcp_auth0_list_applications',
+    );
+    expect(translator.mapName('mcp_server_tool')).toBe('mcp__server_tool');
+  });
+
   it('passes through unknown tool names', () => {
     expect(translator.mapName('some_unknown_tool')).toBe('some_unknown_tool');
   });
