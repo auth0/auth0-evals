@@ -90,7 +90,12 @@ export {
   resolveInside,
   validatePathFormat,
 } from './workspace/index.js';
-export type { SetupWorkspaceOptions, RunSetupCommandOptions, RunCompileCommandOptions, CollectFilesOptions } from './workspace/index.js';
+export type {
+  SetupWorkspaceOptions,
+  RunSetupCommandOptions,
+  RunCompileCommandOptions,
+  CollectFilesOptions,
+} from './workspace/index.js';
 
 // Types — eval definition
 export type { EvalDefinition, GraderDef } from './types/eval.js';
