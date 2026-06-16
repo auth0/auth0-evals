@@ -22,7 +22,7 @@ export function defineGraders() {
     notContains('sessionStorage.setItem', 'No tokens manually stored in sessionStorage', GraderLevel.L3),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
-    // Install verification left disabled — a valid solution may edit package.json then run a bare `npm install`.
+    // Event-based install/build verification temporarily disabled — see PR scoping discussion.
     // ranCommand('npm install', '@auth0/auth0-spa-js', 'Ran npm install for @auth0/auth0-spa-js', GraderLevel.L4),
     compiles('Project compiles (build succeeds)', GraderLevel.L4),
     matches(
