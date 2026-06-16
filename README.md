@@ -74,6 +74,7 @@ Agent runs are scored across 8 dimensions (process + output quality) into a JSON
 
 ## Documentation
 
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - System architecture, layers, data flow, scoring, and recommendations
 - [`packages/eval/README.md`](packages/eval/) - CLI usage, configuration, runners, scoring methodology
 - [`apps/auth0-evals/README.md`](apps/auth0-evals/) - Auth0 eval suite, available evals, how to add new ones
 - [`docs/ADDING_EVALS.md`](docs/ADDING_EVALS.md) - Full guide to writing evals
