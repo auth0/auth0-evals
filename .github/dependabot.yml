@@ -25,3 +25,9 @@ updates:
         patterns:
           - "@openai/codex"
           - "@openai/codex-sdk"
+      # Keep the Claude Code CLI and Agent SDK in lockstep — they share a
+      # release cadence and are easier to test together than separately.
+      anthropic:
+        patterns:
+          - "@anthropic-ai/claude-code"
+          - "@anthropic-ai/claude-agent-sdk"
