@@ -96,12 +96,16 @@ Graders define the acceptance criteria. Export a single `defineGraders()` functi
 | `ranCommand(command, args, description, level)` | Agent ran a successful shell command containing `command` and all `args` substrings |
 | `ranCommandOneOf(commands, description, level)` | Agent ran at least one successful command from the list (substring match) |
 | `wroteFile(path, description, level, expected?)` | Agent wrote a file whose path contains the substring. With optional `expected` (string or string array), the combined content of all writes to that path must also contain every `expected` substring |
+| `calledTool(toolName, description, level)` | Agent invoked an MCP tool whose name contains the substring (trace-based; L4/L5 only) |
+| `calledToolOneOf(toolNames, description, level)` | Agent invoked at least one of the named MCP tools (trace-based; L4/L5 only) |
 
 The `options` parameter is an object with an optional `caseSensitive` field (defaults to `true`).
 
 The event-based primitives (`ranCommand`, `ranCommandOneOf`, `wroteFile`) inspect the agent's tool-call trace rather than workspace file contents. They only produce meaningful results in agent mode — in baseline mode (no tool calls), they gracefully fail. The `level` parameter is **required** and must be `GraderLevel.L4` or `GraderLevel.L5` (the type system enforces this). Use L4 for behavioral checks like verifying the agent explicitly installed dependencies or ran a build.
 
 The optional `expected` argument on `wroteFile` is useful when a file is excluded from the LLM judge's view (e.g. `.env` / `.env.local`) but you still need to verify the agent wrote the expected variables into it. Because it concatenates content across all writes to the path, it tolerates agents that build the file incrementally.
+
+`calledTool` / `calledToolOneOf` inspect the tool-call trace for MCP invocations (`mcp__<server>__<tool>`), match the tool name case-insensitively as a substring, and exclude errored calls. They only produce meaningful results in `--tools mcp` agent configs.
 
 ---
 

@@ -50,4 +50,6 @@ export const DEFAULT_FRAMEWORK_CONFIG: Required<FrameworkConfig> = {
   },
 
   scoring: {},
+
+  sandbox: {},
 };

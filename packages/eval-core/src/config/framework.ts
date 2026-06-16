@@ -37,11 +37,28 @@ export interface MCPStdioServerConfig {
   env?: Record<string, string>;
 }
 
+export interface MCPOAuthConfig {
+  /** OAuth token endpoint, e.g. https://TENANT/oauth/token */
+  tokenUrl: string;
+  /** OAuth client ID for the client-credentials grant. */
+  clientId: string;
+  /** OAuth client secret for the client-credentials grant. */
+  clientSecret: string;
+  /** API audience the token is requested for, e.g. https://TENANT/api/v2/ */
+  audience: string;
+}
+
 export interface MCPHttpServerConfig {
   /** URL-based MCP server. */
   type: 'http';
   /** HTTP URL for the remote MCP server. */
   url: string;
+  /**
+   * Optional OAuth config. When present, the framework mints a fresh Bearer
+   * token per agent job and injects it as an Authorization header. If any
+   * field is empty (e.g. a missing env var), the server is omitted with a warning.
+   */
+  auth?: MCPOAuthConfig;
 }
 
 /** Discriminated union — either a stdio (command-based) or http (URL-based) MCP server. */
@@ -119,6 +136,16 @@ export interface ScoringConfig {
 
 // ── Root config ──────────────────────────────────────────────────────────────
 
+export interface SandboxConfig {
+  /**
+   * Names of host environment variables to forward into the Docker sandbox.
+   * Each name is resolved from `process.env` at job launch; only currently-set
+   * vars are forwarded. Use for app-specific secrets the framework can't know
+   * about (e.g. MCP server credentials). Names only — values are never stored here.
+   */
+  passthroughEnv?: string[];
+}
+
 export interface FrameworkConfig {
   /** Directory containing evaluation definitions (required). */
   evalsDir: string;
@@ -140,4 +167,6 @@ export interface FrameworkConfig {
   braintrust?: BraintrustConfig;
   /** Scoring behaviour overrides (e.g. custom doc URL allowlist). */
   scoring?: ScoringConfig;
+  /** Docker sandbox settings (e.g. env vars to forward into the container). */
+  sandbox?: SandboxConfig;
 }
