@@ -344,6 +344,8 @@ All agent runners have access to file/shell tools in their respective environmen
 
 When MCP tools are enabled (`--tools mcp`), MCP server tool definitions are appended to the tool list.
 
+Authenticated HTTP MCP servers are configured with an `auth` block (`tokenUrl`, `clientId`, `clientSecret`, `audience`). The framework mints a Management API token per agent job via a client-credentials exchange and forwards it to the MCP server. All four runners support this: claude-code, copilot, and gemini-cli forward it as an `Authorization: Bearer` header in their server config; codex passes it via a `bearer_token_env_var` reference in `config.toml` (Codex rejects an inline token, so the secret stays out of the file). A failed token mint skips the server with a warning rather than registering it unauthenticated. Full setup guide: [docs/PROTECTED_MCP.md](docs/PROTECTED_MCP.md).
+
 ---
 
 ## Models

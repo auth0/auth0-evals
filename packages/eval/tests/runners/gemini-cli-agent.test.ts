@@ -20,9 +20,8 @@ import { join } from 'node:path';
 
 // ── Mock framework config ────────────────────────────────────────────────────
 
-vi.mock('@a0/eval-core', async () => ({
-  ...(await vi.importActual('@a0/eval-core')),
-  getFrameworkConfig: vi.fn().mockReturnValue({
+const mockGetFrameworkConfig = vi.hoisted(() =>
+  vi.fn().mockReturnValue({
     proxy: { baseUrl: 'https://llm.example.com/v1' },
     mcp: {
       servers: {
@@ -30,6 +29,13 @@ vi.mock('@a0/eval-core', async () => ({
       },
     },
   }),
+);
+const mintMcpTokenMock = vi.hoisted(() => vi.fn());
+
+vi.mock('@a0/eval-core', async () => ({
+  ...(await vi.importActual('@a0/eval-core')),
+  getFrameworkConfig: mockGetFrameworkConfig,
+  mintMcpToken: mintMcpTokenMock,
 }));
 
 // ── Mock spawn ────────────────────────────────────────────────────────────────
@@ -567,6 +573,66 @@ describe('.gemini/settings.json', () => {
     await runGeminiCliAgent(evalDef, tmpWorkspace, { tools: ['skills'] });
 
     expect(existsSync(join(tmpWorkspace, '.gemini', 'settings.json'))).toBe(true);
+  });
+
+  it('mints a token and writes an Authorization header for authed servers', async () => {
+    mockSpawn.mockReturnValue(makeChild([resultEvent()]));
+    mintMcpTokenMock.mockResolvedValueOnce('minted-token');
+    mockGetFrameworkConfig.mockReturnValueOnce({
+      proxy: { baseUrl: 'https://llm.example.com/v1' },
+      mcp: {
+        servers: {
+          'auth0-hosted-mcp': {
+            type: 'http',
+            url: 'https://tenant.auth0.com/v1/mcp',
+            auth: {
+              tokenUrl: 'https://tenant.auth0.com/oauth/token',
+              clientId: 'cid',
+              clientSecret: 'secret',
+              audience: 'https://tenant.auth0.com/api/v2/',
+            },
+          },
+        },
+      },
+    });
+
+    await runGeminiCliAgent(evalDef, tmpWorkspace, { tools: ['mcp'] });
+
+    const settings = readSettings();
+    expect(settings.mcpServers).toEqual({
+      'auth0-hosted-mcp': {
+        httpUrl: 'https://tenant.auth0.com/v1/mcp',
+        timeout: 30000,
+        headers: { Authorization: 'Bearer minted-token' },
+      },
+    });
+  });
+
+  it('skips an authed server when the token mint fails', async () => {
+    mockSpawn.mockReturnValue(makeChild([resultEvent()]));
+    mintMcpTokenMock.mockResolvedValueOnce(undefined);
+    mockGetFrameworkConfig.mockReturnValueOnce({
+      proxy: { baseUrl: 'https://llm.example.com/v1' },
+      mcp: {
+        servers: {
+          'auth0-hosted-mcp': {
+            type: 'http',
+            url: 'https://tenant.auth0.com/v1/mcp',
+            auth: {
+              tokenUrl: 'https://tenant.auth0.com/oauth/token',
+              clientId: 'cid',
+              clientSecret: 'secret',
+              audience: 'https://tenant.auth0.com/api/v2/',
+            },
+          },
+        },
+      },
+    });
+
+    await runGeminiCliAgent(evalDef, tmpWorkspace, { tools: ['mcp'] });
+
+    const settings = readSettings();
+    expect(settings).not.toHaveProperty('mcpServers');
   });
 });
 

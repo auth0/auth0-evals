@@ -44,6 +44,22 @@ export default {
         type: 'http',
         url: 'https://auth0.com/docs/mcp',
       },
+      ...(process.env.MCP_TENANT_DOMAIN &&
+      process.env.MCP_CLIENT_ID &&
+      process.env.MCP_CLIENT_SECRET
+        ? {
+            'auth0-hosted-mcp': {
+              type: 'http',
+              url: `https://${process.env.MCP_TENANT_DOMAIN}/v1/mcp`,
+              auth: {
+                tokenUrl: `https://${process.env.MCP_TENANT_DOMAIN}/oauth/token`,
+                clientId: process.env.MCP_CLIENT_ID,
+                clientSecret: process.env.MCP_CLIENT_SECRET,
+                audience: `https://${process.env.MCP_TENANT_DOMAIN}/api/v2/`,
+              },
+            },
+          }
+        : {}),
     },
   },
 
@@ -80,6 +96,13 @@ export default {
     ],
   },
 
+
+  sandbox: {
+    // Host env vars forwarded into the Docker sandbox (names only; values resolved
+    // from process.env at launch). Needed so the authenticated auth0-hosted-mcp
+    // server can mint its token inside the container.
+    passthroughEnv: ['MCP_TENANT_DOMAIN', 'MCP_CLIENT_ID', 'MCP_CLIENT_SECRET'],
+  },
 
   braintrust: {
     projectId: '38395851-dd41-46ec-a971-a30402db6921',
