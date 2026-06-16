@@ -37,6 +37,7 @@ import {
   filteredEnv,
   readWorkspaceFile,
   makeSessionId,
+  mintMcpToken,
 } from '@a0/eval-core';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/eval-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
@@ -57,12 +58,27 @@ function tomlEscape(s: string): string {
   return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
-function buildMcpToml(servers: Record<string, MCPServerConfig>): string {
+/**
+ * Builds the `[mcp_servers.*]` TOML blocks.
+ *
+ * For HTTP servers with an entry in `bearerTokenEnvVars`, emits
+ * `bearer_token_env_var = "<NAME>"` so Codex reads the Bearer token from that
+ * env var at runtime. Codex rejects an inline `bearer_token` key, so the token
+ * is never written to the config file — only the env-var name is.
+ */
+function buildMcpToml(
+  servers: Record<string, MCPServerConfig>,
+  bearerTokenEnvVars: Record<string, string> = {},
+): string {
   let toml = '';
   for (const [name, server] of Object.entries(servers)) {
     const safeName = tomlEscape(name);
     if (server.type === 'http') {
       toml += `\n[mcp_servers."${safeName}"]\nurl = "${tomlEscape(server.url)}"\n`;
+      const envVar = bearerTokenEnvVars[name];
+      if (envVar) {
+        toml += `bearer_token_env_var = "${tomlEscape(envVar)}"\n`;
+      }
     } else {
       toml += `\n[mcp_servers."${safeName}"]\ncommand = "${tomlEscape(server.command)}"\n`;
       if (server.args && server.args.length > 0) {
@@ -85,6 +101,7 @@ function writeCodexConfig(
   proxyBaseUrl: string,
   workspace: string,
   mcpServers: Record<string, MCPServerConfig> = {},
+  bearerTokenEnvVars: Record<string, string> = {},
 ): void {
   mkdirSync(codexHome, { recursive: true });
   // Resolve canonical path — on macOS /var is a symlink to /private/var.
@@ -102,7 +119,7 @@ wire_api = "responses"
 
 [projects."${resolvedWorkspace}"]
 trust_level = "trusted"
-${buildMcpToml(mcpServers)}`;
+${buildMcpToml(mcpServers, bearerTokenEnvVars)}`;
   writeFileSync(join(codexHome, 'config.toml'), configToml, 'utf-8');
 }
 
@@ -450,11 +467,36 @@ export async function runCodexAgent(
   mkdirSync(codexHome, { recursive: true });
 
   // Resolve MCP servers from framework config when --tools mcp is requested.
-  const mcpServers: Record<string, MCPServerConfig> = tools.includes('mcp') ? getFrameworkConfig().mcp.servers : {};
+  const configuredServers: Record<string, MCPServerConfig> = tools.includes('mcp')
+    ? getFrameworkConfig().mcp.servers
+    : {};
+
+  // Mint a Bearer token per HTTP server that declares an `auth` block. The token
+  // is passed to Codex via an env var (referenced by `bearer_token_env_var` in
+  // config.toml) — Codex rejects an inline `bearer_token`, so the secret never
+  // touches the config file. Minting per job avoids reusing an expired token on
+  // a long matrix run. A failed mint drops the server rather than registering it
+  // unauthenticated, so a misconfigured run looks like "MCP wasn't available".
+  const mcpServers: Record<string, MCPServerConfig> = {};
+  const bearerTokenEnvVars: Record<string, string> = {};
+  const bearerTokens: Record<string, string> = {};
+  for (const [name, server] of Object.entries(configuredServers)) {
+    if (server.type === 'http' && server.auth) {
+      const token = await mintMcpToken(server.auth);
+      if (!token) {
+        logger.warn(`[Codex] MCP server '${name}' skipped — token mint failed or creds missing`);
+        continue;
+      }
+      const envVar = `MCP_BEARER_${name.replace(/[^A-Za-z0-9]/g, '_').toUpperCase()}`;
+      bearerTokenEnvVars[name] = envVar;
+      bearerTokens[envVar] = token;
+    }
+    mcpServers[name] = server;
+  }
 
   const normalizedBaseUrl = proxyBaseUrl.replace(/\/+$/, '');
   const codexApiUrl = normalizedBaseUrl.endsWith('/v1') ? normalizedBaseUrl : `${normalizedBaseUrl}/v1`;
-  writeCodexConfig(codexHome, codexApiUrl, workspace, mcpServers);
+  writeCodexConfig(codexHome, codexApiUrl, workspace, mcpServers, bearerTokenEnvVars);
   logger.info(`[Codex] Proxy: ${proxyBaseUrl}`);
   logger.info(`[Codex] CODEX_HOME: ${codexHome}`);
   if (Object.keys(mcpServers).length > 0) {
@@ -477,6 +519,12 @@ export async function runCodexAgent(
         codexEnv[key] = value;
       }
     }
+  }
+
+  // Inject minted Bearer tokens so Codex can resolve each authed server's
+  // `bearer_token_env_var` reference at runtime.
+  for (const [key, value] of Object.entries(bearerTokens)) {
+    codexEnv[key] = value;
   }
 
   // Skills are injected into the workspace by CodexRunner.prepareSkills().

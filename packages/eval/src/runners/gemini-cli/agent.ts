@@ -29,6 +29,7 @@ import {
   logger,
   filteredEnv,
   makeSessionId,
+  mintMcpToken,
 } from '@a0/eval-core';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/eval-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
@@ -77,21 +78,44 @@ function isAutoCancelled(output: string): boolean {
  * MCP tool calls appear in the stream-json output as tool_use events with names
  * using the format `mcp__<serverName>__<toolName>` (e.g. `mcp__auth0-docs__search_auth0_docs`).
  *
+ * For HTTP servers with an `auth` block, mints a fresh Bearer token per job
+ * (client-credentials exchange) and writes it as an `Authorization` header into
+ * the server config. If the token mint fails, the server is skipped with a
+ * warning rather than registered unauthenticated.
+ *
  * Returns the names of the registered MCP servers (empty when MCP is disabled).
  */
-function writeGeminiSettings(workspace: string, includeMcp: boolean): string[] {
+interface GeminiMcpServer {
+  httpUrl: string;
+  timeout: number;
+  headers?: Record<string, string>;
+}
+
+async function writeGeminiSettings(workspace: string, includeMcp: boolean): Promise<string[]> {
   const settings: {
     security: { auth: { selectedType: string } };
-    mcpServers?: Record<string, { httpUrl: string; timeout: number }>;
+    mcpServers?: Record<string, GeminiMcpServer>;
   } = {
     security: { auth: { selectedType: GEMINI_AUTH_TYPE } },
   };
 
-  const mcpServers: Record<string, { httpUrl: string; timeout: number }> = {};
+  const mcpServers: Record<string, GeminiMcpServer> = {};
   if (includeMcp) {
     const configServers = getFrameworkConfig().mcp.servers;
     for (const [name, server] of Object.entries(configServers)) {
-      if (server.type === 'http') {
+      if (server.type !== 'http') continue;
+      if (server.auth) {
+        const token = await mintMcpToken(server.auth);
+        if (!token) {
+          logger.warn(`[GeminiCLI] MCP server '${name}' skipped — token mint failed or creds missing`);
+          continue;
+        }
+        mcpServers[name] = {
+          httpUrl: server.url,
+          timeout: 30000,
+          headers: { Authorization: `Bearer ${token}` },
+        };
+      } else {
         mcpServers[name] = { httpUrl: server.url, timeout: 30000 };
       }
     }
@@ -155,7 +179,7 @@ export async function runGeminiCliAgent(
   logger.info(`\n[GeminiCLI] Starting task: ${evalDef.id}`);
   logger.info(`[GeminiCLI] Workspace: ${workspace}`);
   logger.info(`[GeminiCLI] Model: ${model}`);
-  const mcpNames = writeGeminiSettings(workspace, tools.includes('mcp'));
+  const mcpNames = await writeGeminiSettings(workspace, tools.includes('mcp'));
   if (mcpNames.length > 0) logger.info(`[GeminiCLI] MCP: ${mcpNames.join(', ')}`);
 
   // Trust only this workspace so YOLO mode isn't overridden in CI/headless environments.
