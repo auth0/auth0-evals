@@ -1,4 +1,4 @@
-import { contains, notContains, matches, judge, GraderLevel } from '@a0/eval-graders';
+import { contains, notContains, matches, judge, compiles, GraderLevel } from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
@@ -22,9 +22,9 @@ export function defineGraders() {
     notContains('sessionStorage.setItem', 'No tokens manually stored in sessionStorage', GraderLevel.L3),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
-    // Event-based install/build verification temporarily disabled — see PR scoping discussion.
+    // Install verification left disabled — a valid solution may edit package.json then run a bare `npm install`.
     // ranCommand('npm install', '@auth0/auth0-spa-js', 'Ran npm install for @auth0/auth0-spa-js', GraderLevel.L4),
-    // ranCommand('npm run', 'build', 'Ran build to verify compilation', GraderLevel.L4),
+    compiles('Project compiles (build succeeds)', GraderLevel.L4),
     matches(
       String.raw`createAuth0Client\s*\(\s*\{[\s\S]*?domain`,
       'Auth0Client configured with domain',
