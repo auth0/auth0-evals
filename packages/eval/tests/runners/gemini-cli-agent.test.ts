@@ -218,6 +218,28 @@ describe('tool events', () => {
     expect(record.toolCalls[0].isDocLookup).toBe(true);
   });
 
+  it('normalizes Gemini single-underscore mcp_ names to the mcp__ convention', async () => {
+    // Gemini CLI >=0.46 emits `mcp_<server>_<tool>` (single underscore); the
+    // trace-based MCP graders require the `mcp__` double-underscore prefix.
+    mockSpawn.mockReturnValue(
+      makeChild([
+        {
+          type: 'tool_use',
+          tool_id: 't1',
+          tool_name: 'mcp_auth0-hosted-mcp_auth0_list_applications',
+          parameters: {},
+        },
+        { type: 'tool_result', tool_id: 't1', status: 'success', output: '{"applications":[]}' },
+        { type: 'message', role: 'assistant', content: 'Done.', delta: true },
+        resultEvent(),
+      ]),
+    );
+
+    const record = await runGeminiCliAgent(evalDef, workspace);
+    expect(record.toolCalls[0].name).toBe('mcp__auth0-hosted-mcp_auth0_list_applications');
+    expect(record.toolCalls[0].name.startsWith('mcp__')).toBe(true);
+  });
+
   it('web_fetch tool is classified as a doc lookup', async () => {
     mockSpawn.mockReturnValue(
       makeChild([
