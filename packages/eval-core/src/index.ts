@@ -78,6 +78,7 @@ export type { LoadConfigOptions } from './config/loader.js';
 export {
   setupWorkspace,
   runSetupCommand,
+  runCompileCommand,
   cleanupWorkspace,
   writeAgentGuidance,
   AGENT_GUIDANCE,
@@ -89,7 +90,7 @@ export {
   resolveInside,
   validatePathFormat,
 } from './workspace/index.js';
-export type { SetupWorkspaceOptions, RunSetupCommandOptions, CollectFilesOptions } from './workspace/index.js';
+export type { SetupWorkspaceOptions, RunSetupCommandOptions, RunCompileCommandOptions, CollectFilesOptions } from './workspace/index.js';
 
 // Types — eval definition
 export type { EvalDefinition, GraderDef } from './types/eval.js';
@@ -152,6 +153,7 @@ export {
 } from './graders/index.js';
 
 export type { GraderContext, GraderExecutor } from './graders/index.js';
+export type { CompileResult } from '@a0/eval-graders';
 
 // Mode
 export { ALL_MODES } from './types/mode.js';

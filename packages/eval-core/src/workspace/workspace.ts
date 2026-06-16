@@ -22,6 +22,7 @@ import { tmpdir } from 'node:os';
 import { logger } from '../utils/logger.js';
 import { DEFAULT_FRAMEWORK_CONFIG } from '../config/defaults.js';
 import type { AgentType } from '../types/agents.js';
+import type { CompileResult } from '@a0/eval-graders';
 import { resolveInside } from './path-utils.js';
 
 /**
@@ -95,6 +96,11 @@ export interface RunSetupCommandOptions {
   timeoutMs?: number;
 }
 
+export interface RunCompileCommandOptions {
+  /** Timeout in ms for the compile command. Defaults to {@link DEFAULT_FRAMEWORK_CONFIG}.workspace.compileCommandTimeoutMs. */
+  timeoutMs?: number;
+}
+
 /**
  * Creates a fresh temp directory and seeds it with the scaffold files from the
  * eval definition. Returns the absolute path to the workspace.
@@ -157,6 +163,63 @@ export function runSetupCommand(workspace: string, command: string, options?: Ru
       throw new Error(`Setup command failed with exit code ${result.status}: ${subCommand}`);
     }
   }
+}
+
+/**
+ * Runs the eval's compile_command in the workspace AFTER the agent finishes and
+ * captures the outcome. Unlike runSetupCommand, this never throws — a failed
+ * compile is a valid graded result, not an infrastructure error.
+ *
+ * Splits on `&&` and runs each sub-command in sequence (same argv tokenisation
+ * as runSetupCommand). Short-circuits on the first failing sub-command. `ok` is
+ * true only if every sub-command exits 0. Output (stdout+stderr) is captured.
+ */
+export function runCompileCommand(
+  workspace: string,
+  command: string,
+  options?: RunCompileCommandOptions,
+): CompileResult {
+  const timeout = options?.timeoutMs ?? DEFAULT_FRAMEWORK_CONFIG.workspace.compileCommandTimeoutMs!;
+  const base: CompileResult = { ok: false, exitCode: null, signal: null, output: '', command };
+
+  if (!command.trim()) {
+    return { ...base, output: 'compile command is empty' };
+  }
+
+  const subCommands = command.split('&&').map((s) => s.trim());
+  if (subCommands.some((s) => !s)) {
+    return { ...base, output: `compile command has an empty segment: ${command}` };
+  }
+
+  let combinedOutput = '';
+  for (const subCommand of subCommands) {
+    logger.info(`  [Compile] Running: ${subCommand}`);
+    const args = subCommand.split(/\s+/);
+    const cmd = args.shift()!;
+    const result = spawnSync(cmd, args, { cwd: workspace, encoding: 'utf-8', timeout });
+
+    combinedOutput += (result.stdout ?? '') + (result.stderr ?? '');
+
+    if (result.error) {
+      // ENOENT (command not found) or timeout surfaces here.
+      const signal = result.signal ?? null;
+      return {
+        ok: false,
+        exitCode: null,
+        signal,
+        output: combinedOutput + `\n${result.error.message}`,
+        command,
+      };
+    }
+    if (result.signal) {
+      return { ok: false, exitCode: null, signal: result.signal, output: combinedOutput, command };
+    }
+    if (result.status !== 0) {
+      return { ok: false, exitCode: result.status, signal: null, output: combinedOutput, command };
+    }
+  }
+
+  return { ok: true, exitCode: 0, signal: null, output: combinedOutput, command };
 }
 
 /**

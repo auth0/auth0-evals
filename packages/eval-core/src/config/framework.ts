@@ -99,6 +99,8 @@ export interface WorkspaceConfig {
   tempDirPrefix?: string;
   /** Timeout (ms) for setup commands like `npm install`. */
   setupCommandTimeoutMs?: number;
+  /** Timeout (ms) for the post-agent compile_command. Builds are slower than installs. */
+  compileCommandTimeoutMs?: number;
 }
 
 export interface BraintrustConfig {
