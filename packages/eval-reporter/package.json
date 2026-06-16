@@ -25,7 +25,7 @@
   "devDependencies": {
     "@types/node": "^25.9.3",
     "@types/nunjucks": "^3.2.6",
-    "@vitest/coverage-v8": "^4.1.6",
+    "@vitest/coverage-v8": "^4.1.9",
     "vitest": "^4.1.8"
   }
 }
