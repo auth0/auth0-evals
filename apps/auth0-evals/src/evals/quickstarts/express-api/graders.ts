@@ -4,8 +4,6 @@ export function defineGraders() {
   return [
     // ── L1: Positive presence ──────────────────────────────────────────────────
     contains('express-oauth2-jwt-bearer', 'Uses express-oauth2-jwt-bearer SDK', GraderLevel.L1),
-    contains('issuerBaseURL', 'Configures issuerBaseURL', GraderLevel.L1),
-    contains('audience', 'Configures audience claim', GraderLevel.L1),
     contains('requiredScopes', 'Uses requiredScopes() for scope-based route protection', GraderLevel.L1),
     contains('req.auth', 'Accesses JWT data via req.auth', GraderLevel.L1),
 
@@ -64,16 +62,19 @@ export function defineGraders() {
     notContains('req.user', 'No req.user (express-oauth2-jwt-bearer uses req.auth, not req.user)', GraderLevel.L5),
     judge(
       'Does the solution use current express-oauth2-jwt-bearer patterns? ' +
-        'Specifically: does it configure auth() with issuerBaseURL and audience, ' +
+        'Specifically: does it apply the auth() middleware to protect routes, ' +
         'use requiredScopes() for scope checks (not manual payload inspection), ' +
-        'and access token data via req.auth.payload (not req.user or manually decoded tokens)?',
+        'and access token data via req.auth.payload (not req.user or manually decoded tokens)? ' +
+        'Judge only from the source code; the issuer and audience may be supplied via ' +
+        'environment variables (ISSUER_BASE_URL / AUDIENCE), so do not assume the contents of any .env file.',
       GraderLevel.L5,
     ),
 
     // ── Holistic judge ────────────────────────────────────────────────────────
     judge(
       'Does the solution correctly protect an Express.js API using express-oauth2-jwt-bearer? ' +
-        'It should configure auth() middleware with issuerBaseURL and audience, ' +
+        'It should apply the auth() middleware (issuer and audience may come from ISSUER_BASE_URL / AUDIENCE ' +
+        'environment variables — judge only from the source code and do not assume the contents of any .env file), ' +
         'protect GET /api/messages with read:messages scope, ' +
         'protect POST /api/messages with write:messages scope, ' +
         'and return user profile info from req.auth.payload at GET /api/profile.',
