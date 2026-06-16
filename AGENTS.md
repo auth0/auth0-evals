@@ -336,6 +336,12 @@ Set `CLAUDE_CODE_USE_BEDROCK_PROXY=1` to route through the Bedrock proxy instead
 - `claude-opus-4-5` → `global.anthropic.claude-opus-4-5-20251101-v1:0`
 - `claude-haiku-4-5` → `global.anthropic.claude-haiku-4-5-20251001-v1:0`
 
+### Copilot SDK runner details
+
+Uses `@github/copilot-sdk` to drive the bundled Copilot runtime over JSON-RPC. Inference is routed through the configured LLM proxy via an OpenAI-compatible BYOK provider (`provider: { type: 'openai', wireApi: 'responses', baseUrl, apiKey }`) — **not** GitHub's Copilot backend. The Responses API is required because Copilot emits freeform/custom tool calls (e.g. `apply_patch`) that the chat-completions API rejects — the same reason the Codex runner uses `wire_api = "responses"`. This mirrors the Codex runner: the proxy base URL resolves from `agents.copilot.proxy.baseUrl` (falling back to the top-level `proxy.baseUrl`) and is normalized to end in `/v1`; the API key comes from the `LLM_API_KEY` env var. Set `COPILOT_PROXY_BASE_URL` to override the proxy for this runner only.
+
+The runner is GPT-only: `gpt-*` / `o*` models pass through, anything else (e.g. `claude-*`, `gemini-*`, or the `copilot` sentinel) falls back to the default GPT model (`gpt-5.4`).
+
 ---
 
 ## Agent tools
