@@ -18,6 +18,20 @@ export interface EventToolCall {
   causedError: boolean;
 }
 
+/** Outcome of running an eval's compile_command against the workspace post-agent. */
+export interface CompileResult {
+  /** True only if every sub-command exited 0. */
+  ok: boolean;
+  /** Exit code of the failing (or last) sub-command; null if killed by signal. */
+  exitCode: number | null;
+  /** Signal that killed the command (e.g. 'SIGTERM' on timeout); null otherwise. */
+  signal: string | null;
+  /** Combined stdout+stderr of the command run. */
+  output: string;
+  /** The compile_command string that was executed. */
+  command: string;
+}
+
 export interface GraderResult {
   name: string;
   kind: string;
