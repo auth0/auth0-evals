@@ -20,6 +20,7 @@ import { notContainsInSourceExecutor } from './executors/not-contains-in-source.
 import { matchesExecutor } from './executors/matches.js';
 import { llmJudgeExecutor } from './executors/llm-judge.js';
 import { eventExecutor } from './executors/event.js';
+import { compileExecutor } from './executors/compile.js';
 
 // Re-export llmJudge from its dedicated module for backward compatibility.
 export { llmJudge } from './llm-judge.js';
@@ -32,6 +33,7 @@ registerExecutor(notContainsInSourceExecutor);
 registerExecutor(matchesExecutor);
 registerExecutor(llmJudgeExecutor);
 registerExecutor(eventExecutor);
+registerExecutor(compileExecutor);
 
 // ── Workspace helpers ─────────────────────────────────────────────────────────
 
