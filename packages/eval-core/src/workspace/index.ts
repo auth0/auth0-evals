@@ -5,6 +5,7 @@ export {
   writeAgentGuidance,
   AGENT_GUIDANCE,
   AGENT_CONTEXT_FILENAMES,
+  compileGuidance,
 } from './workspace.js';
 export type { SetupWorkspaceOptions, RunSetupCommandOptions } from './workspace.js';
 export { collectFiles, readWorkspaceFile } from './file-utils.js';
