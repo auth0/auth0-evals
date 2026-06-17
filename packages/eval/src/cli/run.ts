@@ -134,7 +134,7 @@ async function runAgentJob(
   // Inject "no docs files" guidance into the context file this runner reads
   // (CLAUDE.md / GEMINI.md / AGENTS.md). Must run before both the docker and
   // local execution paths so every runner picks it up.
-  writeAgentGuidance(workspace, agentType);
+  writeAgentGuidance(workspace, agentType, evalDef.compileCommand);
   try {
     if (!sandbox && evalDef.setupCommand) {
       runSetupCommand(workspace, evalDef.setupCommand);

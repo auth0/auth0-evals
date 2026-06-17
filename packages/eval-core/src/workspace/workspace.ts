@@ -33,6 +33,15 @@ export const AGENT_GUIDANCE = `Do not create any documentation files (README.md,
 `;
 
 /**
+ * Builds the compile-verification guidance appended to the agent's context file
+ * when the eval declares a `compileCommand`. Pointing the agent at the command
+ * means it appears in the tool trace and the agent can fix any failures.
+ */
+export function compileGuidance(compileCommand: string): string {
+  return `After making your changes, you MUST run this command to verify your integration compiles, and fix any errors it reports before finishing:\n\n\`${compileCommand}\`\n`;
+}
+
+/**
  * The context/memory file each runner reads, relative to the workspace root.
  * Writing guidance to the wrong file means the agent silently ignores it:
  *   - Claude Code reads CLAUDE.md.
@@ -51,11 +60,14 @@ export const AGENT_CONTEXT_FILENAMES: Record<AgentType, string> = {
 /**
  * Writes {@link AGENT_GUIDANCE} into the context file the given runner reads.
  * Appends (preserving any scaffold-provided content) when the file already
- * exists; creates it otherwise.
+ * exists; creates it otherwise. When `compileCommand` is provided, the
+ * compile-verification guidance (see {@link compileGuidance}) is appended too.
  */
-export function writeAgentGuidance(workspace: string, agentType: AgentType): void {
+export function writeAgentGuidance(workspace: string, agentType: AgentType, compileCommand?: string): void {
   const filename = AGENT_CONTEXT_FILENAMES[agentType];
   const dest = join(workspace, filename);
+
+  const guidance = compileCommand ? `${AGENT_GUIDANCE}\n${compileGuidance(compileCommand)}` : AGENT_GUIDANCE;
 
   // If the scaffold shipped AGENTS.md but the active runner reads a different
   // file, rename it so the guidance reaches the right runner.
@@ -66,10 +78,10 @@ export function writeAgentGuidance(workspace: string, agentType: AgentType): voi
   }
 
   if (existsSync(dest)) {
-    appendFileSync(dest, `\n${AGENT_GUIDANCE}`, 'utf-8');
+    appendFileSync(dest, `\n${guidance}`, 'utf-8');
   } else {
     mkdirSync(join(dest, '..'), { recursive: true });
-    writeFileSync(dest, AGENT_GUIDANCE, 'utf-8');
+    writeFileSync(dest, guidance, 'utf-8');
   }
 }
 

@@ -19,6 +19,7 @@ export interface EvalDefinition {
   graders: GraderDef[];
   scaffold: Record<string, string>;
   setupCommand?: string;
+  compileCommand?: string;
   skills: string[];
   metadata: Record<string, string>;
 }

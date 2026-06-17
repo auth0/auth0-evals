@@ -31,6 +31,7 @@ id: my_new_eval
 name: My New Eval
 skills: auth0-react
 setup_command: npm install
+compile_command: npm run build
 ---
 ```
 
@@ -41,6 +42,7 @@ setup_command: npm install
 | `category` | no | Defaults to the parent directory name (e.g. `quickstarts`) |
 | `skills` | no | Comma-separated skill names from [auth0/agent-skills](https://github.com/auth0/agent-skills). Injected into agent context when running with `--tools skills` |
 | `setup_command` | no | Command run before the agent starts (e.g. `npm install`). Split on whitespace and executed directly via `spawnSync` — no shell, no operators (`&&`, `\|`, etc.), no quoting. One command only. |
+| `compile_command` | no | Compile/build command (e.g. `npm run build`, `node --check server.js`, `.venv/bin/python -m py_compile main.py`). When set, an instruction pointing the agent at this command is appended to the agent's native context file (`CLAUDE.md` / `GEMINI.md` / `AGENTS.md` / `.github/copilot-instructions.md`) alongside the "no docs files" guidance, so the agent verifies the project compiles and the command shows up in the tool trace. Agent modes only — baseline ignores it. Omit for evals with no CLI compile step (e.g. mobile). |
 
 To test a skill before it is pushed to the remote repo, see [TESTING_SKILLS.md](TESTING_SKILLS.md).
 
@@ -61,6 +63,7 @@ id: react_quickstart
 name: React Quickstart
 skills: auth0-react
 setup_command: npm install
+compile_command: npm run build
 ---
 
 ## Task
