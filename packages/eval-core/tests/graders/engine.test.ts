@@ -14,9 +14,11 @@ import {
   ranCommand,
   ranCommandOneOf,
   wroteFile,
+  compiles,
   GraderLevel,
   type GraderResult,
   type EventToolCall,
+  type CompileResult,
 } from '@a0/eval-graders';
 import { setFrameworkConfig } from '../../src/config/framework-config.js';
 import type { FrameworkConfig } from '../../src/config/framework.js';
@@ -1070,5 +1072,39 @@ describe('runGraders - event graders', () => {
     const graders = [ranCommand('npm install', undefined, 'ran npm install', GraderLevel.L5)];
     const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
     expect(results[0]!.passed).toBe(true);
+  });
+});
+
+describe('runGraders - compile', () => {
+  it('passes the compile grader through to the compile executor via compileResult', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'index.ts'), 'export const x = 1;');
+    const compileResult: CompileResult = {
+      ok: true,
+      exitCode: 0,
+      signal: null,
+      output: '',
+      command: 'npm run build',
+    };
+    const results = await runGraders(
+      [compiles('builds', GraderLevel.L4)],
+      dir,
+      'test-key',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      compileResult,
+    );
+    expect(results).toHaveLength(1);
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('fails the compile grader when no compileResult is threaded', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'index.ts'), 'export const x = 1;');
+    const results = await runGraders([compiles('builds', GraderLevel.L4)], dir, 'test-key');
+    expect(results[0]!.passed).toBe(false);
+    expect(results[0]!.detail).toContain('compile was not run');
   });
 });

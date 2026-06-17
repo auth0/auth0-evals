@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { GraderLevel } from '@a0/eval-graders';
-import type { GraderDef } from '@a0/eval-graders';
+import type { GraderDef, CompileResult } from '@a0/eval-graders';
 import { containsExecutor } from '../../src/graders/executors/contains.js';
 import { notContainsExecutor } from '../../src/graders/executors/not-contains.js';
 import { notContainsInSourceExecutor } from '../../src/graders/executors/not-contains-in-source.js';
 import { matchesExecutor } from '../../src/graders/executors/matches.js';
 import { isJudgeExcluded } from '../../src/graders/executors/llm-judge.js';
+import { compileExecutor } from '../../src/graders/executors/compile.js';
 import type { GraderContext } from '../../src/graders/executors/types.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -333,5 +334,45 @@ describe('isJudgeExcluded', () => {
     expect(isJudgeExcluded('README.md')).toBe(true);
     expect(isJudgeExcluded('docs/SETUP.md')).toBe(true);
     expect(isJudgeExcluded('CHANGELOG.MD')).toBe(true);
+  });
+});
+
+// ── compile ───────────────────────────────────────────────────────────────────
+
+describe('compile executor', () => {
+  it('passes when compileResult.ok is true', async () => {
+    const def = makeDef({ kind: 'compile', level: GraderLevel.L4 });
+    const compileResult: CompileResult = {
+      ok: true,
+      exitCode: 0,
+      signal: null,
+      output: 'done',
+      command: 'npm run build',
+    };
+    const res = await compileExecutor.execute(def, { ...makeCtx({}), compileResult });
+    expect(res.passed).toBe(true);
+    expect(res.kind).toBe('compile');
+  });
+
+  it('fails when compileResult.ok is false and includes exit code + output tail in detail', async () => {
+    const def = makeDef({ kind: 'compile', level: GraderLevel.L4 });
+    const compileResult: CompileResult = {
+      ok: false,
+      exitCode: 2,
+      signal: null,
+      output: 'TS2304: Cannot find name foo',
+      command: 'npm run build',
+    };
+    const res = await compileExecutor.execute(def, { ...makeCtx({}), compileResult });
+    expect(res.passed).toBe(false);
+    expect(res.detail).toContain('2');
+    expect(res.detail).toContain('TS2304');
+  });
+
+  it('fails when no compileResult is present (eval misconfigured)', async () => {
+    const def = makeDef({ kind: 'compile', level: GraderLevel.L4 });
+    const res = await compileExecutor.execute(def, makeCtx({}));
+    expect(res.passed).toBe(false);
+    expect(res.detail).toContain('compile was not run');
   });
 });

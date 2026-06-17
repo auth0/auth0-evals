@@ -83,6 +83,7 @@ Use `notContainsInSource` (not `notContains`) when a value like a client ID is a
 | `ranCommand(command, args, description, level)`  | Agent ran a shell command containing `command` (and all `args`) — event-based, level required (L4 or L5)                                                                                                                                       |
 | `ranCommandOneOf(commands, description, level)`  | Agent ran at least one command from the list — event-based, level required (L4 or L5)                                                                                                                                                          |
 | `wroteFile(path, description, level, expected?)` | Agent wrote a file whose path contains the substring. With optional `expected` (string or string array), the combined content of all writes to that path must also contain every `expected` substring — event-based, level required (L4 or L5) |
+| `compiles(description, level)` | Framework runs the eval's `compile_command` against the workspace after the agent finishes and passes/fails on its exit code — level required (L4 or L5). Decoupled from whether the agent ran the build itself, so output that compiles passes even if the agent never ran the build. Requires `compile_command` in PROMPT.md frontmatter or the grader fails. |
 
 ## Grading exclusions
 
@@ -449,7 +450,7 @@ npm run report
 | **Workspace**        | Temporary directory created per eval run. Contains the scaffold plus everything the agent writes. Deleted after the run unless `--keep-workspace`.                                   |
 | **Scaffold**         | Starter project seeded into the workspace before the agent runs — e.g., a bare `create-react-app` or an empty Express server. The agent builds on top of it.                         |
 | **Grader**           | A single pass/fail check run against workspace output. Defined in each eval's `graders.ts`. Has a level (L1–L5) or no level (holistic judge).                                        |
-| **Grader primitive** | Factory function that creates a grader: `contains`, `notContains`, `notContainsInSource`, `matches`, `judge`.                                                                        |
+| **Grader primitive** | Factory function that creates a grader: `contains`, `notContains`, `notContainsInSource`, `matches`, `judge`, `compiles`.                                                            |
 | **Needle**           | The substring or pattern a grader searches for — as in "needle in a haystack." The first argument to `contains`, `notContains`, and `notContainsInSource`.                           |
 | **Configuration**    | A specific combination of mode + tools — e.g., `agent+mcp+skills`. Determines which grader levels are active.                                                                        |
 | **Mode**             | `baseline` (single LLM call, no tools) or `agent` (full agentic loop with file/shell tools).                                                                                         |
