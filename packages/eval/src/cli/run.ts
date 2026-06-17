@@ -126,7 +126,8 @@ async function runAgentJob(
   agentType: AgentType,
   sandbox: boolean,
 ): Promise<JobResult> {
-  const { setupWorkspace, runSetupCommand, cleanupWorkspace, writeAgentGuidance } = await import('@a0/eval-core');
+  const { setupWorkspace, runSetupCommand, runCompileCommand, cleanupWorkspace, writeAgentGuidance } =
+    await import('@a0/eval-core');
   const { generateRunRecommendations } = await import('../recommendations/index.js');
   await initRunners();
 
@@ -161,6 +162,9 @@ async function runAgentJob(
     const preparedEval = tools.includes('skills') ? await runner.prepareSkills(evalDef, workspace) : evalDef;
     const { record, resolvedModel } = await runner.run({ evalDef: preparedEval, workspace, model, tools, apiKey });
 
+    const compileResult =
+      evalDef.compileCommand !== undefined ? runCompileCommand(workspace, evalDef.compileCommand) : undefined;
+
     let graderResults: Awaited<ReturnType<typeof runGraders>> = [];
     if (evalDef.graders.length > 0) {
       const agentLevels = tools.includes('mcp') ? AGENT_MCP_LEVELS : AGENT_LEVELS;
@@ -172,6 +176,7 @@ async function runAgentJob(
         agentLevels,
         true,
         record.toolCalls,
+        compileResult,
       );
     }
 

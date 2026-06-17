@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { contains, notContains, notContainsInSource, matches, judge } from '../src/primitives.js';
+import { contains, notContains, notContainsInSource, matches, judge, compiles } from '../src/primitives.js';
 import { GraderLevel } from '../src/types.js';
 
 // ── contains ──────────────────────────────────────────────────────────────────
@@ -159,5 +159,31 @@ describe('judge', () => {
   it('leaves level undefined when not provided', () => {
     const def = judge('Is this correct?');
     expect(def.level).toBeUndefined();
+  });
+});
+
+// ── compiles ──────────────────────────────────────────────────────────────────
+
+describe('compiles', () => {
+  it('returns a compile-kind grader with the given level and name', () => {
+    const g = compiles('verifies the build', GraderLevel.L4);
+    expect(g.kind).toBe('compile');
+    expect(g.level).toBe(GraderLevel.L4);
+    expect(g.name).toBe('verifies the build');
+    expect(g.predicate).toBeUndefined();
+  });
+
+  it('falls back to a default name when description is omitted', () => {
+    const g = compiles(undefined, GraderLevel.L4);
+    expect(g.name).toBe('compiles successfully');
+  });
+
+  it('accepts L5', () => {
+    expect(compiles('build', GraderLevel.L5).level).toBe(GraderLevel.L5);
+  });
+
+  it('rejects non-event levels', () => {
+    // @ts-expect-error — L1 is not an EventGraderLevel
+    expect(() => compiles('build', GraderLevel.L1)).toThrow('event-based graders only support');
   });
 });

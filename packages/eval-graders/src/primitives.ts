@@ -191,3 +191,18 @@ export function wroteFile(
     },
   };
 }
+
+/**
+ * Asserts that the eval's compile_command succeeds when run against the workspace
+ * after the agent finishes. The framework runs the command and captures the result;
+ * this grader reads it. The command comes from the eval's `compile_command`
+ * frontmatter, so no command argument is needed here.
+ */
+export function compiles(description: string | undefined, level: EventGraderLevel): GraderDef {
+  validateEventLevel(level, 'compiles');
+  return {
+    kind: 'compile',
+    name: description ?? 'compiles successfully',
+    level,
+  };
+}
