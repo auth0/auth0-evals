@@ -11,6 +11,7 @@ const PROXY_BASE_URL = process.env.LLM_PROXY_BASE_URL ?? '';
 const CLAUDE_PROXY_BASE_URL = process.env.CLAUDE_PROXY_BASE_URL ?? PROXY_BASE_URL;
 const GEMINI_PROXY_BASE_URL = process.env.GEMINI_PROXY_BASE_URL ?? PROXY_BASE_URL;
 const CODEX_PROXY_BASE_URL = process.env.CODEX_PROXY_BASE_URL ?? PROXY_BASE_URL;
+const COPILOT_PROXY_BASE_URL = process.env.COPILOT_PROXY_BASE_URL ?? PROXY_BASE_URL;
 
 // When set, route Claude models through the Bedrock proxy, which needs full
 // `global.anthropic.*` model IDs instead of the short aliases.
@@ -35,6 +36,9 @@ export default {
     },
     'codex': {
       proxy: { baseUrl: CODEX_PROXY_BASE_URL },
+    },
+    'copilot': {
+      proxy: { baseUrl: COPILOT_PROXY_BASE_URL },
     },
   },
 
