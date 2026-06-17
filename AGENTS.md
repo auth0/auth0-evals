@@ -4,13 +4,13 @@
 
 `auth0-evals` is an evaluation framework that measures how accurately LLM agents complete Auth0 SDK integration tasks. It runs each task across 5 configurations (2 modes × optional tool flags) and compares results:
 
-| Configuration | CLI flags | What it tests | Grader levels |
-|---|---|---|---|
-| `baseline` | `--mode baseline` | Single LLM call, no tools — training data knowledge only | L1-L3 |
-| `agent` | `--mode agent` | Full agentic loop with file/shell tools | L1-L4 |
-| `agent+skills` | `--mode agent --tools skills` | Agent + SKILL.md injected into context | L1-L4 |
-| `agent+mcp` | `--mode agent --tools mcp` | Agent + Auth0 MCP server tools | L1-L5 |
-| `agent+mcp+skills` | `--mode agent --tools mcp,skills` | Agent + MCP + skills (full investment) | L1-L5 |
+| Configuration      | CLI flags                         | What it tests                                            | Grader levels |
+| ------------------ | --------------------------------- | -------------------------------------------------------- | ------------- |
+| `baseline`         | `--mode baseline`                 | Single LLM call, no tools — training data knowledge only | L1-L3         |
+| `agent`            | `--mode agent`                    | Full agentic loop with file/shell tools                  | L1-L4         |
+| `agent+skills`     | `--mode agent --tools skills`     | Agent + SKILL.md injected into context                   | L1-L4         |
+| `agent+mcp`        | `--mode agent --tools mcp`        | Agent + Auth0 MCP server tools                           | L1-L5         |
+| `agent+mcp+skills` | `--mode agent --tools mcp,skills` | Agent + MCP + skills (full investment)                   | L1-L5         |
 
 Each eval lives in `src/evals/<category>/<eval-dir>/` and consists of a `PROMPT.md` (task description) and a `graders.ts` (acceptance criteria). The framework auto-discovers evals by scanning `evalsDir` for directories containing both files. The eval's snake_case config ID (e.g. `react_quickstart`) is declared in `PROMPT.md` frontmatter via the `id` field — this ID is used with `--eval`. Agent-mode runs are scored across 8 dimensions into a JSON results file; baseline runs only produce grader pass rates (no 8-dimension scoring).
 
@@ -35,8 +35,8 @@ Full guide for adding evals: [docs/ADDING_EVALS.md](docs/ADDING_EVALS.md)
 `package.json` sets `"type": "module"`. Every import needs a `.js` extension, even when importing `.ts` source files. Use the `node:` prefix for builtins. Use `import type` for type-only imports.
 
 ```typescript
-import { contains } from '@a0/eval-graders';  // ✓
-import { readFileSync } from 'node:fs';       // ✓
+import { contains } from '@a0/eval-graders'; // ✓
+import { readFileSync } from 'node:fs'; // ✓
 import type { GraderDef } from '@a0/eval-graders'; // ✓ type-only
 ```
 
@@ -47,8 +47,8 @@ For dynamic imports of absolute paths, use `pathToFileURL(path).href` — bare a
 Tools return `[message, isDoc, isInterrupt, isError]`. Throwing crashes the agent loop:
 
 ```typescript
-return ['path argument is required', false, false, true];  // ✓
-throw new Error('path required');                          // ✗ crashes the loop
+return ['path argument is required', false, false, true]; // ✓
+throw new Error('path required'); // ✗ crashes the loop
 ```
 
 Always resolve file paths with `resolveInside(context.workspace, args.path)` — not `join()`. It throws on path traversal attempts.
@@ -59,13 +59,13 @@ Always resolve file paths with `resolveInside(context.workspace, args.path)` —
 
 Every grader must have a `GraderLevel`. End every eval with one holistic `judge` with **no level** — it always runs regardless of level filtering:
 
-| Level | Enum value | What it tests | Runs in |
-|---|---|---|---|
-| L1 | `positive_presence` | Required SDK symbols, imports, config keys are present | All configs |
-| L2 | `hallucination` | Hallucinated packages / wrong SDK variants are absent | All configs |
-| L3 | `security` | No hardcoded credentials or tokens in insecure storage | All configs |
-| L4 | `structural` | Code is correctly wired — right components, lifecycle handled | Agent configs only |
-| L5 | `version_correctness` | Uses current API, not deprecated patterns | Agent+MCP configs only |
+| Level | Enum value            | What it tests                                                 | Runs in                |
+| ----- | --------------------- | ------------------------------------------------------------- | ---------------------- |
+| L1    | `positive_presence`   | Required SDK symbols, imports, config keys are present        | All configs            |
+| L2    | `hallucination`       | Hallucinated packages / wrong SDK variants are absent         | All configs            |
+| L3    | `security`            | No hardcoded credentials or tokens in insecure storage        | All configs            |
+| L4    | `structural`          | Code is correctly wired — right components, lifecycle handled | Agent configs only     |
+| L5    | `version_correctness` | Uses current API, not deprecated patterns                     | Agent+MCP configs only |
 
 For rationale on why each level runs in specific configurations, see `docs/SCORING_METHODOLOGY.md`.
 
@@ -73,15 +73,15 @@ Use `notContainsInSource` (not `notContains`) when a value like a client ID is a
 
 ### Grader primitives
 
-| Primitive | What it does |
-|---|---|
-| `contains(needle)` | Substring present in any non-excluded workspace file |
-| `notContains(needle)` | Substring must NOT appear in any non-excluded workspace file |
-| `notContainsInSource(needle)` | Substring must NOT appear in source files (allowed in config) |
-| `matches(pattern)` | Regex match in any non-excluded workspace file |
-| `judge(question, framework?)` | LLM-as-judge yes/no question — uses `claude-opus-4-7` |
-| `ranCommand(command, args, description, level)` | Agent ran a shell command containing `command` (and all `args`) — event-based, level required (L4 or L5) |
-| `ranCommandOneOf(commands, description, level)` | Agent ran at least one command from the list — event-based, level required (L4 or L5) |
+| Primitive                                        | What it does                                                                                                                                                                                                                                   |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contains(needle)`                               | Substring present in any non-excluded workspace file                                                                                                                                                                                           |
+| `notContains(needle)`                            | Substring must NOT appear in any non-excluded workspace file                                                                                                                                                                                   |
+| `notContainsInSource(needle)`                    | Substring must NOT appear in source files (allowed in config)                                                                                                                                                                                  |
+| `matches(pattern)`                               | Regex match in any non-excluded workspace file                                                                                                                                                                                                 |
+| `judge(question, framework?)`                    | LLM-as-judge yes/no question — uses `claude-opus-4-7`                                                                                                                                                                                          |
+| `ranCommand(command, args, description, level)`  | Agent ran a shell command containing `command` (and all `args`) — event-based, level required (L4 or L5)                                                                                                                                       |
+| `ranCommandOneOf(commands, description, level)`  | Agent ran at least one command from the list — event-based, level required (L4 or L5)                                                                                                                                                          |
 | `wroteFile(path, description, level, expected?)` | Agent wrote a file whose path contains the substring. With optional `expected` (string or string array), the combined content of all writes to that path must also contain every `expected` substring — event-based, level required (L4 or L5) |
 
 ## Grading exclusions
@@ -89,6 +89,7 @@ Use `notContainsInSource` (not `notContains`) when a value like a client ID is a
 Graders run against all workspace files (scaffold + agent edits) minus the exclusions below. The following directories and files are excluded from the grading corpus:
 
 **Directories:**
+
 - `.claude` — injected skill files and agent context
 - `.codex` — Codex agent context
 - `.github` — workflow metadata
@@ -103,6 +104,7 @@ Graders run against all workspace files (scaffold + agent edits) minus the exclu
 - `out-tsc` — TypeScript compiled output
 
 **Files:**
+
 - `package-lock.json` — noise
 - `tsconfig.tsbuildinfo` — TypeScript incremental build cache
 - `CLAUDE.md`, `GEMINI.md`, `AGENTS.md` — injected agent guidance. Before each agent run, the framework writes the "no documentation files" guidance into the context file the chosen runner reads (`CLAUDE.md` for Claude Code, `GEMINI.md` for Gemini CLI, `AGENTS.md` for Codex, and `.github/copilot-instructions.md` for Copilot — the `.github` dir is already excluded). All three are excluded so the injected text is never graded.
@@ -133,19 +135,20 @@ Run `npm test` before committing. A change is not done until tests pass.
 
 When you make a change, update every doc whose described behavior is affected. The table below maps change types to the docs that must stay in sync.
 
-| Change type | Docs to update |
-|---|---|
-| New eval added (`PROMPT.md` + `graders.ts`) | `AGENTS.md` eval list (if maintaining one); `docs/ADDING_EVALS.md` if the change reveals a gap in the guide |
-| `setup_command` behaviour changed (e.g. new syntax supported) | `docs/ADDING_EVALS.md` — frontmatter table and example; `AGENTS.md` checklist if relevant |
-| `compile_command` added to an eval or its context-injection behaviour changed | `docs/ADDING_EVALS.md` — frontmatter table and example; `AGENTS.md` checklist if relevant |
-| New skill added or skill resolution logic changed | `docs/TESTING_SKILLS.md`; `AGENTS.md` if skill tooling or config changed |
-| New CLI flag or runner added | `AGENTS.md` CLI flags table and Agent runners table; `README.md` quick-start if the flag is commonly used |
-| Scoring dimension added, changed, or removed | `docs/SCORING_METHODOLOGY.md` first (per the workflow); then `AGENTS.md` scoring section once merged |
-| New grader level or grader primitive added | `AGENTS.md` grader levels table and grader primitives table; `docs/ADDING_EVALS.md` |
-| Framework package added or restructured | `README.md` Packages list; `packages/eval/README.md` if it exists |
-| Docker/sandbox behaviour changed | `AGENTS.md` if it affects how evals run; no dedicated doc today — add a note here |
+| Change type                                                                          | Docs to update                                                                                                                                  |
+| ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| New eval added (`PROMPT.md` + `graders.ts`)                                          | `AGENTS.md` eval list (if maintaining one); `docs/ADDING_EVALS.md` if the change reveals a gap in the guide                                     |
+| `setup_command` behaviour changed (e.g. new syntax supported)                        | `docs/ADDING_EVALS.md` — frontmatter table and example; `AGENTS.md` checklist if relevant                                                       |
+| `compile_command` added to an eval or its context-injection behaviour changed        | `docs/ADDING_EVALS.md` — frontmatter table and example; `AGENTS.md` checklist if relevant                                                       |
+| New skill added or skill resolution logic changed                                    | `docs/TESTING_SKILLS.md`; `AGENTS.md` if skill tooling or config changed                                                                        |
+| New CLI flag or runner added                                                         | `AGENTS.md` CLI flags table and Agent runners table; `README.md` quick-start if the flag is commonly used                                       |
+| Scoring dimension added, changed, or removed                                         | `docs/SCORING_METHODOLOGY.md` first (per the workflow); then `AGENTS.md` scoring section once merged                                            |
+| New grader level or grader primitive added                                           | `AGENTS.md` grader levels table and grader primitives table; `docs/ADDING_EVALS.md`                                                             |
+| Framework package added or restructured                                              | `README.md` Packages list; `packages/eval/README.md` if it exists                                                                               |
+| Docker/sandbox behaviour changed                                                     | `AGENTS.md` if it affects how evals run; no dedicated doc today — add a note here                                                               |
+| Package structure, runners, scoring, configurations, or end-to-end data flow changed | `docs/ARCHITECTURE.md` — update the prose **and** the Mermaid diagrams (component diagram + data-flow diagram) so they don't drift from reality |
 
-**Rule of thumb**: if a developer reading the doc would get the wrong mental model or follow a broken example after your change, update the doc. If the doc is still accurate, leave it alone.
+**Rule of thumb**: if a developer reading the doc would get the wrong mental model or follow a broken example after your change, update the doc. If the doc is still accurate, leave it alone. This applies to diagrams too — a Mermaid diagram in `docs/ARCHITECTURE.md` that no longer matches the code is as broken as stale prose; keep both in sync.
 
 ---
 
@@ -165,17 +168,17 @@ When you make a change, update every doc whose described behavior is affected. T
 
 ### Overview
 
-8 dimensions, each scored 0–100, combined by weighted sum into an overall score. Process dimensions (50%) measure *how* the agent worked. Output dimensions (50%) measure *what* it produced. Process dimensions are **zeroed when the agent didn't execute** (0 tool calls) — this prevents broken runs from scoring high on "efficiency" by doing nothing.
+8 dimensions, each scored 0–100, combined by weighted sum into an overall score. Process dimensions (50%) measure _how_ the agent worked. Output dimensions (50%) measure _what_ it produced. Process dimensions are **zeroed when the agent didn't execute** (0 tool calls) — this prevents broken runs from scoring high on "efficiency" by doing nothing.
 
 ### Grade thresholds
 
 | Grade | Min score |
-|-------|-----------|
-| A | 90 |
-| B | 75 |
-| C | 60 |
-| D | 40 |
-| F | < 40 |
+| ----- | --------- |
+| A     | 90        |
+| B     | 75        |
+| C     | 60        |
+| D     | 40        |
+| F     | < 40      |
 
 ### Process dimensions (50%)
 
@@ -218,6 +221,7 @@ efficiency (%) = max(0, 100 × (1 - waste_count / total_calls))
 ```
 
 Waste categories (a single call can match multiple, but is counted at most once):
+
 1. **Duplicate reads** — same path read twice with no intervening `write_file` or `run_command`. A `run_command` resets duplicate-read tracking for all paths (it may mutate any file).
 2. **Errored calls** — any call where `causedError = true` OR `isRetry = true`.
 3. **Overwritten writes** — a `write_file` to path X followed by another `write_file` to path X with no intervening `read_file` (the first write was discarded).
@@ -250,11 +254,11 @@ else:
 
 Each lookup scores up to 100 points across three signals:
 
-| Signal | Points | How detected |
-|---|---|---|
-| URL is a valid Auth0 domain | +34 | URL `startsWith` one of the allowed prefixes (`https://auth0.github.io`, `https://auth0.com/docs`, `https://auth0.com/blog`, `https://community.auth0.com`, `https://npmjs.com/package/@auth0`, `https://github.com/auth0/`, `https://github.com/auth0-samples`, `https://jwt.io`) |
-| Fetch did not error or 404 | +33 | `causedError == false` on the tool call |
-| No file overwrite after this fetch | +33 | No `write_file` to an already-written path between this fetch and the next (or end-of-trace for the final fetch) — agent got it right first time |
+| Signal                             | Points | How detected                                                                                                                                                                                                                                                                       |
+| ---------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| URL is a valid Auth0 domain        | +34    | URL `startsWith` one of the allowed prefixes (`https://auth0.github.io`, `https://auth0.com/docs`, `https://auth0.com/blog`, `https://community.auth0.com`, `https://npmjs.com/package/@auth0`, `https://github.com/auth0/`, `https://github.com/auth0-samples`, `https://jwt.io`) |
+| Fetch did not error or 404         | +33    | `causedError == false` on the tool call                                                                                                                                                                                                                                            |
+| No file overwrite after this fetch | +33    | No `write_file` to an already-written path between this fetch and the next (or end-of-trace for the final fetch) — agent got it right first time                                                                                                                                   |
 
 - All signals are pure trace sequence analysis — no LLM judge, no added cost.
 - Notes show per-lookup breakdown and total score.
@@ -304,16 +308,17 @@ else: score = 100 × passed / relevant.length
 
 ## Agent runners
 
-| Runner | ID | Used for | How it's selected |
-|---|---|---|---|
-| Claude Code | `claude-code` | Claude models via Agent SDK | Auto-selected for `claude-*` models when no `--agent-type` flag |
-| Copilot SDK | `copilot` | GPT models via `@github/copilot-sdk` | Not auto-selected; available via `--agent-type copilot` |
-| Gemini CLI | `gemini-cli` | Gemini models via Gemini CLI | Auto-selected for `gemini-*` models when no `--agent-type` flag |
-| Codex CLI | `codex` | GPT models via OpenAI Codex CLI | Auto-selected for `gpt-*` models when no `--agent-type` flag |
+| Runner      | ID            | Used for                             | How it's selected                                               |
+| ----------- | ------------- | ------------------------------------ | --------------------------------------------------------------- |
+| Claude Code | `claude-code` | Claude models via Agent SDK          | Auto-selected for `claude-*` models when no `--agent-type` flag |
+| Copilot SDK | `copilot`     | GPT models via `@github/copilot-sdk` | Not auto-selected; available via `--agent-type copilot`         |
+| Gemini CLI  | `gemini-cli`  | Gemini models via Gemini CLI         | Auto-selected for `gemini-*` models when no `--agent-type` flag |
+| Codex CLI   | `codex`       | GPT models via OpenAI Codex CLI      | Auto-selected for `gpt-*` models when no `--agent-type` flag    |
 
 ### Auto-routing logic
 
 When `--agent-type` is **not** specified, the runner is selected by model prefix:
+
 - `claude-*` → `claude-code`
 - `gemini-*` → `gemini-cli`
 - `gpt-*` → `codex`
@@ -330,6 +335,7 @@ Short aliases are resolved to the ID the active proxy expects via the single `mo
 By default (LiteLLM proxy) the `modelIds` map is empty — the proxy serves models under the alias itself, so aliases pass through unchanged.
 
 Set `CLAUDE_CODE_USE_BEDROCK_PROXY=1` to route through the Bedrock proxy instead (`/anthropic` endpoint). The config then populates `modelIds` to map supported short aliases to full Bedrock model IDs:
+
 - `claude-sonnet-4-6` → `global.anthropic.claude-sonnet-4-6`
 - `claude-opus-4-6` → `global.anthropic.claude-opus-4-6-v1`
 - `claude-opus-4-7` → `global.anthropic.claude-opus-4-7`
@@ -375,22 +381,22 @@ All LLM-as-judge graders use `claude-sonnet-4-5` via the configured LLM proxy (`
 
 ### Settings
 
-| Setting | Value |
-|---|---|
-| Base URL | Configured in `eval.config.js` (`proxy.baseUrl`) |
-| Judge model | `claude-sonnet-4-5` |
-| Judge max tokens | 1024 |
-| Judge max code chars | 32,768 |
-| Max agent turns | 75 |
-| Runner task timeout | 30 min (per eval, graceful abort) |
-| Docker host timeout | 35 min (per container, hard kill — sandbox only) |
+| Setting              | Value                                            |
+| -------------------- | ------------------------------------------------ |
+| Base URL             | Configured in `eval.config.js` (`proxy.baseUrl`) |
+| Judge model          | `claude-sonnet-4-5`                              |
+| Judge max tokens     | 1024                                             |
+| Judge max code chars | 32,768                                           |
+| Max agent turns      | 75                                               |
+| Runner task timeout  | 30 min (per eval, graceful abort)                |
+| Docker host timeout  | 35 min (per container, hard kill — sandbox only) |
 
 ---
 
 ## Slash commands
 
-| Command | Purpose |
-|---|---|
+| Command             | Purpose                                                                                                                                                                                                                                             |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/evals-smoke-test` | End-to-end smoke test: builds the project, runs the full `react_quickstart` matrix across all models and configurations, generates an HTML report, and reports a PASS/FAIL verdict. Use after making framework changes to verify nothing is broken. |
 
 ## Key commands
@@ -421,33 +427,33 @@ npm run report
 
 ### CLI flags
 
-| Flag | Values | Default | Notes |
-|---|---|---|---|
-| `--eval <id>` | Any registered eval ID | all evals | Repeatable |
-| `--model <model>` | Any model string | `gpt-5.4` | Repeatable; `all` expands to known working models |
-| `--mode <mode>` | `baseline`, `agent`, `all` | `baseline` | `all` expands to both |
-| `--tools <tools>` | `skills`, `mcp`, or comma-separated | none | Only applies to agent mode |
-| `--agent-type <type>` | `claude-code`, `copilot`, `gemini-cli`, `codex` | auto-routed by model | Overrides auto-routing |
-| `--workers <n>` | number | 4 | Parallel job limit |
-| `--output <path>` | file path | auto-named | JSON results output |
-| `--keep-workspace` | flag | off | Don't delete temp workspace after run |
-| `--dangerously-skip-sandbox` | flag | off | Disable Docker sandbox — run agent jobs directly on host |
-| `--braintrust` | flag | off | Log results to Braintrust experiment |
+| Flag                         | Values                                          | Default              | Notes                                                    |
+| ---------------------------- | ----------------------------------------------- | -------------------- | -------------------------------------------------------- |
+| `--eval <id>`                | Any registered eval ID                          | all evals            | Repeatable                                               |
+| `--model <model>`            | Any model string                                | `gpt-5.4`            | Repeatable; `all` expands to known working models        |
+| `--mode <mode>`              | `baseline`, `agent`, `all`                      | `baseline`           | `all` expands to both                                    |
+| `--tools <tools>`            | `skills`, `mcp`, or comma-separated             | none                 | Only applies to agent mode                               |
+| `--agent-type <type>`        | `claude-code`, `copilot`, `gemini-cli`, `codex` | auto-routed by model | Overrides auto-routing                                   |
+| `--workers <n>`              | number                                          | 4                    | Parallel job limit                                       |
+| `--output <path>`            | file path                                       | auto-named           | JSON results output                                      |
+| `--keep-workspace`           | flag                                            | off                  | Don't delete temp workspace after run                    |
+| `--dangerously-skip-sandbox` | flag                                            | off                  | Disable Docker sandbox — run agent jobs directly on host |
+| `--braintrust`               | flag                                            | off                  | Log results to Braintrust experiment                     |
 
 ---
 
 ## Glossary
 
-| Term | Definition |
-|---|---|
-| **Workspace** | Temporary directory created per eval run. Contains the scaffold plus everything the agent writes. Deleted after the run unless `--keep-workspace`. |
-| **Scaffold** | Starter project seeded into the workspace before the agent runs — e.g., a bare `create-react-app` or an empty Express server. The agent builds on top of it. |
-| **Grader** | A single pass/fail check run against workspace output. Defined in each eval's `graders.ts`. Has a level (L1–L5) or no level (holistic judge). |
-| **Grader primitive** | Factory function that creates a grader: `contains`, `notContains`, `notContainsInSource`, `matches`, `judge`. |
-| **Needle** | The substring or pattern a grader searches for — as in "needle in a haystack." The first argument to `contains`, `notContains`, and `notContainsInSource`. |
-| **Configuration** | A specific combination of mode + tools — e.g., `agent+mcp+skills`. Determines which grader levels are active. |
-| **Mode** | `baseline` (single LLM call, no tools) or `agent` (full agentic loop with file/shell tools). |
-| **Runner** | The agent runtime that executes the task: Claude Code, Copilot SDK, or Gemini CLI. |
-| **Interruption** | An `ask_user` tool call — the agent asking for human input (credentials, domains). Penalized in Setup Friction scoring. |
-| **Provider error** | LLM API failure: rate limit, timeout, malformed response. Penalized in both Setup Friction and Error Recovery. |
-| **Holistic judge** | The final `judge()` grader in every eval with no level assigned. Always runs regardless of configuration. Asks the LLM judge a high-level yes/no question about overall correctness. |
+| Term                 | Definition                                                                                                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Workspace**        | Temporary directory created per eval run. Contains the scaffold plus everything the agent writes. Deleted after the run unless `--keep-workspace`.                                   |
+| **Scaffold**         | Starter project seeded into the workspace before the agent runs — e.g., a bare `create-react-app` or an empty Express server. The agent builds on top of it.                         |
+| **Grader**           | A single pass/fail check run against workspace output. Defined in each eval's `graders.ts`. Has a level (L1–L5) or no level (holistic judge).                                        |
+| **Grader primitive** | Factory function that creates a grader: `contains`, `notContains`, `notContainsInSource`, `matches`, `judge`.                                                                        |
+| **Needle**           | The substring or pattern a grader searches for — as in "needle in a haystack." The first argument to `contains`, `notContains`, and `notContainsInSource`.                           |
+| **Configuration**    | A specific combination of mode + tools — e.g., `agent+mcp+skills`. Determines which grader levels are active.                                                                        |
+| **Mode**             | `baseline` (single LLM call, no tools) or `agent` (full agentic loop with file/shell tools).                                                                                         |
+| **Runner**           | The agent runtime that executes the task: Claude Code, Copilot SDK, or Gemini CLI.                                                                                                   |
+| **Interruption**     | An `ask_user` tool call — the agent asking for human input (credentials, domains). Penalized in Setup Friction scoring.                                                              |
+| **Provider error**   | LLM API failure: rate limit, timeout, malformed response. Penalized in both Setup Friction and Error Recovery.                                                                       |
+| **Holistic judge**   | The final `judge()` grader in every eval with no level assigned. Always runs regardless of configuration. Asks the LLM judge a high-level yes/no question about overall correctness. |
