@@ -4,6 +4,7 @@ name: React MFA Step-Up
 scaffold: src/evals/scaffolds/react/auth0
 skills: auth0-mfa
 setup_command: npm install
+compile_command: npm run build
 ---
 
 ## Task
