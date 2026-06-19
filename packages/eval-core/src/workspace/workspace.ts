@@ -99,6 +99,8 @@ export interface RunSetupCommandOptions {
 export interface RunCompileCommandOptions {
   /** Timeout in ms for the compile command. Defaults to {@link DEFAULT_FRAMEWORK_CONFIG}.workspace.compileCommandTimeoutMs. */
   timeoutMs?: number;
+  /** When provided, this command is prepended to the compile command sequence (e.g. the eval's setup_command to ensure deps are installed). */
+  setupCommand?: string;
 }
 
 /**
@@ -191,10 +193,8 @@ export function runCompileCommand(
     return { ...base, output: `compile command has an empty segment: ${command}` };
   }
 
-  // Auto-install dependencies before building so new packages the agent added
-  // to package.json are available even if the agent never ran npm install itself.
-  if (existsSync(join(workspace, 'package.json'))) {
-    subCommands.unshift('npm install');
+  if (options?.setupCommand) {
+    subCommands.unshift(options.setupCommand);
   }
 
   let combinedOutput = '';

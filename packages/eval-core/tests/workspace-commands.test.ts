@@ -186,23 +186,18 @@ describe('runCompileCommand', () => {
     expect(res.ok).toBe(false);
   });
 
-  it('prepends npm install when package.json exists', () => {
+  it('prepends setupCommand when provided', () => {
     const dir = tmpDir();
-    writeFileSync(join(dir, 'package.json'), '{"name":"test"}');
-    // Use a command that creates a sentinel file — if npm install ran first the
-    // subcommand sequence will be: npm install && touch built.txt
-    const res = runCompileCommand(dir, 'touch built.txt');
+    const sentinel = join(dir, 'setup_ran.txt');
+    const res = runCompileCommand(dir, 'true', { setupCommand: `touch ${sentinel}` });
     expect(res.ok).toBe(true);
-    expect(existsSync(join(dir, 'built.txt'))).toBe(true);
+    expect(existsSync(sentinel)).toBe(true);
   });
 
-  it('does not prepend npm install when package.json is absent', () => {
+  it('does not prepend any command when setupCommand is absent', () => {
     const dir = tmpDir();
-    // Capture output to confirm npm install was NOT injected — use a command
-    // that echoes its own name so we can check the log
-    const res = runCompileCommand(dir, 'true');
+    const res = runCompileCommand(dir, 'echo hello-compile');
     expect(res.ok).toBe(true);
-    // output should not mention npm install
-    expect(res.output).not.toContain('npm install');
+    expect(res.output).toContain('hello-compile');
   });
 });
