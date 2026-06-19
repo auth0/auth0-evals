@@ -193,6 +193,9 @@ export function runCompileCommand(
     return { ...base, output: `compile command has an empty segment: ${command}` };
   }
 
+  // When a setupCommand is provided, we ensure to run it before verifying compilation.
+  // This is done because there is no guarantee that an agent did not add a dependency
+  // without running the installation command.
   if (options?.setupCommand) {
     subCommands.unshift(options.setupCommand);
   }
