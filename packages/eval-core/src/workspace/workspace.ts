@@ -191,6 +191,12 @@ export function runCompileCommand(
     return { ...base, output: `compile command has an empty segment: ${command}` };
   }
 
+  // Auto-install dependencies before building so new packages the agent added
+  // to package.json are available even if the agent never ran npm install itself.
+  if (existsSync(join(workspace, 'package.json'))) {
+    subCommands.unshift('npm install');
+  }
+
   let combinedOutput = '';
   for (const subCommand of subCommands) {
     logger.info(`  [Compile] Running: ${subCommand}`);
