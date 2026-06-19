@@ -8,7 +8,6 @@ category: hosted-mcp
 
 I need a Post-Login action in my Auth0 tenant that adds the user's roles to the ID token.
 
-Domain: mcptesttenant.tus.auth0.com
 
 Please:
 1. Create an action named **Add Roles to Token** that runs on the `post-login` trigger and adds a `roles` claim to the ID token using `event.authorization.roles`

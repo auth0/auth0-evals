@@ -12,6 +12,5 @@ I need to register a new Single Page Application in my Auth0 tenant.
 - Allowed Callback URL: `https://mywebapp.example.com/callback`
 - Allowed Logout URL: `https://mywebapp.example.com`
 
-Domain: mcptesttenant.tus.auth0.com
 
 Create the application and confirm back to me with the new Client ID.
