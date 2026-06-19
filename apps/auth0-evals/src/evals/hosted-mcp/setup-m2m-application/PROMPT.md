@@ -17,6 +17,5 @@ I need to set up a machine-to-machine integration in my Auth0 tenant. Please do 
 
 3. Authorize the **Warehouse Bot** application to call the **Inventory Service** API with the `read:inventory` scope
 
-Domain: mcptesttenant.tus.auth0.com
 
 Confirm back with the Client ID of the Warehouse Bot and the resource server ID of the Inventory Service.

@@ -8,7 +8,6 @@ category: hosted-mcp
 
 I need a progressive profiling form in my Auth0 tenant that collects additional information from users after they log in.
 
-Domain: mcptesttenant.tus.auth0.com
 
 Please create a form with:
 - Name: **Collect Work Info**

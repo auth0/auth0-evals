@@ -8,7 +8,6 @@ category: hosted-mcp
 
 My Auth0 tenant has been experiencing login failures recently.
 
-Domain: mcptesttenant.tus.auth0.com
 
 Check the recent logs and tell me:
 1. What types of login failures are occurring (include the event type codes)
