@@ -185,4 +185,19 @@ describe('runCompileCommand', () => {
     const res = runCompileCommand(dir, '');
     expect(res.ok).toBe(false);
   });
+
+  it('prepends setupCommand when provided', () => {
+    const dir = tmpDir();
+    const sentinel = join(dir, 'setup_ran.txt');
+    const res = runCompileCommand(dir, 'true', { setupCommand: `touch ${sentinel}` });
+    expect(res.ok).toBe(true);
+    expect(existsSync(sentinel)).toBe(true);
+  });
+
+  it('does not prepend any command when setupCommand is absent', () => {
+    const dir = tmpDir();
+    const res = runCompileCommand(dir, 'echo hello-compile');
+    expect(res.ok).toBe(true);
+    expect(res.output).toContain('hello-compile');
+  });
 });
