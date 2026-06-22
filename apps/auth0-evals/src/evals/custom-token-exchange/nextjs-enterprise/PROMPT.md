@@ -4,6 +4,7 @@ name: Custom Token Exchange — Next.js (Enterprise)
 scaffold: src/evals/custom-token-exchange/nextjs-enterprise
 skills: auth0-custom-token-exchange
 setup_command: npm install
+compile_command: npm run build
 ---
 
 ## Task

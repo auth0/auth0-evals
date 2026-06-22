@@ -5,6 +5,7 @@ import {
   judge,
   ranCommandOneOf,
   wroteFile,
+  compiles,
   GraderLevel,
 } from '@a0/eval-graders';
 
@@ -59,6 +60,7 @@ export function defineGraders() {
     ),
 
     // ── L4: Structural correctness + tenant config (any valid method) ──────
+    compiles('Project compiles without errors', GraderLevel.L4),
     judge(
       'Is auth0.customTokenExchange() called in a server-side context — a Route Handler, ' +
         'Server Component, or Server Action — and NOT inside a file marked with "use client"?',
