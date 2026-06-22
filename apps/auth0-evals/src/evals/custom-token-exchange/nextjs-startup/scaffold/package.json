@@ -1,0 +1,19 @@
+{
+  "name": "nexuspay",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "next build"
+  },
+  "dependencies": {
+    "@auth0/nextjs-auth0": "^4",
+    "next": "16.2.7",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "typescript": "^5"
+  }
+}
