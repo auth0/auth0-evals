@@ -99,6 +99,8 @@ export interface RunSetupCommandOptions {
 export interface RunCompileCommandOptions {
   /** Timeout in ms for the compile command. Defaults to {@link DEFAULT_FRAMEWORK_CONFIG}.workspace.compileCommandTimeoutMs. */
   timeoutMs?: number;
+  /** When provided, this command is prepended to the compile command sequence (e.g. the eval's setup_command to ensure deps are installed). */
+  setupCommand?: string;
 }
 
 /**
@@ -189,6 +191,13 @@ export function runCompileCommand(
   const subCommands = command.split('&&').map((s) => s.trim());
   if (subCommands.some((s) => !s)) {
     return { ...base, output: `compile command has an empty segment: ${command}` };
+  }
+
+  // When a setupCommand is provided, we ensure to run it before verifying compilation.
+  // This is done because there is no guarantee that an agent did not add a dependency
+  // without running the installation command.
+  if (options?.setupCommand) {
+    subCommands.unshift(options.setupCommand);
   }
 
   let combinedOutput = '';

@@ -163,7 +163,9 @@ async function runAgentJob(
     const { record, resolvedModel } = await runner.run({ evalDef: preparedEval, workspace, model, tools, apiKey });
 
     const compileResult =
-      evalDef.compileCommand !== undefined ? runCompileCommand(workspace, evalDef.compileCommand) : undefined;
+      evalDef.compileCommand !== undefined
+        ? runCompileCommand(workspace, evalDef.compileCommand, { setupCommand: evalDef.setupCommand })
+        : undefined;
 
     let graderResults: Awaited<ReturnType<typeof runGraders>> = [];
     if (evalDef.graders.length > 0) {
