@@ -1,4 +1,4 @@
-import { contains, notContains, judge, GraderLevel } from '@a0/eval-graders';
+import { contains, notContains, judge, compiles, GraderLevel } from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
@@ -27,6 +27,7 @@ export function defineGraders() {
     ),
 
     // ── L4: Structural correctness ────────────────────────────────────────
+    compiles('Project compiles (build succeeds)', GraderLevel.L4),
     judge(
       'Does the code subscribe to idTokenClaims$ (or otherwise read the amr claim from the ' +
         'ID token) before executing the transfer action, and only proceed when "mfa" is present ' +
