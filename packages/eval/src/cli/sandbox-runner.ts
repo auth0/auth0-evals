@@ -21,6 +21,7 @@ import {
   setFrameworkConfig,
   runGraders,
   runSetupCommand,
+  runCompileCommand,
   AGENT_LEVELS,
   AGENT_MCP_LEVELS,
   registerRunner,
@@ -108,6 +109,11 @@ async function main(): Promise<void> {
     const preparedEval = tools.includes('skills') ? await runner.prepareSkills(evalDef, workspace) : evalDef;
     const { record, resolvedModel } = await runner.run({ evalDef: preparedEval, workspace, model, tools, apiKey });
 
+    const compileResult =
+      evalDef.compileCommand !== undefined
+        ? runCompileCommand(workspace, evalDef.compileCommand, { setupCommand: evalDef.setupCommand })
+        : undefined;
+
     let graderResults: Awaited<ReturnType<typeof runGraders>> = [];
     if (evalDef.graders.length > 0) {
       const agentLevels = tools.includes('mcp') ? AGENT_MCP_LEVELS : AGENT_LEVELS;
@@ -119,6 +125,7 @@ async function main(): Promise<void> {
         agentLevels,
         true,
         record.toolCalls,
+        compileResult,
       );
     }
 

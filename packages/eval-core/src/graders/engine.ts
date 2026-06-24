@@ -10,9 +10,8 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getFrameworkConfig } from '../config/framework-config.js';
-import { getLitellmModelMap } from '../config/settings.js';
 import { collectFiles as collectFilePaths } from '../workspace/index.js';
-import type { GraderDef, GraderResult, EventToolCall } from '@a0/eval-graders';
+import type { GraderDef, GraderResult, EventToolCall, CompileResult } from '@a0/eval-graders';
 import { GraderLevel } from '@a0/eval-graders';
 import { registerExecutor, executeGrader } from './executors/index.js';
 import { containsExecutor } from './executors/contains.js';
@@ -21,6 +20,7 @@ import { notContainsInSourceExecutor } from './executors/not-contains-in-source.
 import { matchesExecutor } from './executors/matches.js';
 import { llmJudgeExecutor } from './executors/llm-judge.js';
 import { eventExecutor } from './executors/event.js';
+import { compileExecutor } from './executors/compile.js';
 
 // Re-export llmJudge from its dedicated module for backward compatibility.
 export { llmJudge } from './llm-judge.js';
@@ -33,6 +33,7 @@ registerExecutor(notContainsInSourceExecutor);
 registerExecutor(matchesExecutor);
 registerExecutor(llmJudgeExecutor);
 registerExecutor(eventExecutor);
+registerExecutor(compileExecutor);
 
 // ── Workspace helpers ─────────────────────────────────────────────────────────
 
@@ -61,9 +62,10 @@ export const EXCLUDED_EVAL_DIRS = new Set([
 export const EXCLUDED_EVAL_FILES = new Set([
   'package-lock.json',
   'tsconfig.tsbuildinfo',
+  // Injected agent guidance — one of these per runner (see AGENT_CONTEXT_FILENAMES).
+  'AGENTS.md',
   'CLAUDE.md',
   'GEMINI.md',
-  'AGENTS.md',
 ]);
 
 export function collectFiles(workspace: string): Record<string, string> {
@@ -115,13 +117,13 @@ export async function runGraders(
   allowedLevels?: Set<GraderLevel>,
   enforceMaxChars: boolean = true,
   toolCalls?: EventToolCall[],
+  compileResult?: CompileResult,
 ): Promise<GraderResult[]> {
   const config = getFrameworkConfig();
   const resolvedJudgeModel = judgeModel ?? config.judge.model ?? '';
   const judgeMaxCodeChars = config.judge.maxCodeChars ?? 32_768;
   const judgeMaxTokens = config.judge.maxTokens ?? 1024;
   const judgeBaseUrl = config.proxy.baseUrl;
-  const judgeModelMap = getLitellmModelMap();
   const active = allowedLevels
     ? graderDefs.filter((g) => g.level === undefined || allowedLevels.has(g.level))
     : graderDefs;
@@ -142,10 +144,10 @@ export async function runGraders(
       baseUrl: judgeBaseUrl,
       maxTokens: judgeMaxTokens,
       maxCodeChars: judgeMaxCodeChars,
-      modelMap: judgeModelMap,
       enforceMaxChars,
     },
     toolCalls,
+    compileResult,
   };
 
   const results: GraderResult[] = [];

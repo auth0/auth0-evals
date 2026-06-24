@@ -28,12 +28,8 @@ describe('DEFAULT_FRAMEWORK_CONFIG', () => {
     expect(DEFAULT_FRAMEWORK_CONFIG.models.known).toEqual([]);
   });
 
-  it('has empty bedrock mappings', () => {
-    expect(DEFAULT_FRAMEWORK_CONFIG.models.bedrock).toEqual({});
-  });
-
-  it('has empty litellm mappings', () => {
-    expect(DEFAULT_FRAMEWORK_CONFIG.models.litellm).toEqual({});
+  it('has empty modelIds mappings', () => {
+    expect(DEFAULT_FRAMEWORK_CONFIG.models.modelIds).toEqual({});
   });
 
   it('has empty mcp.servers by default', () => {

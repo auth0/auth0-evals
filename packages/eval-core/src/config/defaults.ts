@@ -34,13 +34,13 @@ export const DEFAULT_FRAMEWORK_CONFIG: Required<FrameworkConfig> = {
     maxListedFiles: 200,
     tempDirPrefix: 'auth0_eval_',
     setupCommandTimeoutMs: 300_000,
+    compileCommandTimeoutMs: 300_000,
   },
 
   models: {
     known: [],
     default: '',
-    bedrock: {},
-    litellm: {},
+    modelIds: {},
   },
 
   agents: {},
@@ -51,6 +51,4 @@ export const DEFAULT_FRAMEWORK_CONFIG: Required<FrameworkConfig> = {
   },
 
   scoring: {},
-
-  sandbox: {},
 };

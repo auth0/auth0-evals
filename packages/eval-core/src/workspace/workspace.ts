@@ -5,13 +5,86 @@
  * in. Shared by all agent runners — not specific to any one agent type.
  */
 
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { logger } from '../utils/logger.js';
 import { DEFAULT_FRAMEWORK_CONFIG } from '../config/defaults.js';
+import type { AgentType } from '../types/agents.js';
+import type { CompileResult } from '@a0/eval-graders';
 import { resolveInside } from './path-utils.js';
+
+/**
+ * Agent guidance steering the agent away from producing documentation/summary
+ * files so graders see only source code. Written into each agent's native
+ * context file (see {@link AGENT_CONTEXT_FILENAMES}).
+ */
+export const AGENT_GUIDANCE = `Do not create any documentation files (README.md, SETUP.md, QUICKSTART.md, IMPLEMENTATION_SUMMARY.md, or any other .md files). Do not create any .txt summary or verification files. Do not create standalone summary or status files of any kind (e.g. AUTH0_SETUP.ts, IMPLEMENTATION_COMPLETE.ts, QUICK_START.ts, FILES_CREATED.txt) — these are not application source code. Only create and modify source code files that are part of the application.
+`;
+
+/**
+ * Builds the compile-verification guidance appended to the agent's context file
+ * when the eval declares a `compileCommand`. Pointing the agent at the command
+ * means it appears in the tool trace and the agent can fix any failures.
+ */
+export function compileGuidance(compileCommand: string): string {
+  return `After making your changes, you MUST run this command to verify your integration compiles, and fix any errors it reports before finishing:\n\n\`${compileCommand}\`\n`;
+}
+
+/**
+ * The context/memory file each runner reads, relative to the workspace root.
+ * Writing guidance to the wrong file means the agent silently ignores it:
+ *   - Claude Code reads CLAUDE.md.
+ *   - Gemini CLI reads GEMINI.md by default (AGENTS.md needs extra config).
+ *   - Codex reads AGENTS.md (official agents.md standard supporter).
+ *   - Copilot reads .github/copilot-instructions.md reliably; AGENTS.md is
+ *     "not supported by all Copilot features" per GitHub's docs.
+ */
+export const AGENT_CONTEXT_FILENAMES: Record<AgentType, string> = {
+  'claude-code': 'CLAUDE.md',
+  'gemini-cli': 'GEMINI.md',
+  codex: 'AGENTS.md',
+  copilot: '.github/copilot-instructions.md',
+};
+
+/**
+ * Writes {@link AGENT_GUIDANCE} into the context file the given runner reads.
+ * Appends (preserving any scaffold-provided content) when the file already
+ * exists; creates it otherwise. When `compileCommand` is provided, the
+ * compile-verification guidance (see {@link compileGuidance}) is appended too.
+ */
+export function writeAgentGuidance(workspace: string, agentType: AgentType, compileCommand?: string): void {
+  const filename = AGENT_CONTEXT_FILENAMES[agentType];
+  const dest = join(workspace, filename);
+
+  const guidance = compileCommand ? `${AGENT_GUIDANCE}\n${compileGuidance(compileCommand)}` : AGENT_GUIDANCE;
+
+  // If the scaffold shipped AGENTS.md but the active runner reads a different
+  // file, rename it so the guidance reaches the right runner.
+  const scaffoldAgentsMd = join(workspace, 'AGENTS.md');
+  if (filename !== 'AGENTS.md' && existsSync(scaffoldAgentsMd) && !existsSync(dest)) {
+    mkdirSync(join(dest, '..'), { recursive: true });
+    renameSync(scaffoldAgentsMd, dest);
+  }
+
+  if (existsSync(dest)) {
+    appendFileSync(dest, `\n${guidance}`, 'utf-8');
+  } else {
+    mkdirSync(join(dest, '..'), { recursive: true });
+    writeFileSync(dest, guidance, 'utf-8');
+  }
+}
 
 export interface SetupWorkspaceOptions {
   /** Prefix for the temp directory name. Defaults to {@link DEFAULT_FRAMEWORK_CONFIG}.workspace.tempDirPrefix. */
@@ -21,6 +94,13 @@ export interface SetupWorkspaceOptions {
 export interface RunSetupCommandOptions {
   /** Timeout in ms for the setup command. Defaults to {@link DEFAULT_FRAMEWORK_CONFIG}.workspace.setupCommandTimeoutMs. */
   timeoutMs?: number;
+}
+
+export interface RunCompileCommandOptions {
+  /** Timeout in ms for the compile command. Defaults to {@link DEFAULT_FRAMEWORK_CONFIG}.workspace.compileCommandTimeoutMs. */
+  timeoutMs?: number;
+  /** When provided, this command is prepended to the compile command sequence (e.g. the eval's setup_command to ensure deps are installed). */
+  setupCommand?: string;
 }
 
 /**
@@ -85,6 +165,70 @@ export function runSetupCommand(workspace: string, command: string, options?: Ru
       throw new Error(`Setup command failed with exit code ${result.status}: ${subCommand}`);
     }
   }
+}
+
+/**
+ * Runs the eval's compile_command in the workspace AFTER the agent finishes and
+ * captures the outcome. Unlike runSetupCommand, this never throws — a failed
+ * compile is a valid graded result, not an infrastructure error.
+ *
+ * Splits on `&&` and runs each sub-command in sequence (same argv tokenisation
+ * as runSetupCommand). Short-circuits on the first failing sub-command. `ok` is
+ * true only if every sub-command exits 0. Output (stdout+stderr) is captured.
+ */
+export function runCompileCommand(
+  workspace: string,
+  command: string,
+  options?: RunCompileCommandOptions,
+): CompileResult {
+  const timeout = options?.timeoutMs ?? DEFAULT_FRAMEWORK_CONFIG.workspace.compileCommandTimeoutMs!;
+  const base: CompileResult = { ok: false, exitCode: null, signal: null, output: '', command };
+
+  if (!command.trim()) {
+    return { ...base, output: 'compile command is empty' };
+  }
+
+  const subCommands = command.split('&&').map((s) => s.trim());
+  if (subCommands.some((s) => !s)) {
+    return { ...base, output: `compile command has an empty segment: ${command}` };
+  }
+
+  // When a setupCommand is provided, we ensure to run it before verifying compilation.
+  // This is done because there is no guarantee that an agent did not add a dependency
+  // without running the installation command.
+  if (options?.setupCommand) {
+    subCommands.unshift(options.setupCommand);
+  }
+
+  let combinedOutput = '';
+  for (const subCommand of subCommands) {
+    logger.info(`  [Compile] Running: ${subCommand}`);
+    const args = subCommand.split(/\s+/);
+    const cmd = args.shift()!;
+    const result = spawnSync(cmd, args, { cwd: workspace, encoding: 'utf-8', timeout });
+
+    combinedOutput += (result.stdout ?? '') + (result.stderr ?? '');
+
+    if (result.error) {
+      // ENOENT (command not found) or timeout surfaces here.
+      const signal = result.signal ?? null;
+      return {
+        ok: false,
+        exitCode: null,
+        signal,
+        output: combinedOutput + `\n${result.error.message}`,
+        command,
+      };
+    }
+    if (result.signal) {
+      return { ok: false, exitCode: null, signal: result.signal, output: combinedOutput, command };
+    }
+    if (result.status !== 0) {
+      return { ok: false, exitCode: result.status, signal: null, output: combinedOutput, command };
+    }
+  }
+
+  return { ok: true, exitCode: 0, signal: null, output: combinedOutput, command };
 }
 
 /**

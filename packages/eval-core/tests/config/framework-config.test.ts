@@ -13,7 +13,7 @@ describe('framework-config', () => {
     evalsDir: '/evals',
     proxy: { baseUrl: 'http://localhost:4000' },
     judge: { model: 'claude-sonnet-4-5', maxTokens: 1024, maxCodeChars: 16384 },
-    models: { known: [], litellm: {} },
+    models: { known: [], modelIds: {} },
     agents: {},
   } as any;
 

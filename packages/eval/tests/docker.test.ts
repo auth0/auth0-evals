@@ -264,47 +264,6 @@ describe('runJobInDocker — Docker argument construction', () => {
 
     rmSync(workspace, { recursive: true, force: true });
   });
-
-  it('forwards passthroughEnv vars that are set on the host and skips unset ones', async () => {
-    const runJobInDocker = await getRunJobInDocker();
-    const workspace = mkdtempSync(join(tmpdir(), 'docker-passthrough-'));
-
-    const origDomain = process.env.MCP_TENANT_DOMAIN;
-    const origSecret = process.env.MCP_CLIENT_SECRET;
-    process.env.MCP_TENANT_DOMAIN = 'tenant.us.auth0.com';
-    delete process.env.MCP_CLIENT_SECRET;
-
-    mockExecFileSync.mockReturnValue('');
-
-    let capturedArgs: string[] = [];
-    mockSpawn.mockImplementation((_cmd: string, args: string[]) => {
-      capturedArgs = args;
-      writeFileSync(join(workspace, '.eval-results.json'), JSON.stringify({ ok: true }));
-      return makeCloseEmitter();
-    });
-
-    await runJobInDocker({
-      workspace,
-      evalId: 'test_eval',
-      model: 'gpt-5.4',
-      mode: 'agent' as const,
-      tools: ['mcp'],
-      agentType: 'claude-code' as const,
-      apiKey: 'test-key',
-      passthroughEnv: ['MCP_TENANT_DOMAIN', 'MCP_CLIENT_SECRET'],
-    });
-
-    const envPairs = extractEnvPairs(capturedArgs);
-
-    // Set var is forwarded; unset var is skipped entirely.
-    expect(envPairs).toContain('MCP_TENANT_DOMAIN=tenant.us.auth0.com');
-    expect(envPairs.some((e) => e.startsWith('MCP_CLIENT_SECRET='))).toBe(false);
-
-    if (origDomain === undefined) delete process.env.MCP_TENANT_DOMAIN;
-    else process.env.MCP_TENANT_DOMAIN = origDomain;
-    if (origSecret !== undefined) process.env.MCP_CLIENT_SECRET = origSecret;
-    rmSync(workspace, { recursive: true, force: true });
-  });
 });
 
 // ── Results parsing ──────────────────────────────────────────────────────────

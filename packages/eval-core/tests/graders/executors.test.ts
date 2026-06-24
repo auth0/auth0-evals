@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { GraderLevel } from '@a0/eval-graders';
-import type { GraderDef } from '@a0/eval-graders';
+import type { GraderDef, CompileResult } from '@a0/eval-graders';
 import { containsExecutor } from '../../src/graders/executors/contains.js';
 import { notContainsExecutor } from '../../src/graders/executors/not-contains.js';
 import { notContainsInSourceExecutor } from '../../src/graders/executors/not-contains-in-source.js';
 import { matchesExecutor } from '../../src/graders/executors/matches.js';
+import { isJudgeExcluded } from '../../src/graders/executors/llm-judge.js';
+import { compileExecutor } from '../../src/graders/executors/compile.js';
 import type { GraderContext } from '../../src/graders/executors/types.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -275,5 +277,102 @@ describe('matchesExecutor', () => {
     const def = makeDef({ kind: 'matches', pattern: '^Auth0Provider$' });
     const result = await matchesExecutor.execute(def, ctx);
     expect(result.passed).toBe(true);
+  });
+});
+
+// ── isJudgeExcluded ─────────────────────────────────────────────────────────
+
+describe('isJudgeExcluded', () => {
+  it('excludes tsconfig variants by basename', () => {
+    expect(isJudgeExcluded('tsconfig.json')).toBe(true);
+    expect(isJudgeExcluded('tsconfig.app.json')).toBe(true);
+    expect(isJudgeExcluded('tsconfig.tsbuildinfo')).toBe(true);
+    expect(isJudgeExcluded('src/tsconfig.json')).toBe(true);
+  });
+
+  it('excludes angular.json by basename', () => {
+    expect(isJudgeExcluded('angular.json')).toBe(true);
+  });
+
+  it('excludes the .gradle directory and its contents', () => {
+    expect(isJudgeExcluded('.gradle')).toBe(true);
+    expect(isJudgeExcluded('.gradle/caches/file.bin')).toBe(true);
+  });
+
+  it('excludes the app/build directory and its contents', () => {
+    expect(isJudgeExcluded('app/build')).toBe(true);
+    expect(isJudgeExcluded('app/build/outputs/apk/app.apk')).toBe(true);
+  });
+
+  it('excludes .env so credential values never reach the judge', () => {
+    expect(isJudgeExcluded('.env')).toBe(true);
+  });
+
+  it('excludes .env variants (.env.local, .env.production) including nested', () => {
+    expect(isJudgeExcluded('.env.local')).toBe(true);
+    expect(isJudgeExcluded('.env.production')).toBe(true);
+    expect(isJudgeExcluded('config/.env.staging')).toBe(true);
+  });
+
+  it('does not exclude source files', () => {
+    expect(isJudgeExcluded('app/src/main/MainActivity.kt')).toBe(false);
+    expect(isJudgeExcluded('src/index.ts')).toBe(false);
+    expect(isJudgeExcluded('build.gradle.kts')).toBe(false);
+  });
+
+  it('does not exclude files that merely contain "env" in the name', () => {
+    expect(isJudgeExcluded('environment.ts')).toBe(false);
+    expect(isJudgeExcluded('src/env.config.ts')).toBe(false);
+  });
+
+  it('does not exclude paths that merely contain the excluded dir name as a prefix', () => {
+    expect(isJudgeExcluded('app/build-config.json')).toBe(false);
+    expect(isJudgeExcluded('.gradle-wrapper/file')).toBe(false);
+  });
+
+  it('excludes markdown files', () => {
+    expect(isJudgeExcluded('README.md')).toBe(true);
+    expect(isJudgeExcluded('docs/SETUP.md')).toBe(true);
+    expect(isJudgeExcluded('CHANGELOG.MD')).toBe(true);
+  });
+});
+
+// ── compile ───────────────────────────────────────────────────────────────────
+
+describe('compile executor', () => {
+  it('passes when compileResult.ok is true', async () => {
+    const def = makeDef({ kind: 'compile', level: GraderLevel.L4 });
+    const compileResult: CompileResult = {
+      ok: true,
+      exitCode: 0,
+      signal: null,
+      output: 'done',
+      command: 'npm run build',
+    };
+    const res = await compileExecutor.execute(def, { ...makeCtx({}), compileResult });
+    expect(res.passed).toBe(true);
+    expect(res.kind).toBe('compile');
+  });
+
+  it('fails when compileResult.ok is false and includes exit code + output tail in detail', async () => {
+    const def = makeDef({ kind: 'compile', level: GraderLevel.L4 });
+    const compileResult: CompileResult = {
+      ok: false,
+      exitCode: 2,
+      signal: null,
+      output: 'TS2304: Cannot find name foo',
+      command: 'npm run build',
+    };
+    const res = await compileExecutor.execute(def, { ...makeCtx({}), compileResult });
+    expect(res.passed).toBe(false);
+    expect(res.detail).toContain('2');
+    expect(res.detail).toContain('TS2304');
+  });
+
+  it('fails when no compileResult is present (eval misconfigured)', async () => {
+    const def = makeDef({ kind: 'compile', level: GraderLevel.L4 });
+    const res = await compileExecutor.execute(def, makeCtx({}));
+    expect(res.passed).toBe(false);
+    expect(res.detail).toContain('compile was not run');
   });
 });

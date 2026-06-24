@@ -21,7 +21,6 @@
  */
 
 import { join, dirname } from 'node:path';
-import { mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import pLimit from 'p-limit';
 import { config as loadDotenv } from 'dotenv';
@@ -117,39 +116,6 @@ export async function runJob(
   }
 }
 
-// ── Agent workspace instructions ──────────────────────────────────────────────
-
-const AGENT_INSTRUCTIONS_BASE = `- Always install dependencies explicitly using the CLI (e.g. \`npm install <package>\`, \`pip install <package>\`) rather than editing the dependency file (e.g. \`package.json\`, \`requirements.txt\`) and then running the install command.`;
-
-const AGENT_INSTRUCTIONS_BUILD = `- Always verify compilation by running the project's build command (e.g. \`npm run build\`) before finishing.`;
-
-function getAgentInstructions(evalDef: EvalDefinition): string {
-  const lines = [AGENT_INSTRUCTIONS_BASE];
-  const pkgJson = evalDef.scaffold['package.json'];
-  if (pkgJson && pkgJson.includes('"build"')) {
-    lines.push(AGENT_INSTRUCTIONS_BUILD);
-  }
-  return lines.join('\n');
-}
-
-/**
- * Write lightweight behavioral instructions to the workspace in a format
- * each agent can pick up via its native config file convention.
- */
-function writeAgentInstructions(workspace: string, agentType: AgentType, evalDef: EvalDefinition): void {
-  const instructions = getAgentInstructions(evalDef);
-  if (agentType === 'claude-code') {
-    writeFileSync(join(workspace, 'CLAUDE.md'), instructions, 'utf-8');
-  } else if (agentType === 'gemini-cli') {
-    writeFileSync(join(workspace, 'GEMINI.md'), instructions, 'utf-8');
-  } else if (agentType === 'copilot') {
-    mkdirSync(join(workspace, '.github'), { recursive: true });
-    writeFileSync(join(workspace, '.github', 'copilot-instructions.md'), instructions, 'utf-8');
-  } else if (agentType === 'codex') {
-    writeFileSync(join(workspace, 'AGENTS.md'), instructions, 'utf-8');
-  }
-}
-
 async function runAgentJob(
   evalDef: EvalDefinition,
   model: string,
@@ -160,13 +126,17 @@ async function runAgentJob(
   agentType: AgentType,
   sandbox: boolean,
 ): Promise<JobResult> {
-  const { setupWorkspace, runSetupCommand, cleanupWorkspace } = await import('@a0/eval-core');
+  const { setupWorkspace, runSetupCommand, runCompileCommand, cleanupWorkspace, writeAgentGuidance } =
+    await import('@a0/eval-core');
   const { generateRunRecommendations } = await import('../recommendations/index.js');
   await initRunners();
 
   const workspace = setupWorkspace(evalDef.scaffold);
+  // Inject "no docs files" guidance into the context file this runner reads
+  // (CLAUDE.md / GEMINI.md / AGENTS.md). Must run before both the docker and
+  // local execution paths so every runner picks it up.
+  writeAgentGuidance(workspace, agentType, evalDef.compileCommand);
   try {
-    writeAgentInstructions(workspace, agentType, evalDef);
     if (!sandbox && evalDef.setupCommand) {
       runSetupCommand(workspace, evalDef.setupCommand);
     }
@@ -184,7 +154,6 @@ async function runAgentJob(
         agentType,
         apiKey,
         ghToken: process.env.GH_TOKEN,
-        passthroughEnv: getFrameworkConfig().sandbox.passthroughEnv,
       });
     }
 
@@ -192,6 +161,11 @@ async function runAgentJob(
     const runner = getRunner(agentType);
     const preparedEval = tools.includes('skills') ? await runner.prepareSkills(evalDef, workspace) : evalDef;
     const { record, resolvedModel } = await runner.run({ evalDef: preparedEval, workspace, model, tools, apiKey });
+
+    const compileResult =
+      evalDef.compileCommand !== undefined
+        ? runCompileCommand(workspace, evalDef.compileCommand, { setupCommand: evalDef.setupCommand })
+        : undefined;
 
     let graderResults: Awaited<ReturnType<typeof runGraders>> = [];
     if (evalDef.graders.length > 0) {
@@ -204,6 +178,7 @@ async function runAgentJob(
         agentLevels,
         true,
         record.toolCalls,
+        compileResult,
       );
     }
 

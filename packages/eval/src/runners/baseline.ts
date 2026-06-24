@@ -12,7 +12,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import {
   estimateCost,
   getFrameworkConfig,
-  getLitellmModelMap,
+  getModelIdMap,
   makeSessionId,
   BASELINE_TASK_TIMEOUT_MS,
 } from '@a0/eval-core';
@@ -63,7 +63,7 @@ export async function llmCall(
   userPrompt: string,
 ): Promise<{ text: string; usage: { inputTokens: number | undefined; outputTokens: number | undefined } }> {
   const { proxy } = getFrameworkConfig();
-  const apiModel = getLitellmModelMap()[model] ?? model;
+  const apiModel = getModelIdMap()[model] ?? model;
 
   const openai = createOpenAI({
     apiKey,
@@ -74,7 +74,6 @@ export async function llmCall(
     model: openai(apiModel),
     system: systemPrompt,
     prompt: userPrompt,
-    temperature: 0,
     abortSignal: AbortSignal.timeout(BASELINE_TASK_TIMEOUT_MS),
   });
 }

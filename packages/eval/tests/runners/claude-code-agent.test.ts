@@ -84,6 +84,8 @@ function makeAssistantMsg(
     stop_reason?: string | null;
     input_tokens?: number;
     output_tokens?: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
   } = {},
 ): SDKAssistantMessage {
   return {
@@ -102,6 +104,8 @@ function makeAssistantMsg(
       usage: {
         input_tokens: overrides.input_tokens ?? 10,
         output_tokens: overrides.output_tokens ?? 5,
+        cache_read_input_tokens: overrides.cache_read_input_tokens ?? 0,
+        cache_creation_input_tokens: overrides.cache_creation_input_tokens ?? 0,
       },
     } as SDKAssistantMessage['message'],
   } as SDKAssistantMessage;
@@ -133,6 +137,8 @@ function makeResultMsg(
     total_cost_usd?: number;
     input_tokens?: number;
     output_tokens?: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
   } = {},
 ): SDKResultMessage {
   const subtype = overrides.subtype ?? 'success';
@@ -151,6 +157,8 @@ function makeResultMsg(
     usage: {
       input_tokens: overrides.input_tokens ?? 500,
       output_tokens: overrides.output_tokens ?? 200,
+      cache_read_input_tokens: overrides.cache_read_input_tokens ?? 0,
+      cache_creation_input_tokens: overrides.cache_creation_input_tokens ?? 0,
     },
     modelUsage: {},
     permission_denials: [],
@@ -196,6 +204,42 @@ describe('handleMessage — system', () => {
     expect(result).toBeNull();
     expect(record.model).toBe('claude-sonnet-4-6');
     expect(record.sessionId).toBe('sess_abc');
+  });
+
+  it('init reverses a mapped proxy model ID back to its friendly alias', () => {
+    setFrameworkConfig({
+      ...TEST_CONFIG,
+      models: { ...TEST_CONFIG.models, modelIds: { 'claude-opus-4-7': 'global.anthropic.claude-opus-4-7' } },
+      agents: { 'claude-code': { proxy: { baseUrl: 'https://llm.example.com/anthropic' } } },
+    });
+    try {
+      const record = makeRecord();
+      const msg = {
+        type: 'system',
+        subtype: 'init',
+        session_id: 'sess_rev',
+        model: 'global.anthropic.claude-opus-4-7',
+      } as unknown as SDKSystemMessage;
+      handleMessage(msg, record, makePending(), 0, 0);
+      expect(record.model).toBe('claude-opus-4-7');
+    } finally {
+      setFrameworkConfig({
+        ...TEST_CONFIG,
+        agents: { 'claude-code': { proxy: { baseUrl: 'https://llm.example.com/anthropic' } } },
+      });
+    }
+  });
+
+  it('init prefixes an unknown model with claude-code/', () => {
+    const record = makeRecord();
+    const msg = {
+      type: 'system',
+      subtype: 'init',
+      session_id: 'sess_unk',
+      model: 'some-unknown-model',
+    } as unknown as SDKSystemMessage;
+    handleMessage(msg, record, makePending(), 0, 0);
+    expect(record.model).toBe('claude-code/some-unknown-model');
   });
 
   it('init with empty model falls back to CLAUDE_CODE_MODEL_ID', () => {
@@ -247,6 +291,20 @@ describe('handleMessage — assistant', () => {
     handleMessage(makeAssistantMsg({ input_tokens: 20, output_tokens: 8 }), record, makePending(), 0, 0);
     expect(record.inputTokens).toBe(120);
     expect(record.outputTokens).toBe(58);
+  });
+
+  it('includes cache_read and cache_creation tokens in per-turn input count', () => {
+    const record = makeRecord();
+    record.inputTokens = 0;
+    handleMessage(
+      makeAssistantMsg({ input_tokens: 6, output_tokens: 3, cache_read_input_tokens: 4800, cache_creation_input_tokens: 200 }),
+      record,
+      makePending(),
+      0,
+      0,
+    );
+    expect(record.inputTokens).toBe(5006);
+    expect(record.turnMetrics[0].inputTokens).toBe(5006);
   });
 
   it('registers tool_use blocks into the pending map', () => {
@@ -538,6 +596,20 @@ describe('handleMessage — result', () => {
     handleMessage(makeResultMsg({ input_tokens: 500, output_tokens: 200 }), record, makePending(), 0, 0);
     expect(record.inputTokens).toBe(500);
     expect(record.outputTokens).toBe(200);
+  });
+
+  it('includes cache tokens in session-total inputTokens from result usage', () => {
+    const record = makeRecord();
+    record.inputTokens = 999;
+    handleMessage(
+      makeResultMsg({ input_tokens: 100, output_tokens: 50, cache_read_input_tokens: 4000, cache_creation_input_tokens: 500 }),
+      record,
+      makePending(),
+      0,
+      0,
+    );
+    expect(record.inputTokens).toBe(4600);
+    expect(record.outputTokens).toBe(50);
   });
 
   it('sets costUsd from total_cost_usd', () => {

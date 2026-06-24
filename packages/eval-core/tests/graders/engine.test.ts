@@ -14,10 +14,11 @@ import {
   ranCommand,
   ranCommandOneOf,
   wroteFile,
-  calledTool,
+  compiles,
   GraderLevel,
   type GraderResult,
   type EventToolCall,
+  type CompileResult,
 } from '@a0/eval-graders';
 import { setFrameworkConfig } from '../../src/config/framework-config.js';
 import type { FrameworkConfig } from '../../src/config/framework.js';
@@ -35,8 +36,7 @@ const TEST_CONFIG: Required<FrameworkConfig> = {
   models: {
     known: ['gpt-5.4'],
     default: 'gpt-5.4',
-    bedrock: {},
-    litellm: {},
+    modelIds: {},
   },
 };
 
@@ -465,6 +465,28 @@ describe('llmJudge', () => {
       maxTokens: 512,
     });
     expect(capturedBody?.max_tokens).toBe(512);
+  });
+
+  it('sends the model as-is (no Bedrock ID mapping on the chat endpoint)', async () => {
+    // Regression: the judge hits the /chat/completions endpoint, which serves
+    // models under their plain alias. Mapping the alias to a Bedrock ID here
+    // produced model="global.anthropic.*" → 400.
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
+    await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'claude-opus-4-8',
+      baseUrl: 'http://test',
+    });
+    expect(capturedBody?.model).toBe('claude-opus-4-8');
   });
 
   it('throws JudgeError when baseUrl is empty', async () => {
@@ -1051,32 +1073,38 @@ describe('runGraders - event graders', () => {
     const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
     expect(results[0]!.passed).toBe(true);
   });
+});
 
-  it('calledTool passes when a matching mcp__ tool was called', async () => {
+describe('runGraders - compile', () => {
+  it('passes the compile grader through to the compile executor via compileResult', async () => {
     const dir = tmpDir();
-    writeFileSync(join(dir, 'x.ts'), '');
-    const toolCalls: EventToolCall[] = [
-      { name: 'mcp__auth0-hosted-mcp__auth0_list_applications', args: {}, result: 'ok', causedError: false },
-    ];
-    const graders = [calledTool('auth0_list_applications', 'called list apps', GraderLevel.L4)];
-    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
+    writeFileSync(join(dir, 'index.ts'), 'export const x = 1;');
+    const compileResult: CompileResult = {
+      ok: true,
+      exitCode: 0,
+      signal: null,
+      output: '',
+      command: 'npm run build',
+    };
+    const results = await runGraders(
+      [compiles('builds', GraderLevel.L4)],
+      dir,
+      'test-key',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      compileResult,
+    );
+    expect(results).toHaveLength(1);
     expect(results[0]!.passed).toBe(true);
   });
 
-  it('calledTool fails when the tool was not called', async () => {
+  it('fails the compile grader when no compileResult is threaded', async () => {
     const dir = tmpDir();
-    writeFileSync(join(dir, 'x.ts'), '');
-    const graders = [calledTool('auth0_list_applications', 'called list apps', GraderLevel.L4)];
-    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    writeFileSync(join(dir, 'index.ts'), 'export const x = 1;');
+    const results = await runGraders([compiles('builds', GraderLevel.L4)], dir, 'test-key');
     expect(results[0]!.passed).toBe(false);
-  });
-
-  it('calledTool fails gracefully when no toolCalls provided (baseline)', async () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, 'x.ts'), '');
-    const graders = [calledTool('auth0_list_applications', 'called list apps', GraderLevel.L4)];
-    const results = await runGraders(graders, dir, 'unused');
-    expect(results[0]!.passed).toBe(false);
-    expect(results[0]!.detail).toContain('No tool calls available');
+    expect(results[0]!.detail).toContain('compile was not run');
   });
 });

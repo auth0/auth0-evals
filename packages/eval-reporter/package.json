@@ -19,13 +19,13 @@
   "dependencies": {
     "@a0/eval-core": "*",
     "@a0/eval-graders": "*",
-    "marked": "^18.0.2",
+    "marked": "^18.0.5",
     "nunjucks": "^3.2.4"
   },
   "devDependencies": {
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.9.3",
     "@types/nunjucks": "^3.2.6",
-    "@vitest/coverage-v8": "^4.1.6",
-    "vitest": "^4.1.0"
+    "@vitest/coverage-v8": "^4.1.9",
+    "vitest": "^4.1.8"
   }
 }

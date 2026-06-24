@@ -967,36 +967,18 @@ describe('collectFiles - skill file exclusion', () => {
     expect(paths.every((p) => !p.startsWith('node_modules/'))).toBe(true);
   });
 
-  it('excludes GEMINI.md from grading corpus (injected agent instructions)', () => {
+  it('excludes injected agent context files (CLAUDE.md, GEMINI.md, AGENTS.md) from grading corpus', () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'app.ts'), 'import { Auth0Provider } from "@auth0/auth0-react"');
-    writeFileSync(join(dir, 'GEMINI.md'), 'Auth0Provider useAuth0 skill content');
-
-    const files = collectGraderFiles(dir);
-    const paths = Object.keys(files);
-    expect(paths).toContain('app.ts');
-    expect(paths).not.toContain('GEMINI.md');
-  });
-
-  it('excludes CLAUDE.md from grading corpus (injected agent instructions)', () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, 'app.ts'), 'import { Auth0Provider } from "@auth0/auth0-react"');
-    writeFileSync(join(dir, 'CLAUDE.md'), 'Run npm install and npm run build to verify');
+    writeFileSync(join(dir, 'CLAUDE.md'), 'injected guidance: do not create README.md');
+    writeFileSync(join(dir, 'GEMINI.md'), 'injected guidance: do not create README.md');
+    writeFileSync(join(dir, 'AGENTS.md'), 'injected guidance: do not create README.md');
 
     const files = collectGraderFiles(dir);
     const paths = Object.keys(files);
     expect(paths).toContain('app.ts');
     expect(paths).not.toContain('CLAUDE.md');
-  });
-
-  it('excludes AGENTS.md from grading corpus (injected agent instructions)', () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, 'app.ts'), 'import { Auth0Provider } from "@auth0/auth0-react"');
-    writeFileSync(join(dir, 'AGENTS.md'), 'Run npm install and npm run build to verify');
-
-    const files = collectGraderFiles(dir);
-    const paths = Object.keys(files);
-    expect(paths).toContain('app.ts');
+    expect(paths).not.toContain('GEMINI.md');
     expect(paths).not.toContain('AGENTS.md');
   });
 });

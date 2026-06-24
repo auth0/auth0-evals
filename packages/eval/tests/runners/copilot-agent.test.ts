@@ -795,6 +795,56 @@ describe('runCopilotAgent — session configuration', () => {
   });
 });
 
+// ── Proxy / BYOK provider ─────────────────────────────────────────────────────
+
+describe('runCopilotAgent — proxy provider', () => {
+  let prevKey: string | undefined;
+
+  beforeEach(() => {
+    prevKey = process.env.LLM_API_KEY;
+  });
+
+  afterEach(() => {
+    if (prevKey === undefined) delete process.env.LLM_API_KEY;
+    else process.env.LLM_API_KEY = prevKey;
+  });
+
+  it('passes an OpenAI-compatible provider pointing at the proxy', async () => {
+    process.env.LLM_API_KEY = 'test-key';
+    fakeSession.setScenario(async () => {});
+    await runCopilotAgent(evalDef, workspace, { model: 'gpt-5.4' });
+    expect(mockCreateSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: expect.objectContaining({
+          type: 'openai',
+          wireApi: 'responses',
+          baseUrl: expect.stringContaining('/v1'),
+          apiKey: 'test-key',
+          modelId: 'gpt-5.4',
+        }),
+      }),
+    );
+  });
+
+  it('does not double-append /v1 when the proxy base URL already ends in /v1', async () => {
+    // TEST_CONFIG.proxy.baseUrl is https://llm.example.com/v1
+    process.env.LLM_API_KEY = 'test-key';
+    fakeSession.setScenario(async () => {});
+    await runCopilotAgent(evalDef, workspace, { model: 'gpt-5.4' });
+    const config = mockCreateSession.mock.calls[0][0];
+    expect(config.provider.baseUrl).toBe('https://llm.example.com/v1');
+  });
+
+  it('still calls createSession when LLM_API_KEY is unset (warns, does not throw)', async () => {
+    delete process.env.LLM_API_KEY;
+    fakeSession.setScenario(async () => {});
+    await runCopilotAgent(evalDef, workspace, { model: 'gpt-5.4' });
+    expect(mockCreateSession).toHaveBeenCalled();
+    const config = mockCreateSession.mock.calls[0][0];
+    expect(config.provider.apiKey).toBeUndefined();
+  });
+});
+
 // ── CopilotCliRunner ──────────────────────────────────────────────────────────
 
 describe('CopilotCliRunner — model routing', () => {

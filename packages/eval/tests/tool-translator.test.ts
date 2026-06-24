@@ -7,7 +7,7 @@ import { classifyActionType } from '@a0/eval-core';
 import { ClaudeCodeTranslator } from '../src/runners/claude-code/translator.js';
 import { CopilotCliTranslator } from '../src/runners/copilot/translator.js';
 import { GeminiCliTranslator } from '../src/runners/gemini-cli/translator.js';
-import { CodexTranslator } from '../src/runners/codex/translator.js';
+import { CodexTranslator, detectReadOnlyFileRead } from '../src/runners/codex/translator.js';
 
 describe('ClaudeCodeTranslator — isDocLookup / isInterruption', () => {
   const translator = new ClaudeCodeTranslator();
@@ -164,6 +164,13 @@ describe('GeminiCliTranslator — mapping', () => {
   it('preserves full name for mcp__-prefixed tools', () => {
     expect(translator.mapName('mcp__auth0-docs__search_auth0_docs')).toBe('mcp__auth0-docs__search_auth0_docs');
     expect(translator.mapName('mcp__anything__tool')).toBe('mcp__anything__tool');
+  });
+
+  it('normalizes single-underscore mcp_ names (Gemini >=0.46) to the mcp__ prefix', () => {
+    expect(translator.mapName('mcp_auth0-hosted-mcp_auth0_list_applications')).toBe(
+      'mcp__auth0-hosted-mcp_auth0_list_applications',
+    );
+    expect(translator.mapName('mcp_server_tool')).toBe('mcp__server_tool');
   });
 
   it('passes through unknown tool names', () => {
@@ -347,6 +354,45 @@ describe('CodexTranslator — normalizeArgs', () => {
   it('passes through args for unknown tools', () => {
     const args = { foo: 'bar' };
     expect(translator.normalizeArgs('unknown_tool', args)).toEqual(args);
+  });
+});
+
+describe('detectReadOnlyFileRead', () => {
+  it.each([
+    // Plain read commands with a path-like operand.
+    ['cat src/App.jsx', 'src/App.jsx'],
+    ['head -n 50 src/index.jsx', 'src/index.jsx'],
+    ['tail -n 20 logs/app.log', 'logs/app.log'],
+    ['nl -ba src/App.jsx', 'src/App.jsx'],
+    ['sed -n 1,220p src/App.jsx', 'src/App.jsx'],
+    // Wrapped in the shell Codex actually uses.
+    [`/bin/zsh -lc "sed -n '1,220p' src/App.jsx"`, 'src/App.jsx'],
+    [`/bin/zsh -lc "nl -ba src/auth/auth0-config.js | sed -n '1,160p'"`, null], // pipe → rejected
+    [`bash -c 'cat package.json'`, 'package.json'],
+  ])('detects read in %j', (command, expected) => {
+    expect(detectReadOnlyFileRead(command)).toBe(expected);
+  });
+
+  it.each([
+    // Mutating or compound — must never be read_file.
+    ['rm src/App.jsx'],
+    ['npm install @auth0/auth0-react'],
+    ['npm run build'],
+    ['git status --short'],
+    ['cat src/a.ts > src/b.ts'], // redirect
+    ['cat src/a.ts && rm src/a.ts'], // chain
+    ['cat src/a.ts | grep foo'], // pipe
+    ['echo hi > file.txt'], // write
+    ['sed -i s/a/b/ src/App.jsx'], // in-place edit
+    ['sed s/a/b/ src/App.jsx'], // no -n → not a pure read
+    ['tail -f logs/app.log'], // follow (long-running)
+    ['cat $FILE'], // variable expansion
+    ['cat *.ts'], // glob
+    ['cat'], // no operand
+    ['ls src/'], // not a read command
+    ["sed -n '1,220p'"], // sed script, no file path
+  ])('rejects %j', (command) => {
+    expect(detectReadOnlyFileRead(command)).toBeNull();
   });
 });
 

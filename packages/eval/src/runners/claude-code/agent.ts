@@ -22,8 +22,8 @@ import type { RunRecord, ToolCallRecord, TurnMetric, FinishReason, EvalDefinitio
 import {
   CLAUDE_CODE_TASK_TIMEOUT_MS,
   MAX_TURNS,
-  getLitellmModelMap,
-  getLitellmModelReverseMap,
+  getModelIdMap,
+  getModelIdReverseMap,
   getFrameworkConfig,
   getAgentProxyBaseUrl,
   estimateCost,
@@ -41,19 +41,8 @@ const translator = new ClaudeCodeTranslator();
 
 // ── Model alias mapping ───────────────────────────────────────────────────────
 
-/** Whether the runner should use Bedrock model IDs (via the /anthropic proxy endpoint). */
-const USE_BEDROCK = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY === '1';
-
-function getBedrockModelAliasMap(): Record<string, string> {
-  return getFrameworkConfig().models.bedrock ?? {};
-}
-
-function getBedrockModelReverseMap(): Record<string, string> {
-  return Object.fromEntries(Object.entries(getBedrockModelAliasMap()).map(([alias, full]) => [full, alias]));
-}
-
-function getKnownBedrockAliases(): Set<string> {
-  return new Set(Object.keys(getBedrockModelAliasMap()));
+function getKnownModelAliases(): Set<string> {
+  return new Set(getFrameworkConfig().models.known ?? []);
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -122,14 +111,10 @@ export async function runClaudeCodeAgent(
     workspace,
   };
 
-  // In Bedrock mode, resolve short alias to the full Bedrock model ID
-  // (e.g. claude-sonnet-4-6 → global.anthropic.claude-sonnet-4-6).
-  // In LiteLLM mode, resolve via getLitellmModelMap().
-  const resolvedModel = model
-    ? USE_BEDROCK
-      ? (getBedrockModelAliasMap()[model] ?? model)
-      : (getLitellmModelMap()[model] ?? model)
-    : undefined;
+  // Resolve the short alias to the ID the active proxy expects. The Bedrock
+  // proxy needs full `global.anthropic.*` IDs; the LiteLLM proxy serves models
+  // under the alias itself (empty map), so the alias passes through unchanged.
+  const resolvedModel = model ? (getModelIdMap()[model] ?? model) : undefined;
 
   // Build environment variables for the SDK process.
   // Route through the proxy's Anthropic pass-through endpoint.
@@ -153,26 +138,26 @@ export async function runClaudeCodeAgent(
   }
 
   // Build MCP server config when --tools mcp is requested.
-  // Token is minted here (job start) so a long matrix run never reuses an expired token.
   let mcpServers: Record<string, { type: 'http'; url: string; headers?: Record<string, string> }> | undefined;
   if (tools.includes('mcp')) {
     const configServers = getFrameworkConfig().mcp.servers;
     const httpServers: Record<string, { type: 'http'; url: string; headers?: Record<string, string> }> = {};
     for (const [name, server] of Object.entries(configServers)) {
-      if (server.type !== 'http') continue;
-      if (server.auth) {
-        const token = await mintMcpToken(server.auth);
-        if (!token) {
-          logger.warn(`[ClaudeCode] MCP server '${name}' skipped — token mint failed or creds missing`);
-          continue;
-        }
-        httpServers[name] = {
+      if (server.type === 'http') {
+        const entry: { type: 'http'; url: string; headers?: Record<string, string> } = {
           type: 'http' as const,
           url: server.url,
-          headers: { Authorization: `Bearer ${token}` },
         };
-      } else {
-        httpServers[name] = { type: 'http' as const, url: server.url };
+        if (server.auth) {
+          const token = await mintMcpToken(server.auth);
+          if (token) {
+            entry.headers = { Authorization: `Bearer ${token}` };
+            logger.info(`[ClaudeCode] MCP auth token minted for '${name}'`);
+          } else {
+            logger.warn(`[ClaudeCode] MCP auth token mint failed for '${name}' — server may reject requests`);
+          }
+        }
+        httpServers[name] = entry;
       }
     }
     if (Object.keys(httpServers).length > 0) mcpServers = httpServers;
@@ -318,9 +303,8 @@ export function handleMessage(
     const sys = message as SDKSystemMessage;
     if (sys.subtype !== 'init') return null;
     record.model = sys.model
-      ? (getBedrockModelReverseMap()[sys.model] ??
-        getLitellmModelReverseMap()[sys.model] ??
-        (getKnownBedrockAliases().has(sys.model) ? sys.model : `claude-code/${sys.model}`))
+      ? (getModelIdReverseMap()[sys.model] ??
+        (getKnownModelAliases().has(sys.model) ? sys.model : `claude-code/${sys.model}`))
       : CLAUDE_CODE_MODEL_ID;
     record.sessionId = sys.session_id;
     logger.info(`[ClaudeCode] Session ${sys.session_id} model=${sys.model}`);
@@ -333,8 +317,12 @@ export function handleMessage(
     const nextTurnNum = turnNum + 1;
     const { message: msg } = asst;
 
-    const turnInput = msg.usage?.input_tokens ?? 0;
-    const turnOutput = msg.usage?.output_tokens ?? 0;
+    const usage = msg.usage;
+    const turnInput =
+      (usage?.input_tokens ?? 0) +
+      (usage?.cache_read_input_tokens ?? 0) +
+      (usage?.cache_creation_input_tokens ?? 0);
+    const turnOutput = usage?.output_tokens ?? 0;
     record.inputTokens += turnInput;
     record.outputTokens += turnOutput;
 
@@ -461,7 +449,10 @@ export function handleMessage(
     }
 
     if (res.usage) {
-      record.inputTokens = res.usage.input_tokens;
+      record.inputTokens =
+        res.usage.input_tokens +
+        (res.usage.cache_read_input_tokens ?? 0) +
+        (res.usage.cache_creation_input_tokens ?? 0);
       record.outputTokens = res.usage.output_tokens;
     }
     record.costUsd = res.total_cost_usd ?? 0;

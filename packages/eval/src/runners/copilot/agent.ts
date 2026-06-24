@@ -15,19 +15,21 @@
  */
 
 import { join } from 'node:path';
-import { CopilotClient, approveAll } from '@github/copilot-sdk';
-import type { MCPServerConfig } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, approveAll } from '@github/copilot-sdk';
+import type { MCPServerConfig, ProviderConfig } from '@github/copilot-sdk';
 import type { EvalDefinition, RunRecord, ToolCallRecord, TurnMetric } from '@a0/eval-core';
 import {
   COPILOT_TASK_TIMEOUT_MS,
   MAX_TURNS,
   getFrameworkConfig,
+  getAgentProxyBaseUrl,
   estimateCost,
   logger,
   makeSessionId,
   filteredEnv,
 } from '@a0/eval-core';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/eval-core';
+import { LLM_API_KEY_ENV } from '../../cli/constants.js';
 import { CopilotCliTranslator } from './translator.js';
 
 const translator = new CopilotCliTranslator();
@@ -54,7 +56,6 @@ export function getMcpServers(): Record<string, MCPServerConfig> {
   const servers = getFrameworkConfig().mcp.servers;
   const result: Record<string, MCPServerConfig> = {};
   for (const [name, server] of Object.entries(servers)) {
-    // TODO(poc/mcp): forward MCP auth headers for authenticated HTTP servers (server.auth) — copilot config drops them today.
     if (server.type === 'http') {
       result[name] = { type: 'http', url: server.url, tools: ['*'] };
     }
@@ -113,9 +114,19 @@ export async function runCopilotAgent(
     copilotEnv.GH_TOKEN = process.env.GH_TOKEN;
   }
 
+  // Route inference through the configured LLM proxy via a BYOK provider, just
+  // like the codex runner. The proxy exposes an OpenAI-compatible API under /v1.
+  const proxyBaseUrl = getAgentProxyBaseUrl('copilot');
+  const normalizedBaseUrl = proxyBaseUrl.replace(/\/+$/, '');
+  const proxyApiUrl = normalizedBaseUrl.endsWith('/v1') ? normalizedBaseUrl : `${normalizedBaseUrl}/v1`;
+  const apiKey = process.env[LLM_API_KEY_ENV];
+  if (!apiKey) {
+    logger.warn(`[Copilot] ${LLM_API_KEY_ENV} not set — requests will fail.`);
+  }
+
   const client = new CopilotClient({
-    ...(copilotBin ? { cliPath: copilotBin } : {}),
-    cwd: workspace,
+    ...(copilotBin ? { connection: RuntimeConnection.forStdio({ path: copilotBin }) } : {}),
+    workingDirectory: workspace,
     // useLoggedInUser defaults to true — the Copilot CLI picks up auth from
     // the gh CLI's stored credentials (set via `gh auth login` in CI).
     env: { ...filteredEnv(), ...copilotEnv, ...env },
@@ -123,6 +134,7 @@ export async function runCopilotAgent(
 
   logger.info(`\n[Copilot] Starting task: ${evalDef.id}`);
   logger.info(`[Copilot] Workspace: ${workspace}`);
+  logger.info(`[Copilot] Proxy: ${proxyBaseUrl}`);
   if (model) {
     logger.info(`[Copilot] Model: ${model}`);
   }
@@ -133,6 +145,16 @@ export async function runCopilotAgent(
     model,
     workingDirectory: workspace,
     onPermissionRequest: approveAll,
+    // Route inference through the LLM proxy (OpenAI-compatible BYOK provider).
+    // Use the Responses API: Copilot emits freeform/custom tool calls (e.g.
+    // apply_patch) which the chat-completions API rejects.
+    provider: {
+      type: 'openai',
+      wireApi: 'responses',
+      baseUrl: proxyApiUrl,
+      apiKey,
+      modelId: model,
+    } satisfies ProviderConfig,
     // Suppress ask_user to prevent eval runs from blocking on interactive input.
     excludedTools: ['ask_user'],
     ...(tools.includes('mcp') ? { mcpServers: getMcpServers() } : {}),

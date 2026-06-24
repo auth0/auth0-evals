@@ -83,6 +83,42 @@ function validateEventLevel(level: EventGraderLevel | undefined, primitive: stri
   }
 }
 
+// ── MCP tool graders ────────────────────────────────────────────────────────
+
+const MCP_TOOL_PREFIX = 'mcp__';
+
+function getSuccessfulMcpCalls(toolCalls: EventToolCall[]): EventToolCall[] {
+  return toolCalls.filter((tc) => tc.name.startsWith(MCP_TOOL_PREFIX) && !tc.causedError);
+}
+
+export function calledTool(toolName: string, description: string | undefined, level: EventGraderLevel): GraderDef {
+  validateEventLevel(level, 'calledTool');
+  const lc = toolName.toLowerCase();
+  return {
+    kind: 'event',
+    name: description ?? `called MCP tool '${toolName}'`,
+    level,
+    predicate: (toolCalls: EventToolCall[]) =>
+      getSuccessfulMcpCalls(toolCalls).some((tc) => tc.name.toLowerCase().includes(lc)),
+  };
+}
+
+export function calledToolOneOf(
+  toolNames: string[],
+  description: string | undefined,
+  level: EventGraderLevel,
+): GraderDef {
+  validateEventLevel(level, 'calledToolOneOf');
+  const lcs = toolNames.map((t) => t.toLowerCase());
+  return {
+    kind: 'event',
+    name: description ?? `called one of MCP tools [${toolNames.join(', ')}]`,
+    level,
+    predicate: (toolCalls: EventToolCall[]) =>
+      getSuccessfulMcpCalls(toolCalls).some((tc) => lcs.some((lc) => tc.name.toLowerCase().includes(lc))),
+  };
+}
+
 // Tool names that represent shell execution across runners (Claude: run_command, Gemini: bash).
 const RUN_COMMAND_NAMES = new Set(['run_command', 'bash']);
 
@@ -153,16 +189,6 @@ function getFileWrites(toolCalls: EventToolCall[]): EventToolCall[] {
   return toolCalls.filter((tc) => WRITE_TOOL_NAMES.has(tc.name) && !tc.causedError);
 }
 
-// Tool names from any runner that represent MCP tool invocations are prefixed `mcp__`.
-const MCP_TOOL_PREFIX = 'mcp__';
-
-/**
- * Successful (non-errored) MCP tool calls — names are `mcp__<server>__<tool>`.
- */
-function getSuccessfulMcpCalls(toolCalls: EventToolCall[]): EventToolCall[] {
-  return toolCalls.filter((tc) => tc.name.startsWith(MCP_TOOL_PREFIX) && !tc.causedError);
-}
-
 /**
  * Asserts that the agent wrote a file whose path contains the given substring.
  *
@@ -203,38 +229,16 @@ export function wroteFile(
 }
 
 /**
- * Asserts that the agent invoked an MCP tool whose (lowercased) name contains
- * the given substring. MCP calls are recorded as `mcp__<server>__<tool>`.
- * Errored calls are excluded — a failed MCP call is not a successful invocation.
+ * Asserts that the eval's compile_command succeeds when run against the workspace
+ * after the agent finishes. The framework runs the command and captures the result;
+ * this grader reads it. The command comes from the eval's `compile_command`
+ * frontmatter, so no command argument is needed here.
  */
-export function calledTool(toolName: string, description: string | undefined, level: EventGraderLevel): GraderDef {
-  validateEventLevel(level, 'calledTool');
-  const lc = toolName.toLowerCase();
+export function compiles(description: string | undefined, level: EventGraderLevel): GraderDef {
+  validateEventLevel(level, 'compiles');
   return {
-    kind: 'event',
-    name: description ?? `called MCP tool '${toolName}'`,
+    kind: 'compile',
+    name: description ?? 'compiles successfully',
     level,
-    predicate: (toolCalls: EventToolCall[]) =>
-      getSuccessfulMcpCalls(toolCalls).some((tc) => tc.name.toLowerCase().includes(lc)),
-  };
-}
-
-/**
- * Asserts that the agent invoked at least one of the given MCP tools.
- * Each name is matched as a (lowercased) substring against `mcp__` tool calls.
- */
-export function calledToolOneOf(
-  toolNames: string[],
-  description: string | undefined,
-  level: EventGraderLevel,
-): GraderDef {
-  validateEventLevel(level, 'calledToolOneOf');
-  const lcs = toolNames.map((t) => t.toLowerCase());
-  return {
-    kind: 'event',
-    name: description ?? `called one of MCP tools [${toolNames.join(', ')}]`,
-    level,
-    predicate: (toolCalls: EventToolCall[]) =>
-      getSuccessfulMcpCalls(toolCalls).some((tc) => lcs.some((lc) => tc.name.toLowerCase().includes(lc))),
   };
 }

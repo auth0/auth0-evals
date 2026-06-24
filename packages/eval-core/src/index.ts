@@ -62,7 +62,6 @@ export type {
   MCPServerConfig,
   MCPStdioServerConfig,
   MCPHttpServerConfig,
-  MCPOAuthConfig,
   SkillsConfig,
   RemoteSkillRepo,
   JudgeConfig,
@@ -70,24 +69,33 @@ export type {
   WorkspaceConfig,
   BraintrustConfig,
   ScoringConfig,
-  SandboxConfig,
 } from './config/framework.js';
 export { DEFAULT_FRAMEWORK_CONFIG } from './config/defaults.js';
 export { defineConfig, loadConfig, deepMerge } from './config/loader.js';
 export type { LoadConfigOptions } from './config/loader.js';
-export { mintMcpToken } from './config/mcp-auth.js';
 
 // Workspace
 export {
   setupWorkspace,
   runSetupCommand,
+  runCompileCommand,
   cleanupWorkspace,
+  writeAgentGuidance,
+  AGENT_GUIDANCE,
+  AGENT_CONTEXT_FILENAMES,
+  compileGuidance,
   collectFiles,
+  readWorkspaceFile,
   isPathInside,
   resolveInside,
   validatePathFormat,
 } from './workspace/index.js';
-export type { SetupWorkspaceOptions, RunSetupCommandOptions, CollectFilesOptions } from './workspace/index.js';
+export type {
+  SetupWorkspaceOptions,
+  RunSetupCommandOptions,
+  RunCompileCommandOptions,
+  CollectFilesOptions,
+} from './workspace/index.js';
 
 // Types — eval definition
 export type { EvalDefinition, GraderDef } from './types/eval.js';
@@ -113,12 +121,15 @@ export type { BaselineResult } from './serializers.js';
 // Framework config singleton
 export { getFrameworkConfig, setFrameworkConfig, getAgentProxyBaseUrl } from './config/framework-config.js';
 
+// MCP OAuth token minting
+export { mintMcpToken } from './config/mcp-auth.js';
+
 // Settings
 export {
   MAX_TURNS,
   CLAUDE_EFFORT_MODELS,
-  getLitellmModelMap,
-  getLitellmModelReverseMap,
+  getModelIdMap,
+  getModelIdReverseMap,
   CLAUDE_CODE_TASK_TIMEOUT_MS,
   COPILOT_TASK_TIMEOUT_MS,
   BASELINE_TASK_TIMEOUT_MS,
@@ -150,6 +161,7 @@ export {
 } from './graders/index.js';
 
 export type { GraderContext, GraderExecutor } from './graders/index.js';
+export type { CompileResult } from '@a0/eval-graders';
 
 // Mode
 export { ALL_MODES } from './types/mode.js';

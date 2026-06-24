@@ -53,7 +53,8 @@ export async function loadEval(
   const srcGradersPath = join(evalPath, 'graders.ts');
   const gradersPath = existsSync(distGradersPath) ? distGradersPath : srcGradersPath;
   const graders = await loadGraders(gradersPath);
-  const scaffold = loadScaffold(join(evalPath, 'scaffold'));
+  const scaffoldDir = resolveScaffoldFromMeta(meta.scaffold, evalPath, frameworkRoot);
+  const scaffold = loadScaffold(scaffoldDir);
 
   const skillsRaw = meta.skills ?? '';
   const skills = skillsRaw
@@ -62,6 +63,7 @@ export async function loadEval(
     .filter(Boolean);
 
   const setupCommand = meta.setup_command || undefined;
+  const compileCommand = meta.compile_command || undefined;
 
   return {
     id: evalConfig.id,
@@ -73,6 +75,7 @@ export async function loadEval(
     graders,
     scaffold,
     setupCommand,
+    compileCommand,
     skills,
     metadata: {
       provider_name: meta.provider_name ?? 'Auth0',
@@ -124,7 +127,42 @@ async function loadGraders(gradersPath: string): Promise<GraderDef[]> {
   return mod.defineGraders();
 }
 
-// ── scaffold loader ───────────────────────────────────────────────────────────
+// ── scaffold resolution ───────────────────────────────────────────────────────
+
+/**
+ * Resolve the scaffold directory from the optional `scaffold` frontmatter field.
+ * Falls back to the local scaffold/ subdirectory when the field is absent.
+ */
+function resolveScaffoldFromMeta(
+  scaffoldMeta: string | undefined,
+  evalPath: string,
+  frameworkRoot: string,
+): string {
+  if (!scaffoldMeta) {
+    return join(evalPath, 'scaffold');
+  }
+
+  let resolvedPath: string;
+  try {
+    resolvedPath = resolveInside(frameworkRoot, scaffoldMeta);
+  } catch {
+    throw new EvalConfigError(
+      `scaffold path is invalid or escapes project root: ${scaffoldMeta}`,
+      join(evalPath, 'PROMPT.md'),
+    );
+  }
+
+  if (!existsSync(resolvedPath)) {
+    throw new EvalConfigError(
+      `scaffold path does not exist: ${resolvedPath}`,
+      join(evalPath, 'PROMPT.md'),
+    );
+  }
+
+  return resolvedPath;
+}
+
+// ── scaffold file loader ──────────────────────────────────────────────────────
 
 function loadScaffold(scaffoldDir: string): Record<string, string> {
   if (!existsSync(scaffoldDir) || !statSync(scaffoldDir).isDirectory()) {

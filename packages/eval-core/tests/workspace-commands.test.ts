@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmpDir } from './tmp.js';
-import { setupWorkspace, runSetupCommand, cleanupWorkspace } from '../src/workspace/workspace.js';
+import { setupWorkspace, runSetupCommand, runCompileCommand, cleanupWorkspace } from '../src/workspace/workspace.js';
 
 const tmpDir = makeTmpDir('workspace_cmd_test_');
 
@@ -126,5 +126,78 @@ describe('setupWorkspace — edge cases', () => {
     const mode = statSync(join(workspace, 'android/gradlew')).mode;
     expect(mode & 0o755).toBe(0o755);
     cleanupWorkspace(workspace);
+  });
+});
+
+// ── runCompileCommand ─────────────────────────────────────────────────────────
+
+describe('runCompileCommand', () => {
+  it('returns ok:true with exit code 0 on success', () => {
+    const dir = tmpDir();
+    const res = runCompileCommand(dir, 'true');
+    expect(res.ok).toBe(true);
+    expect(res.exitCode).toBe(0);
+    expect(res.command).toBe('true');
+  });
+
+  it('returns ok:false WITHOUT throwing on non-zero exit', () => {
+    const dir = tmpDir();
+    const res = runCompileCommand(dir, 'false');
+    expect(res.ok).toBe(false);
+    expect(res.exitCode).not.toBe(0);
+  });
+
+  it('captures combined stdout/stderr output', () => {
+    const dir = tmpDir();
+    const res = runCompileCommand(dir, 'echo hello-build');
+    expect(res.output).toContain('hello-build');
+  });
+
+  it('returns ok:false for a missing command without throwing', () => {
+    const dir = tmpDir();
+    const res = runCompileCommand(dir, 'nonexistent_command_xyz');
+    expect(res.ok).toBe(false);
+  });
+
+  it('short-circuits an &&-chain on first failure', () => {
+    const dir = tmpDir();
+    const res = runCompileCommand(dir, 'false && touch should_not_exist.txt');
+    expect(res.ok).toBe(false);
+    expect(existsSync(join(dir, 'should_not_exist.txt'))).toBe(false);
+  });
+
+  it('returns ok:true when every sub-command in an &&-chain succeeds', () => {
+    const dir = tmpDir();
+    const res = runCompileCommand(dir, 'mkdir sub && touch sub/built.txt');
+    expect(res.ok).toBe(true);
+    expect(existsSync(join(dir, 'sub/built.txt'))).toBe(true);
+  });
+
+  it('records the signal and ok:false on timeout', () => {
+    const dir = tmpDir();
+    const res = runCompileCommand(dir, 'sleep 10', { timeoutMs: 100 });
+    expect(res.ok).toBe(false);
+    expect(res.signal).not.toBeNull();
+  });
+
+  it('returns ok:false for an empty command', () => {
+    const dir = tmpDir();
+    const res = runCompileCommand(dir, '');
+    expect(res.ok).toBe(false);
+  });
+
+  it('prepends setupCommand when provided', () => {
+    const dir = tmpDir();
+    const sentinel = join(dir, 'setup_ran.txt');
+    const res = runCompileCommand(dir, 'true', { setupCommand: `touch ${sentinel}` });
+    expect(res.ok).toBe(true);
+    expect(existsSync(sentinel)).toBe(true);
+  });
+
+  it('does not prepend any command when setupCommand is absent', () => {
+    const dir = tmpDir();
+    const res = runCompileCommand(dir, 'echo hello-compile');
+    expect(res.ok).toBe(true);
+    expect(res.output).toContain('hello-compile');
   });
 });

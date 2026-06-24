@@ -14,9 +14,9 @@
     "@a0/eval": "*",
     "@a0/eval-graders": "*",
     "@a0/eval-reporter": "*",
-    "commander": "^14.0.3"
+    "commander": "^15.0.0"
   },
   "devDependencies": {
-    "@types/node": "^25.6.0"
+    "@types/node": "^25.9.3"
   }
 }

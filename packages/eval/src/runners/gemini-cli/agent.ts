@@ -41,31 +41,66 @@ export const GEMINI_CLI_MODEL_ID = 'gemini-cli';
 /** Default model — flash has a higher free-tier quota than pro. */
 export const GEMINI_CLI_DEFAULT_MODEL = 'gemini-3.1-pro-preview';
 
+/**
+ * Auth method pinned in .gemini/settings.json. Gemini CLI 0.45+ added a new
+ * `gateway` auth type that getAuthTypeFromEnv() returns whenever
+ * GOOGLE_GEMINI_BASE_URL is set — and it checks that before GEMINI_API_KEY. But
+ * the non-interactive validator (validateAuthMethod) has no `gateway` case, so
+ * it rejects the run with "Invalid auth method selected." We route through a
+ * proxy (GOOGLE_GEMINI_BASE_URL) and authenticate with GEMINI_API_KEY, so we
+ * pin the validated `gemini-api-key` type explicitly. The CLI prefers the
+ * configured auth type over env detection, and `gemini-api-key` still honours
+ * GOOGLE_GEMINI_BASE_URL for the endpoint, so proxy routing is preserved.
+ */
+const GEMINI_AUTH_TYPE = 'gemini-api-key';
+
 /** Reuse the Claude Code timeout budget. */
 const GEMINI_CLI_TIMEOUT_MS = CLAUDE_CODE_TASK_TIMEOUT_MS;
 
 /**
- * Writes .gemini/settings.json into the workspace so the Gemini CLI picks up
- * the Auth0 docs MCP server for the duration of the eval run.
+ * Detects a Gemini CLI command auto-cancellation notice in tool output. The CLI
+ * cancels a command exceeding its own per-command timeout but reports the result
+ * with status:"success", so the only signal is this text in the output.
+ */
+function isAutoCancelled(output: string): boolean {
+  return /automatically cancelled because it exceeded the timeout/i.test(output);
+}
+
+/**
+ * Writes <workspace>/.gemini/settings.json so the Gemini CLI picks up our
+ * config for the duration of the eval run. Always pins the auth method (see
+ * GEMINI_AUTH_TYPE); when `includeMcp` is set, also registers the configured
+ * HTTP MCP servers.
  *
- * Gemini CLI discovers per-project MCP config from <workspace>/.gemini/settings.json.
+ * Gemini CLI discovers per-project config from <workspace>/.gemini/settings.json.
  * MCP tool calls appear in the stream-json output as tool_use events with names
  * using the format `mcp__<serverName>__<toolName>` (e.g. `mcp__auth0-docs__search_auth0_docs`).
+ *
+ * Returns the names of the registered MCP servers (empty when MCP is disabled).
  */
-function writeMcpSettings(workspace: string): string[] {
-  const configServers = getFrameworkConfig().mcp.servers;
+function writeGeminiSettings(workspace: string, includeMcp: boolean): string[] {
+  const settings: {
+    security: { auth: { selectedType: string } };
+    mcpServers?: Record<string, { httpUrl: string; timeout: number }>;
+  } = {
+    security: { auth: { selectedType: GEMINI_AUTH_TYPE } },
+  };
+
   const mcpServers: Record<string, { httpUrl: string; timeout: number }> = {};
-  for (const [name, server] of Object.entries(configServers)) {
-    if (server.type === 'http') {
-      mcpServers[name] = { httpUrl: server.url, timeout: 30000 };
+  if (includeMcp) {
+    const configServers = getFrameworkConfig().mcp.servers;
+    for (const [name, server] of Object.entries(configServers)) {
+      if (server.type === 'http') {
+        mcpServers[name] = { httpUrl: server.url, timeout: 30000 };
+      }
     }
+    if (Object.keys(mcpServers).length > 0) settings.mcpServers = mcpServers;
   }
-  const names = Object.keys(mcpServers);
-  if (names.length === 0) return names;
+
   const geminiDir = join(workspace, '.gemini');
   mkdirSync(geminiDir, { recursive: true });
-  writeFileSync(join(geminiDir, 'settings.json'), JSON.stringify({ mcpServers }, null, 2), 'utf-8');
-  return names;
+  writeFileSync(join(geminiDir, 'settings.json'), JSON.stringify(settings, null, 2), 'utf-8');
+  return Object.keys(mcpServers);
 }
 
 /**
@@ -119,20 +154,18 @@ export async function runGeminiCliAgent(
   logger.info(`\n[GeminiCLI] Starting task: ${evalDef.id}`);
   logger.info(`[GeminiCLI] Workspace: ${workspace}`);
   logger.info(`[GeminiCLI] Model: ${model}`);
-  if (tools.includes('mcp')) {
-    const mcpNames = writeMcpSettings(workspace);
-    if (mcpNames.length > 0) logger.info(`[GeminiCLI] MCP: ${mcpNames.join(', ')}`);
-  }
+  const mcpNames = writeGeminiSettings(workspace, tools.includes('mcp'));
+  if (mcpNames.length > 0) logger.info(`[GeminiCLI] MCP: ${mcpNames.join(', ')}`);
 
   // Trust only this workspace so YOLO mode isn't overridden in CI/headless environments.
   const trustedFoldersPath = writeTrustedFolders(workspace);
 
   const args: string[] = ['-p', evalDef.userPrompt, '--approval-mode', 'yolo', '-o', 'stream-json', '-m', model];
 
-  // Route through the LiteLLM proxy — same pattern as the Claude Code runner.
   const geminiEnv: Record<string, string> = {
     ...filteredEnv(),
     GEMINI_CLI_TRUSTED_FOLDERS_PATH: trustedFoldersPath,
+    GEMINI_CLI_TRUST_WORKSPACE: 'true',
   };
   if (process.env.GH_TOKEN) {
     geminiEnv.GH_TOKEN = process.env.GH_TOKEN;
@@ -209,8 +242,11 @@ export async function runGeminiCliAgent(
             const pend = pending.get(toolId);
             if (pend) pending.delete(toolId);
 
-            const isError = event.status !== 'success';
             const output = (event.output as string) ?? '';
+            // Gemini CLI cancels a command that exceeds its own internal timeout but
+            // still reports status:"success", placing the cancellation notice only in
+            // the output text. Treat that as an error so it counts against scoring.
+            const isError = event.status !== 'success' || isAutoCancelled(output);
             const rawName = pend?.name ?? 'unknown';
             const mappedName = translator.mapName(rawName);
             const toolArgs = translator.normalizeArgs(rawName, pend?.args ?? {});

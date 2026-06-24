@@ -45,7 +45,7 @@ const TEST_CONFIG: FrameworkConfig = {
     localDirs: ['skills'],
   },
   judge: { model: 'claude-opus-4-7', maxTokens: 1024, maxCodeChars: 16384 },
-  models: { known: [], default: 'gpt-5.4', bedrock: {}, litellm: {} },
+  models: { known: [], default: 'gpt-5.4', modelIds: {} },
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

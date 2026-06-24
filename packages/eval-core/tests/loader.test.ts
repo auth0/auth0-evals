@@ -151,6 +151,26 @@ describe('loadEval - setupCommand', () => {
   });
 });
 
+// ── compile_command frontmatter tests ────────────────────────────────────────
+
+describe('loadEval - compileCommand', () => {
+  it('parses compile_command from frontmatter', async () => {
+    makeEvalDir(tmpBase, '---\nskills: auth0-react\ncompile_command: npm run build\n---\n\n## Task\nDo the task.\n');
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.compileCommand).toBe('npm run build');
+  });
+
+  it('returns undefined when compile_command is absent', async () => {
+    makeEvalDir(tmpBase, '---\nskills: auth0-react\n---\n\n## Task\nDo the task.\n');
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.compileCommand).toBeUndefined();
+  });
+});
+
 // ── System prompt tests ───────────────────────────────────────────────────────
 
 describe('loadEval - system prompt', () => {
@@ -238,6 +258,66 @@ describe('loadEval - scaffold loading', () => {
 
     expect(result.scaffold['readable.txt']).toBe('this is fine');
     expect(result.scaffold['unreadable.txt']).toBeUndefined();
+  });
+});
+
+// ── frontmatter scaffold field tests ─────────────────────────────────────────
+
+function makePromptWithScaffold(scaffoldPath: string): string {
+  return `---\nid: my_eval\nname: My Eval\nscaffold: ${scaffoldPath}\n---\n\n## Task\nDo something.\n`;
+}
+
+function makeScaffoldVariant(base: string, relPath: string, files: Record<string, string>): void {
+  const dir = join(base, relPath);
+  mkdirSync(dir, { recursive: true });
+  for (const [rel, content] of Object.entries(files)) {
+    const dest = join(dir, rel);
+    mkdirSync(join(dest, '..'), { recursive: true });
+    writeFileSync(dest, content);
+  }
+}
+
+describe('loadEval - frontmatter scaffold field', () => {
+  it('uses scaffold path from frontmatter', async () => {
+    makeScaffoldVariant(tmpBase, 'src/evals/scaffolds/react/auth0', { 'App.jsx': 'auth0 wired' });
+    const evalDir = join(tmpBase, 'my_eval');
+    mkdirSync(evalDir, { recursive: true });
+    writeFileSync(join(evalDir, 'PROMPT.md'), makePromptWithScaffold('src/evals/scaffolds/react/auth0'));
+    writeFileSync(join(evalDir, 'graders.ts'), DEFAULT_GRADERS);
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.scaffold['App.jsx']).toBe('auth0 wired');
+  });
+
+  it('falls back to local scaffold/ when no scaffold field in frontmatter', async () => {
+    makeEvalDir(tmpBase, MINIMAL_PROMPT, DEFAULT_GRADERS, { 'local.js': 'local scaffold' });
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.scaffold['local.js']).toBe('local scaffold');
+  });
+
+  it('throws EvalConfigError when scaffold path escapes project root', async () => {
+    const evalDir = join(tmpBase, 'my_eval');
+    mkdirSync(evalDir, { recursive: true });
+    writeFileSync(join(evalDir, 'PROMPT.md'), makePromptWithScaffold('../../../etc/passwd'));
+    writeFileSync(join(evalDir, 'graders.ts'), DEFAULT_GRADERS);
+
+    const err = await loadEval(EVAL_CONFIG, tmpBase).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(EvalConfigError);
+    expect((err as EvalConfigError).message).toContain('scaffold path is invalid');
+  });
+
+  it('throws EvalConfigError when scaffold path does not exist', async () => {
+    const evalDir = join(tmpBase, 'my_eval');
+    mkdirSync(evalDir, { recursive: true });
+    writeFileSync(join(evalDir, 'PROMPT.md'), makePromptWithScaffold('scaffolds/does-not-exist'));
+    writeFileSync(join(evalDir, 'graders.ts'), DEFAULT_GRADERS);
+
+    const err = await loadEval(EVAL_CONFIG, tmpBase).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(EvalConfigError);
+    expect((err as EvalConfigError).message).toContain('does not exist');
   });
 });
 

@@ -32,7 +32,13 @@ export class GeminiCliTranslator extends BaseToolTranslator {
   }
 
   protected override mapMcpName(name: string): string {
-    return name;
+    // Gemini CLI (>=0.46) emits MCP tool names as `mcp_<server>_<tool>` with a
+    // single-underscore prefix; the framework convention used by the trace-based
+    // MCP graders (and every other runner) is the double-underscore `mcp__`
+    // prefix. Normalize the prefix so `calledTool`/`calledToolOneOf` match.
+    // Idempotent: names already on the `mcp__` convention are left untouched.
+    if (name.startsWith('mcp__')) return name;
+    return `mcp__${name.slice('mcp_'.length)}`;
   }
 
   override isDocLookup(name: string): boolean {

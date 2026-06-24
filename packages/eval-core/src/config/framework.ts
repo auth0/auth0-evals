@@ -38,13 +38,9 @@ export interface MCPStdioServerConfig {
 }
 
 export interface MCPOAuthConfig {
-  /** OAuth token endpoint, e.g. https://TENANT/oauth/token */
   tokenUrl: string;
-  /** OAuth client ID for the client-credentials grant. */
   clientId: string;
-  /** OAuth client secret for the client-credentials grant. */
   clientSecret: string;
-  /** API audience the token is requested for, e.g. https://TENANT/api/v2/ */
   audience: string;
 }
 
@@ -53,11 +49,7 @@ export interface MCPHttpServerConfig {
   type: 'http';
   /** HTTP URL for the remote MCP server. */
   url: string;
-  /**
-   * Optional OAuth config. When present, the framework mints a fresh Bearer
-   * token per agent job and injects it as an Authorization header. If any
-   * field is empty (e.g. a missing env var), the server is omitted with a warning.
-   */
+  /** Optional OAuth client-credentials config for authenticated MCP servers. */
   auth?: MCPOAuthConfig;
 }
 
@@ -101,10 +93,10 @@ export interface ModelsConfig {
   known?: string[];
   /** Default model when none is specified via CLI. */
   default?: string;
-  /** Maps short model aliases to full Bedrock model IDs. */
-  bedrock?: Record<string, string>;
-  /** Maps friendly model aliases to LiteLLM proxy model IDs. */
-  litellm?: Record<string, string>;
+  /** Maps short model aliases to the IDs the active proxy expects.
+   * Bedrock proxy needs full `global.anthropic.*` IDs; LiteLLM serves models
+   * under the alias itself, so the map is empty and aliases pass through. */
+  modelIds?: Record<string, string>;
 }
 
 export interface WorkspaceConfig {
@@ -116,6 +108,8 @@ export interface WorkspaceConfig {
   tempDirPrefix?: string;
   /** Timeout (ms) for setup commands like `npm install`. */
   setupCommandTimeoutMs?: number;
+  /** Timeout (ms) for the post-agent compile_command. Builds are slower than installs. */
+  compileCommandTimeoutMs?: number;
 }
 
 export interface BraintrustConfig {
@@ -135,16 +129,6 @@ export interface ScoringConfig {
 }
 
 // ── Root config ──────────────────────────────────────────────────────────────
-
-export interface SandboxConfig {
-  /**
-   * Names of host environment variables to forward into the Docker sandbox.
-   * Each name is resolved from `process.env` at job launch; only currently-set
-   * vars are forwarded. Use for app-specific secrets the framework can't know
-   * about (e.g. MCP server credentials). Names only — values are never stored here.
-   */
-  passthroughEnv?: string[];
-}
 
 export interface FrameworkConfig {
   /** Directory containing evaluation definitions (required). */
@@ -167,6 +151,4 @@ export interface FrameworkConfig {
   braintrust?: BraintrustConfig;
   /** Scoring behaviour overrides (e.g. custom doc URL allowlist). */
   scoring?: ScoringConfig;
-  /** Docker sandbox settings (e.g. env vars to forward into the container). */
-  sandbox?: SandboxConfig;
 }

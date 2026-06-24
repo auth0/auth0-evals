@@ -7,11 +7,12 @@ export const MAX_TURNS = 75;
 export const BEDROCK_MODELS = ['claude-'];
 
 // Claude models that support output_config.effort to cap reasoning effort and reduce latency.
-// Supported here: Claude Opus 4.6, Sonnet 4.6, Opus 4.7, and Opus 4.5.
+// Supported here: Claude Opus 4.6, Sonnet 4.6, Opus 4.7, Opus 4.8, and Opus 4.5.
 export const CLAUDE_EFFORT_MODELS = new Set([
   'claude-opus-4-6',
   'claude-sonnet-4-6',
   'claude-opus-4-7',
+  'claude-opus-4-8',
   'claude-opus-4-5',
 ]);
 
@@ -23,17 +24,17 @@ export const GEMINI_MODELS = ['gemini-'];
 export const GPT_MODELS = ['gpt-'];
 
 /**
- * Maps friendly model aliases to the LiteLLM proxy model IDs.
+ * Maps friendly model aliases to the model IDs the active proxy expects.
  *
  * Reports, score files, and RunRecords must always use the friendly alias.
  */
-export function getLitellmModelMap(): Record<string, string> {
-  return getFrameworkConfig().models.litellm ?? {};
+export function getModelIdMap(): Record<string, string> {
+  return getFrameworkConfig().models.modelIds ?? {};
 }
 
-/** Reverse lookup: LiteLLM model ID → friendly model alias. */
-export function getLitellmModelReverseMap(): Record<string, string> {
-  return Object.fromEntries(Object.entries(getLitellmModelMap()).map(([alias, litellm]) => [litellm, alias]));
+/** Reverse lookup: proxy model ID → friendly model alias. */
+export function getModelIdReverseMap(): Record<string, string> {
+  return Object.fromEntries(Object.entries(getModelIdMap()).map(([alias, id]) => [id, alias]));
 }
 
 /** Maximum wall-clock time for a single Claude Code subprocess task (30 minutes).

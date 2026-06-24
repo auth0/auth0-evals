@@ -5,7 +5,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { collectFiles, logger, getLitellmModelMap } from '@a0/eval-core';
+import { collectFiles, logger } from '@a0/eval-core';
 import type { RunRecord, ScoredResult, Recommendations, Recommendation } from '@a0/eval-core';
 
 /** Maximum characters of workspace code to include in the prompt. */
@@ -165,11 +165,12 @@ Analyze this run and provide your recommendations as JSON.`;
 // ── LLM call ──────────────────────────────────────────────────────────────────
 
 async function callLlm(system: string, user: string, apiKey: string, baseUrl: string, model: string): Promise<string> {
-  const modelMap = getLitellmModelMap();
-  const apiModel = modelMap[model] ?? model;
+  // The modelIds map holds Bedrock IDs for the agent runner's /anthropic
+  // endpoint. This call hits the /chat/completions endpoint, which serves
+  // models under their plain alias — so the alias is sent as-is.
   const url = `${baseUrl}/chat/completions`;
   const body = {
-    model: apiModel,
+    model,
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: user },
