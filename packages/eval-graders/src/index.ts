@@ -22,4 +22,7 @@ export {
   ranCommandOneOf,
   wroteFile,
   compiles,
+  calledTool,
+  calledToolOneOf,
+  getSuccessfulMcpCalls,
 } from './primitives.js';

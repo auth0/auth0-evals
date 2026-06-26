@@ -150,6 +150,13 @@ export async function runJobInDocker(options: DockerRunOptions): Promise<JobResu
     envFlags.push('-e', `GH_TOKEN=${ghToken}`);
   }
 
+  // Forward MCP credentials into the container so eval.config.js can register
+  // authenticated HTTP MCP servers (e.g. the Auth0 hosted MCP server).
+  for (const key of ['MCP_TENANT_DOMAIN', 'MCP_CLIENT_ID', 'MCP_CLIENT_SECRET']) {
+    const val = process.env[key];
+    if (val) envFlags.push('-e', `${key}=${val}`);
+  }
+
   // Mount host CA certificates for corporate SSL inspection (MITM proxies)
   // Use resolvedWorkspace (canonicalized) to ensure we mount the same path we validated
   const volumeFlags: string[] = ['-v', `${resolvedWorkspace}:${DOCKER_WORKSPACE_MOUNT}:rw`];

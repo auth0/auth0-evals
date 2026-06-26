@@ -48,6 +48,24 @@ export default {
         type: 'http',
         url: 'https://auth0.com/docs/mcp',
       },
+
+      ...(process.env.MCP_TENANT_DOMAIN &&
+      process.env.MCP_CLIENT_ID &&
+      process.env.MCP_CLIENT_SECRET
+        ? {
+            'auth0-hosted-mcp': {
+              type: 'http',
+              url: `https://${process.env.MCP_TENANT_DOMAIN}/v1/mcp`,
+              auth: {
+                tokenUrl: `https://${process.env.MCP_TENANT_DOMAIN}/oauth/token`,
+                clientId: process.env.MCP_CLIENT_ID,
+                clientSecret: process.env.MCP_CLIENT_SECRET,
+                // Management API audience — /v1/mcp audience returns access_denied for client credentials
+                audience: `https://${process.env.MCP_TENANT_DOMAIN}/api/v2/`,
+              },
+            },
+          }
+        : {}),
     },
   },
 
