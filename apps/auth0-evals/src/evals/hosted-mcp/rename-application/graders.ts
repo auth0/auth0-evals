@@ -1,4 +1,4 @@
-import { calledTool, notContains, contains, GraderLevel } from '@a0/eval-graders';
+import { calledTool, notContains, GraderLevel } from '@a0/eval-graders';
 import type { GraderDef, EventToolCall } from '@a0/eval-graders';
 
 const mcpCalls = (toolCalls: EventToolCall[], name: string) =>
@@ -28,6 +28,14 @@ export function defineGraders(): GraderDef[] {
           (tc) => typeof tc.args['client_id'] === 'string' && tc.args['client_id'].length > 0,
         ),
     },
-    contains('Analytics Hub', 'Response confirms the new name Analytics Hub', GraderLevel.L5),
+    {
+      kind: 'event',
+      name: 'Response confirms the new name Analytics Hub',
+      level: GraderLevel.L5,
+      predicate: (toolCalls: EventToolCall[]) =>
+        mcpCalls(toolCalls, 'auth0_update_application').some(
+          (tc) => typeof tc.result === 'string' && tc.result.includes('Analytics Hub'),
+        ),
+    },
   ];
 }

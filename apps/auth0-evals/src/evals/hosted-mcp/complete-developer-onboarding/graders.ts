@@ -37,8 +37,10 @@ export function defineGraders(): GraderDef[] {
       level: GraderLevel.L5,
       predicate: (toolCalls: EventToolCall[]) =>
         mcpCalls(toolCalls, 'auth0_create_application_grant').some((tc) => {
-          const scope = tc.args['scope'] as string[] | undefined;
-          return Array.isArray(scope) && scope.includes('send:notifications');
+          const scope = tc.args['scope'];
+          if (Array.isArray(scope)) return scope.includes('send:notifications');
+          if (typeof scope === 'string') return scope.split(/[\s,]+/).includes('send:notifications');
+          return false;
         }),
     },
     {
