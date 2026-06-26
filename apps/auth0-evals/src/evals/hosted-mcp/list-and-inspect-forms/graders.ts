@@ -1,4 +1,4 @@
-import { calledTool, notContains, contains, GraderLevel } from '@a0/eval-graders';
+import { notContains, contains, GraderLevel } from '@a0/eval-graders';
 import type { GraderDef, EventToolCall } from '@a0/eval-graders';
 
 const mcpCalls = (toolCalls: EventToolCall[], name: string) =>
