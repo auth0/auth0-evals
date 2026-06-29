@@ -1,4 +1,4 @@
-import { contains, notContains, judge, compiles, GraderLevel } from '@a0/eval-graders';
+import { contains, notContains, ranCommandOneOf, wroteFile, judge, compiles, GraderLevel } from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
@@ -46,11 +46,20 @@ export function defineGraders() {
       GraderLevel.L5,
     ),
 
+    // ── L4: Leg 2 — tenant MFA factor configured ─────────────────────────
+    wroteFile('.tf', 'Wrote Terraform resource enabling MFA Guardian factor', GraderLevel.L4, ['auth0_guardian']),
+    ranCommandOneOf(
+      ['guardian/factors/otp', 'guardian/factors/push', 'guardian/factors/sms'],
+      'Enabled MFA factor via Auth0 CLI',
+      GraderLevel.L4,
+    ),
+
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
       'Does the solution correctly implement MFA step-up authentication in a React app — ' +
         'checking the amr claim via getIdTokenClaims, requesting step-up via acr_values when ' +
-        'MFA is not present, and gating the Transfer Funds action behind MFA verification?',
+        'MFA is not present, gating the Transfer Funds action behind MFA verification, AND ' +
+        'configuring the tenant MFA factor via Terraform or the Auth0 CLI?',
     ),
   ];
 }
