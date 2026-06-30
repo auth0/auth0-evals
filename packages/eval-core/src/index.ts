@@ -62,6 +62,7 @@ export type {
   MCPServerConfig,
   MCPStdioServerConfig,
   MCPHttpServerConfig,
+  MCPOAuthConfig,
   SkillsConfig,
   RemoteSkillRepo,
   JudgeConfig,
@@ -72,6 +73,7 @@ export type {
 } from './config/framework.js';
 export { DEFAULT_FRAMEWORK_CONFIG } from './config/defaults.js';
 export { defineConfig, loadConfig, deepMerge } from './config/loader.js';
+export { mintMcpToken } from './config/mcp-auth.js';
 export type { LoadConfigOptions } from './config/loader.js';
 
 // Workspace

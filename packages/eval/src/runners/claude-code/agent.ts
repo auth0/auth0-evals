@@ -30,6 +30,7 @@ import {
   logger,
   makeSessionId,
   filteredEnv,
+  mintMcpToken,
 } from '@a0/eval-core';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/eval-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
@@ -137,12 +138,22 @@ export async function runClaudeCodeAgent(
   }
 
   // Build MCP server config when --tools mcp is requested.
-  let mcpServers: Record<string, { type: 'http'; url: string }> | undefined;
+  // Token is minted here (job start) so a long matrix run never reuses an expired token.
+  let mcpServers: Record<string, { type: 'http'; url: string; headers?: Record<string, string> }> | undefined;
   if (tools.includes('mcp')) {
     const configServers = getFrameworkConfig().mcp.servers;
-    const httpServers: Record<string, { type: 'http'; url: string }> = {};
+    const httpServers: Record<string, { type: 'http'; url: string; headers?: Record<string, string> }> = {};
     for (const [name, server] of Object.entries(configServers)) {
-      if (server.type === 'http') {
+      if (server.type !== 'http') continue;
+      if (server.auth) {
+        const token = await mintMcpToken(server.auth);
+        if (!token) {
+          logger.warn(`[ClaudeCode] MCP server '${name}' skipped — token mint failed or creds missing`);
+          continue;
+        }
+        logger.info(`[ClaudeCode] MCP auth token minted for '${name}'`);
+        httpServers[name] = { type: 'http' as const, url: server.url, headers: { Authorization: `Bearer ${token}` } };
+      } else {
         httpServers[name] = { type: 'http' as const, url: server.url };
       }
     }
