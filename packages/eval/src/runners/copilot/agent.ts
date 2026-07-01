@@ -27,6 +27,7 @@ import {
   logger,
   makeSessionId,
   filteredEnv,
+  mintMcpToken,
 } from '@a0/eval-core';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/eval-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
@@ -51,12 +52,33 @@ export interface CopilotRunOptions {
   model?: string;
 }
 
-/** Returns MCP server config for the Auth0 docs server. */
-export function getMcpServers(): Record<string, MCPServerConfig> {
+/**
+ * Builds the Copilot MCP server config from the framework config.
+ *
+ * For HTTP servers with an `auth` block, mints a fresh Bearer token per job
+ * (client-credentials exchange) and forwards it as an `Authorization` header.
+ * If the token mint fails, the server is skipped with a warning rather than
+ * registered unauthenticated — a misconfigured run looks like "MCP wasn't
+ * available", not a silent "the agent chose not to use MCP".
+ */
+export async function getMcpServers(): Promise<Record<string, MCPServerConfig>> {
   const servers = getFrameworkConfig().mcp.servers;
   const result: Record<string, MCPServerConfig> = {};
   for (const [name, server] of Object.entries(servers)) {
-    if (server.type === 'http') {
+    if (server.type !== 'http') continue;
+    if (server.auth) {
+      const token = await mintMcpToken(server.auth);
+      if (!token) {
+        logger.warn(`[Copilot] MCP server '${name}' skipped — token mint failed or creds missing`);
+        continue;
+      }
+      result[name] = {
+        type: 'http',
+        url: server.url,
+        tools: ['*'],
+        headers: { Authorization: `Bearer ${token}` },
+      };
+    } else {
       result[name] = { type: 'http', url: server.url, tools: ['*'] };
     }
   }
@@ -138,7 +160,10 @@ export async function runCopilotAgent(
   if (model) {
     logger.info(`[Copilot] Model: ${model}`);
   }
-  if (tools.includes('mcp')) logger.info(`[Copilot] MCP: ${Object.keys(getMcpServers()).join(', ')}`);
+
+  // Mint tokens once per job so a long matrix run never reuses an expired token.
+  const mcpServers = tools.includes('mcp') ? await getMcpServers() : {};
+  if (tools.includes('mcp')) logger.info(`[Copilot] MCP: ${Object.keys(mcpServers).join(', ')}`);
   if (tools.includes('skills')) logger.info('[Copilot] Skills: .github/skills/');
 
   const session = await client.createSession({
@@ -157,7 +182,7 @@ export async function runCopilotAgent(
     } satisfies ProviderConfig,
     // Suppress ask_user to prevent eval runs from blocking on interactive input.
     excludedTools: ['ask_user'],
-    ...(tools.includes('mcp') ? { mcpServers: getMcpServers() } : {}),
+    ...(tools.includes('mcp') ? { mcpServers } : {}),
     // Skill files are pre-copied to .github/skills/ by CopySkillsStrategy.
     ...(tools.includes('skills') ? { skillDirectories: [join(workspace, '.github', 'skills')] } : {}),
     // Disable infinite sessions — each eval run is a clean, isolated session.
