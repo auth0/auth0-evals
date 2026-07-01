@@ -6,6 +6,7 @@ export function defineGraders() {
     contains('@auth0/auth0-spa-js', 'Uses @auth0/auth0-spa-js SDK', GraderLevel.L1),
     contains('useDpop', 'Enables useDpop option on Auth0 client', GraderLevel.L1),
     contains('createFetcher', 'Uses createFetcher to get a DPoP-aware fetcher', GraderLevel.L1),
+    contains('UseDpopNonceError', 'UseDpopNonceError imported and referenced', GraderLevel.L1),
 
     // ── L2: Hallucination / wrong SDK ─────────────────────────────────
     notContains('@auth0/auth0-react', 'No React SDK in vanilla JS app', GraderLevel.L2),
@@ -25,6 +26,13 @@ export function defineGraders() {
         'The fetcher (however the variable is named) automatically sends Authorization: DPoP <token> ' +
         'plus a DPoP proof header. A manual fetch using only getTokenSilently() with ' +
         'Authorization: Bearer would lack the DPoP proof and be rejected by the server.',
+      GraderLevel.L4,
+    ),
+    judge(
+      'Does the code catch UseDpopNonceError and retry the API request at least once? ' +
+        'When a DPoP nonce is rotated by the server the SDK throws UseDpopNonceError; ' +
+        'the correct pattern is to catch it and immediately retry the same request — ' +
+        'the SDK will have stored the new nonce automatically.',
       GraderLevel.L4,
     ),
 
