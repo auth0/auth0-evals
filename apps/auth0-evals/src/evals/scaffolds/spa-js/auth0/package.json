@@ -1,0 +1,17 @@
+{
+  "name": "spa-js-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@auth0/auth0-spa-js": "^2.0.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}
