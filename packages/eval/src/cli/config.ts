@@ -23,6 +23,7 @@ import {
   validateTools,
   validateWorkers,
   validateAgentType,
+  validateTenantConfig,
 } from './validators.js';
 
 /** Validated, fully-resolved configuration derived from the CLI flags. */
@@ -57,6 +58,8 @@ export interface RunConfig {
    * Defaults to `true` — pass `--dangerously-skip-sandbox` to disable.
    */
   sandbox: boolean;
+  /** When set, restricts MFA variant fan-out to a single tenant-config method. */
+  tenantConfig: 'terraform' | 'cli' | undefined;
 }
 
 export interface ParseRunConfigOptions {
@@ -99,6 +102,7 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
     .option('--keep-workspace', '(agent mode) Keep temp workspace after run', false)
     .option('--braintrust', 'Log results to Braintrust experiment', false)
     .option('--config <path>', 'Path to eval.config.js (overrides auto-discovery)')
+    .option('--tenant-config <method>', 'Restrict MFA evals to one method: terraform | cli')
     .option(
       '--dangerously-skip-sandbox',
       'Disable Docker sandboxing — run agent jobs directly on the host (used in CI)',
@@ -118,6 +122,7 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
   const tools = validateTools(opts.tools as string);
   const workers = validateWorkers(opts.workers as string | undefined);
   const agentType = validateAgentType(opts.agentType as string | undefined);
+  const tenantConfig = validateTenantConfig(opts.tenantConfig as string | undefined);
 
   return {
     models,
@@ -132,5 +137,6 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
     agentType,
     configPath: opts.config as string | undefined,
     sandbox: !(opts.dangerouslySkipSandbox as boolean),
+    tenantConfig,
   };
 }

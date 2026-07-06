@@ -55,6 +55,14 @@ export interface GraderDef {
   level?: GraderLevel;
   caseSensitive?: boolean;
   predicate?: (toolCalls: EventToolCall[]) => boolean;
+  /**
+   * Judge graders only. When true, the agent's command trace is appended to the
+   * judge's input alongside workspace files. Needed for evals whose work is
+   * entirely CLI invocations (no files to inspect) — e.g. tenant config via the
+   * Auth0 CLI — so the judge has something to evaluate. Defaults to false so
+   * file-based judges are unaffected.
+   */
+  includeCommandTrace?: boolean;
 }
 
 export interface GraderOptions {
@@ -63,3 +71,14 @@ export interface GraderOptions {
 
 /** Levels valid for event-based graders (agent-only — no tool calls exist in baseline). */
 export type EventGraderLevel = GraderLevel.L4 | GraderLevel.L5;
+
+/** Tenant configuration method used in Leg 2 MFA evals. */
+export type TenantConfigMethod = 'terraform' | 'cli';
+
+/** Canonical instruction phrase substituted into `{{tenant_config_instruction}}` per method. */
+export const TENANT_CONFIG_INSTRUCTIONS: Record<TenantConfigMethod, string> = {
+  terraform: 'using Terraform',
+  cli:
+    'using the Auth0 CLI (inspect current factors, enable the required factor, ' +
+    'then enforce MFA via guardian/policies)',
+};

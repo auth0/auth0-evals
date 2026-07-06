@@ -55,22 +55,20 @@ export function discoverEvals(evalsDir: string, frameworkRoot: string): EvalConf
 const MAX_DEPTH = 3;
 
 /**
- * Recursively walks directories looking for eval dirs (containing PROMPT.md + graders.ts).
+ * Recursively walks directories looking for eval dirs (PROMPT.md + graders.ts).
  * Stops at {@link MAX_DEPTH} levels below evalsDir.
  */
 function findEvalDirs(dir: string, frameworkRoot: string, results: EvalConfig[], depth: number): void {
-  const promptPath = join(dir, 'PROMPT.md');
   const gradersPath = join(dir, 'graders.ts');
+  const defaultPrompt = join(dir, 'PROMPT.md');
 
-  if (existsSync(promptPath) && existsSync(gradersPath)) {
-    results.push(buildEvalConfig(promptPath, dir, frameworkRoot));
-    // Don't recurse into eval dirs — they shouldn't contain nested evals
+  if (existsSync(gradersPath) && existsSync(defaultPrompt)) {
+    results.push(...buildEvalConfigs(defaultPrompt, dir, frameworkRoot));
     return;
   }
 
   if (depth >= MAX_DEPTH) return;
 
-  // Recurse into subdirectories
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (
       entry.isDirectory() &&
@@ -83,31 +81,60 @@ function findEvalDirs(dir: string, frameworkRoot: string, results: EvalConfig[],
   }
 }
 
+/** Allowed tenant-config methods (must stay in sync with eval-graders TenantConfigMethod). */
+const TENANT_CONFIG_METHODS = ['terraform', 'cli'] as const;
+type TenantConfigMethod = (typeof TENANT_CONFIG_METHODS)[number];
+
 /**
- * Builds an EvalConfig from a discovered PROMPT.md file's frontmatter.
+ * Builds one or more EvalConfigs from a PROMPT.md's frontmatter.
+ * When `tenant_config_methods` is present, fans out one config per method.
  */
-function buildEvalConfig(promptPath: string, evalDir: string, frameworkRoot: string): EvalConfig {
+function buildEvalConfigs(promptPath: string, evalDir: string, frameworkRoot: string): EvalConfig[] {
   const text = readFileSync(promptPath, 'utf-8');
   const { meta } = parseFrontmatter(text);
   const relPath = relative(frameworkRoot, evalDir);
 
   if (!meta.id) {
-    throw new EvalConfigError(`PROMPT.md missing or empty 'id' in frontmatter`, join(evalDir, 'PROMPT.md'));
+    throw new EvalConfigError(`PROMPT.md missing or empty 'id' in frontmatter`, promptPath);
   }
 
   const SAFE_ID_RE = /^[a-z][a-z0-9_]{0,63}$/;
   if (!SAFE_ID_RE.test(meta.id)) {
-    throw new EvalConfigError(`Invalid eval id '${meta.id}': must match ${SAFE_ID_RE}`, join(evalDir, 'PROMPT.md'));
+    throw new EvalConfigError(`Invalid eval id '${meta.id}': must match ${SAFE_ID_RE}`, promptPath);
   }
 
   const parentDir = basename(join(evalDir, '..'));
   const category = meta.category || parentDir;
-  const name = meta.name || meta.id;
+  const baseName = meta.name || meta.id;
 
-  return {
-    id: meta.id,
-    name,
-    category,
-    path: relPath,
-  };
+  const methodsRaw = (meta.tenant_config_methods || '').trim();
+  if (!methodsRaw) {
+    return [{ id: meta.id, name: baseName, category, path: relPath }];
+  }
+
+  const methods = methodsRaw
+    .split(',')
+    .map((m) => m.trim())
+    .filter(Boolean);
+
+  return methods.map((method) => {
+    if (!(TENANT_CONFIG_METHODS as readonly string[]).includes(method)) {
+      throw new EvalConfigError(
+        `Invalid tenant_config_methods entry '${method}': must be one of ${TENANT_CONFIG_METHODS.join(', ')}`,
+        promptPath,
+      );
+    }
+    const scaffold = meta[`scaffold_${method}`];
+    if (!scaffold) {
+      throw new EvalConfigError(`Missing 'scaffold_${method}' for tenant_config_methods entry '${method}'`, promptPath);
+    }
+    return {
+      id: `${meta.id}_${method}`,
+      name: baseName,
+      category,
+      path: relPath,
+      tenantConfigMethod: method as TenantConfigMethod,
+      variantScaffold: scaffold,
+    };
+  });
 }

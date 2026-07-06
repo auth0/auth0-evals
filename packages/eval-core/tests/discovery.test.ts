@@ -177,3 +177,98 @@ describe('discoverEvals', () => {
     expect(result[0]!.name).toBe('CRLF Eval');
   });
 });
+
+describe('discoverEvals — tenant_config_methods fan-out', () => {
+  function makeVariantEval(root: string): string {
+    const dir = join(root, 'src/evals/mfa/react');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'PROMPT.md'),
+      '---\nid: react_mfa\nname: React MFA\ntenant_config_methods: terraform, cli\n' +
+        'scaffold_terraform: src/evals/scaffolds/react/auth0\n' +
+        'scaffold_cli: src/evals/scaffolds/react/basic\n---\n\n## Task\nDo MFA {{tenant_config_instruction}}.\n',
+    );
+    writeFileSync(join(dir, 'graders.ts'), 'export function defineGraders(method) { return []; }');
+    return dir;
+  }
+
+  it('emits one EvalConfig per method with <base>_<method> ids', () => {
+    const root = createTmpDir();
+    makeVariantEval(root);
+
+    const result = discoverEvals('src/evals', root);
+    expect(result).toHaveLength(2);
+    const ids = result.map((e) => e.id).sort();
+    expect(ids).toEqual(['react_mfa_cli', 'react_mfa_terraform']);
+  });
+
+  it('sets tenantConfigMethod and variantScaffold per variant', () => {
+    const root = createTmpDir();
+    makeVariantEval(root);
+
+    const result = discoverEvals('src/evals', root);
+    const tf = result.find((e) => e.id === 'react_mfa_terraform')!;
+    const cli = result.find((e) => e.id === 'react_mfa_cli')!;
+    expect(tf.tenantConfigMethod).toBe('terraform');
+    expect(tf.variantScaffold).toBe('src/evals/scaffolds/react/auth0');
+    expect(cli.tenantConfigMethod).toBe('cli');
+    expect(cli.variantScaffold).toBe('src/evals/scaffolds/react/basic');
+  });
+
+  it('falls back to a single plain eval when tenant_config_methods is absent', () => {
+    const root = createTmpDir();
+    const dir = join(root, 'src/evals/quickstarts/react');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'PROMPT.md'), '---\nid: react_quickstart\n---\n\n## Task\nDo something.\n');
+    writeFileSync(join(dir, 'graders.ts'), 'export function defineGraders() { return []; }');
+
+    const result = discoverEvals('src/evals', root);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.id).toBe('react_quickstart');
+    expect(result[0]!.tenantConfigMethod).toBeUndefined();
+  });
+
+  it('throws when a listed method has no scaffold_<method> key', () => {
+    const root = createTmpDir();
+    const dir = join(root, 'src/evals/mfa/react');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'PROMPT.md'),
+      '---\nid: react_mfa\ntenant_config_methods: terraform, cli\n' +
+        'scaffold_terraform: src/evals/scaffolds/react/auth0\n---\n\n## Task\nDo MFA.\n',
+    );
+    writeFileSync(join(dir, 'graders.ts'), 'export function defineGraders(method) { return []; }');
+
+    expect(() => discoverEvals('src/evals', root)).toThrow(EvalConfigError);
+  });
+
+  it('throws when a listed method is not in the allowed union', () => {
+    const root = createTmpDir();
+    const dir = join(root, 'src/evals/mfa/react');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'PROMPT.md'),
+      '---\nid: react_mfa\ntenant_config_methods: terraform, pulumi\n' +
+        'scaffold_terraform: src/evals/scaffolds/react/auth0\n' +
+        'scaffold_pulumi: src/evals/scaffolds/react/basic\n---\n\n## Task\nDo MFA.\n',
+    );
+    writeFileSync(join(dir, 'graders.ts'), 'export function defineGraders(method) { return []; }');
+
+    expect(() => discoverEvals('src/evals', root)).toThrow(EvalConfigError);
+  });
+
+  it('throws on duplicate fanned-out ids across two evals', () => {
+    const root = createTmpDir();
+    for (const sub of ['a', 'b']) {
+      const dir = join(root, 'src/evals/mfa', sub);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, 'PROMPT.md'),
+        '---\nid: dup_mfa\ntenant_config_methods: terraform\n' +
+          'scaffold_terraform: src/evals/scaffolds/react/auth0\n---\n\n## Task\nDo MFA.\n',
+      );
+      writeFileSync(join(dir, 'graders.ts'), 'export function defineGraders(method) { return []; }');
+    }
+    expect(() => discoverEvals('src/evals', root)).toThrow(EvalConfigError);
+  });
+});

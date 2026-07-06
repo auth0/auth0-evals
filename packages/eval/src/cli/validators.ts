@@ -116,3 +116,13 @@ export function validateAgentType(agentType: string | undefined): AgentType | un
   }
   return agentType as AgentType | undefined;
 }
+
+/** Validates the optional `--tenant-config` flag. Exits on an unknown value. */
+export function validateTenantConfig(raw: string | undefined): 'terraform' | 'cli' | undefined {
+  if (raw === undefined) return undefined;
+  if (raw !== 'terraform' && raw !== 'cli') {
+    logger.error(`Invalid --tenant-config: ${raw}. Choose from: terraform, cli`);
+    process.exit(1);
+  }
+  return raw;
+}

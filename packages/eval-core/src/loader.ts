@@ -14,6 +14,7 @@ import { EvalConfigError, EvalNotFoundError } from './errors.js';
 import { logger } from './utils/logger.js';
 import { parseFrontmatter } from './utils/frontmatter.js';
 import { resolveInside } from './workspace/path-utils.js';
+import { TENANT_CONFIG_INSTRUCTIONS } from '@a0/eval-graders';
 import type { EvalDefinition, GraderDef } from './types/eval.js';
 
 export { EvalDefinition, GraderDef } from './types/eval.js';
@@ -24,6 +25,12 @@ export interface EvalConfig {
   name: string;
   category: string;
   path: string;
+  /** Retained for backward compat; unused by the list-based MFA fan-out. */
+  promptFile?: string;
+  /** Tenant configuration method for a fanned-out MFA variant. */
+  tenantConfigMethod?: 'terraform' | 'cli';
+  /** Resolved scaffold path for this variant (from `scaffold_<method>` frontmatter). */
+  variantScaffold?: string;
 }
 
 /** Options for customising how the loader parses PROMPT.md. */
@@ -46,14 +53,27 @@ export async function loadEval(
   }
 
   const defaultBaselinePrompt = options?.defaultBaselineSystemPrompt ?? FALLBACK_BASELINE_PROMPT;
-  const { baselineSystemPrompt, userPrompt, meta } = parsePromptMd(join(evalPath, 'PROMPT.md'), defaultBaselinePrompt);
+  const promptFileName = evalConfig.promptFile ?? 'PROMPT.md';
+  const {
+    baselineSystemPrompt,
+    userPrompt: rawUserPrompt,
+    meta,
+  } = parsePromptMd(join(evalPath, promptFileName), defaultBaselinePrompt);
+
+  const userPrompt = evalConfig.tenantConfigMethod
+    ? rawUserPrompt.replaceAll(
+        '{{tenant_config_instruction}}',
+        TENANT_CONFIG_INSTRUCTIONS[evalConfig.tenantConfigMethod],
+      )
+    : rawUserPrompt;
 
   const distRelPath = evalConfig.path.replace(/^src\//, '');
   const distGradersPath = join(frameworkRoot, 'dist', distRelPath, 'graders.js');
   const srcGradersPath = join(evalPath, 'graders.ts');
   const gradersPath = existsSync(distGradersPath) ? distGradersPath : srcGradersPath;
-  const graders = await loadGraders(gradersPath);
-  const scaffoldDir = resolveScaffoldFromMeta(meta.scaffold, evalPath, frameworkRoot);
+  const graders = await loadGraders(gradersPath, evalConfig.tenantConfigMethod);
+  const scaffoldSource = evalConfig.variantScaffold ?? meta.scaffold;
+  const scaffoldDir = resolveScaffoldFromMeta(scaffoldSource, evalPath, frameworkRoot);
   const scaffold = loadScaffold(scaffoldDir);
 
   const skillsRaw = meta.skills ?? '';
@@ -114,7 +134,7 @@ function parsePromptMd(
 
 // ── graders.ts dynamic import ─────────────────────────────────────────────────
 
-async function loadGraders(gradersPath: string): Promise<GraderDef[]> {
+async function loadGraders(gradersPath: string, tenantConfigMethod?: 'terraform' | 'cli'): Promise<GraderDef[]> {
   if (!existsSync(gradersPath)) {
     throw new EvalConfigError('graders file not found', gradersPath);
   }
@@ -124,7 +144,7 @@ async function loadGraders(gradersPath: string): Promise<GraderDef[]> {
     throw new EvalConfigError('graders.ts missing defineGraders()', gradersPath);
   }
 
-  return mod.defineGraders();
+  return mod.defineGraders(tenantConfigMethod);
 }
 
 // ── scaffold resolution ───────────────────────────────────────────────────────
@@ -133,11 +153,7 @@ async function loadGraders(gradersPath: string): Promise<GraderDef[]> {
  * Resolve the scaffold directory from the optional `scaffold` frontmatter field.
  * Falls back to the local scaffold/ subdirectory when the field is absent.
  */
-function resolveScaffoldFromMeta(
-  scaffoldMeta: string | undefined,
-  evalPath: string,
-  frameworkRoot: string,
-): string {
+function resolveScaffoldFromMeta(scaffoldMeta: string | undefined, evalPath: string, frameworkRoot: string): string {
   if (!scaffoldMeta) {
     return join(evalPath, 'scaffold');
   }
@@ -153,10 +169,7 @@ function resolveScaffoldFromMeta(
   }
 
   if (!existsSync(resolvedPath)) {
-    throw new EvalConfigError(
-      `scaffold path does not exist: ${resolvedPath}`,
-      join(evalPath, 'PROMPT.md'),
-    );
+    throw new EvalConfigError(`scaffold path does not exist: ${resolvedPath}`, join(evalPath, 'PROMPT.md'));
   }
 
   return resolvedPath;

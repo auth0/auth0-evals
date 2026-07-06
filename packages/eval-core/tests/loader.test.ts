@@ -404,3 +404,98 @@ describe('loadEval - integration', () => {
     expect((err as EvalNotFoundError).message).toContain('nonexistent');
   });
 });
+
+describe('loadEval — tenant config variants', () => {
+  it('substitutes {{tenant_config_instruction}} from the canonical map', async () => {
+    makeScaffoldVariant(tmpBase, 'src/evals/scaffolds/react/auth0', { 'App.jsx': 'x' });
+    const evalDir = join(tmpBase, 'my_eval');
+    mkdirSync(evalDir, { recursive: true });
+    writeFileSync(
+      join(evalDir, 'PROMPT.md'),
+      '---\nid: react_mfa\ntenant_config_methods: terraform, cli\n' +
+        'scaffold_terraform: src/evals/scaffolds/react/auth0\n---\n\n' +
+        '## Task\nEnable the factor {{tenant_config_instruction}}.\n',
+    );
+    writeFileSync(join(evalDir, 'graders.ts'), DEFAULT_GRADERS);
+
+    const result = await loadEval(
+      {
+        id: 'react_mfa_terraform',
+        name: 'React MFA',
+        category: 'mfa',
+        path: 'my_eval',
+        tenantConfigMethod: 'terraform',
+        variantScaffold: 'src/evals/scaffolds/react/auth0',
+      },
+      tmpBase,
+    );
+
+    expect(result.userPrompt).toContain('Enable the factor using Terraform.');
+    expect(result.userPrompt).not.toContain('{{tenant_config_instruction}}');
+  });
+
+  it('uses variantScaffold instead of the local scaffold dir', async () => {
+    makeScaffoldVariant(tmpBase, 'src/evals/scaffolds/react/basic', { 'main.jsx': 'cli scaffold' });
+    const evalDir = join(tmpBase, 'my_eval');
+    mkdirSync(evalDir, { recursive: true });
+    writeFileSync(
+      join(evalDir, 'PROMPT.md'),
+      '---\nid: react_mfa\ntenant_config_methods: cli\nscaffold_cli: src/evals/scaffolds/react/basic\n---\n\n' +
+        '## Task\nDo it {{tenant_config_instruction}}.\n',
+    );
+    writeFileSync(join(evalDir, 'graders.ts'), DEFAULT_GRADERS);
+
+    const result = await loadEval(
+      {
+        id: 'react_mfa_cli',
+        name: 'React MFA',
+        category: 'mfa',
+        path: 'my_eval',
+        tenantConfigMethod: 'cli',
+        variantScaffold: 'src/evals/scaffolds/react/basic',
+      },
+      tmpBase,
+    );
+
+    expect(result.scaffold['main.jsx']).toBe('cli scaffold');
+    expect(result.userPrompt).toContain('using the Auth0 CLI');
+  });
+
+  it('passes tenantConfigMethod to defineGraders', async () => {
+    makeScaffoldVariant(tmpBase, 'src/evals/scaffolds/react/auth0', { 'App.jsx': 'x' });
+    const evalDir = join(tmpBase, 'my_eval');
+    mkdirSync(evalDir, { recursive: true });
+    writeFileSync(
+      join(evalDir, 'PROMPT.md'),
+      '---\nid: react_mfa\ntenant_config_methods: cli\nscaffold_cli: src/evals/scaffolds/react/auth0\n---\n\n## Task\nDo it.\n',
+    );
+    writeFileSync(
+      join(evalDir, 'graders.ts'),
+      `export function defineGraders(method) {
+  return [{ kind: 'contains', needle: method, name: 'method grader' }];
+}`,
+    );
+
+    const result = await loadEval(
+      {
+        id: 'react_mfa_cli',
+        name: 'React MFA',
+        category: 'mfa',
+        path: 'my_eval',
+        tenantConfigMethod: 'cli',
+        variantScaffold: 'src/evals/scaffolds/react/auth0',
+      },
+      tmpBase,
+    );
+
+    expect(result.graders).toHaveLength(1);
+    expect(result.graders[0]!.needle).toBe('cli');
+  });
+
+  it('leaves the body unchanged when the eval has no tenantConfigMethod', async () => {
+    makeEvalDir(tmpBase, '## Task\nPlain task with no {{tenant_config_instruction}} placeholder resolution.\n');
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+    // No method → placeholder left as-is (no MFA eval ever ships a bare placeholder).
+    expect(result.userPrompt).toContain('{{tenant_config_instruction}}');
+  });
+});

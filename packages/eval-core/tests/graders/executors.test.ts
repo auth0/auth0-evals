@@ -5,7 +5,8 @@ import { containsExecutor } from '../../src/graders/executors/contains.js';
 import { notContainsExecutor } from '../../src/graders/executors/not-contains.js';
 import { notContainsInSourceExecutor } from '../../src/graders/executors/not-contains-in-source.js';
 import { matchesExecutor } from '../../src/graders/executors/matches.js';
-import { isJudgeExcluded } from '../../src/graders/executors/llm-judge.js';
+import { isJudgeExcluded, formatCommandTrace } from '../../src/graders/executors/llm-judge.js';
+import type { EventToolCall } from '@a0/eval-graders';
 import { compileExecutor } from '../../src/graders/executors/compile.js';
 import type { GraderContext } from '../../src/graders/executors/types.js';
 
@@ -334,6 +335,47 @@ describe('isJudgeExcluded', () => {
     expect(isJudgeExcluded('README.md')).toBe(true);
     expect(isJudgeExcluded('docs/SETUP.md')).toBe(true);
     expect(isJudgeExcluded('CHANGELOG.MD')).toBe(true);
+  });
+});
+
+// ── formatCommandTrace ──────────────────────────────────────────────────────
+
+describe('formatCommandTrace', () => {
+  const cmd = (command: string, causedError = false): EventToolCall => ({
+    name: 'run_command',
+    args: { command },
+    result: '',
+    causedError,
+  });
+
+  it('renders successful shell commands under a labelled header', () => {
+    const out = formatCommandTrace([
+      cmd('auth0 api put guardian/factors/otp --data \'{"enabled":true}\''),
+      cmd('auth0 api put guardian/policies --data \'["all-applications"]\''),
+    ]);
+    expect(out).toContain('// COMMAND TRACE');
+    expect(out).toContain('guardian/factors/otp');
+    expect(out).toContain('guardian/policies');
+  });
+
+  it('accepts the bash tool name as a shell command', () => {
+    const out = formatCommandTrace([{ name: 'bash', args: { command: 'auth0 api get guardian/factors' }, result: '', causedError: false }]);
+    expect(out).toContain('guardian/factors');
+  });
+
+  it('drops errored commands so the judge sees only what took effect', () => {
+    const out = formatCommandTrace([cmd('auth0 login', true), cmd('auth0 api put guardian/policies')]);
+    expect(out).not.toContain('auth0 login');
+    expect(out).toContain('guardian/policies');
+  });
+
+  it('ignores non-shell tool calls', () => {
+    const out = formatCommandTrace([{ name: 'write_file', args: { path: 'x.ts', content: 'y' }, result: '', causedError: false }]);
+    expect(out).toBe('');
+  });
+
+  it('returns an empty string when there are no commands', () => {
+    expect(formatCommandTrace([])).toBe('');
   });
 });
 

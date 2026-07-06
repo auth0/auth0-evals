@@ -22,6 +22,8 @@
 
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import pLimit from 'p-limit';
 import { config as loadDotenv } from 'dotenv';
 
@@ -64,6 +66,11 @@ import { syncDataset, toEvalSummaries } from '../reporters/braintrust-dataset.js
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Repo-root-anchored path to the mock CLI stubs. Compiled location is
+// packages/eval/dist/cli/run.js, so the repo root is four levels up. In the
+// sandbox the equivalent dir is /app/mocks, set by docker/entrypoint.sh.
+const MOCK_BIN_DIR = join(__dirname, '..', '..', '..', '..', 'mocks');
 
 // ── Runner registration ──────────────────────────────────────────────────────
 
@@ -136,6 +143,7 @@ async function runAgentJob(
   // (CLAUDE.md / GEMINI.md / AGENTS.md). Must run before both the docker and
   // local execution paths so every runner picks it up.
   writeAgentGuidance(workspace, agentType, evalDef.compileCommand);
+  let mockStateDir: string | undefined;
   try {
     if (!sandbox && evalDef.setupCommand) {
       runSetupCommand(workspace, evalDef.setupCommand);
@@ -157,7 +165,19 @@ async function runAgentJob(
       });
     }
 
-    // Local execution (--dangerously-skip-sandbox or baseline)
+    // Local execution (--dangerously-skip-sandbox or baseline). Point the
+    // runner at the mock CLI stubs so external CLIs (e.g. `auth0`) resolve to
+    // hermetic no-ops instead of authenticating against or mutating a live
+    // tenant. filteredEnv() prepends this to the agent's PATH. The sandbox path
+    // sets the same var to /app/mocks in docker/entrypoint.sh.
+    process.env.EVAL_MOCK_BIN_DIR = MOCK_BIN_DIR;
+    // Per-run state dir for stateful mock stubs (e.g. mocks/auth0), created
+    // outside the workspace so it is never graded and unique per subprocess so
+    // concurrent runs never collide. filteredEnv() forwards it to the agent.
+    // The sandbox path sets the same var in docker/entrypoint.sh.
+    mockStateDir = mkdtempSync(join(tmpdir(), 'auth0-eval-mockstate-'));
+    process.env.EVAL_MOCK_STATE_DIR = mockStateDir;
+
     const runner = getRunner(agentType);
     const preparedEval = tools.includes('skills') ? await runner.prepareSkills(evalDef, workspace) : evalDef;
     const { record, resolvedModel } = await runner.run({ evalDef: preparedEval, workspace, model, tools, apiKey });
@@ -200,6 +220,10 @@ async function runAgentJob(
       agent_type: agentType,
     };
   } finally {
+    if (mockStateDir) {
+      rmSync(mockStateDir, { recursive: true, force: true });
+      delete process.env.EVAL_MOCK_STATE_DIR;
+    }
     if (!keepWorkspace) {
       cleanupWorkspace(workspace);
     }
@@ -252,7 +276,15 @@ function printSummary(results: JobResult[], elapsed: number): void {
  * exactly one (eval × model × mode × tools) job without re-expanding them.
  */
 export function buildSubprocessArgs(argv: string[] = process.argv.slice(2)): string[] {
-  const VALUE_FLAGS = new Set(['--eval', '--output', '--model', '--mode', '--tools', '--agent-type']);
+  const VALUE_FLAGS = new Set([
+    '--eval',
+    '--output',
+    '--model',
+    '--mode',
+    '--tools',
+    '--agent-type',
+    '--tenant-config',
+  ]);
   const stripped: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -355,6 +387,7 @@ export async function runCli(): Promise<void> {
     agentType,
     configPath,
     sandbox,
+    tenantConfig,
   } = config;
 
   // Load the framework configuration (eval.config.js) — auto-discovered or via --config.
@@ -396,7 +429,10 @@ export async function runCli(): Promise<void> {
 
   logger.info(`[Config] evalsDir=${frameworkConfig.evalsDir}`);
 
-  const registry = evalIds.length > 0 ? evaluations.filter((e) => evalIds.includes(e.id)) : evaluations;
+  let registry = evalIds.length > 0 ? evaluations.filter((e) => evalIds.includes(e.id)) : evaluations;
+  if (tenantConfig) {
+    registry = registry.filter((e) => e.tenantConfigMethod === undefined || e.tenantConfigMethod === tenantConfig);
+  }
 
   if (registry.length === 0) {
     logger.error('No evals to run. Check your --eval flag.');
