@@ -63,43 +63,44 @@ reads between steps need per-subcommand handling — that's Axis 2.
 
 ### Axis 2 — Add realistic per-endpoint responses (depth)
 
-When a grader or the agent consumes the **response body**, promote the stub to a
-path router backed by static fixtures. See `mocks/auth0` for the live template:
-it normalizes the path (so a full `https://<tenant>/api/v2/<path>` URL routes
-like a bare `<path>`), keys on `"<method> <path>"`, `cat`s a fixture for reads,
-echoes success for writes, and — for unmapped routes — echoes `{"ok":true}` for
-writes and `{}` for reads.
+When a grader or the agent consumes the **response body**, add a route. The
+`auth0` mock is a **dumb dispatcher + per-feature route files**: the dispatcher
+(`mocks/auth0`) normalizes the path, then sources every `mocks/routes/*.sh` until
+one handles the request; if none do, it falls through (writes → `{"ok":true}`,
+reads → `{}`). A feature adds its endpoints by dropping **one file** in
+`mocks/routes/` — no edit to the dispatcher, so route files never conflict.
 
 ```
 mocks/
-├── auth0                          # dispatcher
-└── fixtures/
-    └── auth0/
-        └── guardian_factors.json  # one file per mapped read
+├── auth0                 # dispatcher — shared mechanism, no feature knowledge
+├── lib.sh                # helpers: emit / record_state / has_state / clear_state
+└── routes/
+    ├── README.md         # the route-file contract
+    ├── guardian.sh       # one Auth0 API surface per file (owned by the feature that ships it)
+    └── token-exchange.sh
 ```
 
-Rules that keep it hermetic and honest:
-- Fixtures are **static, version-controlled JSON** — no network, deterministic
-  across runs.
-- **Fake-but-plausible** values only (e.g. a client ID that looks real but
-  points nowhere).
+A route file matches on `$ROUTE` (`"<method> <path>"`) and calls `emit <body>`
+to respond. See `mocks/routes/README.md` for the full contract. Rules that keep
+it hermetic and honest:
+- **Name by API surface, not by eval** — `guardian.sh`, not `mfa-cli.sh`. One
+  surface may be consumed by several evals; head each file with `# Consumed by:`.
+- **Fake-but-plausible** values only (e.g. an id that looks real but points nowhere).
 - **GET returns data; PUT/PATCH/POST echo success** — mirror the real API's
   shape enough for the agent's follow-up logic.
-- **Paths are normalized** — a full `https://<tenant>/api/v2/<path>` URL and a
-  bare `<path>` hit the same route, so the agent's command works whichever form
-  it emits.
-- Add a fixture **only when an eval needs that endpoint's content**. Unmapped
-  reads return `{}` on purpose — don't pre-populate endpoints nothing tests. An
-  unmapped **write** echoes `{"ok":true}` so a successful call never reads as a
-  no-op (which made agents doubt the call landed and thrash).
+- **Paths are normalized by the dispatcher** — a full `https://<tenant>/api/v2/<path>`
+  URL, a `/api/v2/<path>`, and a bare `<path>` all reach the same route.
+- Add a route **only when an eval needs that endpoint's content.** Unmapped
+  requests already succeed via the fallthrough — don't pre-populate endpoints
+  nothing tests.
 
 #### Read-after-write state (Axis 2.5)
 
 When an eval verifies a **multi-step** CLI flow where a later `get` must reflect
 an earlier `put` (e.g. enable a factor, then read it back before enforcing a
-policy), the stub needs per-run state. `mocks/auth0` is the live template: it
-records writes as marker files under **`EVAL_MOCK_STATE_DIR`** and reflects them
-in subsequent reads.
+policy), the route file needs per-run state. Use the `lib.sh` helpers
+(`record_state` / `has_state` / `clear_state`), which store marker files under
+**`EVAL_MOCK_STATE_DIR`** and reflect them in subsequent reads.
 
 Rules that keep this hermetic:
 - State lives in `EVAL_MOCK_STATE_DIR` — a per-run temp dir **outside the
@@ -109,6 +110,8 @@ Rules that keep this hermetic:
   dir if the var is unset.
 - Keep state to **marker files**, not parsed JSON — no `jq` dependency, works in
   a POSIX `sh`.
+- **Namespace your state keys** per feature to avoid collisions across route
+  files — `record_state cte_action_created`, not `record_state created`.
 - State is **within-run only** — never version-controlled, cleaned up with the
   run. Two concurrent runs get distinct dirs and never collide.
 
@@ -128,20 +131,21 @@ of truth, and a side-channel log is one more thing to keep hermetic.
 
 ## Testing a stub locally
 
+Dispatcher behaviour (fallthrough + normalization) is feature-agnostic — a
+routed endpoint's output depends on which `mocks/routes/*.sh` files are present:
+
 ```sh
 export EVAL_MOCK_STATE_DIR="$(mktemp -d)"
-mocks/auth0 api get guardian/factors         # → all factors enabled:false, exit 0
-mocks/auth0 api put guardian/factors/otp \
-  --data '{"enabled": true}'                 # → {"enabled":true}, exit 0
-mocks/auth0 api get guardian/factors         # → otp now enabled:true (read-after-write)
 mocks/auth0 api patch \
-  https://t.us.auth0.com/api/v2/guardian/factors/otp \
-  --data '{"enabled":true}'                  # → {"enabled":true} (full URL routes like bare path)
-mocks/auth0 api patch tenants/settings \
-  --data '{"flags":{"enable_mfa":true}}'     # → {"ok":true} (unmapped write echoes success)
+  https://t.us.auth0.com/api/v2/some/write \
+  --data '{}'                                # → {"ok":true} (unmapped write; full URL routes like bare path)
 mocks/auth0 api get some/unmapped            # → {}, exit 0 (unmapped read)
+mocks/auth0 login --domain t.us.auth0.com    # → ✓ Successfully logged in (mock)
 rm -rf "$EVAL_MOCK_STATE_DIR"
 ```
+
+A feature's own routes (e.g. `mocks/routes/guardian.sh`) ship with that
+feature's PR; test them from that branch.
 
 Then run an eval that uses the CLI end-to-end and confirm the relevant event
 grader passes, e.g.:
