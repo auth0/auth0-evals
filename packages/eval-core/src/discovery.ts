@@ -81,13 +81,8 @@ function findEvalDirs(dir: string, frameworkRoot: string, results: EvalConfig[],
   }
 }
 
-/** Allowed tenant-config methods (must stay in sync with eval-graders TenantConfigMethod). */
-const TENANT_CONFIG_METHODS = ['terraform', 'cli'] as const;
-type TenantConfigMethod = (typeof TENANT_CONFIG_METHODS)[number];
-
 /**
- * Builds one or more EvalConfigs from a PROMPT.md's frontmatter.
- * When `tenant_config_methods` is present, fans out one config per method.
+ * Builds an EvalConfig from a PROMPT.md's frontmatter.
  */
 function buildEvalConfigs(promptPath: string, evalDir: string, frameworkRoot: string): EvalConfig[] {
   const text = readFileSync(promptPath, 'utf-8');
@@ -107,34 +102,5 @@ function buildEvalConfigs(promptPath: string, evalDir: string, frameworkRoot: st
   const category = meta.category || parentDir;
   const baseName = meta.name || meta.id;
 
-  const methodsRaw = (meta.tenant_config_methods || '').trim();
-  if (!methodsRaw) {
-    return [{ id: meta.id, name: baseName, category, path: relPath }];
-  }
-
-  const methods = methodsRaw
-    .split(',')
-    .map((m) => m.trim())
-    .filter(Boolean);
-
-  return methods.map((method) => {
-    if (!(TENANT_CONFIG_METHODS as readonly string[]).includes(method)) {
-      throw new EvalConfigError(
-        `Invalid tenant_config_methods entry '${method}': must be one of ${TENANT_CONFIG_METHODS.join(', ')}`,
-        promptPath,
-      );
-    }
-    const scaffold = meta[`scaffold_${method}`];
-    if (!scaffold) {
-      throw new EvalConfigError(`Missing 'scaffold_${method}' for tenant_config_methods entry '${method}'`, promptPath);
-    }
-    return {
-      id: `${meta.id}_${method}`,
-      name: baseName,
-      category,
-      path: relPath,
-      tenantConfigMethod: method as TenantConfigMethod,
-      variantScaffold: scaffold,
-    };
-  });
+  return [{ id: meta.id, name: baseName, category, path: relPath }];
 }

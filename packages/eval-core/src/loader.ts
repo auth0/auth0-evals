@@ -14,7 +14,6 @@ import { EvalConfigError, EvalNotFoundError } from './errors.js';
 import { logger } from './utils/logger.js';
 import { parseFrontmatter } from './utils/frontmatter.js';
 import { resolveInside } from './workspace/path-utils.js';
-import { TENANT_CONFIG_INSTRUCTIONS } from '@a0/eval-graders';
 import type { EvalDefinition, GraderDef } from './types/eval.js';
 
 export { EvalDefinition, GraderDef } from './types/eval.js';
@@ -25,12 +24,8 @@ export interface EvalConfig {
   name: string;
   category: string;
   path: string;
-  /** Retained for backward compat; unused by the list-based MFA fan-out. */
+  /** Retained for backward compat; alternate PROMPT file name. */
   promptFile?: string;
-  /** Tenant configuration method for a fanned-out MFA variant. */
-  tenantConfigMethod?: 'terraform' | 'cli';
-  /** Resolved scaffold path for this variant (from `scaffold_<method>` frontmatter). */
-  variantScaffold?: string;
 }
 
 /** Options for customising how the loader parses PROMPT.md. */
@@ -54,26 +49,17 @@ export async function loadEval(
 
   const defaultBaselinePrompt = options?.defaultBaselineSystemPrompt ?? FALLBACK_BASELINE_PROMPT;
   const promptFileName = evalConfig.promptFile ?? 'PROMPT.md';
-  const {
-    baselineSystemPrompt,
-    userPrompt: rawUserPrompt,
-    meta,
-  } = parsePromptMd(join(evalPath, promptFileName), defaultBaselinePrompt);
-
-  const userPrompt = evalConfig.tenantConfigMethod
-    ? rawUserPrompt.replaceAll(
-        '{{tenant_config_instruction}}',
-        TENANT_CONFIG_INSTRUCTIONS[evalConfig.tenantConfigMethod],
-      )
-    : rawUserPrompt;
+  const { baselineSystemPrompt, userPrompt, meta } = parsePromptMd(
+    join(evalPath, promptFileName),
+    defaultBaselinePrompt,
+  );
 
   const distRelPath = evalConfig.path.replace(/^src\//, '');
   const distGradersPath = join(frameworkRoot, 'dist', distRelPath, 'graders.js');
   const srcGradersPath = join(evalPath, 'graders.ts');
   const gradersPath = existsSync(distGradersPath) ? distGradersPath : srcGradersPath;
-  const graders = await loadGraders(gradersPath, evalConfig.tenantConfigMethod);
-  const scaffoldSource = evalConfig.variantScaffold ?? meta.scaffold;
-  const scaffoldDir = resolveScaffoldFromMeta(scaffoldSource, evalPath, frameworkRoot);
+  const graders = await loadGraders(gradersPath);
+  const scaffoldDir = resolveScaffoldFromMeta(meta.scaffold, evalPath, frameworkRoot);
   const scaffold = loadScaffold(scaffoldDir);
 
   const skillsRaw = meta.skills ?? '';
@@ -134,7 +120,7 @@ function parsePromptMd(
 
 // ── graders.ts dynamic import ─────────────────────────────────────────────────
 
-async function loadGraders(gradersPath: string, tenantConfigMethod?: 'terraform' | 'cli'): Promise<GraderDef[]> {
+async function loadGraders(gradersPath: string): Promise<GraderDef[]> {
   if (!existsSync(gradersPath)) {
     throw new EvalConfigError('graders file not found', gradersPath);
   }
@@ -144,7 +130,7 @@ async function loadGraders(gradersPath: string, tenantConfigMethod?: 'terraform'
     throw new EvalConfigError('graders.ts missing defineGraders()', gradersPath);
   }
 
-  return mod.defineGraders(tenantConfigMethod);
+  return mod.defineGraders();
 }
 
 // ── scaffold resolution ───────────────────────────────────────────────────────

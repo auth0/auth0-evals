@@ -71,14 +71,3 @@ export interface GraderOptions {
 
 /** Levels valid for event-based graders (agent-only — no tool calls exist in baseline). */
 export type EventGraderLevel = GraderLevel.L4 | GraderLevel.L5;
-
-/** Tenant configuration method used in Leg 2 MFA evals. */
-export type TenantConfigMethod = 'terraform' | 'cli';
-
-/** Canonical instruction phrase substituted into `{{tenant_config_instruction}}` per method. */
-export const TENANT_CONFIG_INSTRUCTIONS: Record<TenantConfigMethod, string> = {
-  terraform: 'using Terraform',
-  cli:
-    'using the Auth0 CLI (inspect current factors, enable the required factor, ' +
-    'then enforce MFA via guardian/policies)',
-};

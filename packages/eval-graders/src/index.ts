@@ -1,7 +1,7 @@
 /** @a0/eval-graders — Grader primitives and type definitions for eval frameworks. */
 
 // Types
-export { GraderLevel, TENANT_CONFIG_INSTRUCTIONS } from './types.js';
+export { GraderLevel } from './types.js';
 export type {
   GraderResult,
   GraderDef,
@@ -9,7 +9,6 @@ export type {
   EventToolCall,
   EventGraderLevel,
   CompileResult,
-  TenantConfigMethod,
 } from './types.js';
 export type { JudgeOptions } from './primitives.js';
 

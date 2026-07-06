@@ -283,7 +283,6 @@ export function buildSubprocessArgs(argv: string[] = process.argv.slice(2)): str
     '--mode',
     '--tools',
     '--agent-type',
-    '--tenant-config',
   ]);
   const stripped: string[] = [];
   for (let i = 0; i < argv.length; i++) {
@@ -387,7 +386,6 @@ export async function runCli(): Promise<void> {
     agentType,
     configPath,
     sandbox,
-    tenantConfig,
   } = config;
 
   // Load the framework configuration (eval.config.js) — auto-discovered or via --config.
@@ -429,10 +427,7 @@ export async function runCli(): Promise<void> {
 
   logger.info(`[Config] evalsDir=${frameworkConfig.evalsDir}`);
 
-  let registry = evalIds.length > 0 ? evaluations.filter((e) => evalIds.includes(e.id)) : evaluations;
-  if (tenantConfig) {
-    registry = registry.filter((e) => e.tenantConfigMethod === undefined || e.tenantConfigMethod === tenantConfig);
-  }
+  const registry = evalIds.length > 0 ? evaluations.filter((e) => evalIds.includes(e.id)) : evaluations;
 
   if (registry.length === 0) {
     logger.error('No evals to run. Check your --eval flag.');
