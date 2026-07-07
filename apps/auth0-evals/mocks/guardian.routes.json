@@ -1,0 +1,12 @@
+{
+  "surface": "guardian",
+  "consumedBy": ["mfa_tenant_cli"],
+  "routes": [
+    { "match": "GET guardian/factors", "verb": "handler", "handler": "listFactors" },
+    { "match": "PUT guardian/factors/*", "verb": "handler", "handler": "setFactor" },
+    { "match": "PATCH guardian/factors/*", "verb": "handler", "handler": "setFactor" },
+    { "match": "PUT guardian/policies", "verb": "create", "state": "mfa.policy", "body": "policies_set.json" },
+    { "match": "PATCH guardian/policies", "verb": "create", "state": "mfa.policy", "body": "policies_set.json" },
+    { "match": "GET guardian/policies", "verb": "reflect", "state": "mfa.policy", "present": "policies_set.json", "absent": [] }
+  ]
+}
