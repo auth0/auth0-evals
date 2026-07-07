@@ -1,0 +1,1 @@
+{ "id": "tep_legacy", "name": "legacy-migration", "type": "custom_authentication", "action_id": "act_cte_validator" }
