@@ -58,6 +58,10 @@ export const EXCLUDED_EVAL_DIRS = new Set([
   '.build',
   '.angular',
   'out-tsc',
+  // Mock CLI route files. These live in the eval source tree, never in the
+  // workspace — but exclude defensively so a route/ dir can never be graded
+  // even if one reaches a workspace via a future refactor.
+  'routes',
 ]);
 export const EXCLUDED_EVAL_FILES = new Set([
   'package-lock.json',

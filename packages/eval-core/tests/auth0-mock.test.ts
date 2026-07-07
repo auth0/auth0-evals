@@ -14,8 +14,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const MOCK = fileURLToPath(new URL('../../../mocks/auth0', import.meta.url));
-const ROUTES_DIR = fileURLToPath(new URL('../../../mocks/routes/', import.meta.url));
+const MOCK = fileURLToPath(new URL('../../../apps/auth0-evals/mocks/auth0', import.meta.url));
+const ROUTES_DIR = fileURLToPath(new URL('../../../apps/auth0-evals/mocks/routes/', import.meta.url));
 
 let stateDir: string;
 let fixtureRoute: string;
@@ -98,5 +98,36 @@ describe('mock auth0 — fallthrough for unrouted requests', () => {
 describe('mock auth0 — non-api subcommands', () => {
   it('treats login as a no-op success', () => {
     expect(run('login', '--domain', 'x.us.auth0.com')).toContain('logged in');
+  });
+});
+
+describe('mock auth0 — per-eval routes via EVAL_MOCK_ROUTES_DIRS', () => {
+  let perEvalDir: string;
+
+  beforeEach(() => {
+    // A route dir simulating one shipped next to an eval's PROMPT.md.
+    perEvalDir = mkdtempSync(join(tmpdir(), 'per-eval-routes-'));
+    writeFileSync(
+      join(perEvalDir, 'gadgets.sh'),
+      `case "$ROUTE" in
+  "get gadgets") emit '[{"id":"g1"}]' ;;
+esac
+`,
+    );
+  });
+
+  afterEach(() => rmSync(perEvalDir, { recursive: true, force: true }));
+
+  it('sources a route from a dir named on EVAL_MOCK_ROUTES_DIRS', () => {
+    const out = execFileSync(MOCK, ['api', 'get', 'gadgets'], {
+      env: { ...process.env, EVAL_MOCK_STATE_DIR: stateDir, EVAL_MOCK_ROUTES_DIRS: perEvalDir },
+      encoding: 'utf8',
+    }).trim();
+    expect(out).toBe('[{"id":"g1"}]');
+  });
+
+  it('falls back to {} for that route when the dir is not provided', () => {
+    // Without EVAL_MOCK_ROUTES_DIRS, the per-eval route is not loaded.
+    expect(run('api', 'get', 'gadgets')).toBe('{}');
   });
 });

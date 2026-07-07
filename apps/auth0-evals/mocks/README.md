@@ -24,9 +24,15 @@ serves **all three execution contexts**:
 
 | Context | Who sets `EVAL_MOCK_BIN_DIR` |
 |---------|------------------------------|
-| Docker sandbox | `docker/entrypoint.sh` → `/app/mocks` (dir copied in by `docker/Dockerfile`) |
-| Local (`--dangerously-skip-sandbox`) | `packages/eval/src/cli/run.ts` → repo `mocks/` |
+| Docker sandbox | `docker/entrypoint.sh` → `/app/mocks` (dir copied from `apps/auth0-evals/mocks/` by `docker/Dockerfile`) |
+| Local (`--dangerously-skip-sandbox`) | `packages/eval/src/cli/run.ts` → `<cwd>/mocks` = `apps/auth0-evals/mocks/` |
 | CI | uses the local path above |
+
+Per-eval routes: an eval may ship its own `routes/*.sh` next to its `PROMPT.md`.
+The runner sets `EVAL_MOCK_ROUTES_DIRS` to that dir and the dispatcher sources
+it after the app-level `routes/`. Those files live in the eval source tree,
+never in the agent workspace, so they are never graded or seen by the judge
+(defensively also excluded via `EXCLUDED_EVAL_DIRS` and the judge exclusions).
 
 A stub is intercepted **only if a file with that exact command name exists
 here** — every other command resolves to the real binary as normal. The

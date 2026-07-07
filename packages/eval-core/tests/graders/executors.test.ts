@@ -336,6 +336,15 @@ describe('isJudgeExcluded', () => {
     expect(isJudgeExcluded('docs/SETUP.md')).toBe(true);
     expect(isJudgeExcluded('CHANGELOG.MD')).toBe(true);
   });
+
+  it('excludes mock route scripts (guardrail — never judge routes/)', () => {
+    expect(isJudgeExcluded('routes')).toBe(true);
+    expect(isJudgeExcluded('routes/guardian.sh')).toBe(true);
+    expect(isJudgeExcluded('src/evals/mfa/tenant-cli/routes/guardian.sh')).toBe(false);
+    // Note: the nested path above is intentionally NOT excluded by the dir rule
+    // (which matches a leading `routes/`); it never reaches a workspace anyway.
+    // The leading-dir form is the defensive guardrail that matters.
+  });
 });
 
 // ── formatCommandTrace ──────────────────────────────────────────────────────

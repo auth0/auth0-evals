@@ -25,8 +25,13 @@ const JUDGE_EXCLUDED_PATTERNS = [
   /^\.env(\..*)?$/,
 ];
 
-/** Directory paths (matched against the relative path) excluded from the LLM judge input — large Android build artifacts. */
-const JUDGE_EXCLUDED_DIRS = ['.gradle', 'app/build'];
+/**
+ * Directory paths (matched against the relative path) excluded from the LLM judge input.
+ * `.gradle` / `app/build` are large Android build artifacts; `routes` holds mock CLI
+ * route scripts that must never be judged (defense-in-depth — they never reach the
+ * workspace, but exclude in case one ever does).
+ */
+const JUDGE_EXCLUDED_DIRS = ['.gradle', 'app/build', 'routes'];
 
 export function isJudgeExcluded(relPath: string): boolean {
   const basename = relPath.split('/').pop()!;

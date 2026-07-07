@@ -62,14 +62,28 @@ case "$1" in
     # Give each feature route file a chance to handle ROUTE. Route files inspect
     # $ROUTE / $METHOD / $PATH_ / $PAYLOAD and call emit() (from lib.sh) to
     # respond, which sets HANDLED=1.
-    if [ -d "$MOCK_DIR/routes" ]; then
-      for route_file in "$MOCK_DIR"/routes/*.sh; do
+    # Route search dirs: the app-level routes/ first, then any per-eval routes
+    # dirs the runner passed on EVAL_MOCK_ROUTES_DIRS (colon-separated) so an
+    # eval can ship its own routes/ next to its PROMPT.md.
+    ROUTE_DIRS="$MOCK_DIR/routes"
+    if [ -n "$EVAL_MOCK_ROUTES_DIRS" ]; then
+      ROUTE_DIRS="$ROUTE_DIRS:$EVAL_MOCK_ROUTES_DIRS"
+    fi
+    _old_ifs="$IFS"
+    IFS=':'
+    for route_dir in $ROUTE_DIRS; do
+      IFS="$_old_ifs"
+      [ -d "$route_dir" ] || { IFS=':'; continue; }
+      for route_file in "$route_dir"/*.sh; do
         [ -f "$route_file" ] || continue
         # shellcheck source=/dev/null
         . "$route_file"
         [ "$HANDLED" -eq 1 ] && break
       done
-    fi
+      IFS=':'
+      [ "$HANDLED" -eq 1 ] && break
+    done
+    IFS="$_old_ifs"
 
     if [ "$HANDLED" -eq 0 ]; then
       # Fallthrough: an unmapped write still "succeeded" as far as the CLI is

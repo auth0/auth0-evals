@@ -62,5 +62,13 @@ export function filteredEnv(): Record<string, string> {
     env.EVAL_MOCK_STATE_DIR = mockStateDir;
   }
 
+  // Per-eval mock route dirs (colon-separated). The mock dispatcher sources
+  // these after its own routes/, letting an eval ship routes next to its
+  // PROMPT.md. Forwarded verbatim; unset means "use built-in routes only".
+  const mockRoutesDirs = process.env.EVAL_MOCK_ROUTES_DIRS;
+  if (mockRoutesDirs) {
+    env.EVAL_MOCK_ROUTES_DIRS = mockRoutesDirs;
+  }
+
   return env;
 }

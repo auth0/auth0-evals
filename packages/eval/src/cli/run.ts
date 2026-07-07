@@ -22,7 +22,7 @@
 
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import pLimit from 'p-limit';
 import { config as loadDotenv } from 'dotenv';
@@ -66,11 +66,6 @@ import { syncDataset, toEvalSummaries } from '../reporters/braintrust-dataset.js
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-// Repo-root-anchored path to the mock CLI stubs. Compiled location is
-// packages/eval/dist/cli/run.js, so the repo root is four levels up. In the
-// sandbox the equivalent dir is /app/mocks, set by docker/entrypoint.sh.
-const MOCK_BIN_DIR = join(__dirname, '..', '..', '..', '..', 'mocks');
 
 // ── Runner registration ──────────────────────────────────────────────────────
 
@@ -170,7 +165,20 @@ async function runAgentJob(
     // hermetic no-ops instead of authenticating against or mutating a live
     // tenant. filteredEnv() prepends this to the agent's PATH. The sandbox path
     // sets the same var to /app/mocks in docker/entrypoint.sh.
-    process.env.EVAL_MOCK_BIN_DIR = MOCK_BIN_DIR;
+    //
+    // The mock dir is app-relative (`<cwd>/mocks` = apps/auth0-evals/mocks) —
+    // the tool runs from the app root (that is why evalsDir is relative). No
+    // fragile ../ walk from the compiled dist location.
+    process.env.EVAL_MOCK_BIN_DIR = join(process.cwd(), 'mocks');
+    // Per-eval mock routes: an eval may ship its own `routes/` dir next to its
+    // PROMPT.md; the dispatcher sources these after its own routes. Only set
+    // when the dir exists. Never enters the workspace, so it is never graded.
+    const evalRoutesDir = join(evalDef.path, 'routes');
+    if (existsSync(evalRoutesDir)) {
+      process.env.EVAL_MOCK_ROUTES_DIRS = evalRoutesDir;
+    } else {
+      delete process.env.EVAL_MOCK_ROUTES_DIRS;
+    }
     // Per-run state dir for stateful mock stubs (e.g. mocks/auth0), created
     // outside the workspace so it is never graded and unique per subprocess so
     // concurrent runs never collide. filteredEnv() forwards it to the agent.
@@ -223,6 +231,7 @@ async function runAgentJob(
     if (mockStateDir) {
       rmSync(mockStateDir, { recursive: true, force: true });
       delete process.env.EVAL_MOCK_STATE_DIR;
+      delete process.env.EVAL_MOCK_ROUTES_DIRS;
     }
     if (!keepWorkspace) {
       cleanupWorkspace(workspace);
