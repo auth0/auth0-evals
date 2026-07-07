@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { mock } from '@a0/eval-core';
 
 const cwd = fileURLToPath(new URL('..', import.meta.url));
-const stateDir = join(cwd, '.mock-state');
 const MOCKS = join(cwd, 'mocks');
 
 const args = process.argv.slice(2);
@@ -25,21 +26,35 @@ for (let i = 1; i < args.length; i += 2) {
   }
 }
 
+let stateDir = null;
 try {
-  const result = await mock.runMockCli({
-    binName: surface,
-    stripPrefixes: [],
+  stateDir = mkdtempSync(join(tmpdir(), 'auth0-mock-'));
+
+  // Load handlers if present
+  let handlers = {};
+  const handlersFile = join(MOCKS, 'handlers.js');
+  if (existsSync(handlersFile)) {
+    handlers = (await import(handlersFile)).default ?? {};
+  }
+
+  const config = {
+    binName: 'auth0',
+    stripPrefixes: ['api/v2/'],
     manifestDirs: [MOCKS],
     stateDir,
-  }, probes);
+  };
 
-  for (const r of result) {
-    console.log(`${r.method} ${r.path}`);
-    if (r.body !== undefined) {
-      console.log(JSON.stringify(r.body, null, 2));
-    }
+  for (const { method, path } of probes) {
+    const argv = ['api', method.toLowerCase(), path];
+    const result = await mock.runMockCli(argv, config, handlers);
+    const body = JSON.parse(result);
+    console.log(`${method} ${path} -> ${JSON.stringify(body)}`);
   }
 } catch (e) {
   console.error(e instanceof Error ? e.message : String(e));
   process.exit(1);
+} finally {
+  if (stateDir && existsSync(stateDir)) {
+    rmSync(stateDir, { recursive: true, force: true });
+  }
 }

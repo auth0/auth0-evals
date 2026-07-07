@@ -37,7 +37,8 @@ const manifest = {
       match: 'GET /api/v2/example',
       verb: 'reflect',
       state: 'example.created',
-      body: 'example.json',
+      present: 'example.json',
+      absent: [],
     },
     {
       match: 'DELETE /api/v2/example',
