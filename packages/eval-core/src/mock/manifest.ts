@@ -51,3 +51,20 @@ export function resolveBody(ref: unknown, fixturesDir: string): unknown {
   const path = join(fixturesDir, ref);
   return JSON.parse(readFileSync(path, 'utf-8'));
 }
+
+export function collectRefProblems(manifests: RouteManifest[]): string[] {
+  const problems: string[] = [];
+  for (const m of manifests) {
+    const fixturesDir = `${m.dir}/fixtures/${m.surface}`;
+    for (const r of m.routes) {
+      for (const ref of [r.body, r.present, r.absent]) {
+        if (typeof ref === 'string' && !existsSync(`${fixturesDir}/${ref}`)) {
+          problems.push(`${m.surface}: missing fixture '${ref}'`);
+        }
+      }
+      // handler names are validated at runtime against the handler map; the
+      // harness only checks fixture files here.
+    }
+  }
+  return problems;
+}
