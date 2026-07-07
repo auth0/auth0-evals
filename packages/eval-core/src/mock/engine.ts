@@ -15,6 +15,7 @@ export async function runMockCli(
   const [sub, method, rawPath] = argv;
   if (sub !== 'api') {
     // Non-api subcommands (e.g. login) are no-op successes.
+    if (sub === 'login') return `✓ Successfully logged in (mock)`;
     return `auth0 (mock): ok`;
   }
   const path = normalizePath(rawPath ?? '', config.stripPrefixes);

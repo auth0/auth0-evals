@@ -2,7 +2,7 @@
  * Tests for the mock Auth0 CLI dispatcher (`mocks/auth0`).
  *
  * These exercise only the SHARED mechanism — path normalization, route-file
- * discovery, and the fallthrough — using a throwaway fixture route file, so the
+ * discovery, and the fallthrough — using a throwaway fixture route manifest, so the
  * dispatcher test stays independent of any feature's routes (guardian,
  * token-exchange, …), which live in their own PRs.
  */
@@ -15,10 +15,11 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const MOCK = fileURLToPath(new URL('../../../apps/auth0-evals/mocks/auth0', import.meta.url));
-const ROUTES_DIR = fileURLToPath(new URL('../../../apps/auth0-evals/mocks/routes/', import.meta.url));
+const MOCKS_DIR = fileURLToPath(new URL('../../../apps/auth0-evals/mocks/', import.meta.url));
 
 let stateDir: string;
-let fixtureRoute: string;
+let fixtureManifest: string;
+let fixtureDir: string;
 
 /** Run the mock CLI with an isolated per-test state dir; return trimmed stdout. */
 function run(...args: string[]): string {
@@ -30,22 +31,27 @@ function run(...args: string[]): string {
 
 beforeEach(() => {
   stateDir = mkdtempSync(join(tmpdir(), 'auth0-mock-test-'));
-  // Drop a throwaway route file exercising a stateful read-after-write surface.
-  // Named with a leading `zz-` so it never collides with real feature routes.
-  fixtureRoute = join(ROUTES_DIR, 'zz-mock-test-fixture.sh');
+  // Drop a throwaway manifest file exercising a stateful read-after-write surface.
+  // Named with a leading `zz-` so it never collides with real feature manifests.
+  fixtureManifest = join(MOCKS_DIR, 'zz-fixture.routes.json');
+  fixtureDir = join(MOCKS_DIR, 'fixtures', 'zzfixture');
+  rmSync(fixtureDir, { recursive: true, force: true });
   writeFileSync(
-    fixtureRoute,
-    `case "$ROUTE" in
-  "get widgets") if has_state test_widget; then emit '[{"id":"w1"}]'; else emit '[]'; fi ;;
-  "post widgets") record_state test_widget; emit '{"id":"w1"}' ;;
-esac
-`,
+    fixtureManifest,
+    JSON.stringify({
+      surface: 'zzfixture',
+      routes: [
+        { match: 'POST widgets', verb: 'create', state: 'zz.widget', body: { id: 'w1' } },
+        { match: 'GET widgets', verb: 'reflect', state: 'zz.widget', present: [{ id: 'w1' }], absent: [] },
+      ],
+    }),
   );
 });
 
 afterEach(() => {
   rmSync(stateDir, { recursive: true, force: true });
-  rmSync(fixtureRoute, { force: true });
+  rmSync(fixtureManifest, { force: true });
+  rmSync(fixtureDir, { recursive: true, force: true });
 });
 
 describe('mock auth0 — path normalization', () => {
@@ -105,14 +111,16 @@ describe('mock auth0 — per-eval routes via EVAL_MOCK_ROUTES_DIRS', () => {
   let perEvalDir: string;
 
   beforeEach(() => {
-    // A route dir simulating one shipped next to an eval's PROMPT.md.
+    // A routes dir simulating one shipped next to an eval's PROMPT.md.
     perEvalDir = mkdtempSync(join(tmpdir(), 'per-eval-routes-'));
     writeFileSync(
-      join(perEvalDir, 'gadgets.sh'),
-      `case "$ROUTE" in
-  "get gadgets") emit '[{"id":"g1"}]' ;;
-esac
-`,
+      join(perEvalDir, 'gadgets.routes.json'),
+      JSON.stringify({
+        surface: 'gadgets',
+        routes: [
+          { match: 'GET gadgets', verb: 'static', body: [{ id: 'g1' }] },
+        ],
+      }),
     );
   });
 

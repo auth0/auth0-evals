@@ -1,106 +1,34 @@
-#!/bin/sh
-# ─────────────────────────────────────────────────────────────────────────────
-# Mock Auth0 CLI for eval runs — dispatcher.
-#
-# Real `auth0` commands require an authenticated session and mutate a live
-# tenant. Evals must be hermetic: they measure whether the agent knew to run the
-# correct command (checked via the `ranCommand*` / `wroteFile` event graders
-# against the tool-call trace), NOT whether a real tenant changed. This stub
-# lets the agent's command succeed deterministically — no auth, no network, no
-# live side effects — so the agent doesn't see an error and thrash.
-#
-# It is placed on PATH ahead of any real `auth0` binary via EVAL_MOCK_BIN_DIR
-# (see packages/eval-core/src/utils/env.ts). Prepending guarantees a real
-# auth0 install on the host can never be hit during a run.
-#
-# ── Architecture: dumb dispatcher + per-feature route files ───────────────────
-# This file owns only the SHARED mechanism and knows nothing about any specific
-# Auth0 API surface:
-#   1. Parse `auth0 api <method> <path> [--data ...]`.
-#   2. Normalize the path so every form agents use routes to one bare path.
-#   3. Source each mocks/routes/*.sh, giving it a chance to handle the request.
-#   4. If none handled it, apply the safe fallthrough (writes → {"ok":true},
-#      reads → {}).
-# A feature adds its endpoints by dropping ONE file in mocks/routes/ — no edit to
-# this dispatcher, no merge conflicts. See mocks/routes/README (or an existing
-# route file) for the contract. Shared helpers live in mocks/lib.sh.
-#
-# ── Statefulness ──────────────────────────────────────────────────────────────
-# Route files record per-run state via helpers in lib.sh (record_state/has_state)
-# so a later read reflects an earlier write, the way the real API behaves. State
-# is marker files under EVAL_MOCK_STATE_DIR — a per-run temp dir OUTSIDE the
-# workspace (so graders never see it), set by run.ts locally and entrypoint.sh in
-# the sandbox. If unset, we fall back to a temp dir; state is coherent within a
-# single process invocation and harmless across them.
-# ─────────────────────────────────────────────────────────────────────────────
+#!/usr/bin/env node
+// Mock Auth0 CLI — thin entrypoint. Runs the generic mock engine (eval-core)
+// with Auth0-specific config. The engine knows nothing about Auth0; this file
+// supplies the binary name, the /api/v2 path convention, and where manifests
+// and handlers live. See apps/auth0-evals/mocks/README.md.
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { mock } from '@a0/eval-core';
 
-MOCK_DIR="$(dirname "$0")"
-STATE="${EVAL_MOCK_STATE_DIR:-${TMPDIR:-/tmp}/auth0-mock-state}"
-mkdir -p "$STATE" 2>/dev/null || true
+const here = dirname(fileURLToPath(import.meta.url));
 
-# shellcheck source=mocks/lib.sh
-. "$MOCK_DIR/lib.sh"
+// Manifest dirs: this mocks/ dir, plus any per-eval dirs on EVAL_MOCK_ROUTES_DIRS.
+const manifestDirs = [here];
+if (process.env.EVAL_MOCK_ROUTES_DIRS) {
+  manifestDirs.push(...process.env.EVAL_MOCK_ROUTES_DIRS.split(':').filter(Boolean));
+}
 
-case "$1" in
-  api)
-    # $2 = HTTP method (any case), $3 = API path. Exposed to route files as
-    # METHOD (lowercased) and PATH_ (normalized). PAYLOAD is all args joined,
-    # for cheap matching on the --data body.
-    METHOD=$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')
-    # Normalize the path so every form agents use routes to one bare path.
-    # Agents write any of: `guardian/factors/otp`, `/api/v2/guardian/factors/otp`,
-    # or the full `https://<tenant>/api/v2/guardian/factors/otp`. Strip (in order)
-    # scheme+host, then a leading slash, then a leading `api/v2/` segment — so all
-    # three collapse to `guardian/factors/otp`. Without this, a form that fell
-    # through to `{}` read as an ambiguous non-error and made agents doubt their
-    # auth and thrash hunting credentials.
-    PATH_=$(printf '%s' "$3" | sed -e 's#^https\{0,1\}://[^/]*/##' -e 's#^/*##' -e 's#^api/v2/##')
-    PAYLOAD="$*"
-    ROUTE="$METHOD $PATH_"
-    HANDLED=0
+// Load handler maps from every handlers.js next to a manifest dir.
+const handlers = {};
+for (const dir of manifestDirs) {
+  const hFile = join(dir, 'handlers.js');
+  if (existsSync(hFile)) Object.assign(handlers, (await import(hFile)).default ?? {});
+}
 
-    # Give each feature route file a chance to handle ROUTE. Route files inspect
-    # $ROUTE / $METHOD / $PATH_ / $PAYLOAD and call emit() (from lib.sh) to
-    # respond, which sets HANDLED=1.
-    # Route search dirs: the app-level routes/ first, then any per-eval routes
-    # dirs the runner passed on EVAL_MOCK_ROUTES_DIRS (colon-separated) so an
-    # eval can ship its own routes/ next to its PROMPT.md.
-    ROUTE_DIRS="$MOCK_DIR/routes"
-    if [ -n "$EVAL_MOCK_ROUTES_DIRS" ]; then
-      ROUTE_DIRS="$ROUTE_DIRS:$EVAL_MOCK_ROUTES_DIRS"
-    fi
-    _old_ifs="$IFS"
-    IFS=':'
-    for route_dir in $ROUTE_DIRS; do
-      IFS="$_old_ifs"
-      [ -d "$route_dir" ] || { IFS=':'; continue; }
-      for route_file in "$route_dir"/*.sh; do
-        [ -f "$route_file" ] || continue
-        # shellcheck source=/dev/null
-        . "$route_file"
-        [ "$HANDLED" -eq 1 ] && break
-      done
-      IFS=':'
-      [ "$HANDLED" -eq 1 ] && break
-    done
-    IFS="$_old_ifs"
+const config = {
+  binName: 'auth0',
+  stripPrefixes: ['api/v2/'],
+  manifestDirs,
+  stateDir: process.env.EVAL_MOCK_STATE_DIR || join(process.env.TMPDIR || '/tmp', 'auth0-mock-state'),
+};
 
-    if [ "$HANDLED" -eq 0 ]; then
-      # Fallthrough: an unmapped write still "succeeded" as far as the CLI is
-      # concerned — echo a non-empty success so it never reads as a no-op (which
-      # made agents doubt the call landed and thrash). Unmapped reads return {}.
-      case "$METHOD" in
-        put | patch | post | delete) printf '{"ok":true}\n' ;;
-        *) printf '{}\n' ;;
-      esac
-    fi
-    ;;
-  login)
-    echo "✓ Successfully logged in (mock)"
-    ;;
-  *)
-    echo "auth0 (mock): ok"
-    ;;
-esac
-
-exit 0
+const out = await mock.runMockCli(process.argv.slice(2), config, handlers);
+process.stdout.write(out + '\n');
