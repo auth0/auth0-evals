@@ -27,6 +27,8 @@ export interface RouteManifest {
   surface: string;
   consumedBy?: string[];
   routes: RouteDef[];
+  /** Absolute dir the manifest was loaded from (set by loadManifests). */
+  dir?: string;
 }
 
 export interface EngineConfig {

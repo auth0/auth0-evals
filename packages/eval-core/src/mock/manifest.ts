@@ -39,6 +39,7 @@ export function loadManifests(dirs: string[]): RouteManifest[] {
         throw new Error(`[mock] ${file}: manifest needs 'surface' and 'routes[]'`);
       }
       for (const r of parsed.routes) validateRoute(r, file);
+      parsed.dir = dir;
       manifests.push(parsed);
     }
   }
