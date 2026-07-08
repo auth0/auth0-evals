@@ -1,4 +1,13 @@
-const FACTORS = ['sms', 'push-notification', 'otp', 'email', 'duo', 'webauthn-roaming', 'webauthn-platform', 'recovery-code'];
+const FACTORS = [
+  'sms',
+  'push-notification',
+  'otp',
+  'email',
+  'duo',
+  'webauthn-roaming',
+  'webauthn-platform',
+  'recovery-code',
+];
 
 export default {
   setFactor(ctx) {

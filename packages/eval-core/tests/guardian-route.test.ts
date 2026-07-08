@@ -1,8 +1,10 @@
 /**
- * Tests for the Guardian mock route (`mocks/routes/guardian.sh`).
+ * Tests for the Guardian mock surface (`mfa/tenant-cli/routes/guardian.routes.json`).
  *
- * Exercises the guardian API surface end-to-end through the dispatcher:
- * enabling factors, setting the enforcement policy, and read-after-write.
+ * The guardian manifest is co-located with the mfa_tenant_cli eval, so this test
+ * points the dispatcher at that eval's routes/ dir via EVAL_MOCK_ROUTES_DIRS —
+ * the same wiring run.ts uses per-eval. Exercises the surface end-to-end through
+ * the dispatcher: enabling factors, setting the enforcement policy, read-after-write.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -13,12 +15,14 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const MOCK = fileURLToPath(new URL('../../../apps/auth0-evals/mocks/auth0', import.meta.url));
+// Guardian routes live with the eval, not in the shared mocks/ dir.
+const ROUTES_DIR = fileURLToPath(new URL('../../../apps/auth0-evals/src/evals/mfa/tenant-cli/routes', import.meta.url));
 
 let stateDir: string;
 
 function run(...args: string[]): string {
   return execFileSync(MOCK, args, {
-    env: { ...process.env, EVAL_MOCK_STATE_DIR: stateDir },
+    env: { ...process.env, EVAL_MOCK_STATE_DIR: stateDir, EVAL_MOCK_ROUTES_DIRS: ROUTES_DIR },
     encoding: 'utf8',
   }).trim();
 }

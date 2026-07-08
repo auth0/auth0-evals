@@ -48,7 +48,7 @@ export function defineGraders() {
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     // Tenant-side MFA enforcement (Guardian factors + policies) is measured
-    // separately by the standalone mfa_tenant_cli / mfa_tenant_terraform evals;
+    // separately by the standalone mfa_tenant_cli eval;
     // this eval scores only the React client step-up flow.
     judge(
       'Does the solution correctly implement MFA step-up authentication in a React app — ' +

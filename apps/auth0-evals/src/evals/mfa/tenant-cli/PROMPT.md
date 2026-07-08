@@ -2,7 +2,7 @@
 id: mfa_tenant_cli
 name: MFA Tenant Config (CLI)
 category: mfa
-scaffold: src/evals/scaffolds/cli/auth0
+scaffold: src/evals/scaffolds/cli/platform-context
 skills: auth0-mfa
 ---
 
