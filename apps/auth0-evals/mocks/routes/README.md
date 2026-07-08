@@ -1,10 +1,16 @@
 # Mock Auth0 CLI — route manifests
 
-Each file here mocks **one Auth0 API surface** (e.g. Guardian, Token Exchange).
-The `mocks/auth0` dispatcher loads every `*.routes.json` in this directory and
-per-eval route dirs (via `EVAL_MOCK_ROUTES_DIRS`), processing manifests until one
-handles the request. A feature adds its endpoints by dropping **one manifest file
-here** — no edit to the dispatcher, so manifests never conflict.
+A manifest mocks **one Auth0 API surface** (e.g. Guardian, Token Exchange). The
+`mocks/auth0` dispatcher loads every `*.routes.json` in this shared directory
+**plus** each consuming eval's own `routes/` dir (via `EVAL_MOCK_ROUTES_DIRS`,
+set per-eval by `run.ts`), processing manifests until one handles the request —
+no edit to the dispatcher, so manifests never conflict.
+
+**Co-locate a feature's manifest with the eval that uses it** — a tenant-config
+eval owns its surface under `src/evals/<category>/<eval>/routes/` (manifest +
+`fixtures/` + `handlers.js`), so the eval is self-contained. This shared
+directory holds only surfaces that are genuinely feature-neutral or shared by
+several evals; most manifests live next to their eval, not here.
 
 ## Manifest contract
 
@@ -79,8 +85,10 @@ Then create `fixtures/myapi/config.json` with the response content.
 
 ## Rules
 
-- **Name by API surface, not by eval** — `guardian.routes.json`, not `mfa-cli.routes.json`. One
-  surface may be consumed by several evals.
+- **Name by API surface, not by eval** — `guardian.routes.json`, not `mfa-cli.routes.json`.
+  Co-locate the manifest in its consuming eval's `routes/` dir. If a surface is genuinely
+  shared by several evals, either co-locate a copy in each eval's `routes/` dir or keep one
+  copy in this shared directory — both are loaded via `EVAL_MOCK_ROUTES_DIRS` + the shared dir.
 - **Namespace your state keys** to avoid collisions — `feature.thing_created`, not `created`.
 - **Add a route only when an eval needs the response content.** Unmapped routes
   already succeed via the fallthrough (writes → `{"ok":true}`, reads → `{}`); don't pre-populate endpoints nothing tests.
