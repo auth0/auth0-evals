@@ -2,7 +2,7 @@
 id: cte_tenant_cli
 name: Custom Token Exchange Tenant Config (CLI)
 category: custom-token-exchange
-scaffold: src/evals/scaffolds/cli/cte
+scaffold: src/evals/scaffolds/cli/platform-context
 skills: auth0-custom-token-exchange
 ---
 

@@ -1,8 +1,12 @@
 /**
- * Tests for the Custom Token Exchange mock route (`mocks/routes/token-exchange.sh`).
+ * Tests for the Custom Token Exchange mock surface
+ * (`custom-token-exchange/tenant-cli/routes/token-exchange.routes.json`).
  *
- * Exercises the actions + token-exchange-profiles surface end-to-end through the
- * dispatcher, including create → deploy → profile read-after-write.
+ * The manifest is co-located with the cte_tenant_cli eval, so this test points
+ * the dispatcher at that eval's routes/ dir via EVAL_MOCK_ROUTES_DIRS — the same
+ * wiring run.ts uses per-eval. Exercises the actions + token-exchange-profiles
+ * surface end-to-end through the dispatcher, including create → deploy → profile
+ * read-after-write.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -13,12 +17,16 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const MOCK = fileURLToPath(new URL('../../../apps/auth0-evals/mocks/auth0', import.meta.url));
+// Token-exchange routes live with the eval, not in the shared mocks/ dir.
+const ROUTES_DIR = fileURLToPath(
+  new URL('../../../apps/auth0-evals/src/evals/custom-token-exchange/tenant-cli/routes', import.meta.url),
+);
 
 let stateDir: string;
 
 function run(...args: string[]): string {
   return execFileSync(MOCK, args, {
-    env: { ...process.env, EVAL_MOCK_STATE_DIR: stateDir },
+    env: { ...process.env, EVAL_MOCK_STATE_DIR: stateDir, EVAL_MOCK_ROUTES_DIRS: ROUTES_DIR },
     encoding: 'utf8',
   }).trim();
 }
