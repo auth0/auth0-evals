@@ -1,0 +1,5 @@
+{
+  "id": "act_cte_validator",
+  "name": "cte-validator",
+  "supported_triggers": [{ "id": "custom-token-exchange", "version": "v1" }]
+}
