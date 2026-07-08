@@ -4,7 +4,7 @@ name: Angular MFA Step-Up
 scaffold: src/evals/scaffolds/angular/auth0
 skills: auth0-mfa
 setup_command: npm install
-compile_command: npm run build
+compile_command: ng build
 ---
 
 ## Task
