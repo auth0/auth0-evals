@@ -22,17 +22,21 @@ One env var, `EVAL_MOCK_BIN_DIR`, is prepended to the agent's `PATH` by
 any real binary — guarantees a real install can never be hit. This directory
 serves **all three execution contexts**:
 
-| Context | Who sets `EVAL_MOCK_BIN_DIR` |
-|---------|------------------------------|
-| Docker sandbox | `docker/entrypoint.sh` → `/app/mocks` (dir copied from `apps/auth0-evals/mocks/` by `docker/Dockerfile`) |
-| Local (`--dangerously-skip-sandbox`) | `packages/eval/src/cli/run.ts` → `<cwd>/mocks` = `apps/auth0-evals/mocks/` |
-| CI | uses the local path above |
+| Context                              | Who sets `EVAL_MOCK_BIN_DIR`                                                                             |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| Docker sandbox                       | `docker/entrypoint.sh` → `/app/mocks` (dir copied from `apps/auth0-evals/mocks/` by `docker/Dockerfile`) |
+| Local (`--dangerously-skip-sandbox`) | `packages/eval/src/cli/run.ts` → `<cwd>/mocks` = `apps/auth0-evals/mocks/`                               |
+| CI                                   | uses the local path above                                                                                |
 
-Per-eval routes: an eval may ship its own `routes/*.sh` next to its `PROMPT.md`.
-The runner sets `EVAL_MOCK_ROUTES_DIRS` to that dir and the dispatcher sources
-it after the app-level `routes/`. Those files live in the eval source tree,
-never in the agent workspace, so they are never graded or seen by the judge
-(defensively also excluded via `EXCLUDED_EVAL_DIRS` and the judge exclusions).
+Per-eval routes (**the default for tenant-config surfaces**): an eval ships its
+own `routes/` dir next to its `PROMPT.md` — a `<surface>.routes.json` manifest,
+its `fixtures/<surface>/`, and a `handlers.js`. `run.ts` sets
+`EVAL_MOCK_ROUTES_DIRS` to that dir and the dispatcher merges it with the shared
+`mocks/` dir. So `guardian` lives in `src/evals/mfa/tenant-cli/routes/` and
+`token-exchange` in `src/evals/custom-token-exchange/tenant-cli/routes/`, not
+here. Those files live in the eval source tree, never in the agent workspace, so
+they are never graded or seen by the judge (defensively also excluded via
+`EXCLUDED_EVAL_DIRS` and the judge exclusions).
 
 A stub is intercepted **only if a file with that exact command name exists
 here** — every other command resolves to the real binary as normal. The
@@ -44,12 +48,12 @@ Match the tier to what the eval actually needs. Don't build ahead of need:
 over-mocking masks real failures (`AGENTS.md` principle #4 — "if every model
 passes, the eval is broken").
 
-| The eval needs… | Tier | Work |
-|-----------------|------|------|
-| The agent to *run* a command; grader checks the trace | **1 — breadth** | Drop a stub file |
-| A *different* CLI (`terraform`, `gcloud`, …) | **1 — breadth** | Drop a stub file (deeper if multi-step) |
-| The agent to *read* the CLI's output and act on it | **2 — depth** | Add a fixture + a route |
-| A grader to assert on args the trace doesn't capture | **3 — verification** | Log invocations to a file |
+| The eval needs…                                       | Tier                 | Work                                    |
+| ----------------------------------------------------- | -------------------- | --------------------------------------- |
+| The agent to _run_ a command; grader checks the trace | **1 — breadth**      | Drop a stub file                        |
+| A _different_ CLI (`terraform`, `gcloud`, …)          | **1 — breadth**      | Drop a stub file (deeper if multi-step) |
+| The agent to _read_ the CLI's output and act on it    | **2 — depth**        | Add a fixture + a route                 |
+| A grader to assert on args the trace doesn't capture  | **3 — verification** | Log invocations to a file               |
 
 ### Axis 1 — Add a new CLI (breadth)
 
@@ -77,20 +81,29 @@ reads → `{}`). A feature adds its endpoints by dropping **one file** in
 `mocks/routes/` — no edit to the dispatcher, so route files never conflict.
 
 ```
-mocks/
-├── auth0                 # dispatcher — shared mechanism, no feature knowledge
-├── lib.sh                # helpers: emit / record_state / has_state / clear_state
-└── routes/
-    ├── README.md         # the route-file contract
-    ├── guardian.sh       # one Auth0 API surface per file (owned by the feature that ships it)
-    └── token-exchange.sh
+mocks/                         # shared: dispatcher + contract only
+├── auth0                      # dispatcher — shared mechanism, no feature knowledge
+└── routes/README.md           # the manifest contract
+
+src/evals/mfa/tenant-cli/routes/               # a feature's surface, co-located
+├── guardian.routes.json       # one Auth0 API surface per manifest
+├── handlers.js                # computed responses for this surface
+└── fixtures/guardian/*.json   # canned bodies
+
+src/evals/custom-token-exchange/tenant-cli/routes/
+├── token-exchange.routes.json
+├── handlers.js
+└── fixtures/token-exchange/*.json
 ```
 
-A route file matches on `$ROUTE` (`"<method> <path>"`) and calls `emit <body>`
-to respond. See `mocks/routes/README.md` for the full contract. Rules that keep
-it hermetic and honest:
-- **Name by API surface, not by eval** — `guardian.sh`, not `mfa-cli.sh`. One
-  surface may be consumed by several evals; head each file with `# Consumed by:`.
+A manifest declares routes as `{ "match": "<METHOD> <path>", "verb": ... }` and
+the dispatcher applies the verb (static / create / reflect / handler). See
+`mocks/routes/README.md` for the full contract. Rules that keep it hermetic and
+honest:
+
+- **Co-locate the manifest with its eval, named by API surface** —
+  `guardian.routes.json` under the consuming eval's `routes/`, not `mfa-cli.routes.json`.
+  A surface shared by several evals may instead live in the shared `mocks/` dir.
 - **Fake-but-plausible** values only (e.g. an id that looks real but points nowhere).
 - **GET returns data; PUT/PATCH/POST echo success** — mirror the real API's
   shape enough for the agent's follow-up logic.
@@ -109,6 +122,7 @@ policy), the route file needs per-run state. Use the `lib.sh` helpers
 **`EVAL_MOCK_STATE_DIR`** and reflect them in subsequent reads.
 
 Rules that keep this hermetic:
+
 - State lives in `EVAL_MOCK_STATE_DIR` — a per-run temp dir **outside the
   workspace**, so graders never see it. `run.ts` creates one per run locally and
   `docker/entrypoint.sh` creates one per container in the sandbox;
