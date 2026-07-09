@@ -37,7 +37,7 @@
   },
   "devDependencies": {
     "@a0/eval-graders": "*",
-    "@types/node": "^25.9.3",
+    "@types/node": "^26.1.1",
     "@vitest/coverage-v8": "^4.1.9",
     "vitest": "^4.1.10"
   }
