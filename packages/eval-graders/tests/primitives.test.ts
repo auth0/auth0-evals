@@ -1,6 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { contains, notContains, notContainsInSource, matches, judge, compiles } from '../src/primitives.js';
-import { GraderLevel } from '../src/types.js';
+import {
+  contains,
+  notContains,
+  notContainsInSource,
+  matches,
+  judge,
+  compiles,
+  calledTool,
+  calledToolOneOf,
+} from '../src/primitives.js';
+import { GraderLevel, type EventToolCall } from '../src/types.js';
 
 // ── contains ──────────────────────────────────────────────────────────────────
 
@@ -185,5 +194,76 @@ describe('compiles', () => {
   it('rejects non-event levels', () => {
     // @ts-expect-error — L1 is not an EventGraderLevel
     expect(() => compiles('build', GraderLevel.L1)).toThrow('event-based graders only support');
+  });
+});
+
+// ── calledTool ────────────────────────────────────────────────────────────────
+
+const mcpCalls: EventToolCall[] = [
+  { name: 'mcp__auth0-hosted-mcp__auth0_list_applications', args: {}, result: 'ok', causedError: false },
+  { name: 'read_file', args: { path: 'x' }, result: 'ok', causedError: false },
+];
+
+describe('calledTool', () => {
+  it('creates an event GraderDef requiring L4/L5', () => {
+    const def = calledTool('auth0_list_applications', undefined, GraderLevel.L4);
+    expect(def.kind).toBe('event');
+    expect(def.level).toBe(GraderLevel.L4);
+    expect(typeof def.predicate).toBe('function');
+  });
+
+  it('throws when given a non-event level', () => {
+    expect(() => calledTool('x', undefined, GraderLevel.L1 as never)).toThrow(
+      /event-based graders only support L4.*or L5/,
+    );
+  });
+
+  it('predicate passes when a matching mcp__ tool was called', () => {
+    const def = calledTool('auth0_list_applications', undefined, GraderLevel.L4);
+    expect(def.predicate!(mcpCalls)).toBe(true);
+  });
+
+  it('predicate is case-insensitive on the tool name', () => {
+    const def = calledTool('AUTH0_LIST_APPLICATIONS', undefined, GraderLevel.L4);
+    expect(def.predicate!(mcpCalls)).toBe(true);
+  });
+
+  it('predicate fails when only a non-mcp tool matches the substring', () => {
+    const calls: EventToolCall[] = [
+      { name: 'read_file', args: { path: 'auth0_list_applications.txt' }, result: 'ok', causedError: false },
+    ];
+    const def = calledTool('auth0_list_applications', undefined, GraderLevel.L4);
+    expect(def.predicate!(calls)).toBe(false);
+  });
+
+  it('predicate fails when the matching mcp call errored', () => {
+    const calls: EventToolCall[] = [
+      { name: 'mcp__auth0-hosted-mcp__auth0_list_applications', args: {}, result: 'err', causedError: true },
+    ];
+    const def = calledTool('auth0_list_applications', undefined, GraderLevel.L4);
+    expect(def.predicate!(calls)).toBe(false);
+  });
+
+  it('predicate fails on empty trace', () => {
+    const def = calledTool('auth0_list_applications', undefined, GraderLevel.L4);
+    expect(def.predicate!([])).toBe(false);
+  });
+});
+
+describe('calledToolOneOf', () => {
+  it('passes when any alternative matches', () => {
+    const def = calledToolOneOf(['auth0_get_application', 'auth0_list_applications'], undefined, GraderLevel.L4);
+    expect(def.predicate!(mcpCalls)).toBe(true);
+  });
+
+  it('fails when none match', () => {
+    const def = calledToolOneOf(['auth0_create_application'], undefined, GraderLevel.L4);
+    expect(def.predicate!(mcpCalls)).toBe(false);
+  });
+
+  it('throws when given a non-event level', () => {
+    expect(() => calledToolOneOf(['x'], undefined, GraderLevel.L2 as never)).toThrow(
+      /event-based graders only support L4.*or L5/,
+    );
   });
 });
