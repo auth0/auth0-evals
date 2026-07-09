@@ -723,6 +723,33 @@ describe('llmJudge - code corpus overflow', () => {
     });
     expect(passed).toBe(true);
   });
+
+  it('inserts untrusted code verbatim even when it contains $-substitution sequences', async () => {
+    // Regression: String.prototype.replace with a string pattern treats `$&`,
+    // `` $` ``, `$'`, and `$1` in the replacement specially. Since `code` is
+    // untrusted agent output, those sequences would silently corrupt the judge
+    // prompt (e.g. `$&` expands to the matched `{code}`).
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
+    const trickyCode = 'const re = /a/; s.replace(re, "$& and $1 and $` and $\'");';
+    await llmJudge({
+      question: 'Is the $& handling correct?',
+      code: trickyCode,
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
+    const messages = capturedBody?.messages as { role: string; content: string }[];
+    const userMessage = messages.find((mm) => mm.role === 'user')!.content;
+    expect(userMessage).toContain(trickyCode);
+    expect(userMessage).toContain('Is the $& handling correct?');
+  });
 });
 
 // ── llmJudge — enforceMaxChars=false (non-enforcing path) ───────────────────

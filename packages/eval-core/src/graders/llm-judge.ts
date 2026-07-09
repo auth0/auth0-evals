@@ -58,7 +58,10 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
     }
     logger.warn(`[judge] Code corpus exceeds limit (${code.length} > ${judgeMaxCodeChars} chars) — proceeding anyway`);
   }
-  const user = USER_TEMPLATE.replace('{question}', question).replace('{code}', code);
+  // Use function replacers so `question`/`code` are inserted verbatim. A string
+  // replacement would interpret `$&`, `` $` ``, `$'`, and `$1` specially, and
+  // since `code` is untrusted agent output this would silently corrupt the prompt.
+  const user = USER_TEMPLATE.replace('{question}', () => question).replace('{code}', () => code);
 
   // The judge hits the /chat/completions endpoint, which serves models under
   // their plain alias, so the model is sent as-is (no Bedrock ID mapping).
