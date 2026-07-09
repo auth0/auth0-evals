@@ -10,7 +10,7 @@
  * docker/entrypoint.sh inside the sandbox container.
  */
 
-import { writeFileSync, renameSync } from 'node:fs';
+import { writeFileSync, renameSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { config as loadDotenv } from 'dotenv';
 
@@ -99,6 +99,14 @@ async function main(): Promise<void> {
   await initRunners();
 
   const evalDef = await loadEval(evalConfig, frameworkRoot);
+
+  // Per-eval mock routes: if the eval ships its own `routes/` dir, point the
+  // mock dispatcher at it (sourced after the built-in routes). EVAL_MOCK_BIN_DIR
+  // is already set to /app/mocks by entrypoint.sh.
+  const evalRoutesDir = join(evalDef.path, 'routes');
+  if (existsSync(evalRoutesDir)) {
+    process.env.EVAL_MOCK_ROUTES_DIRS = evalRoutesDir;
+  }
 
   try {
     if (evalDef.setupCommand) {

@@ -8,7 +8,9 @@
     "preevals": "npm run build",
     "evals": "a0-eval",
     "prereport": "npm run build",
-    "report": "a0-eval report"
+    "report": "a0-eval report",
+    "mock:new": "node scripts/mock-new.mjs",
+    "mock:check": "node scripts/mock-check.mjs"
   },
   "dependencies": {
     "@a0/eval": "*",

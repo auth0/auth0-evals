@@ -175,3 +175,6 @@ export { SkillsManager, getSkillsManager, resetSkillsManager } from './runners/s
 
 // Recommendations types
 export type { Recommendation, Recommendations } from './recommendations/types.js';
+
+// Mock CLI engine
+export * as mock from './mock/index.js';

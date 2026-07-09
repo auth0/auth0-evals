@@ -3,6 +3,8 @@
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
+import { tmpdir } from 'node:os';
+import { delimiter } from 'node:path';
 import { filteredEnv } from '../src/utils/env.js';
 
 describe('filteredEnv', () => {
@@ -113,6 +115,54 @@ describe('filteredEnv', () => {
     expect(env).not.toHaveProperty('CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS');
     expect(env).not.toHaveProperty('CLAUDE_CODE_USE_BEDROCK_PROXY');
     expect(env).not.toHaveProperty('GH_TOKEN');
+  });
+
+  it('prepends EVAL_MOCK_BIN_DIR to PATH when the directory exists', () => {
+    process.env.PATH = '/usr/bin';
+    process.env.EVAL_MOCK_BIN_DIR = tmpdir(); // a directory guaranteed to exist
+
+    const env = filteredEnv();
+    expect(env.PATH).toBe(`${tmpdir()}${delimiter}/usr/bin`);
+    // Prepended, not appended — the stub must win over any real binary.
+    expect(env.PATH!.startsWith(tmpdir())).toBe(true);
+  });
+
+  it('sets PATH to just the mock dir when PATH is unset', () => {
+    delete process.env.PATH;
+    process.env.EVAL_MOCK_BIN_DIR = tmpdir();
+
+    const env = filteredEnv();
+    expect(env.PATH).toBe(tmpdir());
+  });
+
+  it('ignores EVAL_MOCK_BIN_DIR when the directory does not exist', () => {
+    process.env.PATH = '/usr/bin';
+    process.env.EVAL_MOCK_BIN_DIR = '/nonexistent/mock/dir/xyz';
+
+    const env = filteredEnv();
+    expect(env.PATH).toBe('/usr/bin');
+  });
+
+  it('leaves PATH untouched when EVAL_MOCK_BIN_DIR is unset', () => {
+    process.env.PATH = '/usr/bin';
+    delete process.env.EVAL_MOCK_BIN_DIR;
+
+    const env = filteredEnv();
+    expect(env.PATH).toBe('/usr/bin');
+  });
+
+  it('forwards EVAL_MOCK_STATE_DIR to the child env when set', () => {
+    process.env.EVAL_MOCK_STATE_DIR = '/tmp/auth0-mock-state-abc';
+
+    const env = filteredEnv();
+    expect(env.EVAL_MOCK_STATE_DIR).toBe('/tmp/auth0-mock-state-abc');
+  });
+
+  it('omits EVAL_MOCK_STATE_DIR when unset', () => {
+    delete process.env.EVAL_MOCK_STATE_DIR;
+
+    const env = filteredEnv();
+    expect(env).not.toHaveProperty('EVAL_MOCK_STATE_DIR');
   });
 
   it('finds mixed-case keys and preserves their original casing', () => {

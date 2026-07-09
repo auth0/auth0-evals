@@ -10,6 +10,7 @@ export type {
   EventGraderLevel,
   CompileResult,
 } from './types.js';
+export type { JudgeOptions } from './primitives.js';
 
 // Grader factory functions
 export {
@@ -20,6 +21,7 @@ export {
   judge,
   ranCommand,
   ranCommandOneOf,
+  ranCommandsInOrder,
   wroteFile,
   compiles,
 } from './primitives.js';

@@ -1,0 +1,34 @@
+#!/usr/bin/env node
+// Mock Auth0 CLI — thin entrypoint. Runs the generic mock engine (eval-core)
+// with Auth0-specific config. The engine knows nothing about Auth0; this file
+// supplies the binary name, the /api/v2 path convention, and where manifests
+// and handlers live. See apps/auth0-evals/mocks/README.md.
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { mock } from '@a0/eval-core';
+
+const here = dirname(fileURLToPath(import.meta.url));
+
+// Manifest dirs: this mocks/ dir, plus any per-eval dirs on EVAL_MOCK_ROUTES_DIRS.
+const manifestDirs = [here];
+if (process.env.EVAL_MOCK_ROUTES_DIRS) {
+  manifestDirs.push(...process.env.EVAL_MOCK_ROUTES_DIRS.split(':').filter(Boolean));
+}
+
+// Load handler maps from every handlers.js next to a manifest dir.
+const handlers = {};
+for (const dir of manifestDirs) {
+  const hFile = join(dir, 'handlers.js');
+  if (existsSync(hFile)) Object.assign(handlers, (await import(hFile)).default ?? {});
+}
+
+const config = {
+  binName: 'auth0',
+  stripPrefixes: ['api/v2/'],
+  manifestDirs,
+  stateDir: process.env.EVAL_MOCK_STATE_DIR || join(process.env.TMPDIR || '/tmp', 'auth0-mock-state'),
+};
+
+const out = await mock.runMockCli(process.argv.slice(2), config, handlers);
+process.stdout.write(out + '\n');

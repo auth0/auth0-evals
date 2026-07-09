@@ -35,29 +35,29 @@ compile_command: npm run build
 ---
 ```
 
-| Field | Required | Description |
-|---|---|---|
-| `id` | **yes** | Unique snake_case identifier, used with `--eval` on the CLI |
-| `name` | no | Human-readable display name. Defaults to `id` |
-| `category` | no | Defaults to the parent directory name (e.g. `quickstarts`) |
-| `skills` | no | Comma-separated skill names from [auth0/agent-skills](https://github.com/auth0/agent-skills). Injected into agent context when running with `--tools skills` |
-| `setup_command` | no | Command run before the agent starts (e.g. `npm install`). Split on whitespace and executed directly via `spawnSync` — no shell, no operators (`&&`, `\|`, etc.), no quoting. One command only. |
-| `compile_command` | no | Compile/build command (e.g. `npm run build`, `node --check server.js`, `.venv/bin/python -m py_compile main.py`). Used two ways: (1) an instruction pointing the agent at this command is appended to the agent's native context file (`CLAUDE.md` / `GEMINI.md` / `AGENTS.md` / `.github/copilot-instructions.md`) alongside the "no docs files" guidance, nudging the agent to verify the build; and (2) **the framework runs it against the workspace after the agent finishes and uses the result to drive any `compiles()` grader in `graders.ts`** — so an agent whose output compiles passes even if it never ran the build itself. Agent modes only — baseline ignores it. Omit for evals with no CLI compile step (e.g. mobile). If you add a `compiles()` grader, you MUST also declare `compile_command`, or the grader fails. |
+| Field             | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`              | **yes**  | Unique snake_case identifier, used with `--eval` on the CLI                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `name`            | no       | Human-readable display name. Defaults to `id`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `category`        | no       | Defaults to the parent directory name (e.g. `quickstarts`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `skills`          | no       | Comma-separated skill names from [auth0/agent-skills](https://github.com/auth0/agent-skills). Injected into agent context when running with `--tools skills`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `setup_command`   | no       | Command run before the agent starts (e.g. `npm install`). Split on whitespace and executed directly via `spawnSync` — no shell, no operators (`&&`, `\|`, etc.), no quoting. One command only.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `compile_command` | no       | Compile/build command (e.g. `npm run build`, `node --check server.js`, `.venv/bin/python -m py_compile main.py`). Used two ways: (1) an instruction pointing the agent at this command is appended to the agent's native context file (`CLAUDE.md` / `GEMINI.md` / `AGENTS.md` / `.github/copilot-instructions.md`) alongside the "no docs files" guidance, nudging the agent to verify the build; and (2) **the framework runs it against the workspace after the agent finishes and uses the result to drive any `compiles()` grader in `graders.ts`** — so an agent whose output compiles passes even if it never ran the build itself. Agent modes only — baseline ignores it. Omit for evals with no CLI compile step (e.g. mobile). If you add a `compiles()` grader, you MUST also declare `compile_command`, or the grader fails. |
 
 To test a skill before it is pushed to the remote repo, see [TESTING_SKILLS.md](TESTING_SKILLS.md).
 
 ### Sections
 
-| Section | Used in | Purpose |
-|---|---|---|
+| Section     | Used in    | Purpose                                                                           |
+| ----------- | ---------- | --------------------------------------------------------------------------------- |
 | `## System` | `baseline` | System prompt for the single-turn LLM call. If omitted, a default prompt is used. |
-| `## Task` | all modes | The user-facing request sent to the model |
+| `## Task`   | all modes  | The user-facing request sent to the model                                         |
 
 If no sections are present, the entire body (after frontmatter) is used as the task prompt in all modes.
 
 ### Example
 
-````markdown
+```markdown
 ---
 id: react_quickstart
 name: React Quickstart
@@ -67,13 +67,14 @@ compile_command: npm run build
 ---
 
 ## Task
+
 Add Auth0 authentication to a React application using the `@auth0/auth0-react` SDK.
 
 - Domain: `dev-barkbook.us.auth0.com`
 - Client ID: `barkbook_client_abc123xyz`
 
 The app should support login, logout, and display the authenticated user's name and email.
-````
+```
 
 ### Tips
 
@@ -89,17 +90,17 @@ Graders define the acceptance criteria. Export a single `defineGraders()` functi
 
 ### Grader Primitives
 
-| Primitive | Passes when… |
-|---|---|
-| `contains(needle, description?, level?, options?)` | Any workspace file contains the substring (case-sensitive by default) |
-| `notContains(needle, description?, level?, options?)` | No workspace file contains the substring (case-sensitive by default) |
-| `notContainsInSource(needle, description?, level?, options?)` | No **source** file contains the substring (skips `.env`, `.json`, `.plist`, config files) |
-| `matches(pattern, description?, level?)` | Any workspace file matches the regex pattern |
-| `judge(question, level?)` | An LLM judge answers "yes" given the full workspace contents |
-| `ranCommand(command, args, description, level)` | Agent ran a successful shell command containing `command` and all `args` substrings |
-| `ranCommandOneOf(commands, description, level)` | Agent ran at least one successful command from the list (substring match) |
-| `wroteFile(path, description, level, expected?)` | Agent wrote a file whose path contains the substring. With optional `expected` (string or string array), the combined content of all writes to that path must also contain every `expected` substring |
-| `compiles(description, level)` | Framework runs the eval's `compile_command` against the workspace after the agent finishes and passes/fails on its exit code. Requires `compile_command` in frontmatter, or the grader fails. |
+| Primitive                                                     | Passes when…                                                                                                                                                                                          |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contains(needle, description?, level?, options?)`            | Any workspace file contains the substring (case-sensitive by default)                                                                                                                                 |
+| `notContains(needle, description?, level?, options?)`         | No workspace file contains the substring (case-sensitive by default)                                                                                                                                  |
+| `notContainsInSource(needle, description?, level?, options?)` | No **source** file contains the substring (skips `.env`, `.json`, `.plist`, config files)                                                                                                             |
+| `matches(pattern, description?, level?)`                      | Any workspace file matches the regex pattern                                                                                                                                                          |
+| `judge(question, level?)`                                     | An LLM judge answers "yes" given the full workspace contents                                                                                                                                          |
+| `ranCommand(command, args, description, level)`               | Agent ran a successful shell command containing `command` and all `args` substrings                                                                                                                   |
+| `ranCommandOneOf(commands, description, level)`               | Agent ran at least one successful command from the list (substring match)                                                                                                                             |
+| `wroteFile(path, description, level, expected?)`              | Agent wrote a file whose path contains the substring. With optional `expected` (string or string array), the combined content of all writes to that path must also contain every `expected` substring |
+| `compiles(description, level)`                                | Framework runs the eval's `compile_command` against the workspace after the agent finishes and passes/fails on its exit code. Requires `compile_command` in frontmatter, or the grader fails.         |
 
 The `options` parameter is an object with an optional `caseSensitive` field (defaults to `true`).
 
@@ -128,6 +129,7 @@ import { GraderLevel } from '@a0/eval-graders';
 **Primitives to use:** `contains`
 
 **Examples:**
+
 ```typescript
 contains('@auth0/auth0-react', 'Uses @auth0/auth0-react SDK', GraderLevel.L1),
 contains('Auth0Provider', 'Wraps app with Auth0Provider', GraderLevel.L1),
@@ -147,6 +149,7 @@ contains('webAuth()', 'Uses webAuth() for login', GraderLevel.L1),
 **Primitives to use:** `notContains`
 
 **Examples:**
+
 ```typescript
 notContains('@auth0/react', 'No hallucinated @auth0/react package (correct: @auth0/auth0-react)', GraderLevel.L2),
 notContains('@auth0/nextjs-auth0', 'Does not use server SDK in a SPA', GraderLevel.L2),
@@ -166,6 +169,7 @@ notContains('completionHandler', 'Does not use deprecated completion handler pat
 **Primitives to use:** `notContains`, `notContainsInSource`
 
 **Examples:**
+
 ```typescript
 // Source-only: domain/clientId are ok in Auth0.plist, not in .swift files
 notContainsInSource('barkbook_client_abc123xyz', 'No hardcoded client ID in Swift source', GraderLevel.L3),
@@ -187,6 +191,7 @@ notContains('sessionStorage.setItem', 'No tokens stored in sessionStorage', Grad
 **Primitives to use:** `matches`, `judge`
 
 **Examples:**
+
 ```typescript
 // Regex: verifies structural composition, not just presence of two separate strings
 matches(String.raw`<Auth0Provider[\s\S]*?domain`, 'Auth0Provider configured with domain prop', GraderLevel.L4),
@@ -216,6 +221,7 @@ judge(
 **Primitives to use:** `contains`, `matches`, `judge`
 
 **Examples:**
+
 ```typescript
 // React: authorizationParams was introduced to replace direct audience/scope props
 contains('authorizationParams', 'Uses authorizationParams (not deprecated direct props)', GraderLevel.L5),
@@ -255,14 +261,7 @@ judge(
 ### Full Annotated Example
 
 ```typescript
-import {
-  contains,
-  notContains,
-  notContainsInSource,
-  matches,
-  judge,
-  GraderLevel,
-} from '@a0/eval-graders';
+import { contains, notContains, notContainsInSource, matches, judge, GraderLevel } from '@a0/eval-graders';
 
 export function defineGraders() {
   return [
@@ -285,10 +284,7 @@ export function defineGraders() {
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
     matches(String.raw`<Auth0Provider[\s\S]*?domain`, 'Auth0Provider has domain prop', GraderLevel.L4),
-    judge(
-      'Does the code guard auth-dependent UI behind isLoading check?',
-      GraderLevel.L4,
-    ),
+    judge('Does the code guard auth-dependent UI behind isLoading check?', GraderLevel.L4),
 
     // ── L5: Version-specific API correctness ──────────────────────────────────
     contains('authorizationParams', 'Uses authorizationParams (not deprecated direct props)', GraderLevel.L5),
@@ -318,6 +314,14 @@ scaffold/
     └── index.js
 ```
 
+### Shared platform context (CLI tenant-config evals)
+
+Scaffolds are starter **code**. Some evals also need shared platform **context** — operating-model guidance the agent reads but doesn't build on. Rather than duplicating it per eval, the framework attaches it **by convention**:
+
+> **An eval that ships a `routes/` dir automatically inherits `src/evals/contexts/cli-platform/AGENTS.md`.**
+
+A `routes/` dir means the eval mocks the Auth0 CLI (see [Mock CLI stubs](../AGENTS.md)), i.e. it's a CLI tenant-config eval — so it gets the shared "you are a platform engineer; use the Auth0 CLI; it's already authenticated" context injected into the agent's native context file. No frontmatter field is needed (and CLI evals declare no `scaffold`). The shared file is generic — it names no feature-specific commands, so it never leaks a grader's expected answer. Edit that one file to change the context for every CLI eval at once.
+
 ---
 
 ## 4. Auto-Discovery
@@ -341,13 +345,13 @@ npm run evals -- --eval my_new_eval --mode agent --keep-workspace
 
 ### Modes and tools
 
-| Combo | What it tests |
-|---|---|
-| `baseline` | Single LLM call, no tools; grades extracted code blocks |
-| `agent` | Agent with file/shell tools; grades written workspace files |
-| `agent --tools mcp` | Same as `agent`, with the Auth0 MCP server available |
-| `agent --tools skills` | Same as `agent`, with the `SKILL.md` injected into agent context |
-| `agent --tools mcp,skills` | Both skill injection and MCP together |
+| Combo                      | What it tests                                                    |
+| -------------------------- | ---------------------------------------------------------------- |
+| `baseline`                 | Single LLM call, no tools; grades extracted code blocks          |
+| `agent`                    | Agent with file/shell tools; grades written workspace files      |
+| `agent --tools mcp`        | Same as `agent`, with the Auth0 MCP server available             |
+| `agent --tools skills`     | Same as `agent`, with the `SKILL.md` injected into agent context |
+| `agent --tools mcp,skills` | Both skill injection and MCP together                            |
 
 To run all combos and measure the delta each investment provides, combine `--mode all` with `--tools` for each tool set you want to compare.
 

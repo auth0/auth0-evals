@@ -24,6 +24,8 @@ export interface EvalConfig {
   name: string;
   category: string;
   path: string;
+  /** Retained for backward compat; alternate PROMPT file name. */
+  promptFile?: string;
 }
 
 /** Options for customising how the loader parses PROMPT.md. */
@@ -46,7 +48,11 @@ export async function loadEval(
   }
 
   const defaultBaselinePrompt = options?.defaultBaselineSystemPrompt ?? FALLBACK_BASELINE_PROMPT;
-  const { baselineSystemPrompt, userPrompt, meta } = parsePromptMd(join(evalPath, 'PROMPT.md'), defaultBaselinePrompt);
+  const promptFileName = evalConfig.promptFile ?? 'PROMPT.md';
+  const { baselineSystemPrompt, userPrompt, meta } = parsePromptMd(
+    join(evalPath, promptFileName),
+    defaultBaselinePrompt,
+  );
 
   const distRelPath = evalConfig.path.replace(/^src\//, '');
   const distGradersPath = join(frameworkRoot, 'dist', distRelPath, 'graders.js');
@@ -54,7 +60,14 @@ export async function loadEval(
   const gradersPath = existsSync(distGradersPath) ? distGradersPath : srcGradersPath;
   const graders = await loadGraders(gradersPath);
   const scaffoldDir = resolveScaffoldFromMeta(meta.scaffold, evalPath, frameworkRoot);
-  const scaffold = loadScaffold(scaffoldDir);
+  // Shared platform context (guidance, not code) is auto-attached by convention:
+  // an eval that ships a `routes/` dir is driving a CLI (it mocks CLI endpoints),
+  // so it inherits the shared CLI platform-context AGENTS.md — no per-eval
+  // frontmatter needed. Merged on top of the scaffold; its AGENTS.md is injected
+  // into the runner's context file by writeAgentGuidance. Wins over a scaffold
+  // AGENTS.md if both exist.
+  const context = loadSharedContextForEval(evalPath, frameworkRoot);
+  const scaffold = { ...loadScaffold(scaffoldDir), ...context };
 
   const skillsRaw = meta.skills ?? '';
   const skills = skillsRaw
@@ -133,11 +146,7 @@ async function loadGraders(gradersPath: string): Promise<GraderDef[]> {
  * Resolve the scaffold directory from the optional `scaffold` frontmatter field.
  * Falls back to the local scaffold/ subdirectory when the field is absent.
  */
-function resolveScaffoldFromMeta(
-  scaffoldMeta: string | undefined,
-  evalPath: string,
-  frameworkRoot: string,
-): string {
+function resolveScaffoldFromMeta(scaffoldMeta: string | undefined, evalPath: string, frameworkRoot: string): string {
   if (!scaffoldMeta) {
     return join(evalPath, 'scaffold');
   }
@@ -153,13 +162,40 @@ function resolveScaffoldFromMeta(
   }
 
   if (!existsSync(resolvedPath)) {
-    throw new EvalConfigError(
-      `scaffold path does not exist: ${resolvedPath}`,
-      join(evalPath, 'PROMPT.md'),
-    );
+    throw new EvalConfigError(`scaffold path does not exist: ${resolvedPath}`, join(evalPath, 'PROMPT.md'));
   }
 
   return resolvedPath;
+}
+
+/**
+ * Well-known location of the shared CLI platform-context `AGENTS.md`, relative
+ * to `frameworkRoot`. Auto-attached to any eval that ships a `routes/` dir.
+ */
+const CLI_PLATFORM_CONTEXT = 'src/evals/contexts/cli-platform/AGENTS.md';
+
+/**
+ * Auto-attaches shared platform *context* (guidance, not starter code) to an eval
+ * by convention. An eval that ships a `routes/` dir is mocking a CLI (see the
+ * mock dispatcher's `EVAL_MOCK_ROUTES_DIRS`), i.e. it is a CLI tenant-config eval,
+ * so it inherits the shared CLI platform-context `AGENTS.md` — the operating-model
+ * instructions every such eval needs — without declaring anything in frontmatter.
+ *
+ * Returns `{ 'AGENTS.md': content }` when the eval qualifies and the shared file
+ * exists, else `{}`. `writeAgentGuidance` later renames/injects that AGENTS.md
+ * into the runner's native context file. Safe by default: an eval with no
+ * `routes/` dir, or a missing shared-context file, gets nothing extra.
+ */
+function loadSharedContextForEval(evalPath: string, frameworkRoot: string): Record<string, string> {
+  const hasRoutes = existsSync(join(evalPath, 'routes')) && statSync(join(evalPath, 'routes')).isDirectory();
+  if (!hasRoutes) {
+    return {};
+  }
+  const contextFile = join(frameworkRoot, CLI_PLATFORM_CONTEXT);
+  if (existsSync(contextFile) && statSync(contextFile).isFile()) {
+    return { 'AGENTS.md': readFileSync(contextFile, 'utf-8') };
+  }
+  return {};
 }
 
 // ── scaffold file loader ──────────────────────────────────────────────────────

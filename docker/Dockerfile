@@ -67,6 +67,16 @@ COPY --from=builder /build/apps/auth0-evals/eval.config.js apps/auth0-evals/eval
 COPY apps/auth0-evals/src/evals/ apps/auth0-evals/src/evals/
 COPY apps/auth0-evals/skills/ apps/auth0-evals/skills/
 
+# Copy mock CLI stubs (hermetic no-op shims for external CLIs like `auth0`).
+# entrypoint.sh puts this dir on PATH ahead of any real binary via
+# EVAL_MOCK_BIN_DIR so eval runs never authenticate against or mutate a live
+# tenant. Lives under the app that owns the evals. See
+# apps/auth0-evals/mocks/README.md and packages/eval-core/src/utils/env.ts.
+COPY apps/auth0-evals/mocks/ /app/mocks/
+# Mark the CLI stubs (top-level, non-markdown files) executable; leave
+# routes/ and README.md alone.
+RUN find /app/mocks -maxdepth 1 -type f ! -name '*.md' -exec chmod +x {} +
+
 # Copy entrypoint
 COPY docker/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

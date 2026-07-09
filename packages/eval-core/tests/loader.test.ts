@@ -321,6 +321,67 @@ describe('loadEval - frontmatter scaffold field', () => {
   });
 });
 
+// ── shared CLI platform-context auto-injection tests ─────────────────────────
+// Convention: an eval that ships a `routes/` dir is a CLI tenant-config eval and
+// auto-inherits the shared src/evals/contexts/cli-platform/AGENTS.md — no
+// frontmatter field. See loadSharedContextForEval in loader.ts.
+
+const SHARED_CLI_CONTEXT_REL = 'src/evals/contexts/cli-platform';
+
+function makeSharedCliContext(base: string, content = 'You are a platform engineer.\n'): void {
+  makeScaffoldVariant(base, SHARED_CLI_CONTEXT_REL, { 'AGENTS.md': content });
+}
+
+function addRoutesDir(evalDir: string): void {
+  const routes = join(evalDir, 'routes');
+  mkdirSync(routes, { recursive: true });
+  writeFileSync(join(routes, 'guardian.routes.json'), '{"surface":"guardian","routes":[]}');
+}
+
+describe('loadEval - shared CLI platform context', () => {
+  it('auto-injects the shared context AGENTS.md when the eval ships a routes/ dir', async () => {
+    makeSharedCliContext(tmpBase);
+    const evalDir = makeEvalDir(tmpBase);
+    addRoutesDir(evalDir);
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.scaffold['AGENTS.md']).toContain('You are a platform engineer');
+  });
+
+  it('does not inject context when the eval has no routes/ dir', async () => {
+    makeSharedCliContext(tmpBase);
+    makeEvalDir(tmpBase); // no routes/
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.scaffold['AGENTS.md']).toBeUndefined();
+  });
+
+  it('is a no-op (no throw) when routes/ exists but the shared context file is absent', async () => {
+    const evalDir = makeEvalDir(tmpBase);
+    addRoutesDir(evalDir); // routes/ present, but no contexts/cli-platform
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.scaffold['AGENTS.md']).toBeUndefined();
+  });
+
+  it('shared context AGENTS.md wins over a scaffold AGENTS.md', async () => {
+    makeSharedCliContext(tmpBase, 'Shared platform context.\n');
+    // local scaffold/ also ships an AGENTS.md
+    const evalDir = makeEvalDir(tmpBase, MINIMAL_PROMPT, DEFAULT_GRADERS, {
+      'AGENTS.md': 'Local scaffold guidance.\n',
+    });
+    addRoutesDir(evalDir);
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.scaffold['AGENTS.md']).toContain('Shared platform context');
+    expect(result.scaffold['AGENTS.md']).not.toContain('Local scaffold');
+  });
+});
+
 // ── Graders loading tests ─────────────────────────────────────────────────────
 
 describe('loadEval - graders loading', () => {

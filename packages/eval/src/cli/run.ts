@@ -22,6 +22,8 @@
 
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import pLimit from 'p-limit';
 import { config as loadDotenv } from 'dotenv';
 
@@ -136,6 +138,7 @@ async function runAgentJob(
   // (CLAUDE.md / GEMINI.md / AGENTS.md). Must run before both the docker and
   // local execution paths so every runner picks it up.
   writeAgentGuidance(workspace, agentType, evalDef.compileCommand);
+  let mockStateDir: string | undefined;
   try {
     if (!sandbox && evalDef.setupCommand) {
       runSetupCommand(workspace, evalDef.setupCommand);
@@ -157,7 +160,32 @@ async function runAgentJob(
       });
     }
 
-    // Local execution (--dangerously-skip-sandbox or baseline)
+    // Local execution (--dangerously-skip-sandbox or baseline). Point the
+    // runner at the mock CLI stubs so external CLIs (e.g. `auth0`) resolve to
+    // hermetic no-ops instead of authenticating against or mutating a live
+    // tenant. filteredEnv() prepends this to the agent's PATH. The sandbox path
+    // sets the same var to /app/mocks in docker/entrypoint.sh.
+    //
+    // The mock dir is app-relative (`<cwd>/mocks` = apps/auth0-evals/mocks) —
+    // the tool runs from the app root (that is why evalsDir is relative). No
+    // fragile ../ walk from the compiled dist location.
+    process.env.EVAL_MOCK_BIN_DIR = join(process.cwd(), 'mocks');
+    // Per-eval mock routes: an eval may ship its own `routes/` dir next to its
+    // PROMPT.md; the dispatcher sources these after its own routes. Only set
+    // when the dir exists. Never enters the workspace, so it is never graded.
+    const evalRoutesDir = join(evalDef.path, 'routes');
+    if (existsSync(evalRoutesDir)) {
+      process.env.EVAL_MOCK_ROUTES_DIRS = evalRoutesDir;
+    } else {
+      delete process.env.EVAL_MOCK_ROUTES_DIRS;
+    }
+    // Per-run state dir for stateful mock stubs (e.g. mocks/auth0), created
+    // outside the workspace so it is never graded and unique per subprocess so
+    // concurrent runs never collide. filteredEnv() forwards it to the agent.
+    // The sandbox path sets the same var in docker/entrypoint.sh.
+    mockStateDir = mkdtempSync(join(tmpdir(), 'auth0-eval-mockstate-'));
+    process.env.EVAL_MOCK_STATE_DIR = mockStateDir;
+
     const runner = getRunner(agentType);
     const preparedEval = tools.includes('skills') ? await runner.prepareSkills(evalDef, workspace) : evalDef;
     const { record, resolvedModel } = await runner.run({ evalDef: preparedEval, workspace, model, tools, apiKey });
@@ -200,6 +228,11 @@ async function runAgentJob(
       agent_type: agentType,
     };
   } finally {
+    if (mockStateDir) {
+      rmSync(mockStateDir, { recursive: true, force: true });
+      delete process.env.EVAL_MOCK_STATE_DIR;
+      delete process.env.EVAL_MOCK_ROUTES_DIRS;
+    }
     if (!keepWorkspace) {
       cleanupWorkspace(workspace);
     }
@@ -252,7 +285,14 @@ function printSummary(results: JobResult[], elapsed: number): void {
  * exactly one (eval × model × mode × tools) job without re-expanding them.
  */
 export function buildSubprocessArgs(argv: string[] = process.argv.slice(2)): string[] {
-  const VALUE_FLAGS = new Set(['--eval', '--output', '--model', '--mode', '--tools', '--agent-type']);
+  const VALUE_FLAGS = new Set([
+    '--eval',
+    '--output',
+    '--model',
+    '--mode',
+    '--tools',
+    '--agent-type',
+  ]);
   const stripped: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];

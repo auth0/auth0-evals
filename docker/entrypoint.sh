@@ -143,6 +143,21 @@ fi
 # resolvable by name when the runner spawns child processes.
 export PATH="/app/node_modules/.bin:$PATH"
 
+# ─── Mock CLI shims ───────────────────────────────────────────────────────────
+# Point the runner at the baked-in mock stubs (mocks/ → /app/mocks). The
+# runner's filteredEnv() prepends this dir to the agent's PATH so stubbed CLIs
+# (e.g. `auth0`) resolve to hermetic no-ops instead of authenticating against or
+# mutating a live tenant. See packages/eval-core/src/utils/env.ts.
+export EVAL_MOCK_BIN_DIR="/app/mocks"
+
+# Per-container state dir for stateful mock stubs (e.g. mocks/auth0), so a `get`
+# reflects a prior `put`. Outside the workspace so it is never graded. One
+# container runs one eval, so a single dir is sufficient. filteredEnv() forwards
+# this var to the agent. The local path sets it per-run in run.ts.
+EVAL_MOCK_STATE_DIR="$(mktemp -d)"
+export EVAL_MOCK_STATE_DIR
+chown -R 1000:1000 "$EVAL_MOCK_STATE_DIR" 2>/dev/null || true
+
 # ─── Drop privileges and run ──────────────────────────────────────────────────
 # Why setpriv instead of su/gosu:
 #   - su resets PATH via PAM, breaking CLI resolution
