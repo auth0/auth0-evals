@@ -84,6 +84,8 @@ Use `notContainsInSource` (not `notContains`) when a value like a client ID is a
 | `ranCommandOneOf(commands, description, level)`  | Agent ran at least one command from the list — event-based, level required (L4 or L5)                                                                                                                                                          |
 | `wroteFile(path, description, level, expected?)` | Agent wrote a file whose path contains the substring. With optional `expected` (string or string array), the combined content of all writes to that path must also contain every `expected` substring — event-based, level required (L4 or L5) |
 | `compiles(description, level)` | Framework runs the eval's `compile_command` against the workspace after the agent finishes and passes/fails on its exit code — level required (L4 or L5). Decoupled from whether the agent ran the build itself, so output that compiles passes even if the agent never ran the build. Requires `compile_command` in PROMPT.md frontmatter or the grader fails. |
+| `calledTool(toolName, description, level)` | Agent invoked an MCP tool whose name contains `toolName` (case-insensitive substring against `mcp__<server>__<tool>` calls; errored calls excluded) — event-based, level required (L4 or L5) |
+| `calledToolOneOf(toolNames, description, level)` | Agent invoked at least one of the named MCP tools — event-based, level required (L4 or L5) |
 
 ## Grading exclusions
 
