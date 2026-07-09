@@ -99,6 +99,15 @@ describe('loadConfig', () => {
     );
   });
 
+  it('includes the underlying cause in the error message for a broken config', async () => {
+    // Regression: the loader used to discard the root cause and throw a bare
+    // "Failed to load config: <path>", making misconfigured configs hard to
+    // debug. The message must now surface the underlying parse/import error.
+    await expect(loadConfig({ configPath: join(FIXTURES_DIR, 'broken', 'eval.config.js') })).rejects.toThrow(
+      /Failed to load config: .*(parse|syntax|unexpected)/i,
+    );
+  });
+
   it('throws EvalConfigError when config has no default export', async () => {
     await expect(loadConfig({ configPath: join(FIXTURES_DIR, 'no-default', 'eval.config.js') })).rejects.toThrow(
       'must have a default export',
