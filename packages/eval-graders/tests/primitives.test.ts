@@ -1,6 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import { contains, notContains, notContainsInSource, matches, judge, compiles } from '../src/primitives.js';
+import {
+  contains,
+  notContains,
+  notContainsInSource,
+  matches,
+  judge,
+  compiles,
+  ranCommand,
+  ranCommandOneOf,
+  wroteFile,
+} from '../src/primitives.js';
 import { GraderLevel } from '../src/types.js';
+import type { EventToolCall } from '../src/types.js';
+
+// Builds a synthetic EventToolCall for exercising event-grader predicates.
+function evt(overrides: Partial<EventToolCall> & { name: string }): EventToolCall {
+  return { args: {}, result: '', causedError: false, ...overrides };
+}
 
 // ── contains ──────────────────────────────────────────────────────────────────
 
@@ -185,5 +201,108 @@ describe('compiles', () => {
   it('rejects non-event levels', () => {
     // @ts-expect-error — L1 is not an EventGraderLevel
     expect(() => compiles('build', GraderLevel.L1)).toThrow('event-based graders only support');
+  });
+});
+
+// ── ranCommand (predicate) ──────────────────────────────────────────────────
+
+describe('ranCommand predicate', () => {
+  const run = (def: ReturnType<typeof ranCommand>, calls: EventToolCall[]) => def.predicate!(calls);
+
+  it('matches a run_command whose command contains the substring', () => {
+    const def = ranCommand('npm install', undefined, GraderLevel.L4);
+    expect(run(def, [evt({ name: 'run_command', args: { command: 'npm install @auth0/auth0-react' } })])).toBe(true);
+  });
+
+  it("matches Gemini's bash tool name", () => {
+    const def = ranCommand('npm install', undefined, GraderLevel.L4);
+    expect(run(def, [evt({ name: 'bash', args: { command: 'npm install @auth0/auth0-react' } })])).toBe(true);
+  });
+
+  it('requires all args to appear in the command', () => {
+    const def = ranCommand('npm', ['install', '@auth0/auth0-react'], undefined, GraderLevel.L4);
+    expect(run(def, [evt({ name: 'run_command', args: { command: 'npm install @auth0/auth0-react' } })])).toBe(true);
+    expect(run(def, [evt({ name: 'run_command', args: { command: 'npm install react' } })])).toBe(false);
+  });
+
+  it('ignores commands that errored', () => {
+    const def = ranCommand('npm install', undefined, GraderLevel.L4);
+    expect(run(def, [evt({ name: 'run_command', args: { command: 'npm install' }, causedError: true })])).toBe(false);
+  });
+
+  it('returns false when no command matches', () => {
+    const def = ranCommand('npm install', undefined, GraderLevel.L4);
+    expect(run(def, [evt({ name: 'run_command', args: { command: 'ls -la' } })])).toBe(false);
+  });
+
+  it('throws on a non-event level', () => {
+    // @ts-expect-error — L1 is not an EventGraderLevel
+    expect(() => ranCommand('npm install', undefined, undefined, GraderLevel.L1)).toThrow(
+      'event-based graders only support',
+    );
+  });
+});
+
+// ── ranCommandOneOf (predicate) ─────────────────────────────────────────────
+
+describe('ranCommandOneOf predicate', () => {
+  const run = (def: ReturnType<typeof ranCommandOneOf>, calls: EventToolCall[]) => def.predicate!(calls);
+
+  it('matches when at least one alternative is present', () => {
+    const def = ranCommandOneOf(['npm install', 'yarn add', 'pnpm add'], undefined, GraderLevel.L4);
+    expect(run(def, [evt({ name: 'bash', args: { command: 'yarn add @auth0/auth0-react' } })])).toBe(true);
+  });
+
+  it('returns false when none of the alternatives are present', () => {
+    const def = ranCommandOneOf(['npm install', 'yarn add'], undefined, GraderLevel.L4);
+    expect(run(def, [evt({ name: 'run_command', args: { command: 'pip install requests' } })])).toBe(false);
+  });
+});
+
+// ── wroteFile (predicate) ───────────────────────────────────────────────────
+
+describe('wroteFile predicate', () => {
+  const run = (def: ReturnType<typeof wroteFile>, calls: EventToolCall[]) => def.predicate!(calls);
+
+  it('matches a write whose path contains the substring', () => {
+    const def = wroteFile('.env', undefined, GraderLevel.L4);
+    expect(run(def, [evt({ name: 'write_file', args: { path: 'app/.env.local', content: 'X=1' } })])).toBe(true);
+  });
+
+  it("matches Gemini's write/edit tool names", () => {
+    const def = wroteFile('main.ts', undefined, GraderLevel.L4);
+    expect(run(def, [evt({ name: 'write', args: { path: 'src/main.ts', content: 'x' } })])).toBe(true);
+    expect(run(def, [evt({ name: 'edit', args: { path: 'src/main.ts', content: 'y' } })])).toBe(true);
+  });
+
+  it('ignores writes that errored', () => {
+    const def = wroteFile('.env', undefined, GraderLevel.L4);
+    expect(run(def, [evt({ name: 'write_file', args: { path: '.env', content: 'X=1' }, causedError: true })])).toBe(
+      false,
+    );
+  });
+
+  it('requires all expected substrings in the combined content of matching writes', () => {
+    const def = wroteFile('.env', undefined, GraderLevel.L4, ['CLIENT_ID', 'DOMAIN']);
+    // Content split across two writes to the same path is combined.
+    const calls = [
+      evt({ name: 'write_file', args: { path: '.env', content: 'AUTH0_CLIENT_ID=abc' } }),
+      evt({ name: 'write_file', args: { path: '.env', content: 'AUTH0_DOMAIN=example.auth0.com' } }),
+    ];
+    expect(run(def, calls)).toBe(true);
+  });
+
+  it('fails when an expected substring is missing from the combined content', () => {
+    const def = wroteFile('.env', undefined, GraderLevel.L4, ['CLIENT_ID', 'DOMAIN']);
+    expect(run(def, [evt({ name: 'write_file', args: { path: '.env', content: 'AUTH0_CLIENT_ID=abc' } })])).toBe(false);
+  });
+
+  it('does not combine content from writes to a different path', () => {
+    const def = wroteFile('.env', undefined, GraderLevel.L4, ['CLIENT_ID', 'DOMAIN']);
+    const calls = [
+      evt({ name: 'write_file', args: { path: '.env', content: 'AUTH0_CLIENT_ID=abc' } }),
+      evt({ name: 'write_file', args: { path: 'other.txt', content: 'AUTH0_DOMAIN=example.auth0.com' } }),
+    ];
+    expect(run(def, calls)).toBe(false);
   });
 });
