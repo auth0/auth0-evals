@@ -148,4 +148,14 @@ describe('judgeHtml', () => {
     expect(html).not.toContain('onerror');
     expect(html).not.toContain('<img');
   });
+
+  it('renders reasoning when the detail begins with a blank line', () => {
+    // Regression: an empty first line made `!firstLine` true, discarding all
+    // reasoning even though the detail was non-empty.
+    const detail = '\nThe answer is correct.';
+    const html = judgeHtml(detail);
+    expect(html).not.toBe('');
+    expect(html).toContain('The answer is correct.');
+    expect(html).toContain('judge-reasoning-body');
+  });
 });
