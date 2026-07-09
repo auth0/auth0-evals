@@ -97,7 +97,6 @@ function ensureDockerImageOnce(imageName: string): Promise<void> {
 /** Walks up from cwd to find the monorepo root (has docker/Dockerfile). */
 function findRepoRoot(): string {
   let dir = process.cwd();
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     if (existsSync(join(dir, 'docker', 'Dockerfile'))) return dir;
     const parent = join(dir, '..');

@@ -12,6 +12,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "lint": "eslint .",
     "test": "vitest run",
     "test:ci": "vitest run --silent --coverage",
     "test:watch": "vitest"

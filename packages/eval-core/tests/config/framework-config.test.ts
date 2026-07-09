@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { FrameworkConfig } from '../../src/config/framework.js';
 
 describe('framework-config', () => {
   beforeEach(() => {
@@ -15,7 +16,7 @@ describe('framework-config', () => {
     judge: { model: 'claude-sonnet-4-5', maxTokens: 1024, maxCodeChars: 16384 },
     models: { known: [], modelIds: {} },
     agents: {},
-  } as any;
+  } as unknown as Required<FrameworkConfig>;
 
   it('getFrameworkConfig throws before setFrameworkConfig is called', async () => {
     const { getFrameworkConfig } = await freshModule();
@@ -36,7 +37,7 @@ describe('framework-config', () => {
         'claude-code': { proxy: { baseUrl: 'http://agent-proxy:5000' } },
       },
     };
-    setFrameworkConfig(config as any);
+    setFrameworkConfig(config as unknown as Required<FrameworkConfig>);
     expect(getAgentProxyBaseUrl('claude-code')).toBe('http://agent-proxy:5000');
   });
 
