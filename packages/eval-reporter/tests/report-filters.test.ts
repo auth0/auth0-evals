@@ -8,9 +8,27 @@ import {
   latencyCssClass,
   actionCssClass,
   sizeCssClass,
+  gradeCssClass,
   mdInline,
   judgeHtml,
 } from '../src/report-filters.js';
+
+// ── gradeCssClass ─────────────────────────────────────────────────────────────
+
+describe('gradeCssClass', () => {
+  it.each([
+    ['A', 'badge-a'],
+    ['B', 'badge-b'],
+    ['C', 'badge-c'],
+    ['D', 'badge-df'],
+    ['F', 'badge-df'],
+    // Unknown grade falls back to empty string
+    ['Z', ''],
+    ['', ''],
+  ] as [string, string][])('%j → %j', (grade, expected) => {
+    expect(gradeCssClass(grade)).toBe(expected);
+  });
+});
 
 // ── finishCssClass ────────────────────────────────────────────────────────────
 

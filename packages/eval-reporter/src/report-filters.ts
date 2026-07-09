@@ -34,14 +34,15 @@ export function rateCssClass(rate: number): string {
   return 'rate-poor';
 }
 
+const GRADE_TO_BADGE_CLASS: Record<string, string> = {
+  A: 'badge-a',
+  B: 'badge-b',
+  C: 'badge-c',
+  D: 'badge-df',
+  F: 'badge-df',
+};
+
 export function gradeCssClass(grade: string): string {
-  const GRADE_TO_BADGE_CLASS: Record<string, string> = {
-    A: 'badge-a',
-    B: 'badge-b',
-    C: 'badge-c',
-    D: 'badge-df',
-    F: 'badge-df',
-  };
   return GRADE_TO_BADGE_CLASS[grade] ?? '';
 }
 
