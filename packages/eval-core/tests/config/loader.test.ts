@@ -94,9 +94,11 @@ describe('loadConfig', () => {
   });
 
   it('throws EvalConfigError when config file has syntax errors', async () => {
-    await expect(loadConfig({ configPath: join(FIXTURES_DIR, 'broken', 'eval.config.js') })).rejects.toThrow(
-      EvalConfigError,
-    );
+    const promise = loadConfig({ configPath: join(FIXTURES_DIR, 'broken', 'eval.config.js') });
+    await expect(promise).rejects.toThrow(EvalConfigError);
+    // The wrapped error preserves both the underlying import failure detail and the config path.
+    await expect(promise).rejects.toThrow('Failed to load config:');
+    await expect(promise).rejects.toThrow(join('broken', 'eval.config.js'));
   });
 
   it('throws EvalConfigError when config has no default export', async () => {

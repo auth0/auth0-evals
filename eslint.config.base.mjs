@@ -8,14 +8,23 @@ import { defineConfig } from 'eslint/config';
 // `eslint.config.mjs` that re-exports this so `turbo run lint` lints them all,
 // and so ESLint's flat-config resolution finds a config next to any file.
 //
-// Only TypeScript sources are linted. Scaffold templates, generated JS, and
-// `*.config.js` files are intentionally excluded — they are not part of the
-// framework's typechecked source.
+// Only the framework's own TypeScript sources are linted. Scaffold templates
+// (seed projects the agent edits — they carry intentional browser/node globals
+// and starter patterns), generated JS, and `*.config.js` files are excluded.
 export const base = defineConfig(
   {
-    // Only TypeScript is linted; ignore build output, injected context, and
-    // all non-TS files (scaffold templates, generated JS, *.config.js).
-    ignores: ['dist/**/*', '.claude/**/*', '**/*.js', '**/*.cjs', '**/*.mjs'],
+    ignores: [
+      'dist/**/*',
+      '.claude/**/*',
+      // Scaffold template projects — not framework source; they contain
+      // intentional browser/node globals and starter code.
+      '**/scaffold/**',
+      '**/scaffolds/**',
+      // Non-TypeScript files (generated JS, *.config.js, ESM scripts).
+      '**/*.js',
+      '**/*.cjs',
+      '**/*.mjs',
+    ],
   },
   {
     files: ['**/*.ts'],
