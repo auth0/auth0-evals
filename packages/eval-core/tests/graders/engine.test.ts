@@ -15,6 +15,7 @@ import {
   ranCommandOneOf,
   wroteFile,
   compiles,
+  calledTool,
   GraderLevel,
   type GraderResult,
   type EventToolCall,
@@ -1072,6 +1073,34 @@ describe('runGraders - event graders', () => {
     const graders = [ranCommand('npm install', undefined, 'ran npm install', GraderLevel.L5)];
     const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
     expect(results[0]!.passed).toBe(true);
+  });
+
+  it('calledTool passes when a matching mcp__ tool was called', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const toolCalls: EventToolCall[] = [
+      { name: 'mcp__auth0-hosted-mcp__auth0_list_applications', args: {}, result: 'ok', causedError: false },
+    ];
+    const graders = [calledTool('auth0_list_applications', 'called list apps', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('calledTool fails when the tool was not called', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [calledTool('auth0_list_applications', 'called list apps', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('calledTool fails gracefully when no toolCalls provided (baseline)', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [calledTool('auth0_list_applications', 'called list apps', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused');
+    expect(results[0]!.passed).toBe(false);
+    expect(results[0]!.detail).toContain('No tool calls available');
   });
 });
 
