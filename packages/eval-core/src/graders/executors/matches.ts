@@ -15,7 +15,10 @@ export const matchesExecutor: GraderExecutor = {
     let passed: boolean;
     let detail: string;
     try {
-      passed = new RegExp(pattern, 'im').test(ctx.combinedText);
+      // Case-insensitive by default; honor caseSensitive to match the other
+      // text-search executors (contains/notContains). Always multiline.
+      const flags = def.caseSensitive === true ? 'm' : 'im';
+      passed = new RegExp(pattern, flags).test(ctx.combinedText);
       detail = `/${pattern}/ ${passed ? 'matched' : 'NOT matched'}`;
     } catch (e) {
       passed = false;

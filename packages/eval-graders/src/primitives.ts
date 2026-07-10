@@ -38,12 +38,20 @@ export function notContains(
   };
 }
 
-export function matches(pattern: string, description?: string, level?: GraderLevel): GraderDef {
+export function matches(
+  pattern: string,
+  description?: string,
+  level?: GraderLevel,
+  options: GraderOptions = {},
+): GraderDef {
   return {
     kind: 'matches',
     pattern,
     name: description ?? `matches /${pattern}/`,
     level,
+    // Default (undefined) keeps the regex case-insensitive; pass
+    // caseSensitive: true to require an exact-case match.
+    caseSensitive: options.caseSensitive,
   };
 }
 

@@ -140,9 +140,14 @@ describe('matches', () => {
     expect(def.level).toBe(GraderLevel.L4);
   });
 
-  it('does not set caseSensitive (not applicable)', () => {
+  it('leaves caseSensitive undefined by default (case-insensitive regex)', () => {
     const def = matches('pattern');
     expect(def.caseSensitive).toBeUndefined();
+  });
+
+  it('passes through caseSensitive when provided', () => {
+    const def = matches('pattern', undefined, undefined, { caseSensitive: true });
+    expect(def.caseSensitive).toBe(true);
   });
 });
 
