@@ -17,8 +17,17 @@ export function resultVariant(r: Record<string, unknown>): string {
 export function loadScores(paths: string[]): Record<string, unknown>[] {
   const results: Record<string, unknown>[] = [];
   for (const p of paths) {
-    const data = JSON.parse(readFileSync(p, 'utf-8')) as Record<string, unknown>[];
-    results.push(...data);
+    let data: unknown;
+    try {
+      data = JSON.parse(readFileSync(p, 'utf-8'));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to parse scores file ${p}: ${message}`);
+    }
+    if (!Array.isArray(data)) {
+      throw new Error(`Scores file ${p} must contain a JSON array, got ${typeof data}`);
+    }
+    results.push(...(data as Record<string, unknown>[]));
   }
   return results;
 }
