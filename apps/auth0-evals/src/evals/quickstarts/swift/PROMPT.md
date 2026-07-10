@@ -1,7 +1,7 @@
 ---
 id: swift_quickstart
 name: Swift iOS Quickstart
-skills: auth0-swift
+skills: auth0
 ---
 
 ## Task

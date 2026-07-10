@@ -2,7 +2,7 @@
 id: react_mfa
 name: React MFA Step-Up
 scaffold: src/evals/scaffolds/react/auth0
-skills: auth0-mfa
+skills: auth0
 setup_command: npm install
 compile_command: npm run build
 ---

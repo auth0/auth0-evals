@@ -1,7 +1,7 @@
 ---
 id: android_quickstart
 name: Android Quickstart
-skills: auth0-android
+skills: auth0
 ---
 
 ## Task

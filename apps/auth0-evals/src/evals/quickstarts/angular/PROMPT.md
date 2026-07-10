@@ -1,7 +1,7 @@
 ---
 id: angular_quickstart
 name: Angular Quickstart
-skills: auth0-angular
+skills: auth0
 setup_command: npm install
 compile_command: npm run build
 ---

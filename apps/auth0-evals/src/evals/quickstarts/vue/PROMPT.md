@@ -1,7 +1,7 @@
 ---
 id: vue_quickstart
 name: Vue Quickstart
-skills: auth0-vue
+skills: auth0
 setup_command: npm install
 compile_command: npm run build
 ---

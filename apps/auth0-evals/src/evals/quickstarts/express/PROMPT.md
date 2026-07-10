@@ -1,7 +1,7 @@
 ---
 id: express_quickstart
 name: Express Quickstart
-skills: auth0-express
+skills: auth0
 setup_command: npm install
 compile_command: node --check server.js
 ---
