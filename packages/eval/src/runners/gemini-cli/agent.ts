@@ -28,6 +28,7 @@ import {
   estimateCost,
   logger,
   filteredEnv,
+  makeSessionId,
 } from '@a0/eval-core';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/eval-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
@@ -137,7 +138,7 @@ export async function runGeminiCliAgent(
   const record: RunRecord = {
     taskName: evalDef.id,
     model,
-    sessionId: Math.random().toString(36).slice(2, 10),
+    sessionId: makeSessionId(),
     startTime: Date.now() / 1000,
     endTime: 0,
     toolCalls: [],
