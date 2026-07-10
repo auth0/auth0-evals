@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "lint": "eslint \"./**/*.ts\"",
+    "lint": "eslint .",
     "preevals": "npm run build",
     "evals": "a0-eval",
     "prereport": "npm run build",

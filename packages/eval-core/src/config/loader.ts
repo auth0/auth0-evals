@@ -102,7 +102,7 @@ async function importConfigFile(filePath: string): Promise<Partial<FrameworkConf
   } catch (error) {
     if (error instanceof EvalConfigError) throw error;
     const message = error instanceof Error ? error.message : String(error);
-    throw new EvalConfigError(`Failed to load config`, filePath);
+    throw new EvalConfigError(`Failed to load config: ${message}`, filePath);
   }
 }
 
