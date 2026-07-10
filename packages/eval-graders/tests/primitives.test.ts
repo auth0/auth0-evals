@@ -216,12 +216,12 @@ describe('ranCommand predicate', () => {
   const run = (def: ReturnType<typeof ranCommand>, calls: EventToolCall[]) => def.predicate!(calls);
 
   it('matches a run_command whose command contains the substring', () => {
-    const def = ranCommand('npm install', undefined, GraderLevel.L4);
+    const def = ranCommand('npm install', undefined, undefined, GraderLevel.L4);
     expect(run(def, [evt({ name: 'run_command', args: { command: 'npm install @auth0/auth0-react' } })])).toBe(true);
   });
 
   it("matches Gemini's bash tool name", () => {
-    const def = ranCommand('npm install', undefined, GraderLevel.L4);
+    const def = ranCommand('npm install', undefined, undefined, GraderLevel.L4);
     expect(run(def, [evt({ name: 'bash', args: { command: 'npm install @auth0/auth0-react' } })])).toBe(true);
   });
 
@@ -232,12 +232,12 @@ describe('ranCommand predicate', () => {
   });
 
   it('ignores commands that errored', () => {
-    const def = ranCommand('npm install', undefined, GraderLevel.L4);
+    const def = ranCommand('npm install', undefined, undefined, GraderLevel.L4);
     expect(run(def, [evt({ name: 'run_command', args: { command: 'npm install' }, causedError: true })])).toBe(false);
   });
 
   it('returns false when no command matches', () => {
-    const def = ranCommand('npm install', undefined, GraderLevel.L4);
+    const def = ranCommand('npm install', undefined, undefined, GraderLevel.L4);
     expect(run(def, [evt({ name: 'run_command', args: { command: 'ls -la' } })])).toBe(false);
   });
 
