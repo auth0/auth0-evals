@@ -125,6 +125,12 @@ interface RunCtx {
   timedOut: boolean;
   /** Absolute workspace root — used to read back content of patched files. */
   workspace: string;
+  /**
+   * Start timestamp (seconds) per item id, captured on `item.started` so the
+   * ToolCallRecord reflects the real active duration (started → completed)
+   * rather than a ~0s window measured entirely within `item.completed`.
+   */
+  itemStartTimes: Map<string, number>;
 }
 
 /** Builds a ToolCallRecord and appends it to record.toolCalls. */
@@ -212,8 +218,7 @@ function handleItem(item: ThreadItem, record: RunRecord, ctx: RunCtx, now: numbe
       const isError = item.status === 'failed';
       for (const change of item.changes) {
         const rawName = change.kind === 'delete' ? 'delete_file' : 'write_file';
-        const content =
-          !isError && change.kind !== 'delete' ? readWorkspaceFile(ctx.workspace, change.path) : '';
+        const content = !isError && change.kind !== 'delete' ? readWorkspaceFile(ctx.workspace, change.path) : '';
         ctx.turnToolCount++;
         ctx.toolCallsInTurn++;
         pushToolCall(record, rawName, { path: change.path, content }, '', isError, now);
@@ -284,9 +289,20 @@ function handleEvent(
       ctx.turnToolCount = 0;
       break;
 
-    case 'item.completed':
-      handleItem(ev.item, record, ctx, Date.now() / 1000);
+    case 'item.started':
+      // Record when the item began so item.completed can compute a real
+      // active duration. Only tool-call items carry an id we care about.
+      if (ev.item.id) ctx.itemStartTimes.set(ev.item.id, Date.now() / 1000);
       break;
+
+    case 'item.completed': {
+      // Prefer the start time captured on item.started; fall back to now for
+      // items whose start we never saw (keeps duration non-negative).
+      const startTime = (ev.item.id && ctx.itemStartTimes.get(ev.item.id)) || Date.now() / 1000;
+      if (ev.item.id) ctx.itemStartTimes.delete(ev.item.id);
+      handleItem(ev.item, record, ctx, startTime);
+      break;
+    }
 
     case 'turn.completed': {
       ctx.turnNum++;
@@ -472,6 +488,7 @@ export async function runCodexAgent(
     toolCallsInTurn: 0,
     timedOut: false,
     workspace,
+    itemStartTimes: new Map(),
   };
 
   // The SDK spawns the `codex` binary with this env, so it reads
