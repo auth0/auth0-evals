@@ -22,7 +22,7 @@ export function loadScores(paths: string[]): Record<string, unknown>[] {
       data = JSON.parse(readFileSync(p, 'utf-8'));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      throw new Error(`Failed to parse scores file ${p}: ${message}`);
+      throw new Error(`Failed to parse scores file ${p}: ${message}`, { cause: err });
     }
     if (!Array.isArray(data)) {
       throw new Error(`Scores file ${p} must contain a JSON array, got ${typeof data}`);

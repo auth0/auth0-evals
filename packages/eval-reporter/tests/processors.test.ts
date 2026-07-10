@@ -31,6 +31,20 @@ describe('loadScores', () => {
     expect(() => loadScores([bad])).toThrow(new RegExp(`Failed to parse scores file .*bad\\.json`));
   });
 
+  it('preserves the underlying parse error as `cause`', () => {
+    const dir = tmpDir();
+    const bad = join(dir, 'bad.json');
+    writeFileSync(bad, '{ not valid json');
+
+    try {
+      loadScores([bad]);
+      expect.fail('expected loadScores to throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).cause).toBeInstanceOf(Error);
+    }
+  });
+
   it('throws with the file path when the JSON is not an array', () => {
     const dir = tmpDir();
     const obj = join(dir, 'obj.json');
