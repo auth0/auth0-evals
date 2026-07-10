@@ -27,6 +27,7 @@ program
   });
 
 program.parseAsync(ensureSubCommand(process.argv)).catch((e) => {
+  // eslint-disable-next-line no-console -- top-level CLI error handler
   console.error(e);
   process.exit(1);
 });

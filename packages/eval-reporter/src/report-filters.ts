@@ -34,14 +34,15 @@ export function rateCssClass(rate: number): string {
   return 'rate-poor';
 }
 
+const GRADE_TO_BADGE_CLASS: Record<string, string> = {
+  A: 'badge-a',
+  B: 'badge-b',
+  C: 'badge-c',
+  D: 'badge-df',
+  F: 'badge-df',
+};
+
 export function gradeCssClass(grade: string): string {
-  const GRADE_TO_BADGE_CLASS: Record<string, string> = {
-    A: 'badge-a',
-    B: 'badge-b',
-    C: 'badge-c',
-    D: 'badge-df',
-    F: 'badge-df',
-  };
   return GRADE_TO_BADGE_CLASS[grade] ?? '';
 }
 
@@ -83,11 +84,10 @@ export function judgeHtml(detail: string): string {
     return '';
   }
 
-  const [firstLine, ...bodyLines] = detail.split('\n');
-
-  if (!firstLine) {
-    return '';
-  }
+  // split('\n') always yields at least one element; default guards the type.
+  // Note: no early return on an empty first line — a leading newline is real
+  // content. The `body.length > 0` check below handles the genuinely-empty case.
+  const [firstLine = '', ...bodyLines] = detail.split('\n');
 
   const modelMatch = /Judge \(([^)]+)\):\s*/.exec(firstLine);
   const model = modelMatch && modelMatch[1] ? modelMatch[1] : 'judge';

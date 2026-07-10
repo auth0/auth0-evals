@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { existsSync } from 'node:fs';
 import { extractCodeBlocks } from '../src/graders/grade-text.js';
+import type { EvalDefinition } from '../src/types/eval.js';
 
 vi.mock('../src/graders/engine.js', () => ({
   runGraders: vi.fn().mockResolvedValue([{ name: 'mock', passed: true }]),
@@ -32,7 +33,7 @@ describe('gradeText', () => {
     const { runGraders } = await import('../src/graders/engine.js');
     const mockedRunGraders = vi.mocked(runGraders);
 
-    const evalDef = { graders: [{ name: 'test', level: undefined }] } as any;
+    const evalDef = { graders: [{ name: 'test', level: undefined }] } as unknown as EvalDefinition;
     const text = '```\nconst x = 1;\n```\n';
 
     const result = await gradeText(evalDef, text, 'fake-key');

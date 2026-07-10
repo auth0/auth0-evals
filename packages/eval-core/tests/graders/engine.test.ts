@@ -15,6 +15,7 @@ import {
   ranCommandOneOf,
   wroteFile,
   compiles,
+  calledTool,
   GraderLevel,
   type GraderResult,
   type EventToolCall,
@@ -723,6 +724,33 @@ describe('llmJudge - code corpus overflow', () => {
     });
     expect(passed).toBe(true);
   });
+
+  it('inserts untrusted code verbatim even when it contains $-substitution sequences', async () => {
+    // Regression: String.prototype.replace with a string pattern treats `$&`,
+    // `` $` ``, `$'`, and `$1` in the replacement specially. Since `code` is
+    // untrusted agent output, those sequences would silently corrupt the judge
+    // prompt (e.g. `$&` expands to the matched `{code}`).
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
+    const trickyCode = 'const re = /a/; s.replace(re, "$& and $1 and $` and $\'");';
+    await llmJudge({
+      question: 'Is the $& handling correct?',
+      code: trickyCode,
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
+    const messages = capturedBody?.messages as { role: string; content: string }[];
+    const userMessage = messages.find((mm) => mm.role === 'user')!.content;
+    expect(userMessage).toContain(trickyCode);
+    expect(userMessage).toContain('Is the $& handling correct?');
+  });
 });
 
 // ── llmJudge — enforceMaxChars=false (non-enforcing path) ───────────────────
@@ -1072,6 +1100,34 @@ describe('runGraders - event graders', () => {
     const graders = [ranCommand('npm install', undefined, 'ran npm install', GraderLevel.L5)];
     const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
     expect(results[0]!.passed).toBe(true);
+  });
+
+  it('calledTool passes when a matching mcp__ tool was called', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const toolCalls: EventToolCall[] = [
+      { name: 'mcp__auth0-hosted-mcp__auth0_list_applications', args: {}, result: 'ok', causedError: false },
+    ];
+    const graders = [calledTool('auth0_list_applications', 'called list apps', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, toolCalls);
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('calledTool fails when the tool was not called', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [calledTool('auth0_list_applications', 'called list apps', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused', undefined, undefined, true, sampleToolCalls);
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('calledTool fails gracefully when no toolCalls provided (baseline)', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'x.ts'), '');
+    const graders = [calledTool('auth0_list_applications', 'called list apps', GraderLevel.L4)];
+    const results = await runGraders(graders, dir, 'unused');
+    expect(results[0]!.passed).toBe(false);
+    expect(results[0]!.detail).toContain('No tool calls available');
   });
 });
 

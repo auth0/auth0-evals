@@ -515,6 +515,73 @@ describe('turn metrics', () => {
   });
 });
 
+// ── tool-call timing ──────────────────────────────────────────────────────────
+
+describe('tool-call timing', () => {
+  it('records active duration from item.started, not from item.completed', async () => {
+    // Advance Date.now() by 1s per read. With the fix, the timed_1 tool call's
+    // startTime is captured at its item.started event, so intervening reads
+    // (other items completing between started and completed) make its duration
+    // several seconds. The old code read startTime inside item.completed, giving
+    // a ~1-tick duration regardless — so Setup Speed was meaningless for Codex.
+    let clock = 1_000_000; // ms
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => {
+      const v = clock;
+      clock += 1_000; // advance 1s per read
+      return v;
+    });
+
+    queueTurns([
+      // timed_1 starts here...
+      { type: 'item.started', item: { type: 'command_execution', id: 'timed_1', command: 'npm install' } },
+      // ...several other items complete before timed_1 does (advancing the clock).
+      {
+        type: 'item.completed',
+        item: { type: 'command_execution', id: 'other_a', command: 'ls', aggregated_output: '', exit_code: 0 },
+      },
+      {
+        type: 'item.completed',
+        item: { type: 'command_execution', id: 'other_b', command: 'pwd', aggregated_output: '', exit_code: 0 },
+      },
+      // ...and only now does timed_1 complete.
+      {
+        type: 'item.completed',
+        item: {
+          type: 'command_execution',
+          id: 'timed_1',
+          command: 'npm install',
+          aggregated_output: 'ok',
+          exit_code: 0,
+        },
+      },
+      turnCompleted(),
+    ]);
+
+    const record = await runCodexAgent(evalDef, workspace);
+    nowSpy.mockRestore();
+
+    const timed = record.toolCalls.find((tc) => tc.args.command === 'npm install')!;
+    // Fixed: startTime is from item.started, several reads before completion → ≥ 2s.
+    // Buggy: startTime read inside item.completed → ~1s.
+    expect(timed.endTime - timed.startTime).toBeGreaterThanOrEqual(2);
+  });
+
+  it('falls back to a non-negative duration when item.started was not seen', async () => {
+    // No item.started for this id — startTime must not exceed endTime.
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: { type: 'command_execution', id: 'no_start', command: 'ls', aggregated_output: '', exit_code: 0 },
+      },
+      turnCompleted(),
+    ]);
+
+    const record = await runCodexAgent(evalDef, workspace);
+    const tc = record.toolCalls[0];
+    expect(tc.endTime).toBeGreaterThanOrEqual(tc.startTime);
+  });
+});
+
 // ── finalSummary ──────────────────────────────────────────────────────────────
 
 describe('finalSummary', () => {

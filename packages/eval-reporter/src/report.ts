@@ -9,7 +9,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import nunjucks from 'nunjucks';
 import { registerFilters } from './report-filters.js';
-import { MODES, resultVariant, loadScores, groupResults, groupByVariant, computeDeltas } from './report/processors.js';
+import { MODES, resultVariant, groupResults, groupByVariant, computeDeltas } from './report/processors.js';
 
 // Re-export for backward compatibility with existing consumers and tests.
 export { resultVariant, loadScores, groupResults, groupByVariant, computeDeltas } from './report/processors.js';

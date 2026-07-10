@@ -264,6 +264,20 @@ describe('matchesExecutor', () => {
     expect(result.passed).toBe(true);
   });
 
+  it('honors caseSensitive: true (does not match differing case)', async () => {
+    const ctx = makeCtx({ 'app.ts': 'AUTH0PROVIDER' });
+    const def = makeDef({ kind: 'matches', pattern: 'auth0provider', caseSensitive: true });
+    const result = await matchesExecutor.execute(def, ctx);
+    expect(result.passed).toBe(false);
+  });
+
+  it('caseSensitive: true still matches exact case', async () => {
+    const ctx = makeCtx({ 'app.ts': 'Auth0Provider' });
+    const def = makeDef({ kind: 'matches', pattern: 'Auth0Provider', caseSensitive: true });
+    const result = await matchesExecutor.execute(def, ctx);
+    expect(result.passed).toBe(true);
+  });
+
   it('handles invalid regex gracefully', async () => {
     const ctx = makeCtx({ 'app.ts': 'some content' });
     const def = makeDef({ kind: 'matches', pattern: '[invalid(' });

@@ -94,8 +94,19 @@ describe('loadConfig', () => {
   });
 
   it('throws EvalConfigError when config file has syntax errors', async () => {
+    const promise = loadConfig({ configPath: join(FIXTURES_DIR, 'broken', 'eval.config.js') });
+    await expect(promise).rejects.toThrow(EvalConfigError);
+    // The wrapped error preserves both the underlying import failure detail and the config path.
+    await expect(promise).rejects.toThrow('Failed to load config:');
+    await expect(promise).rejects.toThrow(join('broken', 'eval.config.js'));
+  });
+
+  it('includes the underlying cause in the error message for a broken config', async () => {
+    // Regression: the loader used to discard the root cause and throw a bare
+    // "Failed to load config: <path>", making misconfigured configs hard to
+    // debug. The message must now surface the underlying parse/import error.
     await expect(loadConfig({ configPath: join(FIXTURES_DIR, 'broken', 'eval.config.js') })).rejects.toThrow(
-      EvalConfigError,
+      /Failed to load config: .*(parse|syntax|unexpected)/i,
     );
   });
 

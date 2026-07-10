@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyActionType, classifyErrorCategory, primaryArg } from '../src/runners/classify.js';
+import { classifyActionType, classifyErrorCategory, detectRetry, primaryArg } from '../src/runners/classify.js';
 import {
   formatStep,
   serialiseTrace,
@@ -173,6 +173,42 @@ describe('primaryArg', () => {
     expect(primaryArg('unknown_tool', { foo: 'bar' }).length).toBeLessThanOrEqual(80);
     expect(primaryArg('read_file', {})).toBe('');
     expect(primaryArg('run_command', {})).toBe('');
+  });
+});
+
+// ── detectRetry tests ────────────────────────────────────────────────────────
+
+describe('detectRetry', () => {
+  it('returns true when a prior call with the same name and primary arg errored', () => {
+    const prior = [makeToolCall({ name: 'read_file', args: { path: 'a.ts' }, causedError: true })];
+    expect(detectRetry(prior, 'read_file', { path: 'a.ts' })).toBe(true);
+  });
+
+  it('returns false when the prior call with the same primary arg succeeded', () => {
+    const prior = [makeToolCall({ name: 'read_file', args: { path: 'a.ts' }, causedError: false })];
+    expect(detectRetry(prior, 'read_file', { path: 'a.ts' })).toBe(false);
+  });
+
+  it('returns false when the primary arg differs from any prior call', () => {
+    const prior = [makeToolCall({ name: 'read_file', args: { path: 'a.ts' }, causedError: true })];
+    expect(detectRetry(prior, 'read_file', { path: 'b.ts' })).toBe(false);
+  });
+
+  it('returns false when the tool name differs', () => {
+    const prior = [makeToolCall({ name: 'read_file', args: { path: 'a.ts' }, causedError: true })];
+    expect(detectRetry(prior, 'write_file', { path: 'a.ts' })).toBe(false);
+  });
+
+  it('uses the most recent matching call (findLast) — success after error is not a retry', () => {
+    const prior = [
+      makeToolCall({ name: 'read_file', args: { path: 'a.ts' }, causedError: true }),
+      makeToolCall({ name: 'read_file', args: { path: 'a.ts' }, causedError: false }),
+    ];
+    expect(detectRetry(prior, 'read_file', { path: 'a.ts' })).toBe(false);
+  });
+
+  it('returns false with no prior calls', () => {
+    expect(detectRetry([], 'read_file', { path: 'a.ts' })).toBe(false);
   });
 });
 

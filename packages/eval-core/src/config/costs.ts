@@ -1,3 +1,5 @@
+import { logger } from '../utils/logger.js';
+
 export const COST_TABLE: Record<string, [number, number]> = {
   'gpt-5.4': [2.5, 15.0],
   'gpt-5.4-mini': [0.75, 4.5],
@@ -12,7 +14,21 @@ export const COST_TABLE: Record<string, [number, number]> = {
   'gemini-3.5-flash': [1.5, 9.0],
 };
 
+/** [input, output] USD per million tokens applied to models absent from COST_TABLE. */
+export const DEFAULT_PRICING: [number, number] = [1.0, 5.0];
+
+// Models already warned about, so the fallback-pricing notice fires once per model.
+const warnedUnknownModels = new Set<string>();
+
 export function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
-  const [inPrice, outPrice] = COST_TABLE[model] ?? [1.0, 5.0];
+  const pricing = COST_TABLE[model];
+  if (!pricing && !warnedUnknownModels.has(model)) {
+    warnedUnknownModels.add(model);
+    logger.warn(
+      `[cost] No pricing for model '${model}'; using default $${DEFAULT_PRICING[0]}/$${DEFAULT_PRICING[1]} per 1M tokens. ` +
+        `Add it to COST_TABLE for accurate cost estimates.`,
+    );
+  }
+  const [inPrice, outPrice] = pricing ?? DEFAULT_PRICING;
   return (inputTokens * inPrice + outputTokens * outPrice) / 1_000_000;
 }

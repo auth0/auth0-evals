@@ -22,4 +22,6 @@ export {
   ranCommandOneOf,
   wroteFile,
   compiles,
+  calledTool,
+  calledToolOneOf,
 } from './primitives.js';

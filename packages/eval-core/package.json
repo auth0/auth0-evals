@@ -15,13 +15,14 @@
   },
   "scripts": {
     "build": "node scripts/generate-prompts.mjs && tsc",
+    "lint": "eslint .",
     "test": "vitest run",
     "test:ci": "vitest run --silent --coverage",
     "test:watch": "vitest"
   },
   "devDependencies": {
-    "@types/node": "^25.9.3",
+    "@types/node": "^26.1.1",
     "@vitest/coverage-v8": "^4.1.9",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.10"
   }
 }

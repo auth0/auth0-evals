@@ -8,9 +8,27 @@ import {
   latencyCssClass,
   actionCssClass,
   sizeCssClass,
+  gradeCssClass,
   mdInline,
   judgeHtml,
 } from '../src/report-filters.js';
+
+// ── gradeCssClass ─────────────────────────────────────────────────────────────
+
+describe('gradeCssClass', () => {
+  it.each([
+    ['A', 'badge-a'],
+    ['B', 'badge-b'],
+    ['C', 'badge-c'],
+    ['D', 'badge-df'],
+    ['F', 'badge-df'],
+    // Unknown grade falls back to empty string
+    ['Z', ''],
+    ['', ''],
+  ] as [string, string][])('%j → %j', (grade, expected) => {
+    expect(gradeCssClass(grade)).toBe(expected);
+  });
+});
 
 // ── finishCssClass ────────────────────────────────────────────────────────────
 
@@ -147,5 +165,15 @@ describe('judgeHtml', () => {
     const html = judgeHtml(detail);
     expect(html).not.toContain('onerror');
     expect(html).not.toContain('<img');
+  });
+
+  it('renders reasoning when the detail begins with a blank line', () => {
+    // Regression: an empty first line made `!firstLine` true, discarding all
+    // reasoning even though the detail was non-empty.
+    const detail = '\nThe answer is correct.';
+    const html = judgeHtml(detail);
+    expect(html).not.toBe('');
+    expect(html).toContain('The answer is correct.');
+    expect(html).toContain('judge-reasoning-body');
   });
 });
