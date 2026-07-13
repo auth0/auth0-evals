@@ -49,7 +49,7 @@ import {
 } from '@a0/eval-core';
 import type { EvalConfig, EvalDefinition, JobResult, AgentType, Mode } from '@a0/eval-core';
 
-import { parseRunConfig } from './config.js';
+import { parseRunConfig, extractConfigPath } from './config.js';
 import { spawnEval, mergeIntoOutput } from './subprocess-runner.js';
 import { DEFAULT_AGENT_TYPE } from './constants.js';
 import { resolveOutputPath, mergeResults, loadResults, saveResults } from '../persistence/index.js';
@@ -341,7 +341,14 @@ export async function runCli(): Promise<void> {
   // Load .env from the cwd
   loadDotenv();
 
-  const config = parseRunConfig(process.argv);
+  // Load the framework configuration (eval.config.js) *before* parsing CLI args
+  // so `--model all` can expand to the app's `models.known`. The config path is
+  // extracted from argv directly since the full parse depends on the loaded config.
+  const configPath = extractConfigPath(process.argv);
+  const frameworkConfig = await loadConfig({ configPath });
+  setFrameworkConfig(frameworkConfig);
+
+  const config = parseRunConfig(process.argv, { knownModels: frameworkConfig.models.known });
   const {
     models,
     modes,
@@ -353,13 +360,8 @@ export async function runCli(): Promise<void> {
     braintrust,
     apiKey,
     agentType,
-    configPath,
     sandbox,
   } = config;
-
-  // Load the framework configuration (eval.config.js) — auto-discovered or via --config.
-  const frameworkConfig = await loadConfig({ configPath });
-  setFrameworkConfig(frameworkConfig);
 
   // Validate required runtime fields
   const missing: string[] = [];

@@ -61,6 +61,34 @@ export interface RunConfig {
 export interface ParseRunConfigOptions {
   /** List of known eval IDs for validation. When omitted, eval ID validation is skipped. */
   knownEvalIds?: string[];
+  /**
+   * Models that `--model all` expands to — typically the app's `models.known`
+   * from `eval.config.js`. When omitted or empty, the framework's
+   * `KNOWN_WORKING_MODELS` fallback is used instead.
+   */
+  knownModels?: string[];
+}
+
+/**
+ * Extracts the `--config <path>` value from a raw argv without a full parse.
+ *
+ * Needed because the framework config must be loaded *before* `parseRunConfig`
+ * runs (so `--model all` can expand to the app's `models.known`), but the
+ * config path itself lives in argv. Supports both `--config <path>` and
+ * `--config=<path>` forms. Returns `undefined` when the flag is absent.
+ */
+export function extractConfigPath(argv: string[]): string | undefined {
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === undefined) continue;
+    if (arg === '--config') {
+      return argv[i + 1];
+    }
+    if (arg.startsWith('--config=')) {
+      return arg.slice('--config='.length);
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -108,7 +136,7 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
   const opts = program.opts();
 
   const apiKey = validateApiKey();
-  const models = validateModels(opts.model as string[]);
+  const models = validateModels(opts.model as string[], options.knownModels);
   const modes = validateModes(opts.mode as string | undefined);
 
   const evalIds = options.knownEvalIds
