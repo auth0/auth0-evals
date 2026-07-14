@@ -366,17 +366,17 @@ When MCP tools are enabled (`--tools mcp`), MCP server tool definitions are appe
 
 ### Known working models
 
-Used when `--model all` is passed:
+`--model all` expands to this app's `models.known` in `eval.config.js` (falling back to the framework's `KNOWN_WORKING_MODELS` constant only if the app leaves `models.known` empty):
 
 - `gpt-5.4` (default when no `--model` flag)
 - `gpt-5.4-mini`
 - `claude-sonnet-4-6`
-- `claude-opus-4-6`
-- `claude-opus-4-7`
 - `claude-opus-4-8`
 - `claude-haiku-4-5`
 - `gemini-3.1-pro-preview`
 - `gemini-3.5-flash`
+
+Opus 4.5, 4.6, and 4.7 are still supported by the framework (present in the cost table, effort-capable set, and Bedrock alias map) and can be run explicitly via `--model claude-opus-4-6`; they are intentionally omitted from `--model all` here so batch runs use only Opus 4.8 among the Opus variants.
 
 ### Judge model
 
@@ -433,7 +433,7 @@ npm run report
 | Flag                         | Values                                          | Default              | Notes                                                    |
 | ---------------------------- | ----------------------------------------------- | -------------------- | -------------------------------------------------------- |
 | `--eval <id>`                | Any registered eval ID                          | all evals            | Repeatable                                               |
-| `--model <model>`            | Any model string                                | `gpt-5.4`            | Repeatable; `all` expands to known working models        |
+| `--model <model>`            | Any model string                                | `gpt-5.4`            | Repeatable; `all` expands to the config's `models.known` |
 | `--mode <mode>`              | `baseline`, `agent`, `all`                      | `baseline`           | `all` expands to both                                    |
 | `--tools <tools>`            | `skills`, `mcp`, or comma-separated             | none                 | Only applies to agent mode                               |
 | `--agent-type <type>`        | `claude-code`, `copilot`, `gemini-cli`, `codex` | auto-routed by model | Overrides auto-routing                                   |

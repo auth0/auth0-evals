@@ -34,6 +34,7 @@ export {
   DEFAULT_AGENT_TYPE,
   parseToolsArg,
   parseRunConfig,
+  extractConfigPath,
   type RunConfig,
   spawnEval,
   mergeIntoOutput,

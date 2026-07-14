@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   parseRunConfig,
+  extractConfigPath,
   ALL_MODES,
   DEFAULT_MODEL,
   DEFAULT_AGENT_TYPE,
@@ -147,6 +148,25 @@ describe('--model', () => {
   it('--model all takes precedence when mixed with explicit models', () => {
     const config = parse('--model', 'gpt-5.2', '--model', 'all');
     expect(config.models).toEqual(KNOWN_WORKING_MODELS);
+  });
+
+  it('--model all expands to the provided knownModels when given', () => {
+    const known = ['gpt-5.4', 'claude-opus-4-8'];
+    const config = parseRunConfig(argv('--model', 'all'), { knownEvalIds: KNOWN_EVAL_IDS, knownModels: known });
+    expect(config.models).toEqual(known);
+  });
+
+  it('--model all falls back to KNOWN_WORKING_MODELS when knownModels is empty', () => {
+    const config = parseRunConfig(argv('--model', 'all'), { knownEvalIds: KNOWN_EVAL_IDS, knownModels: [] });
+    expect(config.models).toEqual(KNOWN_WORKING_MODELS);
+  });
+
+  it('explicit --model still passes through even when not in knownModels', () => {
+    const config = parseRunConfig(argv('--model', 'claude-opus-4-6'), {
+      knownEvalIds: KNOWN_EVAL_IDS,
+      knownModels: ['gpt-5.4', 'claude-opus-4-8'],
+    });
+    expect(config.models).toEqual(['claude-opus-4-6']);
   });
 });
 
@@ -305,5 +325,21 @@ describe('--agent-type', () => {
   it('prints the invalid agent type in the error message', () => {
     expect(() => parse('--agent-type', 'my-custom-agent')).toThrow();
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining('my-custom-agent'));
+  });
+});
+
+// ── extractConfigPath ─────────────────────────────────────────────────────────
+
+describe('extractConfigPath', () => {
+  it('returns undefined when --config is absent', () => {
+    expect(extractConfigPath(argv('--model', 'all'))).toBeUndefined();
+  });
+
+  it('extracts the value from the space-separated form', () => {
+    expect(extractConfigPath(argv('--config', 'my.config.js', '--mode', 'agent'))).toBe('my.config.js');
+  });
+
+  it('extracts the value from the --config=<path> form', () => {
+    expect(extractConfigPath(argv('--config=/abs/path/eval.config.js'))).toBe('/abs/path/eval.config.js');
   });
 });

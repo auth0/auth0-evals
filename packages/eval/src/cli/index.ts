@@ -8,7 +8,7 @@ export {
   type Mode,
 } from './constants.js';
 
-export { parseRunConfig, type RunConfig } from './config.js';
+export { parseRunConfig, extractConfigPath, type RunConfig } from './config.js';
 
 export { spawnEval, mergeIntoOutput } from './subprocess-runner.js';
 

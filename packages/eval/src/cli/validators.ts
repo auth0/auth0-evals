@@ -33,12 +33,17 @@ export function validateApiKey(): string {
 
 /**
  * Resolves and validates the model list.
- * `--model all` expands to all known models.
+ *
+ * `--model all` expands to `knownModels` — the app's configured `models.known`
+ * when provided (and non-empty), otherwise the framework's `KNOWN_WORKING_MODELS`
+ * fallback. This lets an app narrow the `all` set (e.g. drop deprecated models)
+ * via `eval.config.js` without changing framework code.
  */
-export function validateModels(rawModels: string[]): string[] {
+export function validateModels(rawModels: string[], knownModels?: string[]): string[] {
+  const allModels = knownModels && knownModels.length > 0 ? knownModels : KNOWN_WORKING_MODELS;
   if (rawModels.length > 0 && rawModels.includes('all')) {
-    logger.info(`Using all known working models: ${KNOWN_WORKING_MODELS.join(', ')}`);
-    return KNOWN_WORKING_MODELS;
+    logger.info(`Using all known working models: ${allModels.join(', ')}`);
+    return allModels;
   }
   if (rawModels.length > 0) {
     return rawModels;

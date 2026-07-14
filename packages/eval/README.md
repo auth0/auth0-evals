@@ -130,7 +130,7 @@ a0-eval [options]
 | Flag | Values | Default | Description |
 |------|--------|---------|-------------|
 | `--eval <id>` | Any eval ID | all evals | Eval to run (repeatable) |
-| `--model <model>` | Any model string | `gpt-5.4` | Model to use (repeatable; `all` expands to known working models) |
+| `--model <model>` | Any model string | `gpt-5.4` | Model to use (repeatable; `all` expands to the config's `models.known`, falling back to the built-in known-working list) |
 | `--mode <mode>` | `baseline`, `agent`, `all` | `baseline` | `all` runs both modes in parallel |
 | `--tools <tools>` | `skills`, `mcp`, or comma-separated | none | Agent-mode only |
 | `--agent-type <type>` | `claude-code`, `copilot`, `gemini-cli` | auto-routed | Override agent runner selection |
