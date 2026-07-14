@@ -47,8 +47,11 @@ export function collectFromTempFiles(tempFiles: string[]): Record<string, unknow
  * deletes the temp files.
  */
 export function mergeIntoOutput(tempFiles: string[], finalOutputPath: string): Record<string, unknown>[] {
-  const key = (r: Record<string, unknown>) =>
-    `${r.eval_id}|${r.model}|${r.mode}|${((r.tools as string[]) ?? []).join(',')}`;
+  const key = (r: Record<string, unknown>) => {
+    const rawTools = Array.isArray(r.tools) ? (r.tools as string[]) : [];
+    const normalised = Array.from(new Set(rawTools)).sort();
+    return `${r.eval_id}|${r.model}|${r.mode}|${normalised.join(',')}`;
+  };
 
   const fresh = collectFromTempFiles(tempFiles);
 
