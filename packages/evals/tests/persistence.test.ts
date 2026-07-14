@@ -430,20 +430,36 @@ describe('aggregateRuns', () => {
 
   // ── Baseline aggregation ───────────────────────────────────────────────────
 
-  it('uses median grader_pass_rate for two baseline runs', () => {
-    const runs = [makeBaseline({ grader_pass_rate: 0.6 }), makeBaseline({ grader_pass_rate: 0.8 })];
-    const [result] = aggregateRuns(runs) as BaselineJobResult[];
-    expect(result.grader_pass_rate).toBeCloseTo(0.7);
-  });
-
-  it('uses the exact middle value for an odd number of baseline runs', () => {
+  it('derives grader_pass_rate from median graders_passed for two runs', () => {
+    // graders_passed median = (3+4)/2 = 3.5 → rounds to 4; rate = 4/5 = 0.8
     const runs = [
-      makeBaseline({ grader_pass_rate: 0.5 }),
-      makeBaseline({ grader_pass_rate: 0.7 }),
-      makeBaseline({ grader_pass_rate: 0.9 }),
+      makeBaseline({ graders_passed: 3, graders_total: 5, grader_pass_rate: 0.6 }),
+      makeBaseline({ graders_passed: 4, graders_total: 5, grader_pass_rate: 0.8 }),
     ];
     const [result] = aggregateRuns(runs) as BaselineJobResult[];
-    expect(result.grader_pass_rate).toBeCloseTo(0.7);
+    expect(result.graders_passed).toBe(4);
+    expect(result.grader_pass_rate).toBeCloseTo(0.8);
+  });
+
+  it('grader_pass_rate and graders_passed are consistent after aggregation', () => {
+    const runs = [
+      makeBaseline({ graders_passed: 3, graders_total: 5, grader_pass_rate: 0.6 }),
+      makeBaseline({ graders_passed: 4, graders_total: 5, grader_pass_rate: 0.8 }),
+    ];
+    const [result] = aggregateRuns(runs) as BaselineJobResult[];
+    expect(result.grader_pass_rate).toBeCloseTo(result.graders_passed / result.graders_total);
+  });
+
+  it('uses the exact middle graders_passed for an odd number of baseline runs', () => {
+    // median graders_passed = 3; rate = 3/4 = 0.75
+    const runs = [
+      makeBaseline({ graders_passed: 2, graders_total: 4, grader_pass_rate: 0.5 }),
+      makeBaseline({ graders_passed: 3, graders_total: 4, grader_pass_rate: 0.75 }),
+      makeBaseline({ graders_passed: 4, graders_total: 4, grader_pass_rate: 1.0 }),
+    ];
+    const [result] = aggregateRuns(runs) as BaselineJobResult[];
+    expect(result.graders_passed).toBe(3);
+    expect(result.grader_pass_rate).toBeCloseTo(0.75);
   });
 
   it('sums cost_usd across baseline runs', () => {
@@ -479,7 +495,7 @@ describe('aggregateRuns', () => {
     expect(result.overall_grade).toBe('A');
   });
 
-  it('medianes per-dimension scores', () => {
+  it('medians per-dimension scores', () => {
     const dim = (score: number) => makeDimension({ score, weighted: score * 0.25 });
     const runs = [
       makeAgent({ overall_score: 60, dimensions: [dim(60)] }),
@@ -521,13 +537,14 @@ describe('aggregateRuns', () => {
   // ── Multiple keys ──────────────────────────────────────────────────────────
 
   it('aggregates different keys independently', () => {
+    // graders_passed medians: react → (6+8)/2=7 → 7/10=0.7; next → (5+9)/2=7 → 7/10=0.7
     const reactRuns = [
-      makeBaseline({ eval_id: 'react_quickstart', grader_pass_rate: 0.6 }),
-      makeBaseline({ eval_id: 'react_quickstart', grader_pass_rate: 0.8 }),
+      makeBaseline({ eval_id: 'react_quickstart', graders_passed: 6, graders_total: 10, grader_pass_rate: 0.6 }),
+      makeBaseline({ eval_id: 'react_quickstart', graders_passed: 8, graders_total: 10, grader_pass_rate: 0.8 }),
     ];
     const nextRuns = [
-      makeBaseline({ eval_id: 'nextjs_quickstart', grader_pass_rate: 0.5 }),
-      makeBaseline({ eval_id: 'nextjs_quickstart', grader_pass_rate: 0.9 }),
+      makeBaseline({ eval_id: 'nextjs_quickstart', graders_passed: 5, graders_total: 10, grader_pass_rate: 0.5 }),
+      makeBaseline({ eval_id: 'nextjs_quickstart', graders_passed: 9, graders_total: 10, grader_pass_rate: 0.9 }),
     ];
     const results = aggregateRuns([...reactRuns, ...nextRuns]) as BaselineJobResult[];
     expect(results).toHaveLength(2);

@@ -466,7 +466,7 @@ export async function runCli(): Promise<void> {
     saveResults(outputPath, merged);
     logger.info(`\n[Output] Results saved to: ${outputPath}`);
 
-    const hasErrors = failures.length > 0 || merged.some((r) => r.status === 'error');
+    const hasErrors = failures.length > 0 || allFresh.some((r) => r.status === 'error');
     if (hasErrors) {
       process.exit(1);
     }

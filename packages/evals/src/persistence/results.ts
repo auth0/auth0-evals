@@ -165,8 +165,8 @@ function medianBaselineResult(group: BaselineJobResult[]): BaselineJobResult {
 
   return {
     ...rep,
-    grader_pass_rate: median(group.map((r) => r.grader_pass_rate)),
     graders_passed: Math.round(median(group.map((r) => r.graders_passed))),
+    grader_pass_rate: Math.round(median(group.map((r) => r.graders_passed))) / rep.graders_total,
     wall_time: median(group.map((r) => r.wall_time)),
     tokens: group.reduce((sum, r) => sum + r.tokens, 0),
     cost_usd: group.reduce((sum, r) => sum + r.cost_usd, 0),
