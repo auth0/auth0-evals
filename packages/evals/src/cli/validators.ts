@@ -105,8 +105,9 @@ export function validateTools(toolsArg: string): string[] {
 
 /** Parses and validates the `--runs` count. Defaults to 1. */
 export function validateRuns(raw: string | undefined): number {
-  const runs = parseInt(raw ?? '1', 10);
-  if (!Number.isInteger(runs) || runs < 1) {
+  const trimmed = raw?.trim();
+  const runs = parseInt(trimmed ?? '1', 10);
+  if (!Number.isInteger(runs) || runs < 1 || (trimmed !== undefined && String(runs) !== trimmed)) {
     logger.error(`Invalid --runs value: ${JSON.stringify(raw)}. Must be a positive integer.`);
     process.exit(1);
   }

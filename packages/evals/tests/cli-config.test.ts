@@ -372,6 +372,10 @@ describe('--runs', () => {
     expect(() => parse('--runs', 'many')).toThrow('process.exit(1)');
   });
 
+  it('exits for a float value', () => {
+    expect(() => parse('--runs', '2.9')).toThrow('process.exit(1)');
+  });
+
   it('prints the invalid value in the error message', () => {
     expect(() => parse('--runs', 'many')).toThrow();
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining('many'));

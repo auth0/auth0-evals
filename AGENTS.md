@@ -438,6 +438,7 @@ npm run report
 | `--mode <mode>`              | `baseline`, `agent`, `all`                      | `baseline`           | `all` expands to both                                    |
 | `--tools <tools>`            | `skills`, `mcp`, or comma-separated             | none                 | Only applies to agent mode                               |
 | `--agent-type <type>`        | `claude-code`, `copilot`, `gemini-cli`, `codex` | auto-routed by model | Overrides auto-routing                                   |
+| `--runs <n>`                 | number                                          | 1                    | Repeat each job N times; median score is used            |
 | `--workers <n>`              | number                                          | 4                    | Parallel job limit                                       |
 | `--output <path>`            | file path                                       | auto-named           | JSON results output                                      |
 | `--keep-workspace`           | flag                                            | off                  | Don't delete temp workspace after run                    |
