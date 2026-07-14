@@ -103,6 +103,16 @@ export function validateTools(toolsArg: string): string[] {
   return tools;
 }
 
+/** Parses and validates the `--runs` count. Defaults to 1. */
+export function validateRuns(raw: string | undefined): number {
+  const runs = parseInt(raw ?? '1', 10);
+  if (!Number.isInteger(runs) || runs < 1) {
+    logger.error(`Invalid --runs value: ${JSON.stringify(raw)}. Must be a positive integer.`);
+    process.exit(1);
+  }
+  return runs;
+}
+
 /** Parses and validates the `--workers` count. Defaults to 4. */
 export function validateWorkers(raw: string | undefined): number {
   const workers = parseInt(raw ?? '4', 10);

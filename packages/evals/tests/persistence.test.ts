@@ -5,8 +5,16 @@
 import { describe, it, expect } from 'vitest';
 import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { resultKey, mergeResults, loadResults, saveResults, resolveOutputPath } from '../src/persistence/index.js';
-import type { AgentJobResult, BaselineJobResult, ErrorJobResult } from '@a0/evals-core';
+import {
+  resultKey,
+  mergeResults,
+  loadResults,
+  saveResults,
+  resolveOutputPath,
+  aggregateRuns,
+  findDroppedErrors,
+} from '../src/persistence/index.js';
+import type { AgentJobResult, BaselineJobResult, DimensionSummary, ErrorJobResult } from '@a0/evals-core';
 import { makeTmpDir } from './tmp.js';
 
 const tmpDir = makeTmpDir('persistence_test_');
@@ -389,5 +397,143 @@ describe('resolveOutputPath', () => {
 
   it('accepts a valid relative subdirectory override', () => {
     expect(resolveOutputPath('/root', ['baseline'], 'out/scores.json')).toBe('/root/out/scores.json');
+  });
+});
+
+// ── aggregateRuns ─────────────────────────────────────────────────────────────
+
+function makeDimension(overrides: Partial<DimensionSummary> = {}): DimensionSummary {
+  return { name: 'Correctness', score: 80, grade: 'B', weight: 0.25, weighted: 20, ...overrides };
+}
+
+describe('aggregateRuns', () => {
+  it('passes a single result through unchanged', () => {
+    const r = makeBaseline();
+    expect(aggregateRuns([r])).toEqual([r]);
+  });
+
+  it('returns an empty array for empty input', () => {
+    expect(aggregateRuns([])).toEqual([]);
+  });
+
+  it('sets run_count to the number of runs', () => {
+    const runs = [makeBaseline({ grader_pass_rate: 0.6 }), makeBaseline({ grader_pass_rate: 0.8 })];
+    const [result] = aggregateRuns(runs) as BaselineJobResult[];
+    expect(result.run_count).toBe(2);
+  });
+
+  it('embeds raw runs in the runs[] field', () => {
+    const runs = [makeBaseline({ grader_pass_rate: 0.6 }), makeBaseline({ grader_pass_rate: 0.8 })];
+    const [result] = aggregateRuns(runs) as BaselineJobResult[];
+    expect(result.runs).toHaveLength(2);
+  });
+
+  // ── Baseline aggregation ───────────────────────────────────────────────────
+
+  it('uses median grader_pass_rate for two baseline runs', () => {
+    const runs = [makeBaseline({ grader_pass_rate: 0.6 }), makeBaseline({ grader_pass_rate: 0.8 })];
+    const [result] = aggregateRuns(runs) as BaselineJobResult[];
+    expect(result.grader_pass_rate).toBeCloseTo(0.7);
+  });
+
+  it('uses the exact middle value for an odd number of baseline runs', () => {
+    const runs = [
+      makeBaseline({ grader_pass_rate: 0.5 }),
+      makeBaseline({ grader_pass_rate: 0.7 }),
+      makeBaseline({ grader_pass_rate: 0.9 }),
+    ];
+    const [result] = aggregateRuns(runs) as BaselineJobResult[];
+    expect(result.grader_pass_rate).toBeCloseTo(0.7);
+  });
+
+  it('sums cost_usd across baseline runs', () => {
+    const runs = [makeBaseline({ cost_usd: 0.01 }), makeBaseline({ cost_usd: 0.02 })];
+    const [result] = aggregateRuns(runs) as BaselineJobResult[];
+    expect(result.cost_usd).toBeCloseTo(0.03);
+  });
+
+  it('sums tokens across baseline runs', () => {
+    const runs = [makeBaseline({ tokens: 100 }), makeBaseline({ tokens: 200 })];
+    const [result] = aggregateRuns(runs) as BaselineJobResult[];
+    expect(result.tokens).toBe(300);
+  });
+
+  // ── Agent aggregation ──────────────────────────────────────────────────────
+
+  it('uses median overall_score for two agent runs', () => {
+    const runs = [makeAgent({ overall_score: 60 }), makeAgent({ overall_score: 80 })];
+    const [result] = aggregateRuns(runs) as AgentJobResult[];
+    expect(result.overall_score).toBeCloseTo(70);
+  });
+
+  it('uses the exact middle overall_score for three agent runs', () => {
+    const runs = [makeAgent({ overall_score: 50 }), makeAgent({ overall_score: 70 }), makeAgent({ overall_score: 90 })];
+    const [result] = aggregateRuns(runs) as AgentJobResult[];
+    expect(result.overall_score).toBeCloseTo(70);
+  });
+
+  it('derives overall_grade from the median overall_score', () => {
+    // median is 92 → grade A
+    const runs = [makeAgent({ overall_score: 88 }), makeAgent({ overall_score: 92 }), makeAgent({ overall_score: 96 })];
+    const [result] = aggregateRuns(runs) as AgentJobResult[];
+    expect(result.overall_grade).toBe('A');
+  });
+
+  it('medianes per-dimension scores', () => {
+    const dim = (score: number) => makeDimension({ score, weighted: score * 0.25 });
+    const runs = [
+      makeAgent({ overall_score: 60, dimensions: [dim(60)] }),
+      makeAgent({ overall_score: 80, dimensions: [dim(80)] }),
+    ];
+    const [result] = aggregateRuns(runs) as AgentJobResult[];
+    expect(result.dimensions[0]?.score).toBeCloseTo(70);
+  });
+
+  it('sums cost_usd across agent runs', () => {
+    const runs = [makeAgent({ cost_usd: 0.05 }), makeAgent({ cost_usd: 0.1 })];
+    const [result] = aggregateRuns(runs) as AgentJobResult[];
+    expect(result.cost_usd).toBeCloseTo(0.15);
+  });
+
+  it('sums tokens across agent runs', () => {
+    const runs = [makeAgent({ tokens: 500 }), makeAgent({ tokens: 1000 })];
+    const [result] = aggregateRuns(runs) as AgentJobResult[];
+    expect(result.tokens).toBe(1500);
+  });
+
+  // ── Error handling ─────────────────────────────────────────────────────────
+
+  it('drops error results when at least one run succeeded', () => {
+    const ok = makeAgent({ overall_score: 70 });
+    const err = makeError();
+    const [result] = aggregateRuns([ok, err]) as AgentJobResult[];
+    expect(result.status).toBe('success');
+  });
+
+  it('keeps the last error result when all runs in a group errored', () => {
+    const err1 = makeError({ error: 'first' });
+    const err2 = makeError({ error: 'second' });
+    const [result] = aggregateRuns([err1, err2]);
+    expect(result.status).toBe('error');
+    expect((result as ErrorJobResult).error).toBe('second');
+  });
+
+  // ── Multiple keys ──────────────────────────────────────────────────────────
+
+  it('aggregates different keys independently', () => {
+    const reactRuns = [
+      makeBaseline({ eval_id: 'react_quickstart', grader_pass_rate: 0.6 }),
+      makeBaseline({ eval_id: 'react_quickstart', grader_pass_rate: 0.8 }),
+    ];
+    const nextRuns = [
+      makeBaseline({ eval_id: 'nextjs_quickstart', grader_pass_rate: 0.5 }),
+      makeBaseline({ eval_id: 'nextjs_quickstart', grader_pass_rate: 0.9 }),
+    ];
+    const results = aggregateRuns([...reactRuns, ...nextRuns]) as BaselineJobResult[];
+    expect(results).toHaveLength(2);
+    const react = results.find((r) => r.eval_id === 'react_quickstart')!;
+    const next = results.find((r) => r.eval_id === 'nextjs_quickstart')!;
+    expect(react.grader_pass_rate).toBeCloseTo(0.7);
+    expect(next.grader_pass_rate).toBeCloseTo(0.7);
   });
 });

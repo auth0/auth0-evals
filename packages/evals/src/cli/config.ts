@@ -21,6 +21,7 @@ import {
   validateEvalIds,
   validateTools,
   validateWorkers,
+  validateRuns,
   validateAgentType,
 } from './validators.js';
 
@@ -36,6 +37,8 @@ export interface RunConfig {
   evalIds: string[];
   /** Maximum number of concurrent jobs. */
   workers: number;
+  /** Number of times to run each job — the median score is used as the final result. */
+  runs: number;
   /** Caller-supplied `--output` path, or `undefined` to use the default name. */
   outputPath: string | undefined;
   /** When `true`, agent workspaces are not deleted after the run. */
@@ -122,6 +125,7 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
       `Agent runner for agent mode: ${KNOWN_AGENT_TYPES.join(' | ')}. Auto-routed by model prefix when omitted (claude-* → claude-code, gemini-* → gemini-cli, gpt-* → codex, else ${DEFAULT_AGENT_TYPE}).`,
     )
     .option('--workers <n>', 'Parallel workers (default: 4)')
+    .option('--runs <n>', 'Number of times to run each job — median score is used (default: 1)')
     .option('--output <path>', 'JSON output path')
     .option('--keep-workspace', '(agent mode) Keep temp workspace after run', false)
     .option('--braintrust', 'Log results to Braintrust experiment', false)
@@ -144,6 +148,7 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
     : (opts.eval as string[]);
   const tools = validateTools(opts.tools as string);
   const workers = validateWorkers(opts.workers as string | undefined);
+  const runs = validateRuns(opts.runs as string | undefined);
   const agentType = validateAgentType(opts.agentType as string | undefined);
 
   return {
@@ -152,6 +157,7 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
     tools,
     evalIds,
     workers,
+    runs,
     outputPath: opts.output as string | undefined,
     keepWorkspace: opts.keepWorkspace as boolean,
     braintrust: opts.braintrust as boolean,

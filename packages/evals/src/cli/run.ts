@@ -15,6 +15,7 @@
  *                 gemini-* → gemini-cli, gpt-* → codex, else copilot).
  *   --tools       Tools to inject for agent mode: skills, mcp (default: none). Case-insensitive.
  *   --workers     Parallel workers (default: 4)
+ *   --runs        Number of times to run each job — median score is used (default: 1)
  *   --output      JSON output path (default: scores-<mode>.json)
  *   --keep-workspace   (agent mode) Keep temp workspace after run
  *   --braintrust       Log results to Braintrust experiment (requires BRAINTRUST_API_KEY)
@@ -50,9 +51,9 @@ import {
 import type { EvalConfig, EvalDefinition, JobResult, AgentType, Mode } from '@a0/evals-core';
 
 import { parseRunConfig, extractConfigPath } from './config.js';
-import { spawnEval, mergeIntoOutput } from './subprocess-runner.js';
+import { spawnEval, collectFromTempFiles } from './subprocess-runner.js';
 import { DEFAULT_AGENT_TYPE } from './constants.js';
-import { resolveOutputPath, mergeResults, loadResults, saveResults } from '../persistence/index.js';
+import { resolveOutputPath, mergeResults, loadResults, saveResults, aggregateRuns } from '../persistence/index.js';
 import { runBaseline } from '../runners/baseline.js';
 import { score } from '../scorer.js';
 import { ClaudeCodeRunner } from '../runners/claude-code/runner.js';
@@ -356,6 +357,7 @@ export async function runCli(): Promise<void> {
     tools,
     evalIds,
     workers,
+    runs,
     outputPath: outputOverride,
     keepWorkspace,
     braintrust,
@@ -408,6 +410,9 @@ export async function runCli(): Promise<void> {
 
   const jobs = buildJobList(registry, models, modes, tools, agentType);
 
+  // Expand each job by the requested run count, tagging each with its run index.
+  const expandedJobs = jobs.flatMap((job) => Array.from({ length: runs }, (_, runIdx) => ({ job, runIdx })));
+
   // Ensure Docker image exists before dispatching subprocesses — avoids N parallel builds.
   if (sandbox && modes.includes('agent')) {
     const { ensureDockerImage } = await import('../sandbox/docker.js');
@@ -415,7 +420,7 @@ export async function runCli(): Promise<void> {
   }
 
   // ── Subprocess-per-job parallelism ──────────────────────────────────────────
-  if (jobs.length > 1) {
+  if (expandedJobs.length > 1) {
     const selfPath = join(__dirname, 'bin.js');
     const outputPath = resolveOutputPath(frameworkRoot, modes, outputOverride);
 
@@ -424,11 +429,15 @@ export async function runCli(): Promise<void> {
     const tempFiles: string[] = [];
     const subLimit = pLimit(workers);
     const settled = await Promise.allSettled(
-      jobs.map(([evalCfg, model, mode, jobTools, jobAgentType]) =>
+      expandedJobs.map(({ job: [evalCfg, model, mode, jobTools, jobAgentType], runIdx }) =>
         subLimit(async () => {
           const toolsSuffix = jobTools.length > 0 ? `-${jobTools.join('+')}` : '';
           const safeModel = model.replace(/[^a-zA-Z0-9.-]/g, '_');
-          const tempFile = join(frameworkRoot, `scores-tmp-${evalCfg.id}-${safeModel}-${mode}${toolsSuffix}.json`);
+          const runSuffix = runs > 1 ? `-r${runIdx}` : '';
+          const tempFile = join(
+            frameworkRoot,
+            `scores-tmp-${evalCfg.id}-${safeModel}-${mode}${toolsSuffix}${runSuffix}.json`,
+          );
           tempFiles.push(tempFile);
           const jobArgs = [
             ...baseArgs,
@@ -450,7 +459,11 @@ export async function runCli(): Promise<void> {
       logger.error(`  [Subprocess] ${(f as PromiseRejectedResult).reason}`);
     }
 
-    const merged = mergeIntoOutput(tempFiles, outputPath);
+    const allFresh = collectFromTempFiles(tempFiles) as unknown as JobResult[];
+    const toSave = runs > 1 ? aggregateRuns(allFresh) : allFresh;
+    const existing = loadResults(outputPath);
+    const merged = mergeResults(existing, toSave);
+    saveResults(outputPath, merged);
     logger.info(`\n[Output] Results saved to: ${outputPath}`);
 
     const hasErrors = failures.length > 0 || merged.some((r) => r.status === 'error');

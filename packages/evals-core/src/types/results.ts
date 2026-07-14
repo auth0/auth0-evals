@@ -80,6 +80,10 @@ export interface BaselineJobResult {
   error: string;
   /** Per-grader pass/fail detail. */
   graders: GraderSummary[];
+  /** Number of runs aggregated into this result (absent when run_count is 1). */
+  run_count?: number;
+  /** Raw individual run results when run_count > 1. */
+  runs?: BaselineJobResult[];
 }
 
 /**
@@ -141,6 +145,10 @@ export interface AgentJobResult {
   turn_metrics: TurnMetricEntry[];
   /** Structured recommendations for improving graders, skills, MCP, and efficiency. Present only when skills or MCP tools are enabled. */
   recommendations?: Recommendations;
+  /** Number of runs aggregated into this result (absent when run_count is 1). */
+  run_count?: number;
+  /** Raw individual run results when run_count > 1. */
+  runs?: AgentJobResult[];
 }
 
 /**

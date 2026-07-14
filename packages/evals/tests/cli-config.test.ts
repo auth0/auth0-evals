@@ -91,6 +91,11 @@ describe('defaults', () => {
     expect(config.workers).toBe(4);
   });
 
+  it('sets runs to 1', () => {
+    const config = parse();
+    expect(config.runs).toBe(1);
+  });
+
   it('sets tools to an empty array', () => {
     const config = parse();
     expect(config.tools).toEqual([]);
@@ -341,5 +346,34 @@ describe('extractConfigPath', () => {
 
   it('extracts the value from the --config=<path> form', () => {
     expect(extractConfigPath(argv('--config=/abs/path/eval.config.js'))).toBe('/abs/path/eval.config.js');
+  });
+});
+
+// ── Runs validation ───────────────────────────────────────────────────────────
+
+describe('--runs', () => {
+  it('parses a valid positive integer', () => {
+    expect(parse('--runs', '3').runs).toBe(3);
+  });
+
+  it('accepts 1 as the minimum valid value', () => {
+    expect(parse('--runs', '1').runs).toBe(1);
+  });
+
+  it('exits for 0', () => {
+    expect(() => parse('--runs', '0')).toThrow('process.exit(1)');
+  });
+
+  it('exits for a negative number', () => {
+    expect(() => parse('--runs', '-1')).toThrow('process.exit(1)');
+  });
+
+  it('exits for a non-numeric string', () => {
+    expect(() => parse('--runs', 'many')).toThrow('process.exit(1)');
+  });
+
+  it('prints the invalid value in the error message', () => {
+    expect(() => parse('--runs', 'many')).toThrow();
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('many'));
   });
 });
