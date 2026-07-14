@@ -127,6 +127,7 @@ function median(values: number[]): number {
   return sorted.length % 2 !== 0 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
 }
 
+/** Aggregates a group of agent results into a single representative result using median scores and summed costs. */
 function medianAgentResult(group: AgentJobResult[]): AgentJobResult {
   const sorted = [...group].sort((a, b) => a.overall_score - b.overall_score);
   const mid = Math.floor(sorted.length / 2);
@@ -158,6 +159,7 @@ function medianAgentResult(group: AgentJobResult[]): AgentJobResult {
   };
 }
 
+/** Aggregates a group of baseline results into a single representative result using median scores and summed costs. */
 function medianBaselineResult(group: BaselineJobResult[]): BaselineJobResult {
   const sorted = [...group].sort((a, b) => a.grader_pass_rate - b.grader_pass_rate);
   const mid = Math.floor(sorted.length / 2);
