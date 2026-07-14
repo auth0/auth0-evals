@@ -554,3 +554,40 @@ describe('aggregateRuns', () => {
     expect(next.grader_pass_rate).toBeCloseTo(0.7);
   });
 });
+
+// ── findDroppedErrors ─────────────────────────────────────────────────────────
+
+describe('findDroppedErrors', () => {
+  it('returns an empty array when there are no errors', () => {
+    expect(findDroppedErrors([makeBaseline(), makeBaseline()])).toEqual([]);
+  });
+
+  it('returns an empty array when all runs errored (nothing is dropped)', () => {
+    expect(findDroppedErrors([makeError(), makeError()])).toEqual([]);
+  });
+
+  it('returns the error when its job key also has a successful run', () => {
+    // makeError defaults to mode: agent, tools: [] — makeAgent must match
+    const ok = makeAgent({ tools: [] });
+    const err = makeError();
+    const result = findDroppedErrors([ok, err]);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBe(err);
+  });
+
+  it('returns multiple errors when several runs for the same job failed', () => {
+    const ok = makeAgent({ tools: [] });
+    const err1 = makeError({ error: 'first' });
+    const err2 = makeError({ error: 'second' });
+    expect(findDroppedErrors([ok, err1, err2])).toHaveLength(2);
+  });
+
+  it('does not return errors from an all-error group', () => {
+    const okGroup = makeAgent({ eval_id: 'react_quickstart', tools: [] });
+    const droppedErr = makeError({ eval_id: 'react_quickstart' });
+    const allErrGroup = makeError({ eval_id: 'nextjs_quickstart' });
+    const result = findDroppedErrors([okGroup, droppedErr, allErrGroup]);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.eval_id).toBe('react_quickstart');
+  });
+});

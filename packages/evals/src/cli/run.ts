@@ -53,7 +53,14 @@ import type { EvalConfig, EvalDefinition, JobResult, AgentType, Mode } from '@a0
 import { parseRunConfig, extractConfigPath } from './config.js';
 import { spawnEval, collectFromTempFiles } from './subprocess-runner.js';
 import { DEFAULT_AGENT_TYPE } from './constants.js';
-import { resolveOutputPath, mergeResults, loadResults, saveResults, aggregateRuns } from '../persistence/index.js';
+import {
+  resolveOutputPath,
+  mergeResults,
+  loadResults,
+  saveResults,
+  aggregateRuns,
+  findDroppedErrors,
+} from '../persistence/index.js';
 import { runBaseline } from '../runners/baseline.js';
 import { score } from '../scorer.js';
 import { ClaudeCodeRunner } from '../runners/claude-code/runner.js';
@@ -460,6 +467,13 @@ export async function runCli(): Promise<void> {
     }
 
     const allFresh = collectFromTempFiles(tempFiles) as unknown as JobResult[];
+
+    if (runs > 1) {
+      for (const r of findDroppedErrors(allFresh)) {
+        logger.warn(`[Warning] run excluded from aggregation: ${r.eval_id} ${r.model} ${r.mode} — ${r.error}`);
+      }
+    }
+
     const toSave = runs > 1 ? aggregateRuns(allFresh) : allFresh;
     const existing = loadResults(outputPath);
     const merged = mergeResults(existing, toSave);

@@ -221,3 +221,14 @@ export function aggregateRuns(results: JobResult[]): JobResult[] {
   }
   return aggregated;
 }
+
+/**
+ * Returns error results from `results` that will be dropped by `aggregateRuns` —
+ * i.e. errors whose job key also has at least one successful run in the same batch.
+ */
+export function findDroppedErrors(results: JobResult[]): ErrorJobResult[] {
+  return results.filter(
+    (r): r is ErrorJobResult =>
+      r.status === 'error' && results.some((s) => s.status !== 'error' && resultKey(s) === resultKey(r)),
+  );
+}
