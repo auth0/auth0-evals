@@ -340,6 +340,7 @@ By default (LiteLLM proxy) the `modelIds` map is empty — the proxy serves mode
 Set `CLAUDE_CODE_USE_BEDROCK_PROXY=1` to route through the Bedrock proxy instead (`/anthropic` endpoint). The config then populates `modelIds` to map supported short aliases to full Bedrock model IDs:
 
 - `claude-sonnet-4-6` → `global.anthropic.claude-sonnet-4-6`
+- `claude-sonnet-5` → `global.anthropic.claude-sonnet-5`
 - `claude-opus-4-6` → `global.anthropic.claude-opus-4-6-v1`
 - `claude-opus-4-7` → `global.anthropic.claude-opus-4-7`
 - `claude-opus-4-8` → `global.anthropic.claude-opus-4-8`
@@ -370,7 +371,11 @@ When MCP tools are enabled (`--tools mcp`), MCP server tool definitions are appe
 
 - `gpt-5.4` (default when no `--model` flag)
 - `gpt-5.4-mini`
+- `gpt-5.5`
+- `gpt-5.5-mini`
+- `gpt-5.6`
 - `claude-sonnet-4-6`
+- `claude-sonnet-5`
 - `claude-opus-4-8`
 - `claude-haiku-4-5`
 - `gemini-3.1-pro-preview`

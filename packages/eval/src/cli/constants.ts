@@ -12,7 +12,11 @@ export type { AgentType, Mode } from '@a0/eval-core';
 export const KNOWN_WORKING_MODELS = [
   'gpt-5.4',
   'gpt-5.4-mini',
+  'gpt-5.5',
+  'gpt-5.5-mini',
+  'gpt-5.6',
   'claude-sonnet-4-6',
+  'claude-sonnet-5',
   'claude-opus-4-6',
   'claude-opus-4-7',
   'claude-opus-4-8',

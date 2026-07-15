@@ -30,6 +30,19 @@ describe('estimateCost', () => {
     expect(estimateCost('gpt-5.4', 0, 0)).toBe(0);
   });
 
+  it.each(['gpt-5.5', 'gpt-5.5-mini', 'gpt-5.6', 'claude-sonnet-5'])(
+    'has explicit pricing for %s (not the fallback default)',
+    (model) => {
+      const pricing = COST_TABLE[model];
+      expect(pricing).toBeDefined();
+      // Guard against silently reusing DEFAULT_PRICING for a model we claim to price.
+      expect(pricing).not.toEqual(DEFAULT_PRICING);
+      expect(estimateCost(model, 1_000_000, 1_000_000)).toBeCloseTo(pricing![0] + pricing![1], 6);
+      // A priced model must not emit the unknown-model warning.
+      expect(warnings.some((w) => w.includes(model))).toBe(false);
+    },
+  );
+
   it('applies DEFAULT_PRICING and warns once for an unknown model', () => {
     const model = 'totally-made-up-model-xyz';
     const cost = estimateCost(model, 1_000_000, 1_000_000);

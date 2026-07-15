@@ -34,10 +34,10 @@ export default {
     'gemini-cli': {
       proxy: { baseUrl: GEMINI_PROXY_BASE_URL },
     },
-    'codex': {
+    codex: {
       proxy: { baseUrl: CODEX_PROXY_BASE_URL },
     },
-    'copilot': {
+    copilot: {
       proxy: { baseUrl: COPILOT_PROXY_BASE_URL },
     },
   },
@@ -84,7 +84,6 @@ export default {
     ],
   },
 
-
   braintrust: {
     projectId: '38395851-dd41-46ec-a971-a30402db6921',
     datasetName: 'auth0-evals',
@@ -94,7 +93,19 @@ export default {
     // `known` is the set `--model all` expands to. Opus 4.5/4.6/4.7 are intentionally
     // excluded here so `--model all` runs only Opus 4.8 among the Opus variants; the
     // framework and `modelIds` map below still support them for explicit `--model` runs.
-    known: ['gpt-5.4', 'gpt-5.4-mini', 'claude-sonnet-4-6', 'claude-opus-4-8', 'claude-haiku-4-5', 'gemini-3.1-pro-preview', 'gemini-3.5-flash'],
+    known: [
+      'gpt-5.4',
+      'gpt-5.4-mini',
+      'gpt-5.5',
+      'gpt-5.5-mini',
+      'gpt-5.6',
+      'claude-sonnet-4-6',
+      'claude-sonnet-5',
+      'claude-opus-4-8',
+      'claude-haiku-4-5',
+      'gemini-3.1-pro-preview',
+      'gemini-3.5-flash',
+    ],
     default: 'gpt-5.4',
     // Maps short model aliases to the IDs the active proxy expects.
     // Bedrock proxy needs full `global.anthropic.*` IDs; LiteLLM proxy serves
@@ -102,6 +113,7 @@ export default {
     modelIds: useBedrock
       ? {
           'claude-sonnet-4-6': 'global.anthropic.claude-sonnet-4-6',
+          'claude-sonnet-5': 'global.anthropic.claude-sonnet-5',
           'claude-opus-4-6': 'global.anthropic.claude-opus-4-6-v1',
           'claude-opus-4-7': 'global.anthropic.claude-opus-4-7',
           'claude-opus-4-8': 'global.anthropic.claude-opus-4-8',
