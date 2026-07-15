@@ -1,7 +1,7 @@
 ---
 id: nuxt_quickstart
 name: Nuxt Quickstart
-skills: auth0-nuxt
+skills: auth0
 setup_command: npm install
 compile_command: npm run build
 ---

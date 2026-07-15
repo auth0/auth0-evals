@@ -2,7 +2,7 @@
 id: spa_js_dpop
 name: SPA JS DPoP Token Binding
 scaffold: src/evals/scaffolds/spa-js/auth0
-skills: auth0-dpop
+skills: auth0
 setup_command: npm install
 compile_command: npm run build
 ---
