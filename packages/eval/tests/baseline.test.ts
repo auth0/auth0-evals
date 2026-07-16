@@ -41,18 +41,23 @@ function makeAiResponse(text = 'Here is the code.', inputTokens = 100, outputTok
 
 describe('estimateCost', () => {
   it('uses correct input price for known model', () => {
-    const cost = estimateCost('gpt-5.4', 1_000_000, 0);
-    expect(cost).toBe(2.5);
+    const cost = estimateCost('gpt-5.6-sol', 1_000_000, 0);
+    expect(cost).toBe(5.0);
   });
 
   it('uses correct output price for known model', () => {
-    const cost = estimateCost('gpt-5.4', 0, 1_000_000);
-    expect(cost).toBe(15.0);
+    const cost = estimateCost('gpt-5.6-sol', 0, 1_000_000);
+    expect(cost).toBe(30.0);
   });
 
   it('sums input and output costs', () => {
-    const cost = estimateCost('gpt-5.4', 1_000_000, 1_000_000);
-    expect(cost).toBe(17.5);
+    const cost = estimateCost('gpt-5.6-sol', 1_000_000, 1_000_000);
+    expect(cost).toBe(35.0);
+  });
+
+  it('prices another known model from COST_TABLE', () => {
+    const cost = estimateCost('claude-sonnet-5', 1_000_000, 0);
+    expect(cost).toBe(2.0);
   });
 
   it('uses default price for unknown model', () => {
@@ -61,7 +66,7 @@ describe('estimateCost', () => {
   });
 
   it('returns zero cost for zero tokens', () => {
-    const cost = estimateCost('gpt-5.4', 0, 0);
+    const cost = estimateCost('gpt-5.6-sol', 0, 0);
     expect(cost).toBe(0.0);
   });
 });
@@ -77,29 +82,29 @@ describe('runBaseline', () => {
   it('returns a BaselineResult with eval_id and model', async () => {
     mockGenerateText.mockResolvedValue(makeAiResponse());
 
-    const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
+    const result = await runBaseline('key', 'gpt-5.6-sol', makeEvalDef());
     expect(result.evalId).toBe('react_quickstart');
-    expect(result.model).toBe('gpt-5.4');
+    expect(result.model).toBe('gpt-5.6-sol');
   });
 
   it('mode is baseline', async () => {
     mockGenerateText.mockResolvedValue(makeAiResponse());
 
-    const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
+    const result = await runBaseline('key', 'gpt-5.6-sol', makeEvalDef());
     expect(result.mode).toBe('baseline');
   });
 
   it('captures response text', async () => {
     mockGenerateText.mockResolvedValue(makeAiResponse('Auth0 code here'));
 
-    const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
+    const result = await runBaseline('key', 'gpt-5.6-sol', makeEvalDef());
     expect(result.responseText).toBe('Auth0 code here');
   });
 
   it('captures token counts', async () => {
     mockGenerateText.mockResolvedValue(makeAiResponse('ok', 500, 250));
 
-    const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
+    const result = await runBaseline('key', 'gpt-5.6-sol', makeEvalDef());
     expect(result.inputTokens).toBe(500);
     expect(result.outputTokens).toBe(250);
   });
@@ -107,7 +112,7 @@ describe('runBaseline', () => {
   it('defaults token counts to zero when usage fields are absent', async () => {
     mockGenerateText.mockResolvedValue({ text: 'ok', usage: { inputTokens: undefined, outputTokens: undefined } });
 
-    const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
+    const result = await runBaseline('key', 'gpt-5.6-sol', makeEvalDef());
     expect(result.inputTokens).toBe(0);
     expect(result.outputTokens).toBe(0);
   });
@@ -115,21 +120,21 @@ describe('runBaseline', () => {
   it('calculates cost from token counts', async () => {
     mockGenerateText.mockResolvedValue(makeAiResponse('ok', 1_000_000, 0));
 
-    const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
-    expect(result.costUsd).toBe(2.5);
+    const result = await runBaseline('key', 'gpt-5.6-sol', makeEvalDef());
+    expect(result.costUsd).toBe(5.0);
   });
 
   it('status is success on happy path', async () => {
     mockGenerateText.mockResolvedValue(makeAiResponse());
 
-    const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
+    const result = await runBaseline('key', 'gpt-5.6-sol', makeEvalDef());
     expect(result.status).toBe('success');
   });
 
   it('status is failure on error', async () => {
     mockGenerateText.mockRejectedValue(new Error('timeout'));
 
-    const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
+    const result = await runBaseline('key', 'gpt-5.6-sol', makeEvalDef());
     expect(result.status).toBe('failure');
     expect(result.error).toContain('timeout');
   });
@@ -137,7 +142,7 @@ describe('runBaseline', () => {
   it('records wall time', async () => {
     mockGenerateText.mockResolvedValue(makeAiResponse());
 
-    const result = await runBaseline('key', 'gpt-5.4', makeEvalDef());
+    const result = await runBaseline('key', 'gpt-5.6-sol', makeEvalDef());
     expect(typeof result.wallTime).toBe('number');
     expect(result.wallTime).toBeGreaterThanOrEqual(0);
   });
@@ -145,7 +150,7 @@ describe('runBaseline', () => {
   it('passes system prompt and user prompt to generateText', async () => {
     mockGenerateText.mockResolvedValue(makeAiResponse());
 
-    await runBaseline('key', 'gpt-5.4', makeEvalDef());
+    await runBaseline('key', 'gpt-5.6-sol', makeEvalDef());
     expect(mockGenerateText).toHaveBeenCalledWith(
       expect.objectContaining({
         system: 'You are a React developer.',
@@ -157,7 +162,7 @@ describe('runBaseline', () => {
   it('omits system when baselineSystemPrompt is undefined', async () => {
     mockGenerateText.mockResolvedValue(makeAiResponse());
 
-    await runBaseline('key', 'gpt-5.4', { id: 'x', userPrompt: 'hello', baselineSystemPrompt: undefined });
+    await runBaseline('key', 'gpt-5.6-sol', { id: 'x', userPrompt: 'hello', baselineSystemPrompt: undefined });
     expect(mockGenerateText).toHaveBeenCalledWith(expect.objectContaining({ system: undefined, prompt: 'hello' }));
   });
 });

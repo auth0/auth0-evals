@@ -48,7 +48,7 @@ const translator = new CodexTranslator();
 export const CODEX_MODEL_ID = 'codex';
 
 /** Default model for the Codex CLI runner. */
-export const CODEX_DEFAULT_MODEL = 'gpt-5.4';
+export const CODEX_DEFAULT_MODEL = 'gpt-5.6-sol';
 
 /**
  * Writes Codex config.toml to configure a custom proxy provider.

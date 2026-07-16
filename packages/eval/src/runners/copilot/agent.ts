@@ -38,7 +38,7 @@ const translator = new CopilotCliTranslator();
 export const COPILOT_MODEL_ID = 'copilot';
 
 /** Default GPT model used when no explicit model is requested. */
-export const COPILOT_DEFAULT_MODEL = 'gpt-5.4';
+export const COPILOT_DEFAULT_MODEL = 'gpt-5.6-sol';
 
 export interface CopilotRunOptions {
   /** Path to the `copilot` binary. Defaults to the bundled CLI from @github/copilot. */

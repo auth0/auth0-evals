@@ -133,11 +133,7 @@ async function loadGraders(gradersPath: string): Promise<GraderDef[]> {
  * Resolve the scaffold directory from the optional `scaffold` frontmatter field.
  * Falls back to the local scaffold/ subdirectory when the field is absent.
  */
-function resolveScaffoldFromMeta(
-  scaffoldMeta: string | undefined,
-  evalPath: string,
-  frameworkRoot: string,
-): string {
+function resolveScaffoldFromMeta(scaffoldMeta: string | undefined, evalPath: string, frameworkRoot: string): string {
   if (!scaffoldMeta) {
     return join(evalPath, 'scaffold');
   }
@@ -153,10 +149,7 @@ function resolveScaffoldFromMeta(
   }
 
   if (!existsSync(resolvedPath)) {
-    throw new EvalConfigError(
-      `scaffold path does not exist: ${resolvedPath}`,
-      join(evalPath, 'PROMPT.md'),
-    );
+    throw new EvalConfigError(`scaffold path does not exist: ${resolvedPath}`, join(evalPath, 'PROMPT.md'));
   }
 
   return resolvedPath;

@@ -10,11 +10,10 @@ export type { AgentType, Mode } from '@a0/eval-core';
 
 /** Models known to work reliably across all eval modes. Used when `--model all` is passed. */
 export const KNOWN_WORKING_MODELS = [
-  'gpt-5.4',
-  'gpt-5.4-mini',
-  'claude-sonnet-4-6',
-  'claude-opus-4-6',
-  'claude-opus-4-7',
+  'gpt-5.6-sol',
+  'gpt-5.6-luna',
+  'gpt-5.6-terra',
+  'claude-sonnet-5',
   'claude-opus-4-8',
   'claude-haiku-4-5',
   'gemini-3.1-pro-preview',
@@ -22,7 +21,7 @@ export const KNOWN_WORKING_MODELS = [
 ];
 
 /** Model used when no `--model` flag is provided. */
-export const DEFAULT_MODEL = 'gpt-5.4';
+export const DEFAULT_MODEL = 'gpt-5.6-sol';
 
 /** Tool names accepted by the `--tools` flag (case-insensitive). */
 export const KNOWN_TOOLS = ['skills', 'mcp'];

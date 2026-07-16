@@ -7,7 +7,7 @@
  *
  * Options:
  *   --eval        Eval ID to run (default: all). Can be repeated.
- *   --model       Model(s) to run (default: gpt-5.4). Can be repeated.
+ *   --model       Model(s) to run (default: gpt-5.6-sol). Can be repeated.
  *                 Use 'all' to run all known working models.
  *   --mode        Execution mode: baseline | agent | all (default: baseline)
  *   --agent-type  Agent runner: claude-code | copilot | gemini-cli | codex
