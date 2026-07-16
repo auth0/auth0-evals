@@ -21,13 +21,13 @@ beforeEach(() => {
 
 describe('estimateCost', () => {
   it('computes cost from the model pricing in COST_TABLE', () => {
-    const [inPrice, outPrice] = COST_TABLE['gpt-5.4']!;
-    const cost = estimateCost('gpt-5.4', 1_000_000, 1_000_000);
+    const [inPrice, outPrice] = COST_TABLE['gpt-5.6-sol']!;
+    const cost = estimateCost('gpt-5.6-sol', 1_000_000, 1_000_000);
     expect(cost).toBeCloseTo(inPrice + outPrice, 6);
   });
 
   it('returns 0 for zero tokens', () => {
-    expect(estimateCost('gpt-5.4', 0, 0)).toBe(0);
+    expect(estimateCost('gpt-5.6-sol', 0, 0)).toBe(0);
   });
 
   it('applies DEFAULT_PRICING and warns once for an unknown model', () => {

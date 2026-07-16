@@ -73,7 +73,7 @@ export interface ClaudeCodeRunOptions {
    * Claude model identifier to pass via `model` option.
    * When omitted the SDK uses its own default model.
    * Use the Anthropic model ID format (e.g. `claude-sonnet-4-5-20251101`) or
-   * a proxy alias (e.g. `claude-sonnet-4-6`) when routing through the proxy.
+   * a proxy alias (e.g. `claude-sonnet-5`) when routing through the proxy.
    */
   model?: string;
 }
@@ -305,9 +305,7 @@ export function handleMessage(
 
     const usage = msg.usage;
     const turnInput =
-      (usage?.input_tokens ?? 0) +
-      (usage?.cache_read_input_tokens ?? 0) +
-      (usage?.cache_creation_input_tokens ?? 0);
+      (usage?.input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0) + (usage?.cache_creation_input_tokens ?? 0);
     const turnOutput = usage?.output_tokens ?? 0;
     record.inputTokens += turnInput;
     record.outputTokens += turnOutput;

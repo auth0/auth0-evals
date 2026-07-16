@@ -15,7 +15,7 @@ export class GeminiCliRunner implements AgentRunner {
 
   async run({ evalDef, workspace, model, tools }: RunParams): Promise<RunResult> {
     // Accept either the sentinel 'gemini-cli' or a real Gemini model ID
-    // (e.g. 'gemini-2.5-flash').  Anything else (e.g. the default 'gpt-5.4')
+    // (e.g. 'gemini-2.5-flash').  Anything else (e.g. the default 'gpt-5.6-sol')
     // is not a valid Gemini model — fall back to the default flash model so
     // running with --agent-type gemini-cli and no --model flag still works.
     const isGeminiModel = model === GEMINI_CLI_MODEL_ID || model.startsWith('gemini-');

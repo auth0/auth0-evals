@@ -79,7 +79,7 @@ Use `notContainsInSource` (not `notContains`) when a value like a client ID is a
 | `notContains(needle)`                            | Substring must NOT appear in any non-excluded workspace file                                                                                                                                                                                   |
 | `notContainsInSource(needle)`                    | Substring must NOT appear in source files (allowed in config)                                                                                                                                                                                  |
 | `matches(pattern)`                               | Regex match in any non-excluded workspace file                                                                                                                                                                                                 |
-| `judge(question, framework?)`                    | LLM-as-judge yes/no question — uses `claude-opus-4-7`                                                                                                                                                                                          |
+| `judge(question, framework?)`                    | LLM-as-judge yes/no question — uses `claude-opus-4-8`                                                                                                                                                                                          |
 | `ranCommand(command, args, description, level)`  | Agent ran a shell command containing `command` (and all `args`) — event-based, level required (L4 or L5)                                                                                                                                       |
 | `ranCommandOneOf(commands, description, level)`  | Agent ran at least one command from the list — event-based, level required (L4 or L5)                                                                                                                                                          |
 | `wroteFile(path, description, level, expected?)` | Agent wrote a file whose path contains the substring. With optional `expected` (string or string array), the combined content of all writes to that path must also contain every `expected` substring — event-based, level required (L4 or L5) |
@@ -339,9 +339,7 @@ By default (LiteLLM proxy) the `modelIds` map is empty — the proxy serves mode
 
 Set `CLAUDE_CODE_USE_BEDROCK_PROXY=1` to route through the Bedrock proxy instead (`/anthropic` endpoint). The config then populates `modelIds` to map supported short aliases to full Bedrock model IDs:
 
-- `claude-sonnet-4-6` → `global.anthropic.claude-sonnet-4-6`
-- `claude-opus-4-6` → `global.anthropic.claude-opus-4-6-v1`
-- `claude-opus-4-7` → `global.anthropic.claude-opus-4-7`
+- `claude-sonnet-5` → `global.anthropic.claude-sonnet-5`
 - `claude-opus-4-8` → `global.anthropic.claude-opus-4-8`
 - `claude-opus-4-5` → `global.anthropic.claude-opus-4-5-20251101-v1:0`
 - `claude-haiku-4-5` → `global.anthropic.claude-haiku-4-5-20251001-v1:0`
@@ -350,7 +348,7 @@ Set `CLAUDE_CODE_USE_BEDROCK_PROXY=1` to route through the Bedrock proxy instead
 
 Uses `@github/copilot-sdk` to drive the bundled Copilot runtime over JSON-RPC. Inference is routed through the configured LLM proxy via an OpenAI-compatible BYOK provider (`provider: { type: 'openai', wireApi: 'responses', baseUrl, apiKey }`) — **not** GitHub's Copilot backend. The Responses API is required because Copilot emits freeform/custom tool calls (e.g. `apply_patch`) that the chat-completions API rejects — the same reason the Codex runner uses `wire_api = "responses"`. This mirrors the Codex runner: the proxy base URL resolves from `agents.copilot.proxy.baseUrl` (falling back to the top-level `proxy.baseUrl`) and is normalized to end in `/v1`; the API key comes from the `LLM_API_KEY` env var. Set `COPILOT_PROXY_BASE_URL` to override the proxy for this runner only.
 
-The runner is GPT-only: `gpt-*` / `o*` models pass through, anything else (e.g. `claude-*`, `gemini-*`, or the `copilot` sentinel) falls back to the default GPT model (`gpt-5.4`).
+The runner is GPT-only: `gpt-*` / `o*` models pass through, anything else (e.g. `claude-*`, `gemini-*`, or the `copilot` sentinel) falls back to the default GPT model (`gpt-5.6-sol`).
 
 ---
 
@@ -368,26 +366,27 @@ When MCP tools are enabled (`--tools mcp`), MCP server tool definitions are appe
 
 `--model all` expands to this app's `models.known` in `eval.config.js` (falling back to the framework's `KNOWN_WORKING_MODELS` constant only if the app leaves `models.known` empty):
 
-- `gpt-5.4` (default when no `--model` flag)
-- `gpt-5.4-mini`
-- `claude-sonnet-4-6`
+- `gpt-5.6-sol` (default when no `--model` flag)
+- `gpt-5.6-luna`
+- `gpt-5.6-terra`
+- `claude-sonnet-5`
 - `claude-opus-4-8`
 - `claude-haiku-4-5`
 - `gemini-3.1-pro-preview`
 - `gemini-3.5-flash`
 
-Opus 4.5, 4.6, and 4.7 are still supported by the framework (present in the cost table, effort-capable set, and Bedrock alias map) and can be run explicitly via `--model claude-opus-4-6`; they are intentionally omitted from `--model all` here so batch runs use only Opus 4.8 among the Opus variants.
+Opus 4.5 is still supported by the framework (present in the effort-capable set and Bedrock alias map) and can be run explicitly via `--model claude-opus-4-5`; it is intentionally omitted from `--model all` here so batch runs use only Opus 4.8 among the Opus variants. Opus 4.6 and 4.7 have been removed from the registry (deprecated).
 
 ### Judge model
 
-All LLM-as-judge graders use `claude-sonnet-4-5` via the configured LLM proxy (`proxy.baseUrl` in `eval.config.js`).
+All LLM-as-judge graders use `claude-opus-4-8` via the configured LLM proxy (`proxy.baseUrl` in `eval.config.js`).
 
 ### Settings
 
 | Setting              | Value                                            |
 | -------------------- | ------------------------------------------------ |
 | Base URL             | Configured in `eval.config.js` (`proxy.baseUrl`) |
-| Judge model          | `claude-sonnet-4-5`                              |
+| Judge model          | `claude-opus-4-8`                                |
 | Judge max tokens     | 1024                                             |
 | Judge max code chars | 32,768                                           |
 | Max agent turns      | 75                                               |
@@ -433,7 +432,7 @@ npm run report
 | Flag                         | Values                                          | Default              | Notes                                                    |
 | ---------------------------- | ----------------------------------------------- | -------------------- | -------------------------------------------------------- |
 | `--eval <id>`                | Any registered eval ID                          | all evals            | Repeatable                                               |
-| `--model <model>`            | Any model string                                | `gpt-5.4`            | Repeatable; `all` expands to the config's `models.known` |
+| `--model <model>`            | Any model string                                | `gpt-5.6-sol`        | Repeatable; `all` expands to the config's `models.known` |
 | `--mode <mode>`              | `baseline`, `agent`, `all`                      | `baseline`           | `all` expands to both                                    |
 | `--tools <tools>`            | `skills`, `mcp`, or comma-separated             | none                 | Only applies to agent mode                               |
 | `--agent-type <type>`        | `claude-code`, `copilot`, `gemini-cli`, `codex` | auto-routed by model | Overrides auto-routing                                   |

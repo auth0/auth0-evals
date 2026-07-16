@@ -3,22 +3,22 @@ import { isBedrockModel, isClaudeModel, isGeminiModel, isGptModel } from '../src
 
 describe('model detection', () => {
   it('isBedrockModel matches claude- prefix', () => {
-    expect(isBedrockModel('claude-opus-4-7')).toBe(true);
-    expect(isBedrockModel('gpt-5.4')).toBe(false);
+    expect(isBedrockModel('claude-opus-4-8')).toBe(true);
+    expect(isBedrockModel('gpt-5.6-sol')).toBe(false);
   });
 
   it('isClaudeModel is an alias for isBedrockModel', () => {
-    expect(isClaudeModel('claude-sonnet-4-6')).toBe(true);
+    expect(isClaudeModel('claude-sonnet-5')).toBe(true);
     expect(isClaudeModel('gemini-3.1-pro-preview')).toBe(false);
   });
 
   it('isGeminiModel matches gemini- prefix', () => {
     expect(isGeminiModel('gemini-3.1-pro-preview')).toBe(true);
-    expect(isGeminiModel('claude-opus-4-7')).toBe(false);
+    expect(isGeminiModel('claude-opus-4-8')).toBe(false);
   });
 
   it('isGptModel matches gpt- prefix', () => {
-    expect(isGptModel('gpt-5.4')).toBe(true);
-    expect(isGptModel('claude-opus-4-7')).toBe(false);
+    expect(isGptModel('gpt-5.6-sol')).toBe(true);
+    expect(isGptModel('claude-opus-4-8')).toBe(false);
   });
 });

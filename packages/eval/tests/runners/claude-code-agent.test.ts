@@ -297,7 +297,12 @@ describe('handleMessage — assistant', () => {
     const record = makeRecord();
     record.inputTokens = 0;
     handleMessage(
-      makeAssistantMsg({ input_tokens: 6, output_tokens: 3, cache_read_input_tokens: 4800, cache_creation_input_tokens: 200 }),
+      makeAssistantMsg({
+        input_tokens: 6,
+        output_tokens: 3,
+        cache_read_input_tokens: 4800,
+        cache_creation_input_tokens: 200,
+      }),
       record,
       makePending(),
       0,
@@ -602,7 +607,12 @@ describe('handleMessage — result', () => {
     const record = makeRecord();
     record.inputTokens = 999;
     handleMessage(
-      makeResultMsg({ input_tokens: 100, output_tokens: 50, cache_read_input_tokens: 4000, cache_creation_input_tokens: 500 }),
+      makeResultMsg({
+        input_tokens: 100,
+        output_tokens: 50,
+        cache_read_input_tokens: 4000,
+        cache_creation_input_tokens: 500,
+      }),
       record,
       makePending(),
       0,
