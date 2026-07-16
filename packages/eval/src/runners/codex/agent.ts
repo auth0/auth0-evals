@@ -38,6 +38,7 @@ import {
   readWorkspaceFile,
   makeSessionId,
   mintMcpToken,
+  mcpBearerTokenEnvVar,
 } from '@a0/eval-core';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/eval-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
@@ -487,7 +488,7 @@ export async function runCodexAgent(
         logger.warn(`[Codex] MCP server '${name}' skipped — token mint failed or creds missing`);
         continue;
       }
-      const envVar = `MCP_BEARER_${name.replace(/[^A-Za-z0-9]/g, '_').toUpperCase()}`;
+      const envVar = mcpBearerTokenEnvVar(name);
       bearerTokenEnvVars[name] = envVar;
       bearerTokens[envVar] = token;
     }

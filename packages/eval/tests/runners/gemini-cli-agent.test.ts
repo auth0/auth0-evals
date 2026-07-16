@@ -575,7 +575,7 @@ describe('.gemini/settings.json', () => {
     expect(existsSync(join(tmpWorkspace, '.gemini', 'settings.json'))).toBe(true);
   });
 
-  it('mints a token and writes an Authorization header for authed servers', async () => {
+  it('mints a token and writes an env-var Authorization header for authed servers', async () => {
     mockSpawn.mockReturnValue(makeChild([resultEvent()]));
     mintMcpTokenMock.mockResolvedValueOnce('minted-token');
     mockGetFrameworkConfig.mockReturnValueOnce({
@@ -598,14 +598,64 @@ describe('.gemini/settings.json', () => {
 
     await runGeminiCliAgent(evalDef, tmpWorkspace, { tools: ['mcp'] });
 
+    // The header references an env var — the token is never written to disk;
+    // Gemini CLI expands `${MCP_BEARER_*}` from the subprocess env at load time.
     const settings = readSettings();
     expect(settings.mcpServers).toEqual({
       'auth0-hosted-mcp': {
         httpUrl: 'https://tenant.auth0.com/v1/mcp',
         timeout: 30000,
-        headers: { Authorization: 'Bearer minted-token' },
+        headers: { Authorization: 'Bearer ${MCP_BEARER_AUTH0_HOSTED_MCP}' },
       },
     });
+    // The raw token must not leak into the settings file.
+    const raw = readFileSync(join(tmpWorkspace, '.gemini', 'settings.json'), 'utf-8');
+    expect(raw).not.toContain('minted-token');
+
+    // The token is injected into the subprocess env under the referenced name.
+    const spawnEnv = (mockSpawn.mock.calls[0] as [string, string[], { env: Record<string, string> }])[2].env;
+    expect(spawnEnv.MCP_BEARER_AUTH0_HOSTED_MCP).toBe('minted-token');
+  });
+
+  it('registers authed and unauthed servers together, only the authed one carrying a header', async () => {
+    // Mirrors the production eval.config.js: auth0-docs (unauthed) and
+    // auth0-hosted-mcp (authed) side by side. Both must land in the config,
+    // but only the authed server gets an Authorization header.
+    mockSpawn.mockReturnValue(makeChild([resultEvent()]));
+    mintMcpTokenMock.mockClear();
+    mintMcpTokenMock.mockResolvedValueOnce('minted-token');
+    mockGetFrameworkConfig.mockReturnValueOnce({
+      proxy: { baseUrl: 'https://llm.example.com/v1' },
+      mcp: {
+        servers: {
+          'auth0-docs': { type: 'http', url: 'https://auth0.com/docs/mcp' },
+          'auth0-hosted-mcp': {
+            type: 'http',
+            url: 'https://tenant.auth0.com/v1/mcp',
+            auth: {
+              tokenUrl: 'https://tenant.auth0.com/oauth/token',
+              clientId: 'cid',
+              clientSecret: 'secret',
+              audience: 'https://tenant.auth0.com/api/v2/',
+            },
+          },
+        },
+      },
+    });
+
+    await runGeminiCliAgent(evalDef, tmpWorkspace, { tools: ['mcp'] });
+
+    const settings = readSettings();
+    expect(settings.mcpServers).toEqual({
+      'auth0-docs': { httpUrl: 'https://auth0.com/docs/mcp', timeout: 30000 },
+      'auth0-hosted-mcp': {
+        httpUrl: 'https://tenant.auth0.com/v1/mcp',
+        timeout: 30000,
+        headers: { Authorization: 'Bearer ${MCP_BEARER_AUTH0_HOSTED_MCP}' },
+      },
+    });
+    // The token is minted exactly once — the unauthed server never triggers a mint.
+    expect(mintMcpTokenMock).toHaveBeenCalledOnce();
   });
 
   it('skips an authed server when the token mint fails', async () => {

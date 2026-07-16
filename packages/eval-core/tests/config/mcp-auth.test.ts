@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { mintMcpToken } from '../../src/config/mcp-auth.js';
+import { mintMcpToken, mcpBearerTokenEnvVar } from '../../src/config/mcp-auth.js';
+import { logger } from '../../src/utils/logger.js';
 import type { MCPOAuthConfig } from '../../src/config/framework.js';
 
 const validAuth: MCPOAuthConfig = {
@@ -27,8 +28,13 @@ describe('mintMcpToken', () => {
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe(validAuth.tokenUrl);
-    const body = JSON.parse((init as RequestInit).body as string);
-    expect(body).toMatchObject({
+    // Form-encoded per RFC 6749 §4.4.2, not JSON.
+    expect((init as RequestInit).headers).toMatchObject({
+      'content-type': 'application/x-www-form-urlencoded',
+    });
+    const body = (init as RequestInit).body as URLSearchParams;
+    expect(body).toBeInstanceOf(URLSearchParams);
+    expect(Object.fromEntries(body)).toMatchObject({
       grant_type: 'client_credentials',
       client_id: 'client-id',
       client_secret: 'client-secret',
@@ -37,8 +43,24 @@ describe('mintMcpToken', () => {
   });
 
   it('returns undefined when the response is not ok', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 403, text: async () => '' }));
     expect(await mintMcpToken(validAuth)).toBeUndefined();
+  });
+
+  it('logs the response body on failure to aid diagnosis', async () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        text: async () => '{"error":"access_denied","error_description":"Service not enabled"}',
+      }),
+    );
+
+    expect(await mintMcpToken(validAuth)).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('access_denied'));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('403'));
   });
 
   it('returns undefined without calling fetch when a credential is missing', async () => {
@@ -52,5 +74,16 @@ describe('mintMcpToken', () => {
   it('returns undefined when the body has no access_token', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
     expect(await mintMcpToken(validAuth)).toBeUndefined();
+  });
+});
+
+describe('mcpBearerTokenEnvVar', () => {
+  it('uppercases and prefixes a simple server name', () => {
+    expect(mcpBearerTokenEnvVar('auth0docs')).toBe('MCP_BEARER_AUTH0DOCS');
+  });
+
+  it('maps non-alphanumerics to underscores', () => {
+    expect(mcpBearerTokenEnvVar('auth0-hosted-mcp')).toBe('MCP_BEARER_AUTH0_HOSTED_MCP');
+    expect(mcpBearerTokenEnvVar('auth0.hosted')).toBe('MCP_BEARER_AUTH0_HOSTED');
   });
 });

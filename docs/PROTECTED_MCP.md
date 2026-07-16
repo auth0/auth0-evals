@@ -9,7 +9,7 @@ This guide covers how to wire up a **protected HTTP MCP server** — one that re
 - You want an agent to use an MCP server that requires an `Authorization: Bearer` token rather than being publicly reachable.
 - The credentials come from a Machine-to-Machine (client-credentials) application, and you want a fresh token minted per job rather than a long-lived secret baked into config.
 
-> **Runner support:** token forwarding is implemented for **all runners** — claude-code, copilot, gemini-cli, and codex. The first three forward the token as an `Authorization: Bearer` header in their MCP server config; codex passes it via a `bearer_token_env_var` reference in `config.toml` (Codex rejects an inline token, so the secret never lands in the file).
+> **Runner support:** token forwarding is implemented for **all runners** — claude-code, copilot, gemini-cli, and codex. claude-code and copilot forward the token as an `Authorization: Bearer` header in their in-memory MCP server config. codex and gemini-cli keep the token off disk by referencing an env var: codex via a `bearer_token_env_var` key in `config.toml`, gemini-cli via a `Bearer ${MCP_BEARER_*}` header in `settings.json` that the CLI expands from the process env at load time. Either way the raw token is injected into the runner's process env, never written to a file.
 
 ---
 
@@ -70,12 +70,12 @@ mcp: {
 
 To wire up **a different** protected HTTP MCP server, add another entry with an `auth` block. The `auth` field is typed as `MCPOAuthConfig`:
 
-| Field | Meaning |
-|---|---|
-| `tokenUrl` | OAuth token endpoint, e.g. `https://TENANT/oauth/token` |
-| `clientId` | Client ID for the client-credentials grant |
-| `clientSecret` | Client secret for the client-credentials grant |
-| `audience` | API audience the token is minted for, e.g. `https://TENANT/api/v2/` |
+| Field          | Meaning                                                             |
+| -------------- | ------------------------------------------------------------------- |
+| `tokenUrl`     | OAuth token endpoint, e.g. `https://TENANT/oauth/token`             |
+| `clientId`     | Client ID for the client-credentials grant                          |
+| `clientSecret` | Client secret for the client-credentials grant                      |
+| `audience`     | API audience the token is minted for, e.g. `https://TENANT/api/v2/` |
 
 Servers **without** an `auth` block (like `auth0-docs`) continue to work unauthenticated.
 
@@ -87,11 +87,24 @@ You don't write any token code — the framework does it per job:
 
 1. When a job starts with `--tools mcp`, the active runner walks the configured MCP servers.
 2. For each HTTP server with an `auth` block, it calls `mintMcpToken(auth)` — a **client-credentials** exchange (`grant_type=client_credentials`) against `tokenUrl` for the given `audience`.
-3. The resulting token is forwarded to the MCP server. claude-code, copilot, and gemini-cli set it as an `Authorization: Bearer <token>` header in the server config; codex writes a `bearer_token_env_var` reference into `config.toml` and injects the token into the Codex process env under that name (Codex rejects an inline `bearer_token`, so the secret stays out of the config file).
+3. The resulting token is forwarded to the MCP server. claude-code and copilot set it as an `Authorization: Bearer <token>` header in their in-memory server config. codex and gemini-cli inject the token into the runner's process env under an `MCP_BEARER_<SERVER>` name and reference it indirectly so the secret stays out of on-disk config: codex writes a `bearer_token_env_var` reference into `config.toml` (Codex rejects an inline `bearer_token`), and gemini-cli writes an `Authorization: Bearer ${MCP_BEARER_<SERVER>}` header into `settings.json` that the CLI expands from the env at settings-load time.
 
 The token is minted **per job**, not at config-load time, so a long `--model all --mode all` matrix never reuses an expired token.
 
 **Loud failure:** if the token mint fails (bad creds, network error, missing field), the server is **skipped with a `logger.warn`** rather than registered unauthenticated. This makes a misconfigured run look like "MCP wasn't available" — not a silent "the agent chose not to use MCP."
+
+### Where the token lives, per runner
+
+The runners don't handle the minted token identically, and the difference is worth knowing:
+
+| Runner      | How the token is passed                                                                                                                  | On-disk exposure                                                                   |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| claude-code | In-memory to the Agent SDK server config                                                                                                 | None                                                                               |
+| copilot     | In-memory to the Copilot SDK server config                                                                                               | None                                                                               |
+| codex       | Env var referenced by `bearer_token_env_var` in `config.toml` (`$CODEX_HOME`, **outside** the workspace)                                 | Token value never written to a file                                                |
+| gemini-cli  | Env var referenced by `Bearer ${MCP_BEARER_<SERVER>}` in `<workspace>/.gemini/settings.json`, expanded from the process env at load time | Only the env-var reference is on disk — the token value is never written to a file |
+
+The Gemini CLI only discovers MCP config from a settings file, but it expands environment variables in every settings string at load time (`$VAR`, `${VAR}`, `${VAR:-default}` — its `resolveEnvVarsInObject`/`resolveEnvVarsInString`), headers included. So the runner writes a `Bearer ${MCP_BEARER_<SERVER>}` reference into `settings.json` and injects the minted token into the subprocess env under that name, keeping the raw token off disk — the same indirection codex uses. As a defence-in-depth note, `.gemini` is also excluded from the grading corpus and the workspace is ephemeral (deleted at the end of every run via `cleanupWorkspace` unless `--keep-workspace` is passed).
 
 ---
 
@@ -111,12 +124,12 @@ Only the **names** are listed here; values are resolved from `process.env` at jo
 
 ## Troubleshooting
 
-| Symptom | Likely cause |
-|---|---|
-| Log: `MCP server 'auth0-hosted-mcp' skipped — token mint failed or creds missing` | One of `MCP_TENANT_DOMAIN` / `MCP_CLIENT_ID` / `MCP_CLIENT_SECRET` is unset, or the token endpoint rejected the credentials. |
-| `auth0-hosted-mcp` not registered at all (only `auth0-docs`) | The env-var gate in `eval.config.js` evaluated false — at least one of the three vars is empty. |
-| Token mint returns `access_denied` | `audience` points at `/v1/mcp` instead of `/api/v2/`, or the M2M app isn't authorized for the Management API. |
-| `401` late in a very long job | The minted token's TTL expired mid-job. Management API tokens are typically long-lived (hours) vs. the 30-min job timeout, so this is rare. |
+| Symptom                                                                           | Likely cause                                                                                                                                |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Log: `MCP server 'auth0-hosted-mcp' skipped — token mint failed or creds missing` | One of `MCP_TENANT_DOMAIN` / `MCP_CLIENT_ID` / `MCP_CLIENT_SECRET` is unset, or the token endpoint rejected the credentials.                |
+| `auth0-hosted-mcp` not registered at all (only `auth0-docs`)                      | The env-var gate in `eval.config.js` evaluated false — at least one of the three vars is empty.                                             |
+| Token mint returns `access_denied`                                                | `audience` points at `/v1/mcp` instead of `/api/v2/`, or the M2M app isn't authorized for the Management API.                               |
+| `401` late in a very long job                                                     | The minted token's TTL expired mid-job. Management API tokens are typically long-lived (hours) vs. the 30-min job timeout, so this is rare. |
 
 ---
 

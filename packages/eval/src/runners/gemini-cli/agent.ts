@@ -30,6 +30,7 @@ import {
   filteredEnv,
   makeSessionId,
   mintMcpToken,
+  mcpBearerTokenEnvVar,
 } from '@a0/eval-core';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/eval-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
@@ -79,11 +80,17 @@ function isAutoCancelled(output: string): boolean {
  * using the format `mcp__<serverName>__<toolName>` (e.g. `mcp__auth0-docs__search_auth0_docs`).
  *
  * For HTTP servers with an `auth` block, mints a fresh Bearer token per job
- * (client-credentials exchange) and writes it as an `Authorization` header into
- * the server config. If the token mint fails, the server is skipped with a
- * warning rather than registered unauthenticated.
+ * (client-credentials exchange). The token is NOT written to settings.json —
+ * instead the `Authorization` header references an env var (`Bearer ${VAR}`),
+ * which Gemini CLI expands at settings-load time from the subprocess env. This
+ * keeps the secret out of the on-disk config file, matching the Codex runner.
+ * (Gemini CLI's `resolveEnvVarsInObject` expands `$VAR`/`${VAR}`/`${VAR:-def}`
+ * in every settings string, headers included.) If the token mint fails, the
+ * server is skipped with a warning rather than registered unauthenticated.
  *
- * Returns the names of the registered MCP servers (empty when MCP is disabled).
+ * Returns the registered MCP server names plus the minted Bearer tokens keyed
+ * by the env var each references, so the caller can inject them into the
+ * subprocess env. Both are empty when MCP is disabled.
  */
 interface GeminiMcpServer {
   httpUrl: string;
@@ -91,7 +98,14 @@ interface GeminiMcpServer {
   headers?: Record<string, string>;
 }
 
-async function writeGeminiSettings(workspace: string, includeMcp: boolean): Promise<string[]> {
+interface GeminiMcpSettings {
+  /** Names of the registered MCP servers. */
+  serverNames: string[];
+  /** Minted Bearer tokens keyed by the env var name each `${VAR}` reference resolves to. */
+  bearerTokens: Record<string, string>;
+}
+
+async function writeGeminiSettings(workspace: string, includeMcp: boolean): Promise<GeminiMcpSettings> {
   const settings: {
     security: { auth: { selectedType: string } };
     mcpServers?: Record<string, GeminiMcpServer>;
@@ -100,6 +114,7 @@ async function writeGeminiSettings(workspace: string, includeMcp: boolean): Prom
   };
 
   const mcpServers: Record<string, GeminiMcpServer> = {};
+  const bearerTokens: Record<string, string> = {};
   if (includeMcp) {
     const configServers = getFrameworkConfig().mcp.servers;
     for (const [name, server] of Object.entries(configServers)) {
@@ -110,10 +125,12 @@ async function writeGeminiSettings(workspace: string, includeMcp: boolean): Prom
           logger.warn(`[GeminiCLI] MCP server '${name}' skipped — token mint failed or creds missing`);
           continue;
         }
+        const envVar = mcpBearerTokenEnvVar(name);
+        bearerTokens[envVar] = token;
         mcpServers[name] = {
           httpUrl: server.url,
           timeout: 30000,
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer \${${envVar}}` },
         };
       } else {
         mcpServers[name] = { httpUrl: server.url, timeout: 30000 };
@@ -125,7 +142,7 @@ async function writeGeminiSettings(workspace: string, includeMcp: boolean): Prom
   const geminiDir = join(workspace, '.gemini');
   mkdirSync(geminiDir, { recursive: true });
   writeFileSync(join(geminiDir, 'settings.json'), JSON.stringify(settings, null, 2), 'utf-8');
-  return Object.keys(mcpServers);
+  return { serverNames: Object.keys(mcpServers), bearerTokens };
 }
 
 /**
@@ -179,7 +196,10 @@ export async function runGeminiCliAgent(
   logger.info(`\n[GeminiCLI] Starting task: ${evalDef.id}`);
   logger.info(`[GeminiCLI] Workspace: ${workspace}`);
   logger.info(`[GeminiCLI] Model: ${model}`);
-  const mcpNames = await writeGeminiSettings(workspace, tools.includes('mcp'));
+  const { serverNames: mcpNames, bearerTokens: mcpBearerTokens } = await writeGeminiSettings(
+    workspace,
+    tools.includes('mcp'),
+  );
   if (mcpNames.length > 0) logger.info(`[GeminiCLI] MCP: ${mcpNames.join(', ')}`);
 
   // Trust only this workspace so YOLO mode isn't overridden in CI/headless environments.
@@ -194,6 +214,12 @@ export async function runGeminiCliAgent(
   };
   if (process.env.GH_TOKEN) {
     geminiEnv.GH_TOKEN = process.env.GH_TOKEN;
+  }
+  // Inject minted Bearer tokens so Gemini CLI can resolve each authed server's
+  // `${MCP_BEARER_*}` header reference at settings-load time — the token stays
+  // out of the on-disk settings.json.
+  for (const [key, value] of Object.entries(mcpBearerTokens)) {
+    geminiEnv[key] = value;
   }
   if (process.env[LLM_API_KEY_ENV]) {
     geminiEnv.GOOGLE_GEMINI_BASE_URL = getAgentProxyBaseUrl('gemini-cli');
