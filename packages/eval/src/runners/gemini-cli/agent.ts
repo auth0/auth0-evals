@@ -126,6 +126,16 @@ async function writeGeminiSettings(workspace: string, includeMcp: boolean): Prom
           continue;
         }
         const envVar = mcpBearerTokenEnvVar(name);
+        // Guard against two server names normalizing to the same env var (e.g.
+        // `auth0-hosted` and `auth0.hosted`), which would silently clobber the
+        // first server's token. Hand-authored configs don't hit this today, but
+        // fail loudly rather than leave a confusing future debugging session.
+        if (bearerTokens[envVar] !== undefined) {
+          logger.warn(
+            `[GeminiCLI] MCP server '${name}' skipped — env var ${envVar} already used by another server (name collision)`,
+          );
+          continue;
+        }
         bearerTokens[envVar] = token;
         mcpServers[name] = {
           httpUrl: server.url,
@@ -201,6 +211,12 @@ export async function runGeminiCliAgent(
     tools.includes('mcp'),
   );
   if (mcpNames.length > 0) logger.info(`[GeminiCLI] MCP: ${mcpNames.join(', ')}`);
+  else if (tools.includes('mcp')) {
+    // MCP was requested but no server became available (all mints failed or
+    // none configured). Log it so an all-fail run doesn't read identically to
+    // "MCP was never requested."
+    logger.warn(`[GeminiCLI] --tools mcp requested but no MCP servers are available`);
+  }
 
   // Trust only this workspace so YOLO mode isn't overridden in CI/headless environments.
   const trustedFoldersPath = writeTrustedFolders(workspace);

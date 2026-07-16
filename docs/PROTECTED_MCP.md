@@ -91,7 +91,9 @@ You don't write any token code — the framework does it per job:
 
 The token is minted **per job**, not at config-load time, so a long `--model all --mode all` matrix never reuses an expired token.
 
-**Loud failure:** if the token mint fails (bad creds, network error, missing field), the server is **skipped with a `logger.warn`** rather than registered unauthenticated. This makes a misconfigured run look like "MCP wasn't available" — not a silent "the agent chose not to use MCP."
+**Loud failure:** if the token mint fails (bad creds, network error, missing field), the server is **skipped with a `logger.warn`** rather than registered unauthenticated. This makes a misconfigured run look like "MCP wasn't available" — not a silent "the agent chose not to use MCP." When `--tools mcp` is requested but **every** server ends up unavailable, each runner also logs a `--tools mcp requested but no MCP servers are available` warning, so an all-fail run doesn't read identically to "MCP was never requested."
+
+**Fail fast:** the token request carries a 10s `AbortSignal.timeout`, so a token endpoint that accepts the connection but never responds can't hang job startup until the 30-min task timeout. The failure log includes the token endpoint URL (to distinguish a DNS/TLS/network failure from a misconfigured URL) and preserves the raw response body even for a `200` with a non-JSON payload (e.g. a proxy/gateway HTML error page).
 
 ### Where the token lives, per runner
 

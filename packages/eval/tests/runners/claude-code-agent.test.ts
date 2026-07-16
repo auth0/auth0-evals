@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
-import { setFrameworkConfig } from '@a0/eval-core';
+import { setFrameworkConfig, logger } from '@a0/eval-core';
 import { TEST_CONFIG } from '../test-config.js';
 
 beforeAll(() => {
@@ -30,6 +30,15 @@ const mockQuery = vi.hoisted(() => vi.fn());
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: mockQuery,
+}));
+
+// Partially mock eval-core so we can control token minting while keeping the
+// real setFrameworkConfig/getFrameworkConfig, logger, and everything else.
+const mintMcpTokenMock = vi.hoisted(() => vi.fn());
+
+vi.mock('@a0/eval-core', async () => ({
+  ...(await vi.importActual('@a0/eval-core')),
+  mintMcpToken: mintMcpTokenMock,
 }));
 
 // Must import after vi.mock so the mock is in place
@@ -297,7 +306,12 @@ describe('handleMessage — assistant', () => {
     const record = makeRecord();
     record.inputTokens = 0;
     handleMessage(
-      makeAssistantMsg({ input_tokens: 6, output_tokens: 3, cache_read_input_tokens: 4800, cache_creation_input_tokens: 200 }),
+      makeAssistantMsg({
+        input_tokens: 6,
+        output_tokens: 3,
+        cache_read_input_tokens: 4800,
+        cache_creation_input_tokens: 200,
+      }),
       record,
       makePending(),
       0,
@@ -602,7 +616,12 @@ describe('handleMessage — result', () => {
     const record = makeRecord();
     record.inputTokens = 999;
     handleMessage(
-      makeResultMsg({ input_tokens: 100, output_tokens: 50, cache_read_input_tokens: 4000, cache_creation_input_tokens: 500 }),
+      makeResultMsg({
+        input_tokens: 100,
+        output_tokens: 50,
+        cache_read_input_tokens: 4000,
+        cache_creation_input_tokens: 500,
+      }),
       record,
       makePending(),
       0,
@@ -883,6 +902,91 @@ describe('runClaudeCodeAgent proxy env injection', () => {
     vi.stubEnv('GH_TOKEN', '');
     await runClaudeCodeAgent(evalDef, workspace);
     expect(capturedEnv()).not.toHaveProperty('GH_TOKEN');
+  });
+});
+
+// ── Authenticated MCP flow ────────────────────────────────────────────────────
+
+describe('runClaudeCodeAgent — authenticated MCP', () => {
+  const AUTHED_CONFIG = {
+    ...TEST_CONFIG,
+    agents: {
+      'claude-code': { proxy: { baseUrl: 'https://llm.example.com/anthropic' } },
+    },
+    mcp: {
+      servers: {
+        'auth0-docs': { type: 'http' as const, url: 'https://auth0.com/docs/mcp' },
+        'auth0-hosted-mcp': {
+          type: 'http' as const,
+          url: 'https://tenant.auth0.com/v1/mcp',
+          auth: {
+            tokenUrl: 'https://tenant.auth0.com/oauth/token',
+            clientId: 'cid',
+            clientSecret: 'secret',
+            audience: 'https://tenant.auth0.com/api/v2/',
+          },
+        },
+      },
+    },
+  };
+
+  beforeEach(() => {
+    mockQuery.mockReset();
+    mintMcpTokenMock.mockReset();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    mockQuery.mockReturnValue(fakeQuery([makeResultMsg({ subtype: 'success' }) as SDKMessage]));
+    setFrameworkConfig(AUTHED_CONFIG);
+  });
+
+  afterEach(() => {
+    // Restore the shared config so a failing assertion can't leak MCP servers.
+    setFrameworkConfig({
+      ...TEST_CONFIG,
+      agents: { 'claude-code': { proxy: { baseUrl: 'https://llm.example.com/anthropic' } } },
+    });
+    vi.restoreAllMocks();
+  });
+
+  function capturedMcpServers(): Record<string, { type: string; url: string; headers?: Record<string, string> }> {
+    const call = mockQuery.mock.calls[0] as [{ options: { mcpServers?: Record<string, never> } }];
+    return call[0].options.mcpServers ?? {};
+  }
+
+  it('mints a token and injects an Authorization header for authed servers', async () => {
+    mintMcpTokenMock.mockResolvedValueOnce('minted-token');
+
+    await runClaudeCodeAgent(evalDef, workspace, { tools: ['mcp'] });
+
+    const mcpServers = capturedMcpServers();
+    expect(mcpServers['auth0-hosted-mcp']).toEqual({
+      type: 'http',
+      url: 'https://tenant.auth0.com/v1/mcp',
+      headers: { Authorization: 'Bearer minted-token' },
+    });
+    // The unauthed server is registered without a header.
+    expect(mcpServers['auth0-docs']).toEqual({ type: 'http', url: 'https://auth0.com/docs/mcp' });
+    expect(mintMcpTokenMock).toHaveBeenCalledOnce();
+  });
+
+  it('skips an authed server and warns when the token mint fails', async () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    mintMcpTokenMock.mockResolvedValueOnce(undefined);
+
+    await runClaudeCodeAgent(evalDef, workspace, { tools: ['mcp'] });
+
+    const mcpServers = capturedMcpServers();
+    expect(mcpServers).not.toHaveProperty('auth0-hosted-mcp');
+    // The unauthed server still registers.
+    expect(mcpServers).toHaveProperty('auth0-docs');
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('auth0-hosted-mcp'));
+  });
+
+  it('registers no MCP servers when --tools mcp is not requested', async () => {
+    await runClaudeCodeAgent(evalDef, workspace);
+
+    const call = mockQuery.mock.calls[0] as [{ options: { mcpServers?: Record<string, never> } }];
+    expect(call[0].options.mcpServers).toBeUndefined();
+    expect(mintMcpTokenMock).not.toHaveBeenCalled();
   });
 });
 

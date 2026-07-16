@@ -8,6 +8,9 @@
 import type { MCPOAuthConfig } from './framework.js';
 import { logger } from '../utils/logger.js';
 
+/** Fail-fast budget for the token endpoint — a hung endpoint must not block job startup. */
+const TOKEN_REQUEST_TIMEOUT_MS = 10_000;
+
 /**
  * Derives the environment-variable name a runner uses to pass a minted Bearer
  * token to an MCP server, keeping the secret out of on-disk config files.
@@ -42,23 +45,39 @@ export async function mintMcpToken(auth: MCPOAuthConfig): Promise<string | undef
         client_secret: auth.clientSecret,
         audience: auth.audience,
       }),
+      // Fail fast: a token endpoint that accepts the connection but never
+      // responds would otherwise block job startup until the 30-min task
+      // timeout. AbortSignal.timeout rejects the fetch after 10s instead.
+      signal: AbortSignal.timeout(TOKEN_REQUEST_TIMEOUT_MS),
     });
+    // Read the raw body once so it's preserved for diagnosis whether the
+    // status is an error OR a 200 with a non-JSON payload (e.g. a proxy/gateway
+    // HTML error page) — res.json() would consume it and leave nothing to log.
+    const body = await res.text().catch(() => '');
     if (!res.ok) {
-      // Include the response body — for the documented access_denied case it
-      // carries the error/error_description, making misconfig far easier to
-      // diagnose.
-      const body = await res.text().catch(() => '');
+      // For the documented access_denied case the body carries the
+      // error/error_description, making misconfig far easier to diagnose.
       logger.warn(`[mcp-auth] Token request failed: ${res.status}${body ? ` — ${body}` : ''}`);
       return undefined;
     }
-    const { access_token } = (await res.json()) as { access_token?: string };
+    let access_token: string | undefined;
+    try {
+      ({ access_token } = JSON.parse(body) as { access_token?: string });
+    } catch {
+      logger.warn(`[mcp-auth] Token response was not valid JSON${body ? ` — ${body}` : ''}`);
+      return undefined;
+    }
     if (!access_token) {
       logger.warn('[mcp-auth] Token response missing access_token');
       return undefined;
     }
     return access_token;
   } catch (err) {
-    logger.warn(`[mcp-auth] Token request error: ${err instanceof Error ? err.message : String(err)}`);
+    // Include the token endpoint so a DNS/TLS/network failure is
+    // distinguishable from a misconfigured URL.
+    logger.warn(
+      `[mcp-auth] Token request error for ${auth.tokenUrl}: ${err instanceof Error ? err.message : String(err)}`,
+    );
     return undefined;
   }
 }

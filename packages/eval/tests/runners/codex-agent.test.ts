@@ -916,4 +916,32 @@ describe('MCP integration', () => {
     const toml = written[1] as string;
     expect(toml).not.toContain('mcp_servers');
   });
+
+  it('skips the second of two servers whose names collide to the same env var', async () => {
+    // `auth0-hosted` and `auth0.hosted` both normalize to MCP_BEARER_AUTH0_HOSTED.
+    // The guard forwards the first and skips the second rather than clobbering.
+    mintMcpTokenMock.mockResolvedValueOnce('token-a').mockResolvedValueOnce('token-b');
+    const authBlock = {
+      tokenUrl: 'https://tenant.auth0.com/oauth/token',
+      clientId: 'cid',
+      clientSecret: 'secret',
+      audience: 'https://tenant.auth0.com/api/v2/',
+    };
+    mockGetFrameworkConfig.mockReturnValue({
+      proxy: { baseUrl: 'https://your-llm-proxy.example.com/v1' },
+      mcp: {
+        servers: {
+          'auth0-hosted': { type: 'http', url: 'https://tenant.auth0.com/a/mcp', auth: authBlock },
+          'auth0.hosted': { type: 'http', url: 'https://tenant.auth0.com/b/mcp', auth: authBlock },
+        },
+      },
+    });
+    queueTurns([{ type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } }, turnCompleted()]);
+
+    await runCodexAgent(evalDef, workspace, { tools: ['mcp'] });
+
+    // Only the first server's token is injected under the shared env var.
+    const env = sdk.state.constructorCalls[0].env as Record<string, string>;
+    expect(env['MCP_BEARER_AUTH0_HOSTED']).toBe('token-a');
+  });
 });

@@ -18,7 +18,7 @@ describe('mintMcpToken', () => {
   it('returns the access_token on a successful exchange', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ access_token: 'tok-123' }),
+      text: async () => JSON.stringify({ access_token: 'tok-123' }),
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -40,6 +40,8 @@ describe('mintMcpToken', () => {
       client_secret: 'client-secret',
       audience: validAuth.audience,
     });
+    // Fails fast on a hung endpoint rather than blocking job startup.
+    expect((init as RequestInit).signal).toBeInstanceOf(AbortSignal);
   });
 
   it('returns undefined when the response is not ok', async () => {
@@ -72,8 +74,29 @@ describe('mintMcpToken', () => {
   });
 
   it('returns undefined when the body has no access_token', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({}) }));
     expect(await mintMcpToken(validAuth)).toBeUndefined();
+  });
+
+  it('returns undefined and preserves the body when a 200 response is not valid JSON', async () => {
+    // A proxy/gateway can return 200 with an HTML error page; JSON.parse throws
+    // but the raw body must still be logged for diagnosis.
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => '<html>Bad Gateway</html>' }));
+
+    expect(await mintMcpToken(validAuth)).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('not valid JSON'));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Bad Gateway'));
+  });
+
+  it('returns undefined and logs the tokenUrl when fetch throws a network error', async () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network error')));
+
+    expect(await mintMcpToken(validAuth)).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('network error'));
+    // The endpoint is included so a DNS/TLS failure is distinguishable from misconfig.
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(validAuth.tokenUrl));
   });
 });
 
@@ -85,5 +108,10 @@ describe('mcpBearerTokenEnvVar', () => {
   it('maps non-alphanumerics to underscores', () => {
     expect(mcpBearerTokenEnvVar('auth0-hosted-mcp')).toBe('MCP_BEARER_AUTH0_HOSTED_MCP');
     expect(mcpBearerTokenEnvVar('auth0.hosted')).toBe('MCP_BEARER_AUTH0_HOSTED');
+  });
+
+  it('collides for names differing only by punctuation (runners guard against this)', () => {
+    // Documents the known collision the runner-level guard protects against.
+    expect(mcpBearerTokenEnvVar('auth0-hosted')).toBe(mcpBearerTokenEnvVar('auth0.hosted'));
   });
 });

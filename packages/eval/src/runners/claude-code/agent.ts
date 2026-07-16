@@ -161,6 +161,12 @@ export async function runClaudeCodeAgent(
       }
     }
     if (Object.keys(httpServers).length > 0) mcpServers = httpServers;
+    else {
+      // MCP was requested but no server became available (all mints failed or
+      // none configured). Log it so an all-fail run doesn't read identically to
+      // "MCP was never requested."
+      logger.warn(`[ClaudeCode] --tools mcp requested but no MCP servers are available`);
+    }
   }
 
   logger.info(`\n[ClaudeCode] Starting task: ${evalDef.id}`);

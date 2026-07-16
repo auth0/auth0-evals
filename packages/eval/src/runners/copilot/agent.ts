@@ -163,7 +163,14 @@ export async function runCopilotAgent(
 
   // Mint tokens once per job so a long matrix run never reuses an expired token.
   const mcpServers = tools.includes('mcp') ? await getMcpServers() : {};
-  if (tools.includes('mcp')) logger.info(`[Copilot] MCP: ${Object.keys(mcpServers).join(', ')}`);
+  if (tools.includes('mcp')) {
+    const mcpNames = Object.keys(mcpServers);
+    // Warn when MCP was requested but no server became available (all mints
+    // failed or none configured), so an all-fail run doesn't read identically
+    // to "MCP was never requested."
+    if (mcpNames.length > 0) logger.info(`[Copilot] MCP: ${mcpNames.join(', ')}`);
+    else logger.warn(`[Copilot] --tools mcp requested but no MCP servers are available`);
+  }
   if (tools.includes('skills')) logger.info('[Copilot] Skills: .github/skills/');
 
   const session = await client.createSession({

@@ -489,6 +489,16 @@ export async function runCodexAgent(
         continue;
       }
       const envVar = mcpBearerTokenEnvVar(name);
+      // Guard against two server names normalizing to the same env var (e.g.
+      // `auth0-hosted` and `auth0.hosted`), which would silently clobber the
+      // first server's token. Hand-authored configs don't hit this today, but
+      // fail loudly rather than leave a confusing future debugging session.
+      if (bearerTokens[envVar] !== undefined) {
+        logger.warn(
+          `[Codex] MCP server '${name}' skipped — env var ${envVar} already used by another server (name collision)`,
+        );
+        continue;
+      }
       bearerTokenEnvVars[name] = envVar;
       bearerTokens[envVar] = token;
     }
@@ -502,6 +512,11 @@ export async function runCodexAgent(
   logger.info(`[Codex] CODEX_HOME: ${codexHome}`);
   if (Object.keys(mcpServers).length > 0) {
     logger.info(`[Codex] MCP servers: ${Object.keys(mcpServers).join(', ')}`);
+  } else if (tools.includes('mcp')) {
+    // MCP was requested but no server became available (all mints failed or
+    // none configured). Log it so an all-fail run doesn't read identically to
+    // "MCP was never requested."
+    logger.warn(`[Codex] --tools mcp requested but no MCP servers are available`);
   }
 
   // Build environment — inherit from process, injecting the API key for the proxy.

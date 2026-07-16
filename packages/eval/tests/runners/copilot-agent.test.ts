@@ -131,6 +131,12 @@ describe('COPILOT_DEFAULT_MODEL', () => {
 });
 
 describe('getMcpServers', () => {
+  // Several tests below mutate the shared framework config. Reset it here so a
+  // failing assertion can't leak auth0-hosted-mcp into later tests.
+  afterEach(() => {
+    setFrameworkConfig(TEST_CONFIG);
+  });
+
   it('returns auth0-docs remote MCP server config', async () => {
     const servers = await getMcpServers();
     expect(servers).toHaveProperty('auth0-docs');
@@ -171,7 +177,6 @@ describe('getMcpServers', () => {
     expect((servers['auth0-hosted-mcp'] as { headers?: Record<string, string> }).headers).toEqual({
       Authorization: 'Bearer minted-token',
     });
-    setFrameworkConfig(TEST_CONFIG);
   });
 
   it('skips an authed server when the token mint fails', async () => {
@@ -195,7 +200,6 @@ describe('getMcpServers', () => {
     });
     const servers = await getMcpServers();
     expect(servers).not.toHaveProperty('auth0-hosted-mcp');
-    setFrameworkConfig(TEST_CONFIG);
   });
 });
 
