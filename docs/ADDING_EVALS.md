@@ -118,7 +118,7 @@ The optional `expected` argument on `wroteFile` is useful when a file is exclude
 Every grader should be assigned a `GraderLevel` that describes **what kind of correctness it tests**. This lets the framework filter, weight, and report graders by category.
 
 ```typescript
-import { GraderLevel } from '@a0/eval-graders';
+import { GraderLevel } from '@a0/evals-graders';
 ```
 
 ---
@@ -266,7 +266,7 @@ import {
   matches,
   judge,
   GraderLevel,
-} from '@a0/eval-graders';
+} from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -367,7 +367,7 @@ Pass `--agent-type copilot` to route the eval through the `copilot` binary. Skil
 
 - [ ] `PROMPT.md` and `graders.ts` exist in the eval directory
 - [ ] `PROMPT.md` frontmatter includes `id` (snake_case config ID)
-- [ ] Graders import from `@a0/eval-graders` (not relative paths)
+- [ ] Graders import from `@a0/evals-graders` (not relative paths)
 - [ ] Graders are assigned `GraderLevel` values (L1–L5) with at least one holistic `judge` at the end (no level)
 - [ ] `npm run build` completes without errors
 - [ ] `npm test` passes

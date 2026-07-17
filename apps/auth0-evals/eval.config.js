@@ -17,7 +17,7 @@ const COPILOT_PROXY_BASE_URL = process.env.COPILOT_PROXY_BASE_URL ?? PROXY_BASE_
 // `global.anthropic.*` model IDs instead of the short aliases.
 const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY === '1';
 
-/** @type {import('@a0/eval').FrameworkConfig} */
+/** @type {import('@a0/evals').FrameworkConfig} */
 export default {
   evalsDir: 'src/evals',
 

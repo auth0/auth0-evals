@@ -7,7 +7,7 @@ import {
   wroteFile,
   compiles,
   GraderLevel,
-} from '@a0/eval-graders';
+} from '@a0/evals-graders';
 
 export function defineGraders() {
   return [

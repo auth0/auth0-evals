@@ -1,0 +1,32 @@
+{
+  "name": "@a0/evals-reporter",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:ci": "vitest run --silent --coverage",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@a0/evals-core": "*",
+    "@a0/evals-graders": "*",
+    "marked": "^18.0.6",
+    "nunjucks": "^3.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/nunjucks": "^3.2.6",
+    "@vitest/coverage-v8": "^4.1.9",
+    "vitest": "^4.1.10"
+  }
+}

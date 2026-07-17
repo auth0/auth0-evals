@@ -161,4 +161,4 @@ export PATH="/app/node_modules/.bin:$PATH"
 # It points to /home/node which is a writable tmpfs mount.
 export HOME=/home/node
 exec setpriv --reuid=1000 --regid=1000 --init-groups --inh-caps=-all \
-  node /app/packages/eval/dist/cli/sandbox-runner.js
+  node /app/packages/evals/dist/cli/sandbox-runner.js

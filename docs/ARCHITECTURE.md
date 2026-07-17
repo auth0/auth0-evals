@@ -11,7 +11,7 @@ The loop: run a realistic integration task across multiple agents and investment
 
 ## Architecture Diagram
 
-An `a0-eval run` expands into a job matrix (eval × model × mode × tools); each job walks the same six stages — **Kick off → Prepare → Run the agent → Grade → Score → Report** — fanning out under a `pLimit(workers)` gate (one subprocess and Docker sandbox per job) and converging at `mergeResults()`. Every box names the function behind it, so the diagram doubles as a call map. Colours mark the layer: control plane (`@a0/eval` + `@a0/eval-core`), execution plane (the runner + Auth0 tools it reads), data plane (the artifacts it leaves behind).
+An `a0-eval run` expands into a job matrix (eval × model × mode × tools); each job walks the same six stages — **Kick off → Prepare → Run the agent → Grade → Score → Report** — fanning out under a `pLimit(workers)` gate (one subprocess and Docker sandbox per job) and converging at `mergeResults()`. Every box names the function behind it, so the diagram doubles as a call map. Colours mark the layer: control plane (`@a0/evals` + `@a0/evals-core`), execution plane (the runner + Auth0 tools it reads), data plane (the artifacts it leaves behind).
 
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': {
@@ -22,7 +22,7 @@ An `a0-eval run` expands into a job matrix (eval × model × mode × tools); eac
 flowchart TB
     subgraph RowA[" "]
         direction LR
-        subgraph CLI["1 · Kick off — @a0/eval"]
+        subgraph CLI["1 · Kick off — @a0/evals"]
             direction TB
             Bin["Start a run<br/>bin.ts (local or CI)"]
             Matrix["Plan the work<br/>buildJobList()<br/>eval × model × mode × tools"]
@@ -30,14 +30,14 @@ flowchart TB
             Bin --> Matrix --> Pool
         end
 
-        subgraph Setup["2 · Prepare each job — @a0/eval-core"]
+        subgraph Setup["2 · Prepare each job — @a0/evals-core"]
             direction TB
             Discover["Find the eval<br/>discoverEvals() + loadEval()"]
             WS["Clean workspace + scaffold<br/>setupWorkspace()"]
             Discover --> WS
         end
 
-        subgraph Exec["3 · Run the agent — @a0/eval"]
+        subgraph Exec["3 · Run the agent — @a0/evals"]
             direction TB
             Runners["Coding agent (runner)<br/>Claude Code · Codex · Gemini CLI · Copilot"]
             Invest["Helped by Auth0 tools<br/>agent skills + Auth0 docs MCP server"]
@@ -47,14 +47,14 @@ flowchart TB
 
     subgraph RowB[" "]
         direction LR
-        subgraph Grade["4 · Grade the code — @a0/eval-core"]
+        subgraph Grade["4 · Grade the code — @a0/evals-core"]
             direction TB
             Engine["Automated checks<br/>runGraders() · L1–L5"]
             Judge["AI judge<br/>llmJudge() · claude-opus-4-8"]
             Engine --> Judge
         end
 
-        subgraph Score["5 · Score the run — @a0/eval"]
+        subgraph Score["5 · Score the run — @a0/evals"]
             direction TB
             Scorer["8-dimension score<br/>score() + A–F grade"]
             Recs["Suggested fixes<br/>generateRunRecommendations()"]
@@ -93,37 +93,37 @@ flowchart TB
 
 ## Component responsibilities
 
-Bottom-up, with a clean acyclic dependency graph (`@a0/eval-graders` is the leaf, built first):
+Bottom-up, with a clean acyclic dependency graph (`@a0/evals-graders` is the leaf, built first):
 
-### `@a0/eval-graders`
+### `@a0/evals-graders`
 - **Purpose**: Grader primitive factories + level taxonomy.
 - **Responsibilities**: Produce `GraderDef` descriptors (`contains`, `notContains`, `notContainsInSource`, `matches`, `judge`, `ranCommand`, `ranCommandOneOf`, `wroteFile`); define `GraderLevel` (L1–L5) and validate that event graders use L4/L5 only.
 - **Dependencies**: None (leaf).
 - **Type**: Shared library / SDK.
 
-### `@a0/eval-core`
+### `@a0/evals-core`
 - **Purpose**: Evaluation engine.
 - **Responsibilities**: Eval discovery (`discoverEvals`) and loading (`loadEval`); framework config load/merge (`loadConfig`, `defineConfig`); workspace lifecycle (`setupWorkspace`, `cleanupWorkspace`, `writeAgentGuidance`); grader engine with a pluggable executor **registry** (`registerExecutor`/`getExecutor`/`executeGrader`); LLM judge; the `AgentRunner` and `ToolTranslator` interfaces; trace classification; result serializers.
-- **Dependencies**: `@a0/eval-graders`.
+- **Dependencies**: `@a0/evals-graders`.
 - **Type**: Application infrastructure / engine.
 
-### `@a0/eval`
+### `@a0/evals`
 - **Purpose**: CLI, orchestration, runners, scoring, insight, persistence, reporting glue.
 - **Responsibilities**: Flag parsing (`commander`); job-matrix build with model-prefix auto-routing; worker-pool parallelism (`p-limit`) + per-job subprocess spawning; Docker sandbox lifecycle; four concrete agent runners + baseline; 8-dimension scorer + waste analysis; recommendation generator; result persistence/merge; Braintrust reporter.
 - **Sandbox entry point**: `cli/sandbox-runner.ts` (invoked by `docker/entrypoint.sh`) scores and generates recommendations **inside** the sandbox, so the host only reads back the resulting JSON.
-- **Dependencies**: `@a0/eval-core`, `@a0/eval-reporter`, agent SDKs (`@anthropic-ai/claude-agent-sdk`, `@openai/codex-sdk`, `@github/copilot-sdk`, `@google/gemini-cli`), `ai` + `@ai-sdk/openai`, `braintrust`, `commander`, `p-limit`, `dotenv`.
+- **Dependencies**: `@a0/evals-core`, `@a0/evals-reporter`, agent SDKs (`@anthropic-ai/claude-agent-sdk`, `@openai/codex-sdk`, `@github/copilot-sdk`, `@google/gemini-cli`), `ai` + `@ai-sdk/openai`, `braintrust`, `commander`, `p-limit`, `dotenv`.
 - **Type**: Application (publishes the `a0-eval` binary).
 
-### `@a0/eval-reporter`
+### `@a0/evals-reporter`
 - **Purpose**: HTML leaderboard rendering.
 - **Responsibilities**: `groupResults`/`groupByVariant`/`computeDeltas`; Nunjucks template (`report.html.j2`) with CSS-class and markdown filters; aggregate cost/run stats; ordered variant display.
-- **Dependencies**: `@a0/eval-core`, `@a0/eval-graders`, `marked`, `nunjucks`.
+- **Dependencies**: `@a0/evals-core`, `@a0/evals-graders`, `marked`, `nunjucks`.
 - **Type**: Application infrastructure / reporting.
 
 ### `apps/auth0-evals`
 - **Purpose**: Auth0's concrete deployment.
 - **Responsibilities**: The 14-eval suite (`src/evals/**`), `eval.config.js` (proxy, models, MCP server, skills sources, judge, scoring allowlist), the React scaffolds, and the local skills dir. Publishes thin `evals`/`report` npm scripts that shell out to `a0-eval`.
-- **Dependencies**: `@a0/eval`, `@a0/eval-graders`, `@a0/eval-reporter`, `commander`.
+- **Dependencies**: `@a0/evals`, `@a0/evals-graders`, `@a0/evals-reporter`, `commander`.
 - **Type**: Application / deployment.
 
 ## Runners (auto-routed by model prefix)

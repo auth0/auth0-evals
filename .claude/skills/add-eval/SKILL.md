@@ -98,7 +98,7 @@ import {
   matches,
   judge,
   GraderLevel,
-} from '@a0/eval-graders';
+} from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -114,7 +114,7 @@ export function defineGraders() {
 - Export exactly one function: `defineGraders()` returning an array.
 - Every grader except the last must have a `GraderLevel` argument.
 - The final grader must be a `judge` with **no level** — it always runs regardless of filtering.
-- Import from the `@a0/eval-graders` package (monorepo workspace package).
+- Import from the `@a0/evals-graders` package (monorepo workspace package).
 
 ### Grader levels
 
@@ -174,7 +174,7 @@ import {
   matches,
   judge,
   GraderLevel,
-} from '@a0/eval-graders';
+} from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -251,7 +251,7 @@ npm run report
 ```
 
 If the build fails, the most common causes are:
-1. Wrong import path — use `from '@a0/eval-graders'`
+1. Wrong import path — use `from '@a0/evals-graders'`
 2. `defineGraders` not exported from `graders.ts`
 
 ---
@@ -262,7 +262,7 @@ If the build fails, the most common causes are:
 - [ ] `src/evals/<category>/<eval-dir>/graders.ts` created
 - [ ] `src/evals/<category>/<eval-dir>/scaffold/` created with at least a `package.json` and placeholder source files
 - [ ] `PROMPT.md` frontmatter includes `id` (snake_case config ID)
-- [ ] Graders import from `@a0/eval-graders`
+- [ ] Graders import from `@a0/evals-graders`
 - [ ] All graders except the final one have a `GraderLevel`
 - [ ] Final grader is a `judge` with no level argument
 - [ ] No `readFileSync` for JSON — use `import` instead
