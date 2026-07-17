@@ -30,6 +30,11 @@ export interface DockerRunOptions {
   apiKey: string;
   /** Optional GitHub token (for copilot runner). */
   ghToken?: string;
+  /**
+   * Names of host env vars to forward into the container (from `sandbox.passthroughEnv`).
+   * Each is resolved from `process.env` here; only currently-set vars are forwarded.
+   */
+  passthroughEnv?: string[];
 }
 
 // Serialises concurrent ensureDockerImage calls so only one build runs at a time.
@@ -114,7 +119,7 @@ function findRepoRoot(): string {
  * after the container exits.
  */
 export async function runJobInDocker(options: DockerRunOptions): Promise<JobResult> {
-  const { workspace, evalId, model, mode, tools, agentType, apiKey, ghToken } = options;
+  const { workspace, evalId, model, mode, tools, agentType, apiKey, ghToken, passthroughEnv } = options;
 
   await ensureDockerImage();
 
@@ -147,6 +152,29 @@ export async function runJobInDocker(options: DockerRunOptions): Promise<JobResu
 
   if (ghToken) {
     envFlags.push('-e', `GH_TOKEN=${ghToken}`);
+  }
+
+  // Forward app-declared passthrough env vars (e.g. MCP server credentials).
+  // Only vars currently set on the host are forwarded; missing ones are skipped.
+  const forwardedEnv: string[] = [];
+  const skippedEnv: string[] = [];
+  for (const name of passthroughEnv ?? []) {
+    const value = process.env[name];
+    if (value !== undefined) {
+      envFlags.push('-e', `${name}=${value}`);
+      forwardedEnv.push(name);
+    } else {
+      skippedEnv.push(name);
+    }
+  }
+  // Log names only (never values) so the most common misconfig — a forgotten
+  // `export MCP_CLIENT_SECRET` — is obvious from run output instead of
+  // surfacing later as a mysterious token-mint failure inside the container.
+  if (forwardedEnv.length > 0) {
+    logger.info(`[sandbox] Forwarding passthrough env: ${forwardedEnv.join(', ')}`);
+  }
+  if (skippedEnv.length > 0) {
+    logger.warn(`[sandbox] Passthrough env not set on host (skipped): ${skippedEnv.join(', ')}`);
   }
 
   // Mount host CA certificates for corporate SSL inspection (MITM proxies)

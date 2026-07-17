@@ -29,6 +29,8 @@ import {
   logger,
   filteredEnv,
   makeSessionId,
+  mintMcpToken,
+  mcpBearerTokenEnvVar,
 } from '@a0/eval-core';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/eval-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
@@ -77,21 +79,70 @@ function isAutoCancelled(output: string): boolean {
  * MCP tool calls appear in the stream-json output as tool_use events with names
  * using the format `mcp__<serverName>__<toolName>` (e.g. `mcp__auth0-docs__search_auth0_docs`).
  *
- * Returns the names of the registered MCP servers (empty when MCP is disabled).
+ * For HTTP servers with an `auth` block, mints a fresh Bearer token per job
+ * (client-credentials exchange). The token is NOT written to settings.json —
+ * instead the `Authorization` header references an env var (`Bearer ${VAR}`),
+ * which Gemini CLI expands at settings-load time from the subprocess env. This
+ * keeps the secret out of the on-disk config file, matching the Codex runner.
+ * (Gemini CLI's `resolveEnvVarsInObject` expands `$VAR`/`${VAR}`/`${VAR:-def}`
+ * in every settings string, headers included.) If the token mint fails, the
+ * server is skipped with a warning rather than registered unauthenticated.
+ *
+ * Returns the registered MCP server names plus the minted Bearer tokens keyed
+ * by the env var each references, so the caller can inject them into the
+ * subprocess env. Both are empty when MCP is disabled.
  */
-function writeGeminiSettings(workspace: string, includeMcp: boolean): string[] {
+interface GeminiMcpServer {
+  httpUrl: string;
+  timeout: number;
+  headers?: Record<string, string>;
+}
+
+interface GeminiMcpSettings {
+  /** Names of the registered MCP servers. */
+  serverNames: string[];
+  /** Minted Bearer tokens keyed by the env var name each `${VAR}` reference resolves to. */
+  bearerTokens: Record<string, string>;
+}
+
+async function writeGeminiSettings(workspace: string, includeMcp: boolean): Promise<GeminiMcpSettings> {
   const settings: {
     security: { auth: { selectedType: string } };
-    mcpServers?: Record<string, { httpUrl: string; timeout: number }>;
+    mcpServers?: Record<string, GeminiMcpServer>;
   } = {
     security: { auth: { selectedType: GEMINI_AUTH_TYPE } },
   };
 
-  const mcpServers: Record<string, { httpUrl: string; timeout: number }> = {};
+  const mcpServers: Record<string, GeminiMcpServer> = {};
+  const bearerTokens: Record<string, string> = {};
   if (includeMcp) {
     const configServers = getFrameworkConfig().mcp.servers;
     for (const [name, server] of Object.entries(configServers)) {
-      if (server.type === 'http') {
+      if (server.type !== 'http') continue;
+      if (server.auth) {
+        const token = await mintMcpToken(server.auth);
+        if (!token) {
+          logger.warn(`[GeminiCLI] MCP server '${name}' skipped — token mint failed or creds missing`);
+          continue;
+        }
+        const envVar = mcpBearerTokenEnvVar(name);
+        // Guard against two server names normalizing to the same env var (e.g.
+        // `auth0-hosted` and `auth0.hosted`), which would silently clobber the
+        // first server's token. Hand-authored configs don't hit this today, but
+        // fail loudly rather than leave a confusing future debugging session.
+        if (bearerTokens[envVar] !== undefined) {
+          logger.warn(
+            `[GeminiCLI] MCP server '${name}' skipped — env var ${envVar} already used by another server (name collision)`,
+          );
+          continue;
+        }
+        bearerTokens[envVar] = token;
+        mcpServers[name] = {
+          httpUrl: server.url,
+          timeout: 30000,
+          headers: { Authorization: `Bearer \${${envVar}}` },
+        };
+      } else {
         mcpServers[name] = { httpUrl: server.url, timeout: 30000 };
       }
     }
@@ -101,7 +152,7 @@ function writeGeminiSettings(workspace: string, includeMcp: boolean): string[] {
   const geminiDir = join(workspace, '.gemini');
   mkdirSync(geminiDir, { recursive: true });
   writeFileSync(join(geminiDir, 'settings.json'), JSON.stringify(settings, null, 2), 'utf-8');
-  return Object.keys(mcpServers);
+  return { serverNames: Object.keys(mcpServers), bearerTokens };
 }
 
 /**
@@ -155,8 +206,17 @@ export async function runGeminiCliAgent(
   logger.info(`\n[GeminiCLI] Starting task: ${evalDef.id}`);
   logger.info(`[GeminiCLI] Workspace: ${workspace}`);
   logger.info(`[GeminiCLI] Model: ${model}`);
-  const mcpNames = writeGeminiSettings(workspace, tools.includes('mcp'));
+  const { serverNames: mcpNames, bearerTokens: mcpBearerTokens } = await writeGeminiSettings(
+    workspace,
+    tools.includes('mcp'),
+  );
   if (mcpNames.length > 0) logger.info(`[GeminiCLI] MCP: ${mcpNames.join(', ')}`);
+  else if (tools.includes('mcp')) {
+    // MCP was requested but no server became available (all mints failed or
+    // none configured). Log it so an all-fail run doesn't read identically to
+    // "MCP was never requested."
+    logger.warn(`[GeminiCLI] --tools mcp requested but no MCP servers are available`);
+  }
 
   // Trust only this workspace so YOLO mode isn't overridden in CI/headless environments.
   const trustedFoldersPath = writeTrustedFolders(workspace);
@@ -170,6 +230,12 @@ export async function runGeminiCliAgent(
   };
   if (process.env.GH_TOKEN) {
     geminiEnv.GH_TOKEN = process.env.GH_TOKEN;
+  }
+  // Inject minted Bearer tokens so Gemini CLI can resolve each authed server's
+  // `${MCP_BEARER_*}` header reference at settings-load time — the token stays
+  // out of the on-disk settings.json.
+  for (const [key, value] of Object.entries(mcpBearerTokens)) {
+    geminiEnv[key] = value;
   }
   if (process.env[LLM_API_KEY_ENV]) {
     geminiEnv.GOOGLE_GEMINI_BASE_URL = getAgentProxyBaseUrl('gemini-cli');

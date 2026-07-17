@@ -51,10 +51,13 @@ const mockGetFrameworkConfig = vi.hoisted(() =>
   }),
 );
 
+const mintMcpTokenMock = vi.hoisted(() => vi.fn());
+
 vi.mock('@a0/eval-core', async () => ({
   ...(await vi.importActual('@a0/eval-core')),
   getAgentProxyBaseUrl: vi.fn().mockReturnValue('https://your-llm-proxy.example.com'),
   getFrameworkConfig: mockGetFrameworkConfig,
+  mintMcpToken: mintMcpTokenMock,
 }));
 
 // ── Mock @openai/codex-sdk ──────────────────────────────────────────────────
@@ -819,6 +822,79 @@ describe('MCP integration', () => {
     expect(env['MY_SECRET_TOKEN']).toBe('secret123');
   });
 
+  it('mints a token and writes bearer_token_env_var for authed http servers', async () => {
+    mintMcpTokenMock.mockResolvedValueOnce('minted-token');
+    mockGetFrameworkConfig.mockReturnValue({
+      proxy: { baseUrl: 'https://your-llm-proxy.example.com/v1' },
+      mcp: {
+        servers: {
+          'auth0-hosted-mcp': {
+            type: 'http',
+            url: 'https://tenant.auth0.com/v1/mcp',
+            auth: {
+              tokenUrl: 'https://tenant.auth0.com/oauth/token',
+              clientId: 'cid',
+              clientSecret: 'secret',
+              audience: 'https://tenant.auth0.com/api/v2/',
+            },
+          },
+        },
+      },
+    });
+    queueTurns([{ type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } }, turnCompleted()]);
+
+    await runCodexAgent(evalDef, workspace, { tools: ['mcp'] });
+
+    const written = (writeFileSync as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).endsWith('config.toml'),
+    );
+    expect(written).toBeDefined();
+    if (!written) return;
+    const toml = written[1] as string;
+    expect(toml).toContain('[mcp_servers."auth0-hosted-mcp"]');
+    expect(toml).toContain('url = "https://tenant.auth0.com/v1/mcp"');
+    expect(toml).toContain('bearer_token_env_var = "MCP_BEARER_AUTH0_HOSTED_MCP"');
+    // The token itself must never be written to the config file.
+    expect(toml).not.toContain('minted-token');
+
+    // The minted token is injected into the Codex env under the referenced name.
+    const codexOptions = sdk.state.constructorCalls[0];
+    const env = codexOptions.env as Record<string, string>;
+    expect(env['MCP_BEARER_AUTH0_HOSTED_MCP']).toBe('minted-token');
+  });
+
+  it('skips an authed server when the token mint fails', async () => {
+    mintMcpTokenMock.mockResolvedValueOnce(undefined);
+    mockGetFrameworkConfig.mockReturnValue({
+      proxy: { baseUrl: 'https://your-llm-proxy.example.com/v1' },
+      mcp: {
+        servers: {
+          'auth0-hosted-mcp': {
+            type: 'http',
+            url: 'https://tenant.auth0.com/v1/mcp',
+            auth: {
+              tokenUrl: 'https://tenant.auth0.com/oauth/token',
+              clientId: 'cid',
+              clientSecret: 'secret',
+              audience: 'https://tenant.auth0.com/api/v2/',
+            },
+          },
+        },
+      },
+    });
+    queueTurns([{ type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } }, turnCompleted()]);
+
+    await runCodexAgent(evalDef, workspace, { tools: ['mcp'] });
+
+    const written = (writeFileSync as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).endsWith('config.toml'),
+    );
+    expect(written).toBeDefined();
+    if (!written) return;
+    const toml = written[1] as string;
+    expect(toml).not.toContain('auth0-hosted-mcp');
+  });
+
   it('does not write MCP sections when tools does not include mcp', async () => {
     mockGetFrameworkConfig.mockReturnValue({
       proxy: { baseUrl: 'https://your-llm-proxy.example.com/v1' },
@@ -839,5 +915,33 @@ describe('MCP integration', () => {
     if (!written) return;
     const toml = written[1] as string;
     expect(toml).not.toContain('mcp_servers');
+  });
+
+  it('skips the second of two servers whose names collide to the same env var', async () => {
+    // `auth0-hosted` and `auth0.hosted` both normalize to MCP_BEARER_AUTH0_HOSTED.
+    // The guard forwards the first and skips the second rather than clobbering.
+    mintMcpTokenMock.mockResolvedValueOnce('token-a').mockResolvedValueOnce('token-b');
+    const authBlock = {
+      tokenUrl: 'https://tenant.auth0.com/oauth/token',
+      clientId: 'cid',
+      clientSecret: 'secret',
+      audience: 'https://tenant.auth0.com/api/v2/',
+    };
+    mockGetFrameworkConfig.mockReturnValue({
+      proxy: { baseUrl: 'https://your-llm-proxy.example.com/v1' },
+      mcp: {
+        servers: {
+          'auth0-hosted': { type: 'http', url: 'https://tenant.auth0.com/a/mcp', auth: authBlock },
+          'auth0.hosted': { type: 'http', url: 'https://tenant.auth0.com/b/mcp', auth: authBlock },
+        },
+      },
+    });
+    queueTurns([{ type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } }, turnCompleted()]);
+
+    await runCodexAgent(evalDef, workspace, { tools: ['mcp'] });
+
+    // Only the first server's token is injected under the shared env var.
+    const env = sdk.state.constructorCalls[0].env as Record<string, string>;
+    expect(env['MCP_BEARER_AUTH0_HOSTED']).toBe('token-a');
   });
 });

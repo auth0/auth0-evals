@@ -8,6 +8,14 @@
 
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'node:events';
+
+// Mock only mintMcpToken so authed-server tests don't perform a real OAuth fetch.
+const mintMcpTokenMock = vi.hoisted(() => vi.fn());
+vi.mock('@a0/eval-core', async () => ({
+  ...(await vi.importActual('@a0/eval-core')),
+  mintMcpToken: mintMcpTokenMock,
+}));
+
 import { setFrameworkConfig } from '@a0/eval-core';
 import { TEST_CONFIG } from '../test-config.js';
 
@@ -123,16 +131,75 @@ describe('COPILOT_DEFAULT_MODEL', () => {
 });
 
 describe('getMcpServers', () => {
-  it('returns auth0-docs remote MCP server config', () => {
-    const servers = getMcpServers();
-    expect(servers).toHaveProperty('auth0-docs');
-    expect(servers['auth0-docs'].type).toBe('http');
-    expect(servers['auth0-docs'].url).toBe('https://auth0.com/docs/mcp');
+  // Several tests below mutate the shared framework config. Reset it here so a
+  // failing assertion can't leak auth0-hosted-mcp into later tests.
+  afterEach(() => {
+    setFrameworkConfig(TEST_CONFIG);
   });
 
-  it('includes all tools via wildcard', () => {
-    const servers = getMcpServers();
-    expect(servers['auth0-docs'].tools).toContain('*');
+  it('returns auth0-docs remote MCP server config', async () => {
+    const servers = await getMcpServers();
+    expect(servers).toHaveProperty('auth0-docs');
+    expect(servers['auth0-docs'].type).toBe('http');
+    expect((servers['auth0-docs'] as { url: string }).url).toBe('https://auth0.com/docs/mcp');
+  });
+
+  it('includes all tools via wildcard', async () => {
+    const servers = await getMcpServers();
+    expect((servers['auth0-docs'] as { tools: string[] }).tools).toContain('*');
+  });
+
+  it('does not set an Authorization header for unauthenticated servers', async () => {
+    const servers = await getMcpServers();
+    expect((servers['auth0-docs'] as { headers?: Record<string, string> }).headers).toBeUndefined();
+  });
+
+  it('mints a token and forwards it as an Authorization header for authed servers', async () => {
+    mintMcpTokenMock.mockResolvedValueOnce('minted-token');
+    setFrameworkConfig({
+      ...TEST_CONFIG,
+      mcp: {
+        servers: {
+          'auth0-hosted-mcp': {
+            type: 'http',
+            url: 'https://tenant.auth0.com/v1/mcp',
+            auth: {
+              tokenUrl: 'https://tenant.auth0.com/oauth/token',
+              clientId: 'cid',
+              clientSecret: 'secret',
+              audience: 'https://tenant.auth0.com/api/v2/',
+            },
+          },
+        },
+      },
+    });
+    const servers = await getMcpServers();
+    expect((servers['auth0-hosted-mcp'] as { headers?: Record<string, string> }).headers).toEqual({
+      Authorization: 'Bearer minted-token',
+    });
+  });
+
+  it('skips an authed server when the token mint fails', async () => {
+    mintMcpTokenMock.mockResolvedValueOnce(undefined);
+    setFrameworkConfig({
+      ...TEST_CONFIG,
+      mcp: {
+        servers: {
+          'auth0-hosted-mcp': {
+            type: 'http',
+            url: 'https://tenant.auth0.com/v1/mcp',
+            auth: {
+              tokenUrl: 'https://tenant.auth0.com/oauth/token',
+              clientId: 'cid',
+              clientSecret: 'secret',
+              audience: 'https://tenant.auth0.com/api/v2/',
+            },
+          },
+        },
+      },
+    });
+    const servers = await getMcpServers();
+    expect(servers).not.toHaveProperty('auth0-hosted-mcp');
   });
 });
 
