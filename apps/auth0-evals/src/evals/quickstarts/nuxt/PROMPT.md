@@ -16,5 +16,3 @@ Client Secret: playground_secret_def456uvw
 Set up the Auth0 module in nuxt.config.ts, implement login and logout, display the authenticated user's name and profile picture, and protect a /profile route so only logged-in users can access it.
 
 Also get an Access Token to call an external API with audience https://api.playground.com and include a function that makes an authenticated API request using that token.
-
-Do not prompt for permissions to create any .env or .env.local files.

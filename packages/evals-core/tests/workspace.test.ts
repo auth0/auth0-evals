@@ -106,6 +106,11 @@ describe('writeAgentGuidance - runner-aware context file', () => {
     cleanupWorkspace(workspace);
   });
 
+  it('steers the agent to create .env files directly without pausing for permission', () => {
+    expect(AGENT_GUIDANCE).toContain('.env');
+    expect(AGENT_GUIDANCE).toContain('do not pause to ask for permission');
+  });
+
   it('appends to an existing context file, preserving its content', () => {
     const workspace = setupWorkspace({ 'CLAUDE.md': 'Scaffold guidance.\n' });
     writeAgentGuidance(workspace, 'claude-code');
