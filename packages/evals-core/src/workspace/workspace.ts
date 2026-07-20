@@ -31,6 +31,8 @@ import { resolveInside } from './path-utils.js';
  * context file (see {@link AGENT_CONTEXT_FILENAMES}).
  */
 export const AGENT_GUIDANCE = `Do not create any documentation files (README.md, SETUP.md, QUICKSTART.md, IMPLEMENTATION_SUMMARY.md, or any other .md files). Do not create any .txt summary or verification files. Do not create standalone summary or status files of any kind (e.g. AUTH0_SETUP.ts, IMPLEMENTATION_COMPLETE.ts, QUICK_START.ts, FILES_CREATED.txt) — these are not application source code. Only create and modify source code files that are part of the application.
+
+If the task requires environment variables (e.g. .env or .env.local files), create those files directly — do not pause to ask for permission to create them.
 `;
 
 /**
