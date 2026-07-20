@@ -15,10 +15,10 @@ We use `auth0-evals` to measure how well AI agents integrate Auth0 across our SD
 
 ## Packages
 
-- [`@a0/eval`](packages/eval/) - CLI (`a0-eval`), agent runners (Claude Code, Copilot, Gemini CLI), scoring, and result persistence.
-- [`@a0/eval-core`](packages/eval-core/) - Framework core - config loader, eval discovery, grader engine, workspace lifecycle, type definitions.
-- [`@a0/eval-graders`](packages/eval-graders/) - Grader factory functions (`contains`, `notContains`, `matches`, `judge`) and the `GraderLevel` enum.
-- [`@a0/eval-reporter`](packages/eval-reporter/) - Generates HTML reports from scored results.
+- [`@a0/evals`](packages/evals/) - CLI (`a0-eval`), agent runners (Claude Code, Copilot, Gemini CLI), scoring, and result persistence.
+- [`@a0/evals-core`](packages/evals-core/) - Framework core - config loader, eval discovery, grader engine, workspace lifecycle, type definitions.
+- [`@a0/evals-graders`](packages/evals-graders/) - Grader factory functions (`contains`, `notContains`, `matches`, `judge`) and the `GraderLevel` enum.
+- [`@a0/evals-reporter`](packages/evals-reporter/) - Generates HTML reports from scored results.
 - [`auth0-evals`](apps/auth0-evals/) - The Auth0 eval suite - task prompts, graders, scaffolds, and configuration.
 
 ## Running Evals
@@ -70,12 +70,12 @@ The delta between configurations tells you where to invest:
 - **agent → agent+mcp** - value of MCP server
 - **agent+mcp+skills** - full compound effect
 
-Agent runs are scored across 8 dimensions (process + output quality) into a JSON results file. See [`packages/eval`](packages/eval/) for CLI documentation and scoring details.
+Agent runs are scored across 8 dimensions (process + output quality) into a JSON results file. See [`packages/evals`](packages/evals/) for CLI documentation and scoring details.
 
 ## Documentation
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - System architecture, layers, data flow, scoring, and recommendations
-- [`packages/eval/README.md`](packages/eval/) - CLI usage, configuration, runners, scoring methodology
+- [`packages/evals/README.md`](packages/evals/) - CLI usage, configuration, runners, scoring methodology
 - [`apps/auth0-evals/README.md`](apps/auth0-evals/) - Auth0 eval suite, available evals, how to add new ones
 - [`docs/ADDING_EVALS.md`](docs/ADDING_EVALS.md) - Full guide to writing evals
 - [`docs/SCORING_METHODOLOGY.md`](docs/SCORING_METHODOLOGY.md) - Scoring philosophy and dimension details

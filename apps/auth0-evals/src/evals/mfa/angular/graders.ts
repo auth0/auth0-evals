@@ -1,4 +1,4 @@
-import { contains, notContains, judge, compiles, GraderLevel } from '@a0/eval-graders';
+import { contains, notContains, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [

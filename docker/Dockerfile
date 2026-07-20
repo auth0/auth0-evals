@@ -5,10 +5,10 @@ WORKDIR /build
 
 # Install deps first (cache layer)
 COPY package.json package-lock.json ./
-COPY packages/eval/package.json packages/eval/package.json
-COPY packages/eval-core/package.json packages/eval-core/package.json
-COPY packages/eval-graders/package.json packages/eval-graders/package.json
-COPY packages/eval-reporter/package.json packages/eval-reporter/package.json
+COPY packages/evals/package.json packages/evals/package.json
+COPY packages/evals-core/package.json packages/evals-core/package.json
+COPY packages/evals-graders/package.json packages/evals-graders/package.json
+COPY packages/evals-reporter/package.json packages/evals-reporter/package.json
 COPY apps/auth0-evals/package.json apps/auth0-evals/package.json
 
 RUN npm ci
@@ -51,14 +51,14 @@ WORKDIR /app
 # Copy built application from builder
 COPY --from=builder /build/package.json /build/package-lock.json ./
 COPY --from=builder /build/node_modules/ node_modules/
-COPY --from=builder /build/packages/eval/dist/ packages/eval/dist/
-COPY --from=builder /build/packages/eval/package.json packages/eval/package.json
-COPY --from=builder /build/packages/eval-core/dist/ packages/eval-core/dist/
-COPY --from=builder /build/packages/eval-core/package.json packages/eval-core/package.json
-COPY --from=builder /build/packages/eval-graders/dist/ packages/eval-graders/dist/
-COPY --from=builder /build/packages/eval-graders/package.json packages/eval-graders/package.json
-COPY --from=builder /build/packages/eval-reporter/dist/ packages/eval-reporter/dist/
-COPY --from=builder /build/packages/eval-reporter/package.json packages/eval-reporter/package.json
+COPY --from=builder /build/packages/evals/dist/ packages/evals/dist/
+COPY --from=builder /build/packages/evals/package.json packages/evals/package.json
+COPY --from=builder /build/packages/evals-core/dist/ packages/evals-core/dist/
+COPY --from=builder /build/packages/evals-core/package.json packages/evals-core/package.json
+COPY --from=builder /build/packages/evals-graders/dist/ packages/evals-graders/dist/
+COPY --from=builder /build/packages/evals-graders/package.json packages/evals-graders/package.json
+COPY --from=builder /build/packages/evals-reporter/dist/ packages/evals-reporter/dist/
+COPY --from=builder /build/packages/evals-reporter/package.json packages/evals-reporter/package.json
 
 # Copy eval app (config, eval definitions, scaffolds, skills)
 COPY --from=builder /build/apps/auth0-evals/dist/ apps/auth0-evals/dist/

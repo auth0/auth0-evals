@@ -11,9 +11,9 @@
     "report": "a0-eval report"
   },
   "dependencies": {
-    "@a0/eval": "*",
-    "@a0/eval-graders": "*",
-    "@a0/eval-reporter": "*",
+    "@a0/evals": "*",
+    "@a0/evals-graders": "*",
+    "@a0/evals-reporter": "*",
     "commander": "^15.0.0"
   },
   "devDependencies": {

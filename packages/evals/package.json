@@ -1,0 +1,45 @@
+{
+  "name": "@a0/evals",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "a0-eval": "./dist/cli/bin.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "dependencies": {
+    "@a0/evals-core": "*",
+    "@a0/evals-reporter": "*",
+    "@ai-sdk/openai": "^4.0.13",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.209",
+    "@anthropic-ai/claude-code": "2.1.209",
+    "@github/copilot-sdk": "^1.0.6",
+    "@google/gemini-cli": "^0.50.0",
+    "@openai/codex": "^0.144.4",
+    "@openai/codex-sdk": "^0.144.4",
+    "ai": "^7.0.26",
+    "braintrust": "^3.22.0",
+    "commander": "^15.0.0",
+    "dotenv": "^17.4.2",
+    "p-limit": "^7.3.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:ci": "vitest run --silent --coverage",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@a0/evals-graders": "*",
+    "@types/node": "^26.1.1",
+    "@vitest/coverage-v8": "^4.1.9",
+    "vitest": "^4.1.10"
+  }
+}

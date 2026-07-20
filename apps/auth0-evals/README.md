@@ -1,6 +1,6 @@
 # auth0-evals
 
-The Auth0 eval suite — a collection of evaluation tasks that measure how well LLM agents integrate Auth0 SDKs. Built on the [`@a0/eval`](../../packages/eval/) framework.
+The Auth0 eval suite — a collection of evaluation tasks that measure how well LLM agents integrate Auth0 SDKs. Built on the [`@a0/evals`](../../packages/evals/) framework.
 
 ## Setup
 
@@ -30,7 +30,7 @@ npm run run -- --eval react_quickstart --mode agent --tools mcp,skills
 npm run report
 ```
 
-See [`@a0/eval` CLI docs](../../packages/eval/) for the full list of flags and options.
+See [`@a0/evals` CLI docs](../../packages/evals/) for the full list of flags and options.
 
 ## Available evals
 
@@ -94,7 +94,7 @@ export default {
 };
 ```
 
-See the [`@a0/eval` configuration reference](../../packages/eval/#configuration) for all available options.
+See the [`@a0/evals` configuration reference](../../packages/evals/#configuration) for all available options.
 
 ## Eval structure
 
@@ -132,7 +132,7 @@ setup_command: npm install
 Exports a `defineGraders()` function returning an array of grader checks:
 
 ```typescript
-import { contains, notContains, matches, judge, GraderLevel } from '@a0/eval-graders';
+import { contains, notContains, matches, judge, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -170,7 +170,7 @@ export function defineGraders() {
 
 ### Grader levels
 
-See the [grader levels reference](../../packages/eval/#grader-levels) in the `@a0/eval` docs for the full table of levels (L1–L5) and which configurations they run in.
+See the [grader levels reference](../../packages/evals/#grader-levels) in the `@a0/evals` docs for the full table of levels (L1–L5) and which configurations they run in.
 
 Ideally, evals end with a holistic `judge` (no level) that always runs. Some existing evals use levelled judges instead — see each eval's `graders.ts`.
 

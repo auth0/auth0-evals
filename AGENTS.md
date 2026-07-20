@@ -35,9 +35,9 @@ Full guide for adding evals: [docs/ADDING_EVALS.md](docs/ADDING_EVALS.md)
 `package.json` sets `"type": "module"`. Every import needs a `.js` extension, even when importing `.ts` source files. Use the `node:` prefix for builtins. Use `import type` for type-only imports.
 
 ```typescript
-import { contains } from '@a0/eval-graders'; // ✓
+import { contains } from '@a0/evals-graders'; // ✓
 import { readFileSync } from 'node:fs'; // ✓
-import type { GraderDef } from '@a0/eval-graders'; // ✓ type-only
+import type { GraderDef } from '@a0/evals-graders'; // ✓ type-only
 ```
 
 For dynamic imports of absolute paths, use `pathToFileURL(path).href` — bare absolute paths fail on macOS and Windows.
@@ -124,7 +124,7 @@ The project uses ESLint and Prettier. Run `npm run lint` and `npm run format` be
 
 ## Testing
 
-Every new function and every logic change must be accompanied by tests. Each package has its own `tests/` directory (`packages/eval-core/tests/`, `packages/eval/tests/`, `packages/eval-graders/tests/`, etc.) and uses Vitest. Add tests in the package where the changed code lives. Rules:
+Every new function and every logic change must be accompanied by tests. Each package has its own `tests/` directory (`packages/evals-core/tests/`, `packages/evals/tests/`, `packages/evals-graders/tests/`, etc.) and uses Vitest. Add tests in the package where the changed code lives. Rules:
 
 - **New function** → add at least one happy-path test and one failure/edge-case test.
 - **Logic change** → add or update tests that would have caught the regression. If the change is non-trivial (e.g. new branching, new error handling), cover each new branch.
@@ -147,7 +147,7 @@ When you make a change, update every doc whose described behavior is affected. T
 | New CLI flag or runner added                                                         | `AGENTS.md` CLI flags table and Agent runners table; `README.md` quick-start if the flag is commonly used                                       |
 | Scoring dimension added, changed, or removed                                         | `docs/SCORING_METHODOLOGY.md` first (per the workflow); then `AGENTS.md` scoring section once merged                                            |
 | New grader level or grader primitive added                                           | `AGENTS.md` grader levels table and grader primitives table; `docs/ADDING_EVALS.md`                                                             |
-| Framework package added or restructured                                              | `README.md` Packages list; `packages/eval/README.md` if it exists                                                                               |
+| Framework package added or restructured                                              | `README.md` Packages list; `packages/evals/README.md` if it exists                                                                               |
 | Docker/sandbox behaviour changed                                                     | `AGENTS.md` if it affects how evals run; no dedicated doc today — add a note here                                                               |
 | Package structure, runners, scoring, configurations, or end-to-end data flow changed | `docs/ARCHITECTURE.md` — update the prose **and** the Mermaid diagrams (component diagram + data-flow diagram) so they don't drift from reality |
 
