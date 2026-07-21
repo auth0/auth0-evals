@@ -41,7 +41,9 @@ export function defineGraders() {
     contains('read:messages', 'read:messages scope checked on /api/messages route', GraderLevel.L4),
     judge(
       'Does the app correctly create an Auth0FastAPI instance, protect /api/messages with the read:messages scope, ' +
-        'and protect /api/private requiring any valid access token?',
+        'and protect /api/private requiring any valid access token? ' +
+        'Note: the auth0-fastapi-api distribution imports as the module `fastapi_plugin` ' +
+        '(i.e. `from fastapi_plugin import Auth0FastAPI` is correct — there is no `auth0_fastapi_api` module).',
       GraderLevel.L4,
     ),
 
@@ -50,7 +52,9 @@ export function defineGraders() {
       'Does the solution use current auth0-fastapi-api patterns? ' +
         'Specifically: does it use Auth0FastAPI with domain and audience parameters, ' +
         'use require_auth() as a FastAPI Depends dependency (not a decorator), ' +
-        'and read credentials from environment variables (not hardcoded)?',
+        'and read credentials from environment variables (not hardcoded)? ' +
+        'Note: the auth0-fastapi-api distribution imports as the module `fastapi_plugin` ' +
+        '(`from fastapi_plugin import Auth0FastAPI` is correct — there is no `auth0_fastapi_api` module).',
       GraderLevel.L5,
     ),
 
@@ -59,7 +63,9 @@ export function defineGraders() {
       'Does the solution correctly integrate Auth0 into a FastAPI API using auth0-fastapi-api? ' +
         'It should create an Auth0FastAPI instance configured with domain and audience from environment variables, ' +
         'protect the /api/messages route with read:messages scope check, ' +
-        'and protect the /api/private route requiring a valid access token.',
+        'and protect the /api/private route requiring a valid access token. ' +
+        'Note: the auth0-fastapi-api distribution imports as the module `fastapi_plugin` ' +
+        '(`from fastapi_plugin import Auth0FastAPI` is correct — there is no `auth0_fastapi_api` module).',
     ),
   ];
 }
