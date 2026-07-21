@@ -27,7 +27,7 @@
     "braintrust": "^3.22.0",
     "commander": "^15.0.0",
     "dotenv": "^17.4.2",
-    "p-limit": "^7.3.0"
+    "p-limit": "^7.3.1"
   },
   "scripts": {
     "build": "tsc",
