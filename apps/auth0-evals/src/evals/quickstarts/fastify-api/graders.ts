@@ -49,7 +49,9 @@ export function defineGraders() {
     contains('read:messages', 'read:messages scope checked on /api/messages route', GraderLevel.L4),
     judge(
       'Does the app correctly register the @auth0/auth0-fastify-api plugin, protect /api/messages with the read:messages scope, ' +
-        'and protect /api/private requiring any valid access token?',
+        'and protect /api/private requiring any valid access token? ' +
+        'Note: @auth0/auth0-fastify-api exposes the verified token claims on request.user ' +
+        '(e.g. request.user.sub) — this is the correct API for this plugin, not request.auth.',
       GraderLevel.L4,
     ),
 
