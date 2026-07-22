@@ -7,6 +7,7 @@
   "bin": {
     "a0-eval": "./dist/cli/bin.js"
   },
+  "files": ["dist"],
   "exports": {
     ".": {
       "import": "./dist/index.js",
