@@ -103,12 +103,19 @@ export function validateTools(toolsArg: string): string[] {
   return tools;
 }
 
+/** Maximum number of runs allowed per job. Prevents unbounded subprocess expansion. */
+export const MAX_RUNS = 10;
+
 /** Parses and validates the `--runs` count. Defaults to 1. */
 export function validateRuns(raw: string | undefined): number {
   const trimmed = raw?.trim();
   const runs = parseInt(trimmed ?? '1', 10);
   if (!Number.isInteger(runs) || runs < 1 || (trimmed !== undefined && String(runs) !== trimmed)) {
     logger.error(`Invalid --runs value: ${JSON.stringify(raw)}. Must be a positive integer.`);
+    process.exit(1);
+  }
+  if (runs > MAX_RUNS) {
+    logger.error(`Invalid --runs value: ${runs}. Must be between 1 and ${MAX_RUNS}.`);
     process.exit(1);
   }
   return runs;

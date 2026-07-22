@@ -12,6 +12,7 @@ import {
   KNOWN_AGENT_TYPES,
   KNOWN_WORKING_MODELS,
 } from '../src/index.js';
+import { MAX_RUNS } from '../src/cli/validators.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -379,5 +380,13 @@ describe('--runs', () => {
   it('prints the invalid value in the error message', () => {
     expect(() => parse('--runs', 'many')).toThrow();
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining('many'));
+  });
+
+  it(`accepts ${MAX_RUNS} as the maximum valid value`, () => {
+    expect(parse('--runs', String(MAX_RUNS)).runs).toBe(MAX_RUNS);
+  });
+
+  it(`exits for ${MAX_RUNS + 1} (one above the maximum)`, () => {
+    expect(() => parse('--runs', String(MAX_RUNS + 1))).toThrow('process.exit(1)');
   });
 });
