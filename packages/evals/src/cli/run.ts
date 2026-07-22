@@ -261,7 +261,7 @@ function printSummary(results: JobResult[], elapsed: number): void {
  * exactly one (eval × model × mode × tools) job without re-expanding them.
  */
 export function buildSubprocessArgs(argv: string[] = process.argv.slice(2)): string[] {
-  const VALUE_FLAGS = new Set(['--eval', '--output', '--model', '--mode', '--tools', '--agent-type']);
+  const VALUE_FLAGS = new Set(['--eval', '--output', '--model', '--mode', '--tools', '--agent-type', '--runs']);
   const stripped: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
