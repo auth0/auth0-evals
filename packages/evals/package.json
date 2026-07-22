@@ -24,7 +24,7 @@
     "@google/gemini-cli": "^0.50.0",
     "@openai/codex": "^0.144.4",
     "@openai/codex-sdk": "^0.144.4",
-    "ai": "^7.0.26",
+    "ai": "^7.0.34",
     "braintrust": "^3.22.0",
     "commander": "^15.0.0",
     "dotenv": "^17.4.2",
