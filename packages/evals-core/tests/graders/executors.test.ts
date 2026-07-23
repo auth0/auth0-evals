@@ -349,6 +349,12 @@ describe('isJudgeExcluded', () => {
     expect(isJudgeExcluded('docs/SETUP.md')).toBe(true);
     expect(isJudgeExcluded('CHANGELOG.MD')).toBe(true);
   });
+
+  it('excludes text files (agent-emitted docs, summaries, checklists)', () => {
+    expect(isJudgeExcluded('IMPLEMENTATION_SUMMARY.txt')).toBe(true);
+    expect(isJudgeExcluded('docs/VERIFICATION_CHECKLIST.txt')).toBe(true);
+    expect(isJudgeExcluded('NOTES.TXT')).toBe(true);
+  });
 });
 
 // ── compile ───────────────────────────────────────────────────────────────────

@@ -16,12 +16,18 @@ import { logger } from '../../utils/logger.js';
  * are dropped so credential values never reach the judge LLM — security graders verify
  * secret absence in source deterministically via `notContainsInSource`, and "wired into
  * .env" is an event-based (`wroteFile`) concern, so the judge never needs `.env` content.
+ *
+ * `.md` / `.txt` files are dropped because agents routinely emit large standalone docs
+ * (integration guides, summaries, checklists) that are not source code. They inflate the
+ * corpus — sometimes past `maxCodeChars`, which fails the judge outright — while adding no
+ * signal the judge needs.
  */
 const JUDGE_EXCLUDED_PATTERNS = [
   /^tsconfig(\.\w+)?\.json$/,
   /^angular\.json$/,
   /^tsconfig\.tsbuildinfo$/,
   /\.md$/i,
+  /\.txt$/i,
   /^\.env(\..*)?$/,
 ];
 
