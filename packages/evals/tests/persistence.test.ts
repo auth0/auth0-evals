@@ -37,6 +37,8 @@ function makeBaseline(overrides: Partial<BaselineJobResult> = {}): BaselineJobRe
     wall_time: 1.0,
     tokens: 100,
     cost_usd: 0.01,
+    judge_cost_usd: 0,
+    total_cost_usd: 0.01,
     error: '',
     graders: [],
     ...overrides,
@@ -63,6 +65,8 @@ function makeAgent(overrides: Partial<AgentJobResult> = {}): AgentJobResult {
     interruptions: 0,
     tokens: 500,
     cost_usd: 0.05,
+    judge_cost_usd: 0,
+    total_cost_usd: 0.05,
     dimensions: [],
     graders: [],
     session_trace: [],
@@ -83,6 +87,8 @@ function makeError(overrides: Partial<ErrorJobResult> = {}): ErrorJobResult {
     wall_time: 0,
     tokens: 0,
     cost_usd: 0,
+    judge_cost_usd: 0,
+    total_cost_usd: 0,
     ...overrides,
   };
 }
@@ -524,6 +530,17 @@ describe('aggregateRuns', () => {
     const err = makeError();
     const [result] = aggregateRuns([ok, err]) as AgentJobResult[];
     expect(result.status).toBe('success');
+  });
+
+  it('sets run_count and runs on partial failure (1 success + 1 error)', () => {
+    // When 2 runs are requested but 1 errors, run_count reflects the successful
+    // runs count (1), and runs contains only the successful result.
+    const ok = makeAgent({ overall_score: 70, tools: [] });
+    const err = makeError();
+    const [result] = aggregateRuns([ok, err]) as AgentJobResult[];
+    expect(result.run_count).toBe(1);
+    expect(result.runs).toHaveLength(1);
+    expect(result.runs![0]!.status).toBe('success');
   });
 
   it('keeps the last error result when all runs in a group errored', () => {

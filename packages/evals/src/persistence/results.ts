@@ -136,7 +136,8 @@ function medianAgentResult(group: AgentJobResult[]): AgentJobResult {
   const medianOverallScore = median(group.map((r) => r.overall_score));
 
   const dimensions: DimensionSummary[] = rep.dimensions.map((dim, i) => {
-    const score = median(group.map((r) => r.dimensions[i]!.score));
+    const scores = group.map((r) => r.dimensions[i]?.score).filter((s): s is number => typeof s === 'number');
+    const score = scores.length > 0 ? median(scores) : dim.score;
     return { ...dim, score, weighted: score * dim.weight, grade: scoreToGrade(score) };
   });
 
@@ -187,7 +188,7 @@ function medianBaselineResult(group: BaselineJobResult[]): BaselineJobResult {
  * - All errors: the last error result is kept as-is.
  * - Otherwise: error results are dropped and the non-errors are aggregated.
  *   Scores are medianed; costs and tokens are summed. The raw runs are
- *   embedded in the `runs` field and `run_count` is set to the group size.
+ *   embedded in the `runs` field and `run_count` is set to the number of successful runs.
  */
 export function aggregateRuns(results: JobResult[]): JobResult[] {
   const groups = new Map<string, JobResult[]>();
