@@ -36,11 +36,14 @@ export function defineGraders() {
     ),
 
     // ── L5: Version-specific API correctness ──────────────────────────────────
-    // Allow chained builder calls (e.g. `.scope(...)`, `.useEphemeralSession()`)
-    // and newlines between webAuth() and .start() — the idiomatic fluent form
-    // `Auth0.webAuth().scope("...").start()` is correct async/await usage.
+    // Accept both `webAuth()` (reads Auth0.plist) and the explicit-credentials
+    // form `webAuth(clientId:domain:)` — both are valid public factories. Allow
+    // chained builder calls (e.g. `.scope(...)`, `.useEphemeralSession()`) and
+    // newlines between the factory and `.start()`. The empty `.start()` is what
+    // distinguishes async/await usage from the completion-handler form
+    // (`.start { result in ... }`), which this L5 grader is meant to reject.
     matches(
-      String.raw`webAuth\(\)(?:\s*\.\w+\([^)]*\))*\s*\.start\(\)`,
+      String.raw`webAuth\([^)]*\)(?:\s*\.\w+\([^)]*\))*\s*\.start\(\)`,
       'Uses async/await webAuth().start() syntax (not completion handlers)',
       GraderLevel.L5,
     ),
