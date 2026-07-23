@@ -22,26 +22,38 @@ export function spawnEval(selfPath: string, evalId: string, args: string[]): Pro
 }
 
 /**
- * Reads each temp file, merges results with the existing final output (deduplicating
- * by eval_id|model|mode|tools), writes the merged array to finalOutputPath, and
- * deletes the temp files.
+ * Reads each temp file, collects all results into a flat array, and deletes the
+ * temp files. Does not deduplicate or merge with any existing output.
  */
-export function mergeIntoOutput(tempFiles: string[], finalOutputPath: string): Record<string, unknown>[] {
-  const key = (r: Record<string, unknown>) =>
-    `${r.eval_id}|${r.model}|${r.mode}|${((r.tools as string[]) ?? []).join(',')}`;
-
-  const fresh: Record<string, unknown>[] = [];
+export function collectFromTempFiles(tempFiles: string[]): Record<string, unknown>[] {
+  const results: Record<string, unknown>[] = [];
   for (const f of tempFiles) {
     if (existsSync(f)) {
       try {
         const loaded = JSON.parse(readFileSync(f, 'utf-8')) as unknown;
-        if (Array.isArray(loaded)) fresh.push(...(loaded as Record<string, unknown>[]));
+        if (Array.isArray(loaded)) results.push(...(loaded as Record<string, unknown>[]));
       } catch {
         /* ignore corrupt temp file */
       }
       rmSync(f, { force: true });
     }
   }
+  return results;
+}
+
+/**
+ * Reads each temp file, merges results with the existing final output (deduplicating
+ * by eval_id|model|mode|tools), writes the merged array to finalOutputPath, and
+ * deletes the temp files.
+ */
+export function mergeIntoOutput(tempFiles: string[], finalOutputPath: string): Record<string, unknown>[] {
+  const key = (r: Record<string, unknown>) => {
+    const rawTools = Array.isArray(r.tools) ? (r.tools as string[]) : [];
+    const normalised = Array.from(new Set(rawTools)).sort();
+    return `${r.eval_id}|${r.model}|${r.mode}|${normalised.join(',')}`;
+  };
+
+  const fresh = collectFromTempFiles(tempFiles);
 
   const newKeys = new Set(fresh.map(key));
   let existing: Record<string, unknown>[] = [];

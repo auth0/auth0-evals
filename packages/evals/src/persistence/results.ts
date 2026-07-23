@@ -4,7 +4,16 @@
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, relative, isAbsolute } from 'node:path';
-import { ALL_MODES, type Mode, type JobResult } from '@a0/evals-core';
+import {
+  ALL_MODES,
+  type Mode,
+  type JobResult,
+  type AgentJobResult,
+  type BaselineJobResult,
+  type ErrorJobResult,
+  type DimensionSummary,
+} from '@a0/evals-core';
+import { scoreToGrade } from '../scorer.js';
 
 /**
  * Returns a stable string key that uniquely identifies a job within a results file.
@@ -109,4 +118,118 @@ export function resolveOutputPath(frameworkRoot: string, modes: string[], overri
     throw new Error(`--output path "${override}" must be relative and must not escape the project root`);
   }
   return resolved;
+}
+
+/** Returns the median of a sorted numeric array. */
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+}
+
+/** Aggregates a group of agent results into a single representative result using median scores and summed costs. */
+function medianAgentResult(group: AgentJobResult[]): AgentJobResult {
+  const sorted = [...group].sort((a, b) => a.overall_score - b.overall_score);
+  const mid = Math.floor(sorted.length / 2);
+  const rep = sorted[mid]!;
+
+  const medianOverallScore = median(group.map((r) => r.overall_score));
+
+  const dimensions: DimensionSummary[] = rep.dimensions.map((dim, i) => {
+    const scores = group.map((r) => r.dimensions[i]?.score).filter((s): s is number => typeof s === 'number');
+    const score = scores.length > 0 ? median(scores) : dim.score;
+    return { ...dim, score, weighted: score * dim.weight, grade: scoreToGrade(score) };
+  });
+
+  return {
+    ...rep,
+    overall_score: medianOverallScore,
+    overall_grade: scoreToGrade(medianOverallScore),
+    grader_pass_rate: median(group.map((r) => r.grader_pass_rate)),
+    wall_time: median(group.map((r) => r.wall_time)),
+    active_time: median(group.map((r) => r.active_time)),
+    tool_calls: Math.round(median(group.map((r) => r.tool_calls))),
+    interruptions: Math.round(median(group.map((r) => r.interruptions))),
+    tokens: group.reduce((sum, r) => sum + r.tokens, 0),
+    cost_usd: group.reduce((sum, r) => sum + r.cost_usd, 0),
+    judge_cost_usd: group.reduce((sum, r) => sum + r.judge_cost_usd, 0),
+    total_cost_usd: group.reduce((sum, r) => sum + r.total_cost_usd, 0),
+    dimensions,
+    run_count: group.length,
+    runs: group,
+  };
+}
+
+/** Aggregates a group of baseline results into a single representative result using median scores and summed costs. */
+function medianBaselineResult(group: BaselineJobResult[]): BaselineJobResult {
+  const sorted = [...group].sort((a, b) => a.grader_pass_rate - b.grader_pass_rate);
+  const mid = Math.floor(sorted.length / 2);
+  const rep = sorted[mid]!;
+
+  return {
+    ...rep,
+    graders_passed: Math.round(median(group.map((r) => r.graders_passed))),
+    grader_pass_rate: Math.round(median(group.map((r) => r.graders_passed))) / rep.graders_total,
+    wall_time: median(group.map((r) => r.wall_time)),
+    tokens: group.reduce((sum, r) => sum + r.tokens, 0),
+    cost_usd: group.reduce((sum, r) => sum + r.cost_usd, 0),
+    judge_cost_usd: group.reduce((sum, r) => sum + r.judge_cost_usd, 0),
+    total_cost_usd: group.reduce((sum, r) => sum + r.total_cost_usd, 0),
+    run_count: group.length,
+    runs: group,
+  };
+}
+
+/**
+ * Aggregates multiple runs of the same job into a single result using median scoring.
+ *
+ * Groups results by `resultKey` (eval_id|model|mode|tools). For each group:
+ * - Size 1: passed through unchanged.
+ * - All errors: the last error result is kept as-is.
+ * - Otherwise: error results are dropped and the non-errors are aggregated.
+ *   Scores are medianed; costs and tokens are summed. The raw runs are
+ *   embedded in the `runs` field and `run_count` is set to the number of successful runs.
+ */
+export function aggregateRuns(results: JobResult[]): JobResult[] {
+  const groups = new Map<string, JobResult[]>();
+  for (const r of results) {
+    const key = resultKey(r);
+    const group = groups.get(key) ?? [];
+    group.push(r);
+    groups.set(key, group);
+  }
+
+  const aggregated: JobResult[] = [];
+  for (const [, group] of groups) {
+    if (group.length === 1) {
+      aggregated.push(group[0]!);
+      continue;
+    }
+
+    const nonErrors = group.filter((r) => r.status !== 'error');
+    if (nonErrors.length === 0) {
+      // All errored — keep last error result
+      aggregated.push(group[group.length - 1]!);
+      continue;
+    }
+
+    const rep = nonErrors[0]!;
+    if (rep.mode === 'agent') {
+      aggregated.push(medianAgentResult(nonErrors as AgentJobResult[]));
+    } else {
+      aggregated.push(medianBaselineResult(nonErrors as BaselineJobResult[]));
+    }
+  }
+  return aggregated;
+}
+
+/**
+ * Returns error results from `results` that will be dropped by `aggregateRuns` —
+ * i.e. errors whose job key also has at least one successful run in the same batch.
+ */
+export function findDroppedErrors(results: JobResult[]): ErrorJobResult[] {
+  return results.filter(
+    (r): r is ErrorJobResult =>
+      r.status === 'error' && results.some((s) => s.status !== 'error' && resultKey(s) === resultKey(r)),
+  );
 }

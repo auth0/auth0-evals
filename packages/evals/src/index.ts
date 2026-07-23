@@ -38,6 +38,7 @@ export {
   type RunConfig,
   spawnEval,
   mergeIntoOutput,
+  collectFromTempFiles,
   runCli,
   runJob,
   buildJobList,

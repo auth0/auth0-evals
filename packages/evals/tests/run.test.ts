@@ -150,6 +150,10 @@ describe('buildSubprocessArgs', () => {
     expect(buildSubprocessArgs(['--agent-type', 'claude-code', '--workers', '4'])).toEqual(['--workers', '4']);
   });
 
+  it('strips --runs and its value to prevent subprocess recursion', () => {
+    expect(buildSubprocessArgs(['--runs', '3', '--workers', '4'])).toEqual(['--workers', '4']);
+  });
+
   it('strips multiple per-job flags and keeps the rest', () => {
     const argv = [
       '--eval',

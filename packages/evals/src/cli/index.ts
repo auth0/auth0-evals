@@ -10,6 +10,6 @@ export {
 
 export { parseRunConfig, extractConfigPath, type RunConfig } from './config.js';
 
-export { spawnEval, mergeIntoOutput } from './subprocess-runner.js';
+export { spawnEval, mergeIntoOutput, collectFromTempFiles } from './subprocess-runner.js';
 
 export { runCli, runJob, buildJobList, buildSubprocessArgs } from './run.js';
