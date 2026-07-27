@@ -200,4 +200,18 @@ describe('runCompileCommand', () => {
     expect(res.ok).toBe(true);
     expect(res.output).toContain('hello-compile');
   });
+
+  it('splits a &&-chained setupCommand into separate sub-commands', () => {
+    const dir = tmpDir();
+    const res = runCompileCommand(dir, 'true', {
+      setupCommand: 'echo setup-first && echo setup-second',
+    });
+    // If setupCommand were run unsplit (as one argv), '&&' and 'echo' would be
+    // passed as literal arguments to the first `echo`, producing a single line
+    // containing '&&' instead of two separate echoed lines.
+    expect(res.output).not.toContain('&&');
+    expect(res.output).toContain('setup-first');
+    expect(res.output).toContain('setup-second');
+    expect(res.ok).toBe(true);
+  });
 });

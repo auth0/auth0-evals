@@ -197,9 +197,11 @@ export function runCompileCommand(
 
   // When a setupCommand is provided, we ensure to run it before verifying compilation.
   // This is done because there is no guarantee that an agent did not add a dependency
-  // without running the installation command.
+  // without running the installation command. Split it the same way as the compile
+  // command itself so &&-chained setup commands (e.g. `python3 -m venv .venv && pip install ...`)
+  // run as separate sub-commands instead of one unsplit argv.
   if (options?.setupCommand) {
-    subCommands.unshift(options.setupCommand);
+    subCommands.unshift(...options.setupCommand.split('&&').map((s) => s.trim()));
   }
 
   let combinedOutput = '';
