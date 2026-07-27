@@ -1,4 +1,13 @@
-import { contains, notContains, notContainsInSource, matches, judge, wroteFile, GraderLevel } from '@a0/evals-graders';
+import {
+  contains,
+  notContains,
+  notContainsInSource,
+  matches,
+  judge,
+  wroteFile,
+  compiles,
+  GraderLevel,
+} from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -36,6 +45,7 @@ export function defineGraders() {
       'dev-barkbook.us.auth0.com',
       'api.barkbook.com',
     ]),
+    compiles('Project compiles (node --check succeeds)', GraderLevel.L4),
     matches(
       String.raw`fastify\.register\s*\(\s*fastifyAuth0Api`,
       'Auth0 API plugin registered with fastify.register()',
