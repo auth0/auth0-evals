@@ -1,4 +1,13 @@
-import { contains, notContains, notContainsInSource, matches, judge, wroteFile, GraderLevel } from '@a0/evals-graders';
+import {
+  contains,
+  notContains,
+  notContainsInSource,
+  matches,
+  judge,
+  wroteFile,
+  compiles,
+  GraderLevel,
+} from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -32,6 +41,7 @@ export function defineGraders() {
       'dev-barkbook.us.auth0.com',
       'api.barkbook.com',
     ]),
+    compiles('Project compiles (py_compile succeeds)', GraderLevel.L4),
     matches(String.raw`Auth0FastAPI\s*\(`, 'Auth0FastAPI instance is created', GraderLevel.L4),
     matches(
       String.raw`Depends\s*\(\s*\w+\.require_auth\s*\(`,

@@ -1,4 +1,13 @@
-import { contains, notContains, notContainsInSource, matches, judge, wroteFile, GraderLevel } from '@a0/evals-graders';
+import {
+  contains,
+  notContains,
+  notContainsInSource,
+  matches,
+  judge,
+  wroteFile,
+  compiles,
+  GraderLevel,
+} from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -50,6 +59,7 @@ export function defineGraders() {
       'barkbook_client_abc123xyz',
       'barkbook_secret_def456uvw',
     ]),
+    compiles('Project compiles (node --check succeeds)', GraderLevel.L4),
     matches(String.raw`app\.use\s*\(\s*auth\s*\(`, 'auth middleware registered with app.use', GraderLevel.L4),
     contains('requiresAuth', 'Uses requiresAuth() to protect the /profile route', GraderLevel.L4),
     contains('req.oidc.accessToken', 'Accesses access token via req.oidc.accessToken', GraderLevel.L4),

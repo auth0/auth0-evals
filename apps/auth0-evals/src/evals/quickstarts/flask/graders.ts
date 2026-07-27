@@ -1,4 +1,13 @@
-import { contains, notContains, notContainsInSource, matches, judge, wroteFile, GraderLevel } from '@a0/evals-graders';
+import {
+  contains,
+  notContains,
+  notContainsInSource,
+  matches,
+  judge,
+  wroteFile,
+  compiles,
+  GraderLevel,
+} from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -41,6 +50,7 @@ export function defineGraders() {
       'barkbook_client_abc123xyz',
       'barkbook_secret_def456uvw',
     ]),
+    compiles('Project compiles (py_compile succeeds)', GraderLevel.L4),
     contains('/callback', 'Implements /callback route', GraderLevel.L4),
     contains('/login', 'Implements /login route', GraderLevel.L4),
     contains('/logout', 'Implements /logout route', GraderLevel.L4),
