@@ -1,4 +1,13 @@
-import { contains, notContains, notContainsInSource, matches, judge, wroteFile, GraderLevel } from '@a0/evals-graders';
+import {
+  contains,
+  notContains,
+  notContainsInSource,
+  matches,
+  judge,
+  wroteFile,
+  compiles,
+  GraderLevel,
+} from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -34,6 +43,7 @@ export function defineGraders() {
       'api.barkbook.com',
     ]),
 
+    compiles('Project compiles (node --check succeeds)', GraderLevel.L4),
     matches(
       String.raw`requiredScopes\s*\(\s*.*read:messages`,
       'GET /api/messages protected with read:messages scope',
