@@ -3,8 +3,6 @@ const express = require('express');
 const app = express();
 app.use(express.json());
 
-// TODO: protect these routes with Auth0
-
 app.get('/api/messages', (req, res) => {
   res.json({ messages: ['hello'] });
 });
