@@ -337,7 +337,7 @@ No manual registration step is needed. The framework auto-discovers evals by sca
 npm run evals -- --eval my_new_eval --mode agent --tools skills
 
 # Run with a specific model
-npm run evals -- --eval my_new_eval --model claude-sonnet-4-6 --mode agent
+npm run evals -- --eval my_new_eval --model claude-sonnet-5 --mode agent
 
 # Keep the temporary workspace after the run for inspection
 npm run evals -- --eval my_new_eval --mode agent --keep-workspace
