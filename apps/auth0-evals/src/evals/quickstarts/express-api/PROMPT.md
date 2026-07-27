@@ -2,6 +2,8 @@
 id: express_api_quickstart
 name: Express API Quickstart
 skills: auth0
+setup_command: npm install
+compile_command: node --check server.js
 ---
 
 ## Task
