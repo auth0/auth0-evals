@@ -99,7 +99,7 @@ Graders define the acceptance criteria. Export a single `defineGraders()` functi
 | `ranCommand(command, args, description, level)` | Agent ran a successful shell command containing `command` and all `args` substrings |
 | `ranCommandOneOf(commands, description, level)` | Agent ran at least one successful command from the list (substring match) |
 | `wroteFile(path, description, level, expected?)` | Agent wrote a file whose path contains the substring. With optional `expected` (string or string array), the combined content of all writes to that path must also contain every `expected` substring |
-| `compiles(description, level)` | Framework runs the eval's `compile_command` against the workspace after the agent finishes and passes/fails on its exit code. Requires `compile_command` in frontmatter, or the grader fails. |
+| `compiles(description, level)` | Framework runs the eval's `compile_command` against the workspace after the agent finishes and passes/fails on its exit code — level required (L4 or L5). Decoupled from whether the agent ran the build itself, so output that compiles passes even if the agent never ran the build. Requires `compile_command` in frontmatter, or the grader fails. |
 | `calledTool(toolName, description, level)` | Agent invoked an MCP tool whose name contains the substring (trace-based; L4/L5 only) |
 | `calledToolOneOf(toolNames, description, level)` | Agent invoked at least one of the named MCP tools (trace-based; L4/L5 only) |
 
