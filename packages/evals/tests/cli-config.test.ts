@@ -168,6 +168,24 @@ describe('--model', () => {
     });
     expect(config.models).toEqual(['claude-opus-4-6']);
   });
+
+  it('falls back to the provided defaultModel when --model is omitted', () => {
+    const config = parseRunConfig(argv(), { knownEvalIds: KNOWN_EVAL_IDS, defaultModel: 'claude-opus-4-8' });
+    expect(config.models).toEqual(['claude-opus-4-8']);
+  });
+
+  it('falls back to DEFAULT_MODEL when defaultModel is empty', () => {
+    const config = parseRunConfig(argv(), { knownEvalIds: KNOWN_EVAL_IDS, defaultModel: '' });
+    expect(config.models).toEqual([DEFAULT_MODEL]);
+  });
+
+  it('defaultModel has no effect when --model is explicitly passed', () => {
+    const config = parseRunConfig(argv('--model', 'gpt-5.2'), {
+      knownEvalIds: KNOWN_EVAL_IDS,
+      defaultModel: 'claude-opus-4-8',
+    });
+    expect(config.models).toEqual(['gpt-5.2']);
+  });
 });
 
 // ── Mode selection ────────────────────────────────────────────────────────────

@@ -38,8 +38,12 @@ export function validateApiKey(): string {
  * when provided (and non-empty), otherwise the framework's `KNOWN_WORKING_MODELS`
  * fallback. This lets an app narrow the `all` set (e.g. drop deprecated models)
  * via `eval.config.js` without changing framework code.
+ *
+ * When `--model` is omitted entirely, falls back to `defaultModel` — the app's
+ * configured `models.default` — when provided (and non-empty), otherwise the
+ * framework's `DEFAULT_MODEL` constant.
  */
-export function validateModels(rawModels: string[], knownModels?: string[]): string[] {
+export function validateModels(rawModels: string[], knownModels?: string[], defaultModel?: string): string[] {
   const allModels = knownModels && knownModels.length > 0 ? knownModels : KNOWN_WORKING_MODELS;
   if (rawModels.length > 0 && rawModels.includes('all')) {
     logger.info(`Using all known working models: ${allModels.join(', ')}`);
@@ -48,7 +52,7 @@ export function validateModels(rawModels: string[], knownModels?: string[]): str
   if (rawModels.length > 0) {
     return rawModels;
   }
-  return [DEFAULT_MODEL];
+  return [defaultModel && defaultModel.length > 0 ? defaultModel : DEFAULT_MODEL];
 }
 
 /**
