@@ -67,6 +67,12 @@ export interface ParseRunConfigOptions {
    * `KNOWN_WORKING_MODELS` fallback is used instead.
    */
   knownModels?: string[];
+  /**
+   * Model used when `--model` is omitted entirely — typically the app's
+   * `models.default` from `eval.config.js`. When omitted or empty, the
+   * framework's `DEFAULT_MODEL` constant is used instead.
+   */
+  defaultModel?: string;
 }
 
 /**
@@ -107,7 +113,7 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
     .option('--eval <id>', 'Eval ID(s) to run (default: all)', (v, prev: string[]) => [...prev, v], [] as string[])
     .option(
       '--model <model>',
-      `Model(s) to run (default: ${DEFAULT_MODEL})`,
+      `Model(s) to run (default: ${options.defaultModel && options.defaultModel.length > 0 ? options.defaultModel : DEFAULT_MODEL})`,
       (v, prev: string[]) => [...prev, v],
       [] as string[],
     )
@@ -136,7 +142,7 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
   const opts = program.opts();
 
   const apiKey = validateApiKey();
-  const models = validateModels(opts.model as string[], options.knownModels);
+  const models = validateModels(opts.model as string[], options.knownModels, options.defaultModel);
   const modes = validateModes(opts.mode as string | undefined);
 
   const evalIds = options.knownEvalIds

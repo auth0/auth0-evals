@@ -349,7 +349,10 @@ export async function runCli(): Promise<void> {
   const frameworkConfig = await loadConfig({ configPath });
   setFrameworkConfig(frameworkConfig);
 
-  const config = parseRunConfig(process.argv, { knownModels: frameworkConfig.models.known });
+  const config = parseRunConfig(process.argv, {
+    knownModels: frameworkConfig.models.known,
+    defaultModel: frameworkConfig.models.default,
+  });
   const {
     models,
     modes,
