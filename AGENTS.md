@@ -79,7 +79,7 @@ Use `notContainsInSource` (not `notContains`) when a value like a client ID is a
 | `notContains(needle)`                            | Substring must NOT appear in any non-excluded workspace file                                                                                                                                                                                   |
 | `notContainsInSource(needle)`                    | Substring must NOT appear in source files (allowed in config)                                                                                                                                                                                  |
 | `matches(pattern)`                               | Regex match in any non-excluded workspace file                                                                                                                                                                                                 |
-| `judge(question, framework?)`                    | LLM-as-judge yes/no question — uses `claude-opus-4-8`                                                                                                                                                                                          |
+| `judge(question, framework?)`                    | LLM-as-judge yes/no question — uses `claude-opus-5`                                                                                                                                                                                          |
 | `ranCommand(command, args, description, level)`  | Agent ran a shell command containing `command` (and all `args`) — event-based, level required (L4 or L5)                                                                                                                                       |
 | `ranCommandOneOf(commands, description, level)`  | Agent ran at least one command from the list — event-based, level required (L4 or L5)                                                                                                                                                          |
 | `wroteFile(path, description, level, expected?)` | Agent wrote a file whose path contains the substring. With optional `expected` (string or string array), the combined content of all writes to that path must also contain every `expected` substring — event-based, level required (L4 or L5) |
@@ -340,7 +340,7 @@ By default (LiteLLM proxy) the `modelIds` map is empty — the proxy serves mode
 Set `CLAUDE_CODE_USE_BEDROCK_PROXY=1` to route through the Bedrock proxy instead (`/anthropic` endpoint). The config then populates `modelIds` to map supported short aliases to full Bedrock model IDs:
 
 - `claude-sonnet-5` → `global.anthropic.claude-sonnet-5`
-- `claude-opus-4-8` → `global.anthropic.claude-opus-4-8`
+- `claude-opus-5` → `global.anthropic.claude-opus-5`
 - `claude-opus-4-5` → `global.anthropic.claude-opus-4-5-20251101-v1:0`
 - `claude-haiku-4-5` → `global.anthropic.claude-haiku-4-5-20251001-v1:0`
 
@@ -372,23 +372,23 @@ Authenticated HTTP MCP servers are configured with an `auth` block (`tokenUrl`, 
 - `gpt-5.6-luna`
 - `gpt-5.6-terra`
 - `claude-sonnet-5`
-- `claude-opus-4-8`
+- `claude-opus-5`
 - `claude-haiku-4-5`
 - `gemini-3.1-pro-preview`
 - `gemini-3.5-flash`
 
-Opus 4.5 is still supported by the framework (present in the effort-capable set and Bedrock alias map) and can be run explicitly via `--model claude-opus-4-5`; it is intentionally omitted from `--model all` here so batch runs use only Opus 4.8 among the Opus variants. Opus 4.6 and 4.7 have been removed from the registry (deprecated).
+Opus 4.5 is still supported by the framework (present in the effort-capable set and Bedrock alias map) and can be run explicitly via `--model claude-opus-4-5`; it is intentionally omitted from `--model all` here so batch runs use only Opus 5 among the Opus variants. Opus 4.6, 4.7, and 4.8 have been removed from the registry (deprecated).
 
 ### Judge model
 
-All LLM-as-judge graders use `claude-opus-4-8` via the configured LLM proxy (`proxy.baseUrl` in `eval.config.js`).
+All LLM-as-judge graders use `claude-opus-5` via the configured LLM proxy (`proxy.baseUrl` in `eval.config.js`).
 
 ### Settings
 
 | Setting              | Value                                            |
 | -------------------- | ------------------------------------------------ |
 | Base URL             | Configured in `eval.config.js` (`proxy.baseUrl`) |
-| Judge model          | `claude-opus-4-8`                                |
+| Judge model          | `claude-opus-5`                                  |
 | Judge max tokens     | 1024                                             |
 | Judge max code chars | 32,768                                           |
 | Max agent turns      | 75                                               |

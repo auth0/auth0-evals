@@ -151,7 +151,7 @@ describe('--model', () => {
   });
 
   it('--model all expands to the provided knownModels when given', () => {
-    const known = ['gpt-5.4', 'claude-opus-4-8'];
+    const known = ['gpt-5.4', 'claude-opus-5'];
     const config = parseRunConfig(argv('--model', 'all'), { knownEvalIds: KNOWN_EVAL_IDS, knownModels: known });
     expect(config.models).toEqual(known);
   });
@@ -164,7 +164,7 @@ describe('--model', () => {
   it('explicit --model still passes through even when not in knownModels', () => {
     const config = parseRunConfig(argv('--model', 'claude-opus-4-6'), {
       knownEvalIds: KNOWN_EVAL_IDS,
-      knownModels: ['gpt-5.4', 'claude-opus-4-8'],
+      knownModels: ['gpt-5.4', 'claude-opus-5'],
     });
     expect(config.models).toEqual(['claude-opus-4-6']);
   });
