@@ -50,7 +50,7 @@ flowchart TB
         subgraph Grade["4 · Grade the code — @a0/evals-core"]
             direction TB
             Engine["Automated checks<br/>runGraders() · L1–L5"]
-            Judge["AI judge<br/>llmJudge() · claude-opus-4-8"]
+            Judge["AI judge<br/>llmJudge() · claude-opus-5"]
             Engine --> Judge
         end
 

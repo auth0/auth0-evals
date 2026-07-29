@@ -3,7 +3,7 @@ import { isBedrockModel, isClaudeModel, isGeminiModel, isGptModel } from '../src
 
 describe('model detection', () => {
   it('isBedrockModel matches claude- prefix', () => {
-    expect(isBedrockModel('claude-opus-4-8')).toBe(true);
+    expect(isBedrockModel('claude-opus-5')).toBe(true);
     expect(isBedrockModel('gpt-5.6-sol')).toBe(false);
   });
 
@@ -14,11 +14,11 @@ describe('model detection', () => {
 
   it('isGeminiModel matches gemini- prefix', () => {
     expect(isGeminiModel('gemini-3.1-pro-preview')).toBe(true);
-    expect(isGeminiModel('claude-opus-4-8')).toBe(false);
+    expect(isGeminiModel('claude-opus-5')).toBe(false);
   });
 
   it('isGptModel matches gpt- prefix', () => {
     expect(isGptModel('gpt-5.6-sol')).toBe(true);
-    expect(isGptModel('claude-opus-4-8')).toBe(false);
+    expect(isGptModel('claude-opus-5')).toBe(false);
   });
 });

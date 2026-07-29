@@ -484,10 +484,10 @@ describe('llmJudge', () => {
       question: 'question',
       code: 'code',
       apiKey: 'key',
-      model: 'claude-opus-4-8',
+      model: 'claude-opus-5',
       baseUrl: 'http://test',
     });
-    expect(capturedBody?.model).toBe('claude-opus-4-8');
+    expect(capturedBody?.model).toBe('claude-opus-5');
   });
 
   it('throws JudgeError when baseUrl is empty', async () => {

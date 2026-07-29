@@ -334,7 +334,7 @@ describe('generateRecommendations', () => {
     // endpoint. Recommendations hit the /chat/completions endpoint, which serves
     // models under their plain alias — so even when a Bedrock map is configured,
     // the alias must be sent unchanged (regression: applying the map here
-    // produced model="global.anthropic.claude-opus-4-8" → 400).
+    // produced model="global.anthropic.claude-opus-5" → 400).
     const { setFrameworkConfig } = await import('@a0/evals-core');
     const { TEST_CONFIG } = await import('./test-config.js');
     setFrameworkConfig({
