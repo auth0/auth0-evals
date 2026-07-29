@@ -982,6 +982,36 @@ describe('proxy auth header', () => {
     expect(toml).toContain('"x-litellm-api-key" = "LLM_PROXY_AUTH_TOKEN"');
   });
 
+  it('injects token value into LLM_PROXY_AUTH_TOKEN env var when configured', async () => {
+    mockResolveProxyAuthHeader.mockReturnValue({
+      name: 'x-litellm-api-key',
+      value: 'Bearer jwt-xyz',
+      tokenEnv: 'PROXY_TOKEN',
+    });
+    queueTurns([{ type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } }, turnCompleted()]);
+
+    await runCodexAgent(evalDef, workspace);
+
+    const codexOptions = sdk.state.constructorCalls[0];
+    const env = codexOptions.env as Record<string, string>;
+    expect(env['LLM_PROXY_AUTH_TOKEN']).toBe('Bearer jwt-xyz');
+  });
+
+  it('sets OPENAI_API_KEY to placeholder when auth header is configured', async () => {
+    mockResolveProxyAuthHeader.mockReturnValue({
+      name: 'x-litellm-api-key',
+      value: 'Bearer jwt-xyz',
+      tokenEnv: 'PROXY_TOKEN',
+    });
+    queueTurns([{ type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } }, turnCompleted()]);
+
+    await runCodexAgent(evalDef, workspace);
+
+    const codexOptions = sdk.state.constructorCalls[0];
+    const env = codexOptions.env as Record<string, string>;
+    expect(env['OPENAI_API_KEY']).toBe('unused-see-proxy-auth-header');
+  });
+
   it('never writes the token value into config.toml', async () => {
     mockResolveProxyAuthHeader.mockReturnValue({
       name: 'x-litellm-api-key',
@@ -1002,5 +1032,29 @@ describe('proxy auth header', () => {
     await runCodexAgent(evalDef, workspace);
 
     expect(writtenToml()).not.toContain('env_http_headers');
+  });
+
+  it('sets OPENAI_API_KEY to LLM_API_KEY when no auth header is configured', async () => {
+    vi.stubEnv('LLM_API_KEY', 'test-llm-token');
+    mockResolveProxyAuthHeader.mockReturnValue(undefined);
+    queueTurns([{ type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } }, turnCompleted()]);
+
+    await runCodexAgent(evalDef, workspace);
+
+    const codexOptions = sdk.state.constructorCalls[0];
+    const env = codexOptions.env as Record<string, string>;
+    expect(env['OPENAI_API_KEY']).toBe('test-llm-token');
+  });
+
+  it('does not set LLM_PROXY_AUTH_TOKEN when no auth header is configured', async () => {
+    vi.stubEnv('LLM_API_KEY', 'test-llm-token');
+    mockResolveProxyAuthHeader.mockReturnValue(undefined);
+    queueTurns([{ type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } }, turnCompleted()]);
+
+    await runCodexAgent(evalDef, workspace);
+
+    const codexOptions = sdk.state.constructorCalls[0];
+    const env = codexOptions.env as Record<string, string>;
+    expect(env).not.toHaveProperty('LLM_PROXY_AUTH_TOKEN');
   });
 });
