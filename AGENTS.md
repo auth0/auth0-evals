@@ -318,6 +318,32 @@ else: score = 100 × passed / relevant.length
 | Gemini CLI  | `gemini-cli`  | Gemini models via Gemini CLI         | Auto-selected for `gemini-*` models when no `--agent-type` flag |
 | Codex CLI   | `codex`       | GPT models via OpenAI Codex CLI      | Auto-selected for `gpt-*` models when no `--agent-type` flag    |
 
+### Proxy auth header
+
+By default every runner authenticates by injecting `LLM_API_KEY` into the provider's native credential var (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, or the Copilot provider's `apiKey`).
+
+When a proxy requires its own header instead, declare it in `eval.config.js`:
+
+```javascript
+proxy: {
+  baseUrl: PROXY_BASE_URL,
+  authHeader: { name: 'x-litellm-api-key', valuePrefix: 'Bearer ', tokenEnv: 'LLM_PROXY_TOKEN' },
+}
+```
+
+The framework then sends `x-litellm-api-key: Bearer <token>` on every proxy request — from all four agent runners, the baseline runner, and the LLM judge — and sets the provider-native key var to the inert placeholder `unused-see-proxy-auth-header`. The placeholder is required rather than cosmetic: the Gemini CLI's auth validator rejects a run with an empty `GEMINI_API_KEY`, and the Claude binary requires one of its credential vars to be set.
+
+Per-runner mechanism:
+
+| Runner      | Mechanism                                                                                                                                                 |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| claude-code | `ANTHROPIC_CUSTOM_HEADERS` env var                                                                                                                        |
+| codex       | `[model_providers.llmproxy.env_http_headers]` in `config.toml`, referencing the `LLM_PROXY_AUTH_TOKEN` env var so the token is never written to disk     |
+| gemini-cli  | `GEMINI_CLI_CUSTOM_HEADERS` env var (requires gemini-cli ≥ 0.51)                                                                                         |
+| copilot     | `ProviderConfig.headers`                                                                                                                                  |
+
+**Sandbox:** the token's env var is app-named, so add it to `sandbox.passthroughEnv` in `eval.config.js` — otherwise sandboxed runs fail to authenticate while host runs succeed. If `proxy.authHeader` is set but its `tokenEnv` is unset, the framework logs a warning naming the variable and falls back to the API-key path.
+
 ### Auto-routing logic
 
 When `--agent-type` is **not** specified, the runner is selected by model prefix:
@@ -388,6 +414,7 @@ All LLM-as-judge graders use `claude-opus-5` via the configured LLM proxy (`prox
 | Setting              | Value                                            |
 | -------------------- | ------------------------------------------------ |
 | Base URL             | Configured in `eval.config.js` (`proxy.baseUrl`) |
+| Proxy auth header    | Optional — `proxy.authHeader` in `eval.config.js` |
 | Judge model          | `claude-opus-5`                                  |
 | Judge max tokens     | 1024                                             |
 | Judge max code chars | 32,768                                           |

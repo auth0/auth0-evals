@@ -102,6 +102,7 @@ export default defineConfig({
 | `evalsDir` | `string` | Yes | Directory containing eval definitions |
 | `proxy.baseUrl` | `string` | Yes | LLM API base URL |
 | `proxy.apiKey` | `string` | No | API key (falls back to `LLM_API_KEY` env var) |
+| `proxy.authHeader` | `object` | No | Custom auth header for the proxy: `{ name, valuePrefix?, tokenEnv }`. When set, the token is read from `process.env[tokenEnv]`, sent as `name: valuePrefix + token`, and the provider-native API key var is set to an inert placeholder instead of the real credential. |
 | `mcp.servers` | `Record<string, MCPServerConfig>` | No | Named MCP server definitions |
 | `skills.remoteRepos` | `RemoteSkillRepo[]` | No | Git repos containing skill files |
 | `skills.localDirs` | `string[]` | No | Local directories with skill files |

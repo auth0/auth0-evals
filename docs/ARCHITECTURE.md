@@ -272,7 +272,7 @@ By default each job runs inside a hardened, ephemeral **Docker sandbox**. The co
 
 ## Framework vs. consumer
 
-The **framework** ([auth0/auth0-evals](https://github.com/auth0/auth0-evals)) — the engine, graders, runners, and eval suite — is environment-agnostic. A **consumer** supplies only two things to run it: a settings file (`eval.config.js` — which models, docs MCP server, and skills to use) and an access key (`LLM_API_KEY`, read from the env). Everything environment-specific lives in the consumer, so the framework stays clean and behaves identically wherever it runs.
+The **framework** ([auth0/auth0-evals](https://github.com/auth0/auth0-evals)) — the engine, graders, runners, and eval suite — is environment-agnostic. A **consumer** supplies only two things to run it: a settings file (`eval.config.js` — which models, docs MCP server, and skills to use) and a credential (either `LLM_API_KEY` in the env, or `proxy.authHeader` pointing to a custom token var). Everything environment-specific lives in the consumer, so the framework stays clean and behaves identically wherever it runs.
 
 | Consumer | What it is |
 |---|---|
