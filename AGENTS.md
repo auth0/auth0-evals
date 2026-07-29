@@ -158,7 +158,7 @@ When you make a change, update every doc whose described behavior is affected. T
 ## Adding an eval — checklist
 
 1. `src/evals/<category>/<eval-dir>/PROMPT.md` + `graders.ts`
-2. Add `id` (required) and optionally `name`/`category`/`compile_command` to `PROMPT.md` frontmatter — the framework auto-discovers evals from `evalsDir`. Set `compile_command` to point the agent at a verify-compiles command (injected into the agent's context file, e.g. `CLAUDE.md`); omit only for evals with no buildable target. Mobile evals **can** compile: the sandbox ships an Android toolchain (see "Docker sandbox" below), so an Expo/React Native eval can set `compile_command: npm run build` where the `build` script runs `expo prebuild --platform android` + `gradle assembleDebug`. iOS builds are not available (require macOS).
+2. Add `id` (required) and optionally `name`/`category`/`compile_command` to `PROMPT.md` frontmatter — the framework auto-discovers evals from `evalsDir`. Set `compile_command` to point the agent at a verify-compiles command (injected into the agent's context file, e.g. `CLAUDE.md`); omit only for evals with no buildable target. Mobile evals **can** compile, but only where the host provides the required toolchain: an Expo/React Native eval can set `compile_command: npm run build` where the `build` script runs `expo prebuild --platform android` + `gradle assembleDebug`. This needs a JDK + Android SDK/NDK/CMake on the machine running the compile — the CI runner provisions these (see the `auth0-evals-runner` repo); the default Docker sandbox does **not** ship them. iOS builds are not available (require macOS).
 3. All imports use `.js` extensions; `import type` for type-only
 4. All graders have `GraderLevel`; one final holistic `judge` with no level
 5. `npm run build && npm test` passes
@@ -394,15 +394,11 @@ All LLM-as-judge graders use `claude-opus-5` via the configured LLM proxy (`prox
 | Max agent turns      | 75                                               |
 | Runner task timeout  | 30 min (per eval, graceful abort)                |
 | Docker host timeout  | 35 min (per container, hard kill — sandbox only) |
-| Compile command timeout | 300s framework default; overridable per app via `workspace.compileCommandTimeoutMs` (this app sets 20 min for Android builds) |
+| Compile command timeout | 300s framework default; overridable per app via `workspace.compileCommandTimeoutMs` (this app sets 20 min so Android builds fit) |
 
 ---
 
-## Docker sandbox
-
-Agent jobs run inside a network-isolated Docker container (Debian/Node 24, unprivileged `node` user) unless `--dangerously-skip-sandbox` is passed. The image ships an Android toolchain — Android SDK (`platform-tools`, `platforms;android-35`, `build-tools;35.0.0`), NDK, and CMake — so Expo/React Native evals can run a **real Android build** (`expo prebuild --platform android` + `gradle assembleDebug`; the RN new architecture compiles C++, hence NDK + CMake). iOS builds are not available (require macOS).
-
-Timeouts interact: a cold gradle build runs far longer than the 300s framework default, so this app raises `workspace.compileCommandTimeoutMs` to 20 min in `eval.config.js`. Because compile runs post-agent in the same container, the agent run plus the compile budget must stay under the 35-min Docker host hard-kill — a long agent run followed by a long Android build can approach that ceiling.
+## Slash commands
 
 | Command             | Purpose                                                                                                                                                                                                                                             |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

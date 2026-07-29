@@ -31,7 +31,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt
 
 # Install additional runtimes: Python 3, Java, git, curl, gh, CA certs, iptables (for network isolation)
-# unzip is needed to extract the Android command-line tools archive.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
@@ -42,32 +41,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     python3-venv \
     default-jdk-headless \
-    unzip \
     && rm -rf /var/lib/apt/lists/*
-
-# ── Android SDK (for Expo Android builds: expo prebuild + gradle assembleDebug) ──
-# Only the Android toolchain is installed — iOS builds require macOS and are out
-# of scope for this Linux sandbox. Versions are pinned so image builds are
-# reproducible; bump deliberately when the Expo SDK target moves.
-#   - platform-tools + platforms;android-35 + build-tools: standard app build
-#   - ndk + cmake: required because Expo SDK 57 / RN 0.86 new architecture compiles C++
-ENV ANDROID_SDK_ROOT=/opt/android-sdk
-ENV ANDROID_HOME=/opt/android-sdk
-ENV ANDROID_NDK_VERSION=27.1.12297006
-ARG ANDROID_CMDLINE_TOOLS_VERSION=11076708
-RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
-    && curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS_VERSION}_latest.zip" -o /tmp/cmdline-tools.zip \
-    && unzip -q /tmp/cmdline-tools.zip -d "${ANDROID_SDK_ROOT}/cmdline-tools" \
-    && mv "${ANDROID_SDK_ROOT}/cmdline-tools/cmdline-tools" "${ANDROID_SDK_ROOT}/cmdline-tools/latest" \
-    && rm /tmp/cmdline-tools.zip
-ENV PATH="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools:${PATH}"
-RUN yes | sdkmanager --licenses > /dev/null \
-    && sdkmanager --install \
-        "platform-tools" \
-        "platforms;android-35" \
-        "build-tools;35.0.0" \
-        "ndk;${ANDROID_NDK_VERSION}" \
-        "cmake;3.22.1" > /dev/null
 
 
 # Use existing 'node' user (UID 1000) from the base image
@@ -100,11 +74,6 @@ RUN chmod +x /app/entrypoint.sh
 # Create workspace mount point and skills-remote directory (for runtime clones)
 RUN mkdir -p /workspace && chown node:node /workspace
 RUN mkdir -p /app/skills-remote && chown node:node /app/skills-remote
-
-# The container drops to the unprivileged 'node' user, but a gradle Android build
-# writes into the SDK dir (license acks, side-by-side NDK components). Hand SDK
-# ownership to node so the build isn't blocked by permission errors.
-RUN chown -R node:node "${ANDROID_SDK_ROOT}"
 
 # Backup system CA certs so entrypoint.sh can restore them after the tmpfs
 # overlay shadows /etc/ssl/certs at runtime (needed for rustls-native-certs,
