@@ -52,12 +52,14 @@ const mockGetFrameworkConfig = vi.hoisted(() =>
 );
 
 const mintMcpTokenMock = vi.hoisted(() => vi.fn());
+const mockResolveProxyAuthHeader = vi.hoisted(() => vi.fn().mockReturnValue(undefined));
 
 vi.mock('@a0/evals-core', async () => ({
   ...(await vi.importActual('@a0/evals-core')),
   getAgentProxyBaseUrl: vi.fn().mockReturnValue('https://your-llm-proxy.example.com'),
   getFrameworkConfig: mockGetFrameworkConfig,
   mintMcpToken: mintMcpTokenMock,
+  resolveProxyAuthHeader: mockResolveProxyAuthHeader,
 }));
 
 // ── Mock @openai/codex-sdk ──────────────────────────────────────────────────
@@ -132,6 +134,7 @@ const workspace = '/tmp/test-workspace';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockResolveProxyAuthHeader.mockReturnValue(undefined);
   sdk.state.constructorCalls = [];
   sdk.state.startThreadCalls = [];
   sdk.state.resumeThreadCalls = [];
@@ -943,5 +946,61 @@ describe('MCP integration', () => {
     // Only the first server's token is injected under the shared env var.
     const env = sdk.state.constructorCalls[0].env as Record<string, string>;
     expect(env['MCP_BEARER_AUTH0_HOSTED']).toBe('token-a');
+  });
+});
+
+// ── proxy auth header ─────────────────────────────────────────────────────────
+
+describe('proxy auth header', () => {
+  beforeEach(() => {
+    mockGetFrameworkConfig.mockReturnValue({
+      proxy: { baseUrl: 'https://your-llm-proxy.example.com/v1' },
+      mcp: { servers: {} },
+    });
+  });
+
+  function writtenToml(): string {
+    const written = (writeFileSync as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).endsWith('config.toml'),
+    );
+    expect(written).toBeDefined();
+    return written![1] as string;
+  }
+
+  it('writes env_http_headers referencing the fixed token env var', async () => {
+    mockResolveProxyAuthHeader.mockReturnValue({
+      name: 'x-litellm-api-key',
+      value: 'Bearer jwt-xyz',
+      tokenEnv: 'PROXY_TOKEN',
+    });
+    queueTurns([{ type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } }, turnCompleted()]);
+
+    await runCodexAgent(evalDef, workspace);
+
+    const toml = writtenToml();
+    expect(toml).toContain('[model_providers.llmproxy.env_http_headers]');
+    expect(toml).toContain('"x-litellm-api-key" = "LLM_PROXY_AUTH_TOKEN"');
+  });
+
+  it('never writes the token value into config.toml', async () => {
+    mockResolveProxyAuthHeader.mockReturnValue({
+      name: 'x-litellm-api-key',
+      value: 'Bearer jwt-xyz',
+      tokenEnv: 'PROXY_TOKEN',
+    });
+    queueTurns([{ type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } }, turnCompleted()]);
+
+    await runCodexAgent(evalDef, workspace);
+
+    expect(writtenToml()).not.toContain('jwt-xyz');
+  });
+
+  it('omits env_http_headers when no auth header is configured', async () => {
+    mockResolveProxyAuthHeader.mockReturnValue(undefined);
+    queueTurns([{ type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } }, turnCompleted()]);
+
+    await runCodexAgent(evalDef, workspace);
+
+    expect(writtenToml()).not.toContain('env_http_headers');
   });
 });
