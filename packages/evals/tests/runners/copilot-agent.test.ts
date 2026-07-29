@@ -23,7 +23,6 @@ import { TEST_CONFIG } from '../test-config.js';
 
 beforeAll(() => {
   setFrameworkConfig(TEST_CONFIG);
-  mockResolveProxyAuthHeader.mockReturnValue(undefined);
 });
 
 // ── Mock @github/copilot-sdk ──────────────────────────────────────────────────
@@ -110,8 +109,10 @@ const workspace = '/tmp/test-workspace';
 
 beforeEach(() => {
   fakeSession = new FakeSession();
+  mockCreateSession.mockClear();
   mockCreateSession.mockResolvedValue(fakeSession);
   mockClientStop.mockResolvedValue([]);
+  mockResolveProxyAuthHeader.mockReturnValue(undefined);
   vi.spyOn(console, 'log').mockImplementation(() => {});
 });
 
@@ -916,11 +917,11 @@ describe('runCopilotAgent — proxy provider', () => {
 
   it('passes the configured auth header in provider.headers', async () => {
     process.env.LLM_API_KEY = 'test-key';
-    mockResolveProxyAuthHeader.mockImplementationOnce(() => ({
+    mockResolveProxyAuthHeader.mockReturnValueOnce({
       name: 'x-litellm-api-key',
       value: 'Bearer jwt-xyz',
       tokenEnv: 'PROXY_TOKEN',
-    }));
+    });
     fakeSession.setScenario(async () => {});
     await runCopilotAgent(evalDef, workspace, { model: 'gpt-5.4' });
     expect(mockResolveProxyAuthHeader).toHaveBeenCalled();
@@ -930,11 +931,11 @@ describe('runCopilotAgent — proxy provider', () => {
 
   it('sets provider.apiKey to the placeholder when an auth header is configured', async () => {
     process.env.LLM_API_KEY = 'test-key';
-    mockResolveProxyAuthHeader.mockImplementationOnce(() => ({
+    mockResolveProxyAuthHeader.mockReturnValueOnce({
       name: 'x-litellm-api-key',
       value: 'Bearer jwt-xyz',
       tokenEnv: 'PROXY_TOKEN',
-    }));
+    });
     fakeSession.setScenario(async () => {});
     await runCopilotAgent(evalDef, workspace, { model: 'gpt-5.4' });
     const config = mockCreateSession.mock.calls[0][0];
@@ -943,7 +944,6 @@ describe('runCopilotAgent — proxy provider', () => {
 
   it('omits provider.headers when no auth header is configured', async () => {
     process.env.LLM_API_KEY = 'test-key';
-    mockResolveProxyAuthHeader.mockImplementationOnce(() => undefined);
     fakeSession.setScenario(async () => {});
     await runCopilotAgent(evalDef, workspace, { model: 'gpt-5.4' });
     expect(mockCreateSession).toHaveBeenCalled();
