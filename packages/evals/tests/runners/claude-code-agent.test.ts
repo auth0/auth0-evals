@@ -35,10 +35,12 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 // Partially mock eval-core so we can control token minting while keeping the
 // real setFrameworkConfig/getFrameworkConfig, logger, and everything else.
 const mintMcpTokenMock = vi.hoisted(() => vi.fn());
+const mockResolveProxyAuthHeader = vi.hoisted(() => vi.fn());
 
 vi.mock('@a0/evals-core', async () => ({
   ...(await vi.importActual('@a0/evals-core')),
   mintMcpToken: mintMcpTokenMock,
+  resolveProxyAuthHeader: mockResolveProxyAuthHeader,
 }));
 
 // Must import after vi.mock so the mock is in place
@@ -865,6 +867,7 @@ describe('runClaudeCodeAgent', () => {
 describe('runClaudeCodeAgent proxy env injection', () => {
   beforeEach(() => {
     mockQuery.mockReset();
+    mockResolveProxyAuthHeader.mockReturnValue(undefined);
     vi.spyOn(console, 'log').mockImplementation(() => {});
     // Return an empty stream so the agent resolves immediately.
     mockQuery.mockReturnValue(fakeQuery([makeResultMsg({ subtype: 'success' }) as SDKMessage]));
@@ -902,6 +905,36 @@ describe('runClaudeCodeAgent proxy env injection', () => {
     vi.stubEnv('GH_TOKEN', '');
     await runClaudeCodeAgent(evalDef, workspace);
     expect(capturedEnv()).not.toHaveProperty('GH_TOKEN');
+  });
+
+  it('sets ANTHROPIC_CUSTOM_HEADERS when a proxy auth header is configured', async () => {
+    vi.stubEnv('LLM_API_KEY', 'test-atko-token');
+    mockResolveProxyAuthHeader.mockReturnValue({
+      name: 'x-litellm-api-key',
+      value: 'Bearer jwt-xyz',
+      tokenEnv: 'PROXY_TOKEN',
+    });
+    await runClaudeCodeAgent(evalDef, workspace);
+    expect(capturedEnv().ANTHROPIC_CUSTOM_HEADERS).toBe('x-litellm-api-key: Bearer jwt-xyz');
+  });
+
+  it('sets ANTHROPIC_API_KEY to the placeholder when a proxy auth header is configured', async () => {
+    vi.stubEnv('LLM_API_KEY', 'test-atko-token');
+    mockResolveProxyAuthHeader.mockReturnValue({
+      name: 'x-litellm-api-key',
+      value: 'Bearer jwt-xyz',
+      tokenEnv: 'PROXY_TOKEN',
+    });
+    await runClaudeCodeAgent(evalDef, workspace);
+    expect(capturedEnv().ANTHROPIC_API_KEY).toBe('unused-see-proxy-auth-header');
+  });
+
+  it('does not set ANTHROPIC_CUSTOM_HEADERS when no proxy auth header is configured', async () => {
+    vi.stubEnv('LLM_API_KEY', 'test-atko-token');
+    mockResolveProxyAuthHeader.mockReturnValue(undefined);
+    await runClaudeCodeAgent(evalDef, workspace);
+    expect(capturedEnv()).not.toHaveProperty('ANTHROPIC_CUSTOM_HEADERS');
+    expect(capturedEnv().ANTHROPIC_API_KEY).toBe('test-atko-token');
   });
 });
 
