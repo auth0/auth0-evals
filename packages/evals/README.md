@@ -69,7 +69,7 @@ export default {
   // LLM-as-judge settings
   judge: {
     model: 'claude-sonnet-4-5',
-    maxTokens: 1024,
+    maxTokens: 4096,
     maxCodeChars: 16_384,
   },
 
@@ -106,7 +106,7 @@ export default defineConfig({
 | `skills.remoteRepos` | `RemoteSkillRepo[]` | No | Git repos containing skill files |
 | `skills.localDirs` | `string[]` | No | Local directories with skill files |
 | `judge.model` | `string` | Yes | Model for LLM-as-judge grading |
-| `judge.maxTokens` | `number` | No | Max tokens for judge responses |
+| `judge.maxTokens` | `number` | No | Max tokens for judge responses (default 4096). Thinking-capable models count reasoning against this budget, so keep headroom or the verdict line can be truncated. |
 | `judge.maxCodeChars` | `number` | No | Max source code chars sent to judge |
 | `models.known` | `string[]` | No | Models available via `--model all` |
 | `models.default` | `string` | Yes | Default model when `--model` is omitted |

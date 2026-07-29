@@ -383,13 +383,15 @@ Opus 4.5 is still supported by the framework (present in the effort-capable set 
 
 All LLM-as-judge graders use `claude-opus-5` via the configured LLM proxy (`proxy.baseUrl` in `eval.config.js`).
 
+The judge sends `thinking: { type: 'disabled' }`. Opus 5 runs adaptive thinking by default and counts reasoning tokens against `max_tokens`, so a thinking judge spends its budget on reasoning and gets truncated before emitting the final `yes`/`no` line — scoring correct solutions as failures. The judge only needs 1–3 sentences plus a verdict, so the whole budget goes to visible output. `judge.maxTokens` is also set to 4096 for headroom in case a proxy ignores the flag, and a truncated response now reports itself as truncated rather than as an unexpected verdict.
+
 ### Settings
 
 | Setting              | Value                                            |
 | -------------------- | ------------------------------------------------ |
 | Base URL             | Configured in `eval.config.js` (`proxy.baseUrl`) |
 | Judge model          | `claude-opus-5`                                  |
-| Judge max tokens     | 1024                                             |
+| Judge max tokens     | 4096                                             |
 | Judge max code chars | 32,768                                           |
 | Max agent turns      | 75                                               |
 | Runner task timeout  | 30 min (per eval, graceful abort)                |

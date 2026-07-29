@@ -1,6 +1,7 @@
 export {
   runGraders,
   llmJudge,
+  JUDGE_DEFAULT_MAX_TOKENS,
   passRate,
   collectFiles as collectGraderFiles,
   walkFiles,

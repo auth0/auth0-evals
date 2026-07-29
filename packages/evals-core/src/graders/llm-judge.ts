@@ -12,6 +12,17 @@ import { SYSTEM_PROMPT, USER_TEMPLATE } from './prompts.generated.js';
 
 // ── LLM Judge ─────────────────────────────────────────────────────────────────
 
+/**
+ * Default output budget for a judge call.
+ *
+ * Sized with headroom rather than to the ~150 tokens a verdict actually needs:
+ * thinking-capable models (e.g. Opus 5) count reasoning tokens against
+ * `max_tokens`, so a tight budget truncates the response before its final
+ * yes/no line. The judge disables thinking, but this also covers proxies that
+ * ignore that flag.
+ */
+export const JUDGE_DEFAULT_MAX_TOKENS = 4096;
+
 export interface LlmJudgeOptions {
   question: string;
   code: string;
@@ -33,7 +44,7 @@ export interface LlmJudgeResult {
 export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
   const { question, code, apiKey, model, baseUrl, enforceMaxChars = true } = opts;
   const judgeMaxCodeChars = opts.maxCodeChars ?? 32_768;
-  const judgeMaxTokens = opts.maxTokens ?? 1024;
+  const judgeMaxTokens = opts.maxTokens ?? JUDGE_DEFAULT_MAX_TOKENS;
 
   if (!model) {
     throw new JudgeError(
@@ -65,6 +76,12 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
 
   // The judge hits the /chat/completions endpoint, which serves models under
   // their plain alias, so the model is sent as-is (no Bedrock ID mapping).
+  //
+  // `thinking: disabled` is deliberate. Claude Opus 5 runs adaptive thinking by
+  // default, and `max_tokens` caps thinking *plus* visible text together — so
+  // reasoning tokens ate the budget and the response was cut off before the
+  // final verdict line, failing correct solutions. The judge only needs 1-3
+  // sentences plus a yes/no, so the whole budget should go to visible output.
   const payload = JSON.stringify({
     model,
     messages: [
@@ -72,6 +89,7 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
       { role: 'user', content: user },
     ],
     max_tokens: judgeMaxTokens,
+    thinking: { type: 'disabled' },
   });
 
   try {
@@ -95,6 +113,7 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
     });
     const choices = data.choices as Record<string, unknown>[] | undefined;
     const message = choices?.[0]?.message as Record<string, unknown> | undefined;
+    const finishReason = choices?.[0]?.finish_reason as string | undefined;
     const answer = ((message?.content as string | undefined) ?? '').trim();
     if (!answer) {
       throw new JudgeError(model, 'empty response from LLM');
@@ -106,6 +125,17 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
     const lastLine = lines[lines.length - 1]!.toLowerCase();
     const m = /^(yes|no)\b/.exec(lastLine);
     if (!m) {
+      // Distinguish a genuinely malformed verdict from a response the provider
+      // cut off at the token ceiling. Reporting the latter as an "unexpected
+      // verdict" is actively misleading — it looks like the judge disagreed
+      // when in fact it never got to answer.
+      if (finishReason === 'length' || finishReason === 'max_tokens') {
+        throw new JudgeError(
+          model,
+          `response truncated at the ${judgeMaxTokens}-token limit before a verdict was emitted — ` +
+            `raise judge.maxTokens. Partial response: ${answer}`,
+        );
+      }
       throw new JudgeError(model, `unexpected verdict ${JSON.stringify(lastLine)}: ${answer}`);
     }
 

@@ -22,8 +22,10 @@ import { llmJudgeExecutor } from './executors/llm-judge.js';
 import { eventExecutor } from './executors/event.js';
 import { compileExecutor } from './executors/compile.js';
 
+import { JUDGE_DEFAULT_MAX_TOKENS } from './llm-judge.js';
+
 // Re-export llmJudge from its dedicated module for backward compatibility.
-export { llmJudge } from './llm-judge.js';
+export { llmJudge, JUDGE_DEFAULT_MAX_TOKENS } from './llm-judge.js';
 
 // ── Register built-in executors ──────────────────────────────────────────────
 
@@ -122,7 +124,7 @@ export async function runGraders(
   const config = getFrameworkConfig();
   const resolvedJudgeModel = judgeModel ?? config.judge.model ?? '';
   const judgeMaxCodeChars = config.judge.maxCodeChars ?? 32_768;
-  const judgeMaxTokens = config.judge.maxTokens ?? 1024;
+  const judgeMaxTokens = config.judge.maxTokens ?? JUDGE_DEFAULT_MAX_TOKENS;
   const judgeBaseUrl = config.proxy.baseUrl;
   const active = allowedLevels
     ? graderDefs.filter((g) => g.level === undefined || allowedLevels.has(g.level))

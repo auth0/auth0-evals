@@ -1,4 +1,5 @@
 import type { FrameworkConfig } from './framework.js';
+import { JUDGE_DEFAULT_MAX_TOKENS } from '../graders/llm-judge.js';
 
 /**
  * Sensible generic defaults for every optional field.
@@ -25,7 +26,7 @@ export const DEFAULT_FRAMEWORK_CONFIG: Required<FrameworkConfig> = {
 
   judge: {
     model: '',
-    maxTokens: 1024,
+    maxTokens: JUDGE_DEFAULT_MAX_TOKENS,
     maxCodeChars: 32_768,
   },
 
