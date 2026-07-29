@@ -564,11 +564,56 @@ describe('llmJudge', () => {
   // thinking + visible text together. The judge's reasoning was cut off before
   // it could emit the final verdict line, which surfaced as a confusing
   // "unexpected verdict" and scored a passing solution as a hard failure.
-  it('reports truncation rather than an unexpected verdict when cut off at the token ceiling', async () => {
-    vi.stubGlobal('fetch', mockTruncatedResponse('The implementation covers the essentials correctly: `Auth0.plist`'));
+  it.each(['length', 'max_tokens'])(
+    'reports truncation rather than an unexpected verdict on finish_reason=%s',
+    async (finishReason) => {
+      const partial = 'The implementation covers the essentials correctly: `Auth0.plist`';
+      vi.stubGlobal('fetch', mockTruncatedResponse(partial, finishReason));
+      const err = await llmJudge({
+        question: 'question',
+        code: 'code',
+        apiKey: 'key',
+        model: 'model',
+        baseUrl: 'http://test',
+        maxTokens: 1024,
+      }).catch((e: unknown) => e as Error);
+
+      expect(err.message).toMatch(/truncated/i);
+      // The diagnostic has to name the knob to turn and preserve what the judge
+      // did manage to say, or it's no more actionable than the old message.
+      expect(err.message).toContain('1024');
+      expect(err.message).toContain('judge.maxTokens');
+      expect(err.message).toContain(partial);
+      expect(err.message).not.toContain('unexpected verdict');
+    },
+  );
+
+  // The worst case of the same bug: reasoning consumed the entire budget, so
+  // there is no visible text at all. This must still report truncation rather
+  // than a bare "empty response from LLM", which points nowhere.
+  it.each(['length', 'max_tokens'])(
+    'reports truncation when the whole budget was consumed and no text was returned (finish_reason=%s)',
+    async (finishReason) => {
+      vi.stubGlobal('fetch', mockTruncatedResponse('', finishReason));
+      const err = await llmJudge({
+        question: 'question',
+        code: 'code',
+        apiKey: 'key',
+        model: 'model',
+        baseUrl: 'http://test',
+      }).catch((e: unknown) => e as Error);
+
+      expect(err.message).toMatch(/truncated/i);
+      expect(err.message).toContain('judge.maxTokens');
+      expect(err.message).not.toContain('empty response from LLM');
+    },
+  );
+
+  it('still reports an empty response when it was not truncated', async () => {
+    vi.stubGlobal('fetch', mockFetchResponse(''));
     await expect(
       llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' }),
-    ).rejects.toThrow(/truncated/i);
+    ).rejects.toThrow('empty response from LLM');
   });
 
   it('does not report truncation when a verdict is present despite a length finish_reason', async () => {

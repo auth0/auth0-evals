@@ -115,7 +115,24 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
     const message = choices?.[0]?.message as Record<string, unknown> | undefined;
     const finishReason = choices?.[0]?.finish_reason as string | undefined;
     const answer = ((message?.content as string | undefined) ?? '').trim();
+
+    // Distinguish a response the provider cut off at the token ceiling from a
+    // genuinely malformed one. Reporting truncation as an "unexpected verdict"
+    // is actively misleading — it looks like the judge disagreed when in fact
+    // it never got to answer. Checked before the empty-answer branch because a
+    // model that spent the whole budget on reasoning returns no visible text at
+    // all, which would otherwise surface as a bare "empty response from LLM".
+    const wasTruncated = finishReason === 'length' || finishReason === 'max_tokens';
+    const reportTruncated = (): never => {
+      throw new JudgeError(
+        model,
+        `response truncated at the ${judgeMaxTokens}-token limit before a verdict was emitted — ` +
+          `raise judge.maxTokens.${answer ? ` Partial response: ${answer}` : ' No visible output was returned.'}`,
+      );
+    };
+
     if (!answer) {
+      if (wasTruncated) reportTruncated();
       throw new JudgeError(model, 'empty response from LLM');
     }
     const lines = answer
@@ -125,17 +142,7 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
     const lastLine = lines[lines.length - 1]!.toLowerCase();
     const m = /^(yes|no)\b/.exec(lastLine);
     if (!m) {
-      // Distinguish a genuinely malformed verdict from a response the provider
-      // cut off at the token ceiling. Reporting the latter as an "unexpected
-      // verdict" is actively misleading — it looks like the judge disagreed
-      // when in fact it never got to answer.
-      if (finishReason === 'length' || finishReason === 'max_tokens') {
-        throw new JudgeError(
-          model,
-          `response truncated at the ${judgeMaxTokens}-token limit before a verdict was emitted — ` +
-            `raise judge.maxTokens. Partial response: ${answer}`,
-        );
-      }
+      if (wasTruncated) reportTruncated();
       throw new JudgeError(model, `unexpected verdict ${JSON.stringify(lastLine)}: ${answer}`);
     }
 
