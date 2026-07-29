@@ -82,6 +82,15 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
   // reasoning tokens ate the budget and the response was cut off before the
   // final verdict line, failing correct solutions. The judge only needs 1-3
   // sentences plus a yes/no, so the whole budget should go to visible output.
+  //
+  // It also keeps the grading instrument stable: every judge verdict recorded
+  // before Opus 5 came from a non-thinking judge (Opus 4.8 did not think unless
+  // asked), so disabling it here keeps old and new eval scores comparable.
+  //
+  // Careful if you add `output_config.effort`: Opus 5 only accepts
+  // `thinking: disabled` at effort `high` or lower, and rejects `xhigh`/`max`
+  // with a 400 — validated per request. We send no effort, so the default
+  // (`high`) applies and this is in bounds.
   const payload = JSON.stringify({
     model,
     messages: [
