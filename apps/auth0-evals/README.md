@@ -44,6 +44,8 @@ See [`@a0/evals` CLI docs](../../packages/evals/) for the full list of flags and
 | `spa_js_quickstart` | quickstarts | Add Auth0 login using `@auth0/auth0-spa-js` directly |
 | `swift_quickstart` | quickstarts | Add Auth0 login to a Swift iOS app using `Auth0.swift` |
 | `android_quickstart` | quickstarts | Add Auth0 login to an Android app using `Auth0.Android` |
+| `expo_quickstart` | quickstarts | Add Auth0 login to an Expo app using `react-native-auth0` (Auth0Provider + useAuth0 hook) |
+| `expo_class_quickstart` | quickstarts | Add Auth0 login to an Expo app using the imperative `react-native-auth0` client (`new Auth0()` + `webAuth`) |
 | `express_quickstart` | quickstarts | Add Auth0 login to an Express web app using `express-openid-connect` |
 | `express_api_quickstart` | quickstarts | Protect an Express API using `express-oauth2-jwt-bearer` |
 | `fastapi_quickstart` | quickstarts | Protect a FastAPI API using `auth0-fastapi-api` |

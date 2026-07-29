@@ -111,7 +111,10 @@ async function main(): Promise<void> {
 
     const compileResult =
       evalDef.compileCommand !== undefined
-        ? runCompileCommand(workspace, evalDef.compileCommand, { setupCommand: evalDef.setupCommand })
+        ? runCompileCommand(workspace, evalDef.compileCommand, {
+            setupCommand: evalDef.setupCommand,
+            timeoutMs: frameworkConfig.workspace.compileCommandTimeoutMs,
+          })
         : undefined;
 
     let graderResults: Awaited<ReturnType<typeof runGraders>> = [];

@@ -85,6 +85,14 @@ export default {
     maxCodeChars: 32_768,
   },
 
+  workspace: {
+    // Android builds (expo prebuild + gradle assembleDebug, incl. NDK/CMake C++
+    // for the RN new architecture) run far longer than the 300s framework default.
+    // This budget is post-agent; keep it under the Docker host hard-kill (35 min)
+    // minus a realistic agent run so the container isn't killed mid-compile.
+    compileCommandTimeoutMs: 20 * 60_000,
+  },
+
   scoring: {
     // Add [hostname, pathname-prefix] pairs to extend the allowlist.
     docUrlSources: [
