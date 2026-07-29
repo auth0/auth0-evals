@@ -331,7 +331,9 @@ proxy: {
 }
 ```
 
-The framework then sends `x-litellm-api-key: Bearer <token>` on every proxy request — from all four agent runners, the baseline runner, and the LLM judge — and sets the provider-native key var to the inert placeholder `unused-see-proxy-auth-header`. The placeholder is required rather than cosmetic: the Gemini CLI's auth validator rejects a run with an empty `GEMINI_API_KEY`, and the Claude binary requires one of its credential vars to be set.
+The framework then sends `x-litellm-api-key: Bearer <token>` on every proxy request — from all four agent runners, the baseline runner, the LLM judge, and the recommendation generator — and sets the provider-native key var to the inert placeholder `unused-see-proxy-auth-header`. The placeholder is required rather than cosmetic: the Gemini CLI's auth validator rejects a run with an empty `GEMINI_API_KEY`, and the Claude binary requires one of its credential vars to be set.
+
+**Important**: `LLM_API_KEY` must still be set to a non-empty value (any dummy value works) even when `proxy.authHeader` is configured, because the CLI validates its presence before starting any eval run. The auth header supplements rather than replaces that requirement — the real credential travels in the custom header while `LLM_API_KEY` satisfies the validator.
 
 Per-runner mechanism:
 
