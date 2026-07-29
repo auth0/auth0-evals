@@ -58,6 +58,7 @@ export { estimateCost } from './config/costs.js';
 export type {
   FrameworkConfig,
   ProxyConfig,
+  ProxyAuthHeaderConfig,
   MCPConfig,
   MCPServerConfig,
   MCPStdioServerConfig,
@@ -76,6 +77,8 @@ export { DEFAULT_FRAMEWORK_CONFIG } from './config/defaults.js';
 export { defineConfig, loadConfig, deepMerge } from './config/loader.js';
 export type { LoadConfigOptions } from './config/loader.js';
 export { mintMcpToken, mcpBearerTokenEnvVar } from './config/mcp-auth.js';
+export { resolveProxyAuthHeader, PLACEHOLDER_API_KEY } from './config/proxy-auth.js';
+export type { ResolvedProxyAuth } from './config/proxy-auth.js';
 
 // Workspace
 export {
