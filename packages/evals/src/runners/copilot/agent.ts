@@ -28,6 +28,8 @@ import {
   makeSessionId,
   filteredEnv,
   mintMcpToken,
+  resolveProxyAuthHeader,
+  PLACEHOLDER_API_KEY,
 } from '@a0/evals-core';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/evals-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
@@ -141,8 +143,14 @@ export async function runCopilotAgent(
   const proxyBaseUrl = getAgentProxyBaseUrl('copilot');
   const normalizedBaseUrl = proxyBaseUrl.replace(/\/+$/, '');
   const proxyApiUrl = normalizedBaseUrl.endsWith('/v1') ? normalizedBaseUrl : `${normalizedBaseUrl}/v1`;
-  const apiKey = process.env[LLM_API_KEY_ENV];
-  if (!apiKey) {
+  // When a proxy auth header is configured the credential rides that header and
+  // apiKey becomes an inert placeholder. `headers` (not `bearerToken`) is used
+  // because bearerToken hardcodes the Authorization header name.
+  const proxyAuth = resolveProxyAuthHeader();
+  const apiKey = proxyAuth ? PLACEHOLDER_API_KEY : process.env[LLM_API_KEY_ENV];
+  if (proxyAuth) {
+    logger.info(`[Copilot] Proxy auth header: ${proxyAuth.name}`);
+  } else if (!apiKey) {
     logger.warn(`[Copilot] ${LLM_API_KEY_ENV} not set — requests will fail.`);
   }
 
@@ -186,6 +194,7 @@ export async function runCopilotAgent(
       baseUrl: proxyApiUrl,
       apiKey,
       modelId: model,
+      ...(proxyAuth ? { headers: { [proxyAuth.name]: proxyAuth.value } } : {}),
     } satisfies ProviderConfig,
     // Suppress ask_user to prevent eval runs from blocking on interactive input.
     excludedTools: ['ask_user'],
