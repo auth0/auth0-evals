@@ -27,7 +27,7 @@ export function defineGraders() {
     ),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
-    compiles('Android build succeeds (expo prebuild + gradle assembleDebug)', GraderLevel.L4),
+    compiles('TypeScript typechecks (tsc --noEmit)', GraderLevel.L4),
     matches(
       String.raw`react-native-auth0[\s\S]*?customScheme`,
       'Registers the react-native-auth0 Expo config plugin with a customScheme in app.json',
