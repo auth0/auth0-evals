@@ -132,15 +132,27 @@ export function resolveProxyAuthHeader(): ResolvedProxyAuth | undefined;
 export const PLACEHOLDER_API_KEY = 'unused-see-proxy-auth-header';
 ```
 
-Behaviour:
+Behaviour, in order:
 
 - `proxy.authHeader` absent → returns `undefined`. Callers fall back to today's
   `LLM_API_KEY` path.
-- Configured and `process.env[tokenEnv]` non-empty → returns the resolved header.
+- **`LLM_API_KEY` set → returns `undefined`, even with a valid `authHeader`.** The
+  provider-native key always wins, so a deployment that still exports it keeps its
+  current behaviour untouched and adopting the header is an explicit act: unset
+  `LLM_API_KEY`. Logs one `logger.info` naming the variable so the ignored
+  `authHeader` is never silent.
+- Configured, `LLM_API_KEY` unset, and `process.env[tokenEnv]` non-empty → returns
+  the resolved header.
 - Configured but the env var is missing or empty → logs one
   `logger.warn('[proxy-auth] ...')` naming the env var, and returns `undefined`.
   A forgotten `export` then surfaces at startup instead of as an opaque 401 mid-run.
   This matches how `mintMcpToken` reports a failed mint.
+
+Because `LLM_API_KEY` gates the header, `validateApiKey()` in
+`packages/evals/src/cli/validators.ts` can no longer hard-exit when it is unset —
+that would leave the header path unreachable (set → legacy wins; unset → exit).
+It returns `''` when `authHeader` is configured, and call sites write
+`PLACEHOLDER_API_KEY` into provider-native key fields as before.
 
 The function never logs the token value. `ResolvedProxyAuth.value` carries the
 secret and must not be passed to `logger`; call sites log the header *name* only.
@@ -243,18 +255,36 @@ both are capturable without a live proxy.
 | `apps/auth0-evals/.env.example` | Add the token var with a comment; see the note below |
 | `docs/ARCHITECTURE.md` | Update only if a diagram depicts proxy auth |
 
-## Flagged for the operator
+## The `127.0.0.1:9876` loopback proxy — keep it
 
-`apps/auth0-evals/.env.example:22` currently reads
-`GEMINI_PROXY_BASE_URL=http://127.0.0.1:9876`. A hardcoded loopback port strongly
-suggests someone runs an external header-injecting shim on that port today —
-the same workaround `agent-skills-activation` automates.
+**Corrected after implementation.** An earlier draft of this spec assumed the
+loopback port in `GEMINI_PROXY_BASE_URL=http://127.0.0.1:9876` was a
+header-injecting shim made obsolete by `GEMINI_CLI_CUSTOM_HEADERS`, and flagged it
+for removal. That was wrong, and acting on it breaks Gemini runs.
 
-Once `GEMINI_CLI_CUSTOM_HEADERS` carries the credential, that indirection is
-obsolete and the var should point at the real proxy. This spec does not change
-the line, because changing it would break whatever setup currently depends on the
-shim being up. It is called out here so the decision is explicit and belongs to
-the operator, not to this refactor.
+The process on that port is `scripts/gemini-sse-proxy.js` in the
+`auth0-evals-runner` repo, and its own header says what it does:
+
+> Works around a LiteLLM proxy bug (v1.86.0+) where `streamGenerateContent`
+> responses are double-wrapped in SSE format. This proxy reassembles the
+> fragmented payload and forwards clean events.
+
+It has nothing to do with authentication — it forwards headers verbatim
+(`{ ...req.headers }`) and exists purely to unwrap doubly-wrapped SSE. CI starts
+it explicitly for `gemini-cli` jobs before running the eval.
+
+Consequences, verified by running it both ways:
+
+- With the loopback proxy bypassed, Gemini fails with
+  `TypeError: fetch failed sending request` after nine retries — the LiteLLM
+  streaming bug, not an auth error.
+- With it running, the same eval passes (`grade=A (94)`), and the auth header
+  reaches LiteLLM through it unchanged.
+
+So `GEMINI_PROXY_BASE_URL` should keep pointing at the loopback proxy, and the
+SSE workaround stays until the upstream LiteLLM bug is fixed. The two concerns are
+orthogonal: this spec changes how the credential is *carried*, not how the
+response stream is *decoded*.
 
 ## Consequences
 

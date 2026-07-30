@@ -5,7 +5,7 @@
  * or calls `process.exit(1)` on invalid input.
  */
 
-import { logger } from '@a0/evals-core';
+import { logger, getFrameworkConfig } from '@a0/evals-core';
 import {
   ALL_MODES,
   KNOWN_TOOLS,
@@ -21,10 +21,32 @@ import {
 /** Valid meta-values accepted by `--mode` in addition to the concrete Mode values. */
 const META_MODES = ['all'] as const;
 
-/** Reads and validates the LLM API key from the environment. Exits if missing. */
+/**
+ * Whether `proxy.authHeader` is configured. Tolerates an uninitialised config
+ * singleton — `validateApiKey` is called from unit tests that never load a
+ * framework config, and an absent config simply means "no auth header".
+ */
+function hasProxyAuthHeader(): boolean {
+  try {
+    return getFrameworkConfig().proxy.authHeader !== undefined;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Reads and validates the LLM API key from the environment.
+ *
+ * Exits if missing, unless `proxy.authHeader` is configured — that deployment
+ * authenticates via the custom header instead, so requiring the provider-native
+ * key would make the header path unreachable. Returns an empty string in that
+ * case; call sites route the credential through the header and write
+ * `PLACEHOLDER_API_KEY` into provider-native key fields.
+ */
 export function validateApiKey(): string {
   const apiKey = process.env[LLM_API_KEY_ENV];
   if (!apiKey) {
+    if (hasProxyAuthHeader()) return '';
     logger.error(`Error: ${LLM_API_KEY_ENV} environment variable not set.`);
     process.exit(1);
   }

@@ -331,9 +331,20 @@ proxy: {
 }
 ```
 
+In this app the header name comes from the `LLM_PROXY_AUTH_HEADER` env var, and the `authHeader` block is omitted entirely when that variable is unset.
+
 The framework then sends `x-litellm-api-key: Bearer <token>` on every proxy request — from all four agent runners, the baseline runner, the LLM judge, and the recommendation generator — and sets the provider-native key var to the inert placeholder `unused-see-proxy-auth-header`. The placeholder is required rather than cosmetic: the Gemini CLI's auth validator rejects a run with an empty `GEMINI_API_KEY`, and the Claude binary requires one of its credential vars to be set.
 
-**Important**: `LLM_API_KEY` must still be set to a non-empty value (any dummy value works) even when `proxy.authHeader` is configured, because the CLI validates its presence before starting any eval run. The auth header supplements rather than replaces that requirement — the real credential travels in the custom header while `LLM_API_KEY` satisfies the validator.
+**`LLM_API_KEY` takes precedence.** When it is set, the framework uses the provider-native API key and ignores `proxy.authHeader` — logging one line saying so, so the ignored config is never silent. Existing deployments therefore keep working unchanged, and switching to the custom header is an explicit act: **unset `LLM_API_KEY`** so the header path takes over. Because the header path requires that variable to be absent, the CLI no longer fails fast on a missing `LLM_API_KEY` when `proxy.authHeader` is configured.
+
+Two credentials, two switches:
+
+| `LLM_API_KEY` | `proxy.authHeader` | What authenticates |
+| ------------- | ------------------ | ------------------ |
+| set           | unset              | provider-native API key (default) |
+| set           | configured         | provider-native API key — header ignored |
+| unset         | configured         | the configured header, token from `tokenEnv` |
+| unset         | unset              | nothing — CLI exits with an error |
 
 Per-runner mechanism:
 

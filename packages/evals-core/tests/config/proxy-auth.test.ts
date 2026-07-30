@@ -4,6 +4,10 @@ import type { FrameworkConfig, ProxyAuthHeaderConfig } from '../../src/config/fr
 describe('resolveProxyAuthHeader', () => {
   beforeEach(() => {
     vi.resetModules();
+    // LLM_API_KEY takes precedence over proxy.authHeader, so it must be absent
+    // for the header-path assertions below to exercise what they claim. Stubbed
+    // rather than assumed: a developer machine may well export it.
+    vi.stubEnv('LLM_API_KEY', '');
   });
 
   afterEach(() => {
@@ -80,5 +84,43 @@ describe('resolveProxyAuthHeader', () => {
   it('exposes the exact placeholder string', async () => {
     const { PLACEHOLDER_API_KEY } = await withConfig();
     expect(PLACEHOLDER_API_KEY).toBe('unused-see-proxy-auth-header');
+  });
+
+  // ── LLM_API_KEY precedence ──────────────────────────────────────────────────
+
+  it('returns undefined when LLM_API_KEY is set, even with a valid authHeader', async () => {
+    vi.stubEnv('LLM_API_KEY', 'legacy-key');
+    vi.stubEnv('MY_PROXY_TOKEN', 'jwt-abc');
+    const { resolveProxyAuthHeader } = await withConfig({
+      name: 'x-litellm-api-key',
+      valuePrefix: 'Bearer ',
+      tokenEnv: 'MY_PROXY_TOKEN',
+    });
+    expect(resolveProxyAuthHeader()).toBeUndefined();
+  });
+
+  it('resolves the header once LLM_API_KEY is absent', async () => {
+    vi.stubEnv('LLM_API_KEY', '');
+    vi.stubEnv('MY_PROXY_TOKEN', 'jwt-abc');
+    const { resolveProxyAuthHeader } = await withConfig({
+      name: 'x-litellm-api-key',
+      valuePrefix: 'Bearer ',
+      tokenEnv: 'MY_PROXY_TOKEN',
+    });
+    expect(resolveProxyAuthHeader()).toEqual({
+      name: 'x-litellm-api-key',
+      value: 'Bearer jwt-abc',
+      tokenEnv: 'MY_PROXY_TOKEN',
+    });
+  });
+
+  it('does not log the proxy token when LLM_API_KEY wins', async () => {
+    vi.stubEnv('LLM_API_KEY', 'legacy-key');
+    vi.stubEnv('MY_PROXY_TOKEN', 'jwt-secret-value');
+    const mod = await withConfig({ name: 'x-api-key', tokenEnv: 'MY_PROXY_TOKEN' });
+    const { logger } = await import('../../src/utils/logger.js');
+    const info = vi.spyOn(logger, 'info').mockImplementation(() => {});
+    mod.resolveProxyAuthHeader();
+    expect(String(info.mock.calls[0]?.[0] ?? '')).not.toContain('jwt-secret-value');
   });
 });

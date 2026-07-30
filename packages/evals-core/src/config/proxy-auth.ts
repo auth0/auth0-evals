@@ -9,10 +9,22 @@
  * When `proxy.authHeader` is unset this returns `undefined` and callers fall back
  * to injecting `LLM_API_KEY` into the provider-native key var, which is the
  * framework's original behaviour.
+ *
+ * `LLM_API_KEY` takes precedence: when it is set, this returns `undefined` even
+ * with `proxy.authHeader` configured. Existing deployments therefore keep working
+ * untouched, and adopting the custom header is an explicit act — unset
+ * `LLM_API_KEY` so the header path takes over.
  */
 
 import { getFrameworkConfig } from './framework-config.js';
 import { logger } from '../utils/logger.js';
+
+/**
+ * Provider-native API key env var. Declared here rather than imported from
+ * `@a0/evals` — core cannot depend on the package that consumes it — and kept
+ * in sync with `LLM_API_KEY_ENV` in `packages/evals/src/cli/constants.ts`.
+ */
+const LLM_API_KEY_ENV = 'LLM_API_KEY';
 
 export interface ResolvedProxyAuth {
   /** Header name, verbatim from config. */
@@ -44,10 +56,23 @@ export const PLACEHOLDER_API_KEY = 'unused-see-proxy-auth-header';
  * closed here would break every run on a typo'd env var name, whereas the warning
  * surfaces the misconfiguration at startup rather than as an opaque 401 mid-run.
  * This mirrors how `mintMcpToken` reports a failed mint.
+ *
+ * Returns `undefined` when `LLM_API_KEY` is set — see the module comment.
  */
 export function resolveProxyAuthHeader(): ResolvedProxyAuth | undefined {
   const { authHeader } = getFrameworkConfig().proxy;
   if (!authHeader) return undefined;
+
+  // The provider-native API key wins whenever it is present, even with
+  // `proxy.authHeader` configured. A deployment that still exports
+  // LLM_API_KEY keeps its existing behaviour untouched, so switching to the
+  // custom header is an explicit act: unset LLM_API_KEY.
+  if (process.env[LLM_API_KEY_ENV]) {
+    logger.info(
+      `[proxy-auth] ${LLM_API_KEY_ENV} is set — using the provider-native API key and ignoring proxy.authHeader.`,
+    );
+    return undefined;
+  }
 
   const token = process.env[authHeader.tokenEnv];
   if (!token) {
