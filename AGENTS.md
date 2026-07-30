@@ -357,6 +357,8 @@ Per-runner mechanism:
 
 **Sandbox:** the token's env var is app-named, so add it to `sandbox.passthroughEnv` in `eval.config.js` — otherwise sandboxed runs fail to authenticate while host runs succeed. If `proxy.authHeader` is set but its `tokenEnv` is unset, the framework logs a warning naming the variable and falls back to the API-key path.
 
+**Do not "simplify" the gemini-cli loopback proxy.** When `GEMINI_PROXY_BASE_URL` points at a loopback port (e.g. `http://127.0.0.1:9876`), that is `scripts/gemini-sse-proxy.js` in the runner repo — an SSE-unwrapping workaround for a LiteLLM v1.86.0+ bug that double-wraps `streamGenerateContent` responses. It is unrelated to authentication (it forwards headers verbatim) and is still required: bypassing it makes Gemini runs fail with `TypeError: fetch failed sending request` after nine retries, while with it running the same eval passes. The auth header travels through it unchanged.
+
 ### Auto-routing logic
 
 When `--agent-type` is **not** specified, the runner is selected by model prefix:
