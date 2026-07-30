@@ -1,7 +1,6 @@
 ---
 id: expo_quickstart
 name: Expo Quickstart
-scaffold: src/evals/scaffolds/expo/basic
 skills: auth0
 setup_command: npm install
 compile_command: npm run typecheck
