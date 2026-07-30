@@ -43,14 +43,13 @@ const TEST_CONFIG: Required<FrameworkConfig> = {
 
 // Note: engine.ts reads config lazily (inside function calls, not at import time),
 // so setFrameworkConfig in beforeAll runs before any config access.
-import { passRate, runGraders, llmJudge } from '../../src/graders/engine.js';
+import { passRate, runGraders, llmJudge, JUDGE_DEFAULT_MAX_TOKENS } from '../../src/graders/engine.js';
 
 beforeAll(() => {
   setFrameworkConfig(TEST_CONFIG);
 });
 
 const JUDGE_MAX_CODE_CHARS = TEST_CONFIG.judge.maxCodeChars!;
-const JUDGE_MAX_TOKENS = TEST_CONFIG.judge.maxTokens!;
 
 const tmpDir = makeTmpDir('graders_test_');
 
@@ -395,6 +394,14 @@ function mockFetchResponse(content: string) {
   } as unknown as Response);
 }
 
+/** Mocks a response the provider truncated at the max_tokens ceiling. */
+function mockTruncatedResponse(content: string, finishReason = 'length') {
+  return vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ choices: [{ message: { content }, finish_reason: finishReason }] }),
+  } as unknown as Response);
+}
+
 describe('llmJudge', () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -435,7 +442,9 @@ describe('llmJudge', () => {
     expect(detail).toContain('loginWithRedirect call is present');
   });
 
-  it('request sends max_tokens equal to JUDGE_MAX_TOKENS by default', async () => {
+  // llmJudge takes maxTokens from its options, not the framework config, so this
+  // asserts its own fallback rather than TEST_CONFIG's value.
+  it('request falls back to the built-in max_tokens when maxTokens is omitted', async () => {
     let capturedBody: Record<string, unknown> | undefined;
     vi.stubGlobal(
       'fetch',
@@ -445,7 +454,7 @@ describe('llmJudge', () => {
       }),
     );
     await llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' });
-    expect(capturedBody?.max_tokens).toBe(JUDGE_MAX_TOKENS);
+    expect(capturedBody?.max_tokens).toBe(JUDGE_DEFAULT_MAX_TOKENS);
   });
 
   it('request sends explicit maxTokens when provided', async () => {
@@ -549,6 +558,93 @@ describe('llmJudge', () => {
     await expect(
       llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' }),
     ).rejects.toThrow('unexpected verdict');
+  });
+
+  // Regression: Opus 5 runs adaptive thinking by default, and `max_tokens` caps
+  // thinking + visible text together. The judge's reasoning was cut off before
+  // it could emit the final verdict line, which surfaced as a confusing
+  // "unexpected verdict" and scored a passing solution as a hard failure.
+  it.each(['length', 'max_tokens'])(
+    'reports truncation rather than an unexpected verdict on finish_reason=%s',
+    async (finishReason) => {
+      const partial = 'The implementation covers the essentials correctly: `Auth0.plist`';
+      vi.stubGlobal('fetch', mockTruncatedResponse(partial, finishReason));
+      const err = await llmJudge({
+        question: 'question',
+        code: 'code',
+        apiKey: 'key',
+        model: 'model',
+        baseUrl: 'http://test',
+        maxTokens: 1024,
+      }).catch((e: unknown) => e as Error);
+
+      expect(err.message).toMatch(/truncated/i);
+      // The diagnostic has to name the knob to turn and preserve what the judge
+      // did manage to say, or it's no more actionable than the old message.
+      expect(err.message).toContain('1024');
+      expect(err.message).toContain('judge.maxTokens');
+      expect(err.message).toContain(partial);
+      expect(err.message).not.toContain('unexpected verdict');
+    },
+  );
+
+  // The worst case of the same bug: reasoning consumed the entire budget, so
+  // there is no visible text at all. This must still report truncation rather
+  // than a bare "empty response from LLM", which points nowhere.
+  it.each(['length', 'max_tokens'])(
+    'reports truncation when the whole budget was consumed and no text was returned (finish_reason=%s)',
+    async (finishReason) => {
+      vi.stubGlobal('fetch', mockTruncatedResponse('', finishReason));
+      const err = await llmJudge({
+        question: 'question',
+        code: 'code',
+        apiKey: 'key',
+        model: 'model',
+        baseUrl: 'http://test',
+      }).catch((e: unknown) => e as Error);
+
+      expect(err.message).toMatch(/truncated/i);
+      expect(err.message).toContain('judge.maxTokens');
+      expect(err.message).not.toContain('empty response from LLM');
+    },
+  );
+
+  it('still reports an empty response when it was not truncated', async () => {
+    vi.stubGlobal('fetch', mockFetchResponse(''));
+    await expect(
+      llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' }),
+    ).rejects.toThrow('empty response from LLM');
+  });
+
+  it('does not report truncation when a verdict is present despite a length finish_reason', async () => {
+    vi.stubGlobal('fetch', mockTruncatedResponse('The provider is wired up correctly.\n\nyes'));
+    const { passed } = await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
+    expect(passed).toBe(true);
+  });
+
+  it('disables thinking so the token budget is spent on the verdict, not reasoning', async () => {
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
+    await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'claude-opus-5',
+      baseUrl: 'http://test',
+    });
+    expect(capturedBody?.thinking).toEqual({ type: 'disabled' });
   });
 
   it('extracts token usage from OpenAI-style usage (prompt_tokens/completion_tokens)', async () => {

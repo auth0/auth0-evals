@@ -86,7 +86,7 @@ describe('loadConfig', () => {
   it('deep-merges user config with defaults', async () => {
     const config = await loadConfig({ searchDir: join(FIXTURES_DIR, 'partial-judge') });
     expect(config.judge.model).toBe('claude-opus-4-7');
-    expect(config.judge.maxTokens).toBe(1024); // default preserved
+    expect(config.judge.maxTokens).toBe(4096); // default preserved
   });
 
   it('throws EvalConfigError when configPath does not exist', async () => {

@@ -81,7 +81,10 @@ export default {
 
   judge: {
     model: 'claude-opus-5',
-    maxTokens: 1024,
+    // Headroom so a verbose judge still reaches its final yes/no line. Opus 5
+    // counts thinking against max_tokens; the judge disables thinking, but this
+    // also covers proxies that ignore that flag.
+    maxTokens: 4096,
     maxCodeChars: 32_768,
   },
 
