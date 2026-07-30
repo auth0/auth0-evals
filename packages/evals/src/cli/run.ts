@@ -165,10 +165,7 @@ async function runAgentJob(
 
     const compileResult =
       evalDef.compileCommand !== undefined
-        ? runCompileCommand(workspace, evalDef.compileCommand, {
-            setupCommand: evalDef.setupCommand,
-            timeoutMs: getFrameworkConfig().workspace.compileCommandTimeoutMs,
-          })
+        ? runCompileCommand(workspace, evalDef.compileCommand, { setupCommand: evalDef.setupCommand })
         : undefined;
 
     let graderResults: Awaited<ReturnType<typeof runGraders>> = [];

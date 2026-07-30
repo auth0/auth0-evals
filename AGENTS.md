@@ -158,7 +158,7 @@ When you make a change, update every doc whose described behavior is affected. T
 ## Adding an eval — checklist
 
 1. `src/evals/<category>/<eval-dir>/PROMPT.md` + `graders.ts`
-2. Add `id` (required) and optionally `name`/`category`/`compile_command` to `PROMPT.md` frontmatter — the framework auto-discovers evals from `evalsDir`. Set `compile_command` to point the agent at a verify-compiles command (injected into the agent's context file, e.g. `CLAUDE.md`); omit only for evals with no buildable target. For mobile (Expo/React Native) evals, use a type-only check — `compile_command: npm run typecheck` (`tsc --noEmit`) — which needs no native toolchain and runs anywhere. A full Android build (`expo prebuild --platform android` + `gradle assembleDebug`) is possible but requires a JDK + Android SDK/NDK/CMake on the compile host plus reliable egress to the Google/Gradle/Maven package hosts, so it is intentionally not used here. iOS builds are not available (require macOS).
+2. Add `id` (required) and optionally `name`/`category`/`compile_command` to `PROMPT.md` frontmatter — the framework auto-discovers evals from `evalsDir`. Set `compile_command` to point the agent at a verify-compiles command (injected into the agent's context file, e.g. `CLAUDE.md`); omit for evals with no CLI compile step (e.g. mobile).
 3. All imports use `.js` extensions; `import type` for type-only
 4. All graders have `GraderLevel`; one final holistic `judge` with no level
 5. `npm run build && npm test` passes
@@ -394,7 +394,6 @@ All LLM-as-judge graders use `claude-opus-5` via the configured LLM proxy (`prox
 | Max agent turns      | 75                                               |
 | Runner task timeout  | 30 min (per eval, graceful abort)                |
 | Docker host timeout  | 35 min (per container, hard kill — sandbox only) |
-| Compile command timeout | 300s framework default; overridable per app via `workspace.compileCommandTimeoutMs` (this app sets 20 min so Android builds fit) |
 
 ---
 
