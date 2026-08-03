@@ -18,13 +18,13 @@ cp apps/auth0-evals/.env.example apps/auth0-evals/.env
 
 ```bash
 # Single eval, baseline mode (default)
-npm run run -- --eval react_quickstart --mode baseline
+npm run evals -- --eval react_quickstart --mode baseline
 
 # Agent mode with skills
-npm run run -- --eval react_quickstart --mode agent --tools skills
+npm run evals -- --eval react_quickstart --mode agent --tools skills
 
 # Agent mode with MCP + skills
-npm run run -- --eval react_quickstart --mode agent --tools mcp,skills
+npm run evals -- --eval react_quickstart --mode agent --tools mcp,skills
 
 # Generate HTML report (auto-discovers scores-*.json)
 npm run report
@@ -76,15 +76,15 @@ export default {
     localDirs: ['skills'],
   },
 
-  judge: { model: 'claude-sonnet-4-5' },
+  judge: { model: 'claude-opus-5' },
 
   models: {
     known: [
-      'gpt-5.4', 'gpt-5.4-mini',
-      'claude-sonnet-4-6', 'claude-opus-4-6', 'claude-opus-4-7', 'claude-haiku-4-5',
+      'gpt-5.6-sol', 'gpt-5.6-luna', 'gpt-5.6-terra',
+      'claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5',
       'gemini-3.1-pro-preview', 'gemini-3.5-flash',
     ],
-    default: 'gpt-5.4',
+    default: 'gpt-5.6-sol',
   },
 
   // Per-runner proxy overrides
@@ -154,7 +154,7 @@ export function defineGraders() {
     contains('authorizationParams', 'Uses authorizationParams', GraderLevel.L5),
 
     // Holistic judge (no level — always runs)
-    judge('Does the solution correctly integrate Auth0 with login, logout, and profile display?', 'react'),
+    judge('Does the solution correctly integrate Auth0 with login, logout, and profile display?'),
   ];
 }
 ```
@@ -167,7 +167,13 @@ export function defineGraders() {
 | `notContains(needle, description, level)` | Substring absent from all workspace files |
 | `notContainsInSource(needle, description, level)` | Substring absent from source files (allowed in config) |
 | `matches(pattern, description, level)` | Regex match in any workspace file |
-| `judge(question, framework?, level?)` | LLM-as-judge yes/no question |
+| `judge(question, level?)` | LLM-as-judge yes/no question |
+| `compiles(description, level)` | Framework runs the eval's `compile_command` and passes/fails on its exit code |
+| `ranCommand(command, args, description, level)` | Agent ran a shell command containing `command` (and all `args`) |
+| `ranCommandOneOf(commands, description, level)` | Agent ran at least one command from the list |
+| `wroteFile(path, description, level, expected?)` | Agent wrote a file whose path contains the substring (optionally with `expected` content) |
+| `calledTool(toolName, description, level)` | Agent invoked an MCP tool whose name contains `toolName` |
+| `calledToolOneOf(toolNames, description, level)` | Agent invoked at least one of the named MCP tools |
 
 ### Grader levels
 
