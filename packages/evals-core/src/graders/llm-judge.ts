@@ -75,15 +75,17 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
     max_tokens: judgeMaxTokens,
   });
 
-  // When a proxy auth header is configured the credential travels in that header
-  // alone. Unlike the CLI runners the judge has no validator demanding a
-  // credential field, so `Authorization` is dropped rather than given a placeholder.
-  const proxyAuth = resolveProxyAuthHeader();
-  const authHeaders: Record<string, string> = proxyAuth
-    ? { [proxyAuth.name]: proxyAuth.value }
-    : { Authorization: `Bearer ${apiKey}` };
-
   try {
+    // When a proxy auth header is configured the credential travels in that header
+    // alone. Unlike the CLI runners the judge has no validator demanding a
+    // credential field, so `Authorization` is dropped rather than given a placeholder.
+    // Resolved inside the try so a throw here normalizes to JudgeError like every
+    // other failure path in this function.
+    const proxyAuth = resolveProxyAuthHeader();
+    const authHeaders: Record<string, string> = proxyAuth
+      ? { [proxyAuth.name]: proxyAuth.value }
+      : { Authorization: `Bearer ${apiKey}` };
+
     const data = await withRetry(async () => {
       const resp = await fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
