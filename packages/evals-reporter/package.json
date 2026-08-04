@@ -1,10 +1,13 @@
 {
   "name": "@a0/evals-reporter",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist", "src/templates"],
+  "files": [
+    "dist",
+    "src/templates"
+  ],
   "exports": {
     ".": {
       "import": "./dist/index.js",
