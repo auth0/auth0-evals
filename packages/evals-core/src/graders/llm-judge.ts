@@ -60,19 +60,24 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
   }
 
   const system = SYSTEM_PROMPT;
+  // Truncate rather than throw. An oversized corpus is an infrastructure limit, not a defect in
+  // the agent's output, so throwing scored correct solutions as grader failures — a large scaffold
+  // could fail every judge in an eval without the model ever being asked.
+  let judgeCode = code;
   if (code.length > judgeMaxCodeChars) {
     if (enforceMaxChars) {
-      throw new Error(
-        `[judge] Code corpus exceeds limit: ${code.length} chars > ${judgeMaxCodeChars}. ` +
-          `Increase judge.maxCodeChars or reduce the number or size of files being judged.`,
-      );
+      const notice = `\n\n… (truncated at ${judgeMaxCodeChars} chars; ${code.length} chars total)`;
+      judgeCode = code.slice(0, Math.max(0, judgeMaxCodeChars - notice.length)) + notice;
     }
-    logger.warn(`[judge] Code corpus exceeds limit (${code.length} > ${judgeMaxCodeChars} chars) — proceeding anyway`);
+    logger.warn(
+      `[judge] Code corpus exceeds limit (${code.length} > ${judgeMaxCodeChars} chars) — ` +
+        (enforceMaxChars ? 'truncating' : 'proceeding anyway'),
+    );
   }
   // Use function replacers so `question`/`code` are inserted verbatim. A string
   // replacement would interpret `$&`, `` $` ``, `$'`, and `$1` specially, and
   // since `code` is untrusted agent output this would silently corrupt the prompt.
-  const user = USER_TEMPLATE.replace('{question}', () => question).replace('{code}', () => code);
+  const user = USER_TEMPLATE.replace('{question}', () => question).replace('{code}', () => judgeCode);
 
   // The judge hits the /chat/completions endpoint, which serves models under
   // their plain alias, so the model is sent as-is (no Bedrock ID mapping).

@@ -355,6 +355,28 @@ describe('isJudgeExcluded', () => {
     expect(isJudgeExcluded('docs/VERIFICATION_CHECKLIST.txt')).toBe(true);
     expect(isJudgeExcluded('NOTES.TXT')).toBe(true);
   });
+
+  it('excludes binaries the workspace walker would otherwise read as mojibake', () => {
+    expect(isJudgeExcluded('android/gradle/wrapper/gradle-wrapper.jar')).toBe(true);
+    expect(isJudgeExcluded('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png')).toBe(true);
+    expect(isJudgeExcluded('android/app/debug.keystore')).toBe(true);
+    expect(isJudgeExcluded('assets/fonts/Inter.ttf')).toBe(true);
+  });
+
+  it('excludes generated native project files', () => {
+    expect(isJudgeExcluded('ios/scaffold.xcodeproj/project.pbxproj')).toBe(true);
+    expect(isJudgeExcluded('ios/scaffold/LaunchScreen.storyboard')).toBe(true);
+    expect(isJudgeExcluded('ios/Podfile.lock')).toBe(true);
+    expect(isJudgeExcluded('android/gradlew')).toBe(true);
+    expect(isJudgeExcluded('android/gradlew.bat')).toBe(true);
+  });
+
+  it('keeps the native config files judges assert on', () => {
+    expect(isJudgeExcluded('ios/scaffold/Info.plist')).toBe(false);
+    expect(isJudgeExcluded('android/app/build.gradle')).toBe(false);
+    expect(isJudgeExcluded('android/app/src/main/AndroidManifest.xml')).toBe(false);
+    expect(isJudgeExcluded('ios/Podfile')).toBe(false);
+  });
 });
 
 // ── compile ───────────────────────────────────────────────────────────────────

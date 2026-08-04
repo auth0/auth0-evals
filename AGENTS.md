@@ -114,6 +114,10 @@ Graders run against all workspace files (scaffold + agent edits) minus the exclu
 
 Additionally, the LLM judge excludes `tsconfig*.json` and `angular.json` files, plus the `.gradle` and `app/build` directories (large Android build artifacts), from its input to save token budget. It also excludes `.env*` files so credential values are never sent to the judge. Secret-in-source checks are handled deterministically by `notContainsInSource`; "credentials wired into `.env`" is verified via the event-based `wroteFile` grader — so the judge never needs `.env` contents.
 
+The judge also excludes binaries and generated native project files, since the workspace walker reads every file as UTF-8 and would otherwise feed the judge mojibake: `.jar`, image formats, fonts, keystores, and `.pbxproj` / `.storyboard` / `.xib` / `.xcscheme` / `.lock` / `gradlew`. On the bare React Native scaffold this drops the corpus from ~172K to ~24K chars — it was previously 5× over `maxCodeChars`, which failed every judge grader in that eval. Note that `.plist`, `.xml`, and `.gradle` are deliberately **not** excluded: judges assert on `Info.plist` (`CFBundleURLTypes`), `AndroidManifest.xml`, and `app/build.gradle` (`manifestPlaceholders`).
+
+When a corpus still exceeds `judge.maxCodeChars`, the judge **truncates** it and appends a `… (truncated at N chars)` notice rather than erroring. An oversized corpus is an infrastructure limit, not a defect in the agent's output, so it must not be reported as a grader failure.
+
 ---
 
 ## Linting & formatting
