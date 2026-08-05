@@ -66,8 +66,13 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
   let judgeCode = code;
   if (code.length > judgeMaxCodeChars) {
     if (enforceMaxChars) {
-      const notice = `\n\n… (truncated at ${judgeMaxCodeChars} chars; ${code.length} chars total)`;
-      judgeCode = code.slice(0, Math.max(0, judgeMaxCodeChars - notice.length)) + notice;
+      // Clamp the notice as well: with a limit shorter than the notice itself, appending it
+      // whole would push the result back over the budget we are enforcing.
+      const notice = `\n\n… (truncated at ${judgeMaxCodeChars} chars; ${code.length} chars total)`.slice(
+        0,
+        judgeMaxCodeChars,
+      );
+      judgeCode = code.slice(0, judgeMaxCodeChars - notice.length) + notice;
     }
     logger.warn(
       `[judge] Code corpus exceeds limit (${code.length} > ${judgeMaxCodeChars} chars) — ` +

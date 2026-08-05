@@ -821,6 +821,44 @@ describe('llmJudge - code corpus overflow', () => {
     expect(userContent).not.toContain(oversized);
   });
 
+  it('stays within the budget when the limit is shorter than the truncation notice', async () => {
+    // Regression: the notice was appended whole, so a limit smaller than the notice produced
+    // slice(0, 0) + notice — longer than the limit it was meant to enforce.
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
+    // Baseline: the same call with a code body that fits, so the template overhead is known.
+    await llmJudge({
+      question: 'question',
+      code: '',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
+    const overhead = (capturedBody!.messages as Array<{ role: string; content: string }>).find(
+      (m) => m.role === 'user',
+    )!.content.length;
+
+    for (const limit of [1, 20, 47]) {
+      await llmJudge({
+        question: 'question',
+        code: 'y'.repeat(5_000),
+        apiKey: 'key',
+        model: 'model',
+        baseUrl: 'http://test',
+        maxCodeChars: limit,
+      });
+      const messages = capturedBody!.messages as Array<{ role: string; content: string }>;
+      const userContent = messages.find((m) => m.role === 'user')!.content;
+      expect(userContent.length - overhead).toBeLessThanOrEqual(limit);
+    }
+  });
+
   it('does not throw when code is exactly at the limit', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('Looks good.\n\nyes'));
     const exact = 'x'.repeat(JUDGE_MAX_CODE_CHARS);
