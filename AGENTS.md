@@ -118,6 +118,10 @@ The judge also excludes binaries and generated native project files, since the w
 
 When a corpus still exceeds `judge.maxCodeChars`, the judge **truncates** it and appends a `… (truncated at N chars)` notice rather than erroring. An oversized corpus is an infrastructure limit, not a defect in the agent's output, so it must not be reported as a grader failure.
 
+### Trace-aware judge
+
+`judge(question, level?, { includeCommandTrace })` — when `includeCommandTrace` is true, the agent's successful shell commands are appended to the judge input (under a `// COMMAND TRACE` header) alongside workspace files. This gives a judgeable artifact to evals whose work is entirely CLI invocations with no files to inspect (e.g. tenant config via the Auth0 CLI). Errored commands are dropped so the judge sees only what took effect. Off by default — every file-based judge is unchanged.
+
 ---
 
 ## Linting & formatting

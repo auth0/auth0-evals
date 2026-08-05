@@ -55,6 +55,14 @@ export interface GraderDef {
   level?: GraderLevel;
   caseSensitive?: boolean;
   predicate?: (toolCalls: EventToolCall[]) => boolean;
+  /**
+   * Judge graders only. When true, the agent's command trace is appended to the
+   * judge's input alongside workspace files. Needed for evals whose work is
+   * entirely CLI invocations (no files to inspect) — e.g. tenant config via the
+   * Auth0 CLI — so the judge has something to evaluate. Defaults to false so
+   * file-based judges are unaffected.
+   */
+  includeCommandTrace?: boolean;
 }
 
 export interface GraderOptions {
