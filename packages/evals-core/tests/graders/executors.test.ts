@@ -1,14 +1,22 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GraderLevel } from '@a0/evals-graders';
 import type { GraderDef, CompileResult } from '@a0/evals-graders';
 import { containsExecutor } from '../../src/graders/executors/contains.js';
 import { notContainsExecutor } from '../../src/graders/executors/not-contains.js';
 import { notContainsInSourceExecutor } from '../../src/graders/executors/not-contains-in-source.js';
 import { matchesExecutor } from '../../src/graders/executors/matches.js';
-import { isJudgeExcluded, formatCommandTrace } from '../../src/graders/executors/llm-judge.js';
+import { isJudgeExcluded, formatCommandTrace, llmJudgeExecutor } from '../../src/graders/executors/llm-judge.js';
 import type { EventToolCall } from '@a0/evals-graders';
 import { compileExecutor } from '../../src/graders/executors/compile.js';
 import type { GraderContext } from '../../src/graders/executors/types.js';
+
+// Mock the underlying judge LLM call so the executor tests exercise the
+// includeCommandTrace gate without hitting the network. The mock records the
+// `code` it was handed so tests can assert on what the executor sent.
+const llmJudgeMock = vi.hoisted(() => vi.fn());
+vi.mock('../../src/graders/llm-judge.js', () => ({
+  llmJudge: llmJudgeMock,
+}));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -422,6 +430,59 @@ describe('formatCommandTrace', () => {
 
   it('returns an empty string when there are no commands', () => {
     expect(formatCommandTrace([])).toBe('');
+  });
+});
+
+// ── llmJudgeExecutor: includeCommandTrace gate ───────────────────────────────
+
+describe('llmJudgeExecutor — includeCommandTrace gate', () => {
+  const JUDGE_CTX = {
+    model: 'claude-opus-5',
+    baseUrl: 'https://proxy.example',
+    maxTokens: 4096,
+    maxCodeChars: 32768,
+    enforceMaxChars: false,
+  };
+
+  function judgeCtx(files: Record<string, string>, toolCalls: EventToolCall[]): GraderContext {
+    return { ...makeCtx(files), apiKey: 'test-key', judge: JUDGE_CTX, toolCalls };
+  }
+
+  const trace: EventToolCall[] = [
+    { name: 'run_command', args: { command: 'auth0 api put guardian/policies' }, result: '', causedError: false },
+  ];
+
+  beforeEach(() => {
+    llmJudgeMock.mockReset();
+    llmJudgeMock.mockResolvedValue({ passed: true, detail: 'ok', inputTokens: 1, outputTokens: 1 });
+  });
+
+  it('appends the command trace to the judge input when includeCommandTrace is true', async () => {
+    const def = makeDef({ kind: 'judge', question: 'Did the CLI enforce MFA?', includeCommandTrace: true });
+    await llmJudgeExecutor.execute(def, judgeCtx({ 'app.ts': 'console.log(1)' }, trace));
+
+    expect(llmJudgeMock).toHaveBeenCalledOnce();
+    const { code } = llmJudgeMock.mock.calls[0][0];
+    expect(code).toContain('// COMMAND TRACE');
+    expect(code).toContain('auth0 api put guardian/policies');
+  });
+
+  it('omits the command trace when includeCommandTrace is false', async () => {
+    const def = makeDef({ kind: 'judge', question: 'Is this correct?', includeCommandTrace: false });
+    await llmJudgeExecutor.execute(def, judgeCtx({ 'app.ts': 'console.log(1)' }, trace));
+
+    const { code } = llmJudgeMock.mock.calls[0][0];
+    expect(code).not.toContain('// COMMAND TRACE');
+    expect(code).not.toContain('guardian/policies');
+    expect(code).toContain('app.ts');
+  });
+
+  it('omits the command trace when the flag is unset (default behaviour)', async () => {
+    const def = makeDef({ kind: 'judge', question: 'Is this correct?' });
+    await llmJudgeExecutor.execute(def, judgeCtx({ 'app.ts': 'console.log(1)' }, trace));
+
+    const { code } = llmJudgeMock.mock.calls[0][0];
+    expect(code).not.toContain('// COMMAND TRACE');
   });
 });
 
