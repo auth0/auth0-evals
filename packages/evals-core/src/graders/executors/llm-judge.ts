@@ -21,6 +21,13 @@ import { logger } from '../../utils/logger.js';
  * (integration guides, summaries, checklists) that are not source code. They inflate the
  * corpus — sometimes past `maxCodeChars`, which fails the judge outright — while adding no
  * signal the judge needs.
+ *
+ * Binaries and generated native project files are dropped for the same reason: the workspace
+ * walker reads every file as UTF-8, so a bare React Native scaffold otherwise feeds the judge
+ * `gradle-wrapper.jar` and the launcher PNGs as mojibake — ~115KB of its ~172KB corpus, which
+ * pushed it 5x past `maxCodeChars`. Note that `.plist`, `.xml`, and `.gradle` are deliberately
+ * NOT excluded: judges assert on `Info.plist` (CFBundleURLTypes), `AndroidManifest.xml`, and
+ * `app/build.gradle` (manifestPlaceholders).
  */
 const JUDGE_EXCLUDED_PATTERNS = [
   /^tsconfig(\.\w+)?\.json$/,
@@ -29,6 +36,9 @@ const JUDGE_EXCLUDED_PATTERNS = [
   /\.md$/i,
   /\.txt$/i,
   /^\.env(\..*)?$/,
+  /\.(?:jar|png|jpe?g|gif|ico|webp|svg|ttf|otf|woff2?|keystore|jks)$/i,
+  /\.(?:pbxproj|storyboard|xib|xcscheme|xcworkspacedata|lock)$/i,
+  /^gradlew(\.bat)?$/,
 ];
 
 /** Directory paths (matched against the relative path) excluded from the LLM judge input — large Android build artifacts. */

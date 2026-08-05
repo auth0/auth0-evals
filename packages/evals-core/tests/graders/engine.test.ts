@@ -794,18 +794,69 @@ describe('runGraders - allowedLevels', () => {
 describe('llmJudge - code corpus overflow', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('throws when code exceeds JUDGE_MAX_CODE_CHARS', async () => {
-    const oversized = 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1);
-    await expect(
-      llmJudge({
+  it('truncates rather than throwing when code exceeds JUDGE_MAX_CODE_CHARS', async () => {
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
+    const oversized = 'x'.repeat(JUDGE_MAX_CODE_CHARS + 5_000);
+
+    const { passed } = await llmJudge({
+      question: 'question',
+      code: oversized,
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+      maxCodeChars: JUDGE_MAX_CODE_CHARS,
+    });
+
+    expect(passed).toBe(true);
+    const messages = capturedBody!.messages as Array<{ role: string; content: string }>;
+    const userContent = messages.find((m) => m.role === 'user')!.content;
+    expect(userContent).toContain('… (truncated at');
+    expect(userContent).not.toContain(oversized);
+  });
+
+  it('stays within the budget when the limit is shorter than the truncation notice', async () => {
+    // Regression: the notice was appended whole, so a limit smaller than the notice produced
+    // slice(0, 0) + notice — longer than the limit it was meant to enforce.
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
+    // Baseline: the same call with a code body that fits, so the template overhead is known.
+    await llmJudge({
+      question: 'question',
+      code: '',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
+    const overhead = (capturedBody!.messages as Array<{ role: string; content: string }>).find(
+      (m) => m.role === 'user',
+    )!.content.length;
+
+    for (const limit of [1, 20, 47]) {
+      await llmJudge({
         question: 'question',
-        code: oversized,
+        code: 'y'.repeat(5_000),
         apiKey: 'key',
         model: 'model',
         baseUrl: 'http://test',
-        maxCodeChars: JUDGE_MAX_CODE_CHARS,
-      }),
-    ).rejects.toThrow(/Code corpus exceeds limit/);
+        maxCodeChars: limit,
+      });
+      const messages = capturedBody!.messages as Array<{ role: string; content: string }>;
+      const userContent = messages.find((m) => m.role === 'user')!.content;
+      expect(userContent.length - overhead).toBeLessThanOrEqual(limit);
+    }
   });
 
   it('does not throw when code is exactly at the limit', async () => {
@@ -872,32 +923,36 @@ describe('llmJudge - enforceMaxChars=false', () => {
   });
 });
 
-// ── runGraders — judge overflow propagation ─────────────────────────────────
+// ── runGraders — judge overflow handling ────────────────────────────────────
 
-describe('runGraders - judge overflow propagation', () => {
-  it('returns a failed result when judge grader throws overflow error', async () => {
+describe('runGraders - judge overflow handling', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('still grades the judge when the workspace corpus exceeds the limit', async () => {
+    // Regression: an oversized corpus used to throw, so a large scaffold (e.g. bare React
+    // Native, whose native projects blow past the limit) failed every judge grader without
+    // the model ever being asked.
+    vi.stubGlobal('fetch', mockFetchResponse('Looks correct.\n\nyes'));
     const dir = tmpDir();
-    // Write a single file that exceeds the limit
     writeFileSync(join(dir, 'App.js'), 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1));
     const { judge } = await import('@a0/evals-graders');
-    const graders = [judge('Does the code work?')];
 
-    const results = await runGraders(graders, dir, 'unused');
+    const results = await runGraders([judge('Does the code work?')], dir, 'unused');
     expect(results.length).toBe(1);
-    expect(results[0].passed).toBe(false);
-    expect(results[0].detail).toMatch(/Code corpus exceeds limit/);
+    expect(results[0].passed).toBe(true);
+    expect(results[0].detail).not.toMatch(/Code corpus exceeds limit/);
   });
 
-  it('continues running remaining graders after one throws', async () => {
+  it('grades remaining graders alongside an oversized judge corpus', async () => {
+    vi.stubGlobal('fetch', mockFetchResponse('Looks correct.\n\nyes'));
     const dir = tmpDir();
     writeFileSync(join(dir, 'App.js'), 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1));
     const { judge, contains } = await import('@a0/evals-graders');
-    const graders = [judge('Does the code work?'), contains('x')];
 
-    const results = await runGraders(graders, dir, 'unused');
+    const results = await runGraders([judge('Does the code work?'), contains('x')], dir, 'unused');
     expect(results.length).toBe(2);
-    expect(results[0].passed).toBe(false); // judge failed with error
-    expect(results[1].passed).toBe(true); // contains still ran
+    expect(results[0].passed).toBe(true);
+    expect(results[1].passed).toBe(true);
   });
 });
 
