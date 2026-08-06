@@ -20,6 +20,7 @@ export {
   judge,
   ranCommand,
   ranCommandOneOf,
+  ranCommandsInOrder,
   wroteFile,
   compiles,
   calledTool,

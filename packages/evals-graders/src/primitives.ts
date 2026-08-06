@@ -145,6 +145,63 @@ export function ranCommandOneOf(
   };
 }
 
+/**
+ * Asserts that the agent ran a sequence of commands **in order**.
+ *
+ * Each step is a needle (or a one-of array of alternative needles) that must be
+ * found in the successful command trace, with every step matching *after* the
+ * previous step's match ends. Ordering is checked across the concatenated trace,
+ * so steps may be:
+ *   - non-adjacent (unrelated commands between them), and
+ *   - chained within a single shell command (`enable && enforce`) — agents
+ *     commonly run an enable-then-enforce pair as one call.
+ *
+ * A single occurrence of a needle cannot satisfy two steps: step N+1 searches
+ * only the text that starts after step N's match. Errored commands are ignored.
+ *
+ * This encodes causal dependencies that an unordered set of `ranCommand`s can't —
+ * e.g. a factor must be enabled *before* a policy enforces it. Useful for
+ * file-less CLI/tenant-config evals whose correctness lives entirely in the
+ * command sequence.
+ *
+ * @param steps - Ordered needles; a nested array is a one-of alternative for that position
+ */
+export function ranCommandsInOrder(
+  steps: Array<string | string[]>,
+  description: string | undefined,
+  level: EventGraderLevel,
+): GraderDef {
+  validateEventLevel(level, 'ranCommandsInOrder');
+  const label = steps.map((step) => (Array.isArray(step) ? `(${step.join(' | ')})` : step)).join(' → ');
+  return {
+    kind: 'event',
+    name: description ?? `ran commands in order [${label}]`,
+    level,
+    predicate: (toolCalls: EventToolCall[]) => {
+      // Concatenate the successful command trace in order; a moving cursor
+      // guarantees each step matches text after the previous step's match.
+      const trace = getRunCommands(toolCalls).join('\n');
+      let cursor = 0;
+      for (const step of steps) {
+        const alternatives = Array.isArray(step) ? step : [step];
+        // Earliest match among this step's alternatives at/after the cursor.
+        let best = -1;
+        let bestLen = 0;
+        for (const needle of alternatives) {
+          const idx = trace.indexOf(needle, cursor);
+          if (idx !== -1 && (best === -1 || idx < best)) {
+            best = idx;
+            bestLen = needle.length;
+          }
+        }
+        if (best === -1) return false;
+        cursor = best + bestLen;
+      }
+      return true;
+    },
+  };
+}
+
 // Tool names that represent file writes across runners (Claude/Copilot: write_file, Gemini: write/edit).
 const WRITE_TOOL_NAMES = new Set(['write_file', 'write', 'edit']);
 
