@@ -437,6 +437,15 @@ describe('ranCommandsInOrder', () => {
     expect(g.predicate!(calls)).toBe(true);
   });
 
+  it('prefers the shorter alternative on an equal-index tie', () => {
+    // Both 'ab' and 'a' match at index 0. Picking the longer 'ab' would advance
+    // the cursor past the 'b' the next step needs; picking the shorter 'a' leaves
+    // it available, so the ordered sequence still matches.
+    const g = ranCommandsInOrder([['ab', 'a'], 'b'], undefined, GraderLevel.L4);
+    const calls = [cmd('ab')];
+    expect(g.predicate!(calls)).toBe(true);
+  });
+
   it('does not reuse a single match for two steps', () => {
     // A single occurrence of a needle must not satisfy two steps — the second
     // step has to match text that starts after the first step's match ends.

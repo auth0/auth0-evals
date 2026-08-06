@@ -185,11 +185,13 @@ export function ranCommandsInOrder(
       for (const step of steps) {
         const alternatives = Array.isArray(step) ? step : [step];
         // Earliest match among this step's alternatives at/after the cursor.
+        // On a tie (same index), prefer the shorter needle: it advances the
+        // cursor the least, so it can never hide text a later step needs.
         let best = -1;
         let bestLen = 0;
         for (const needle of alternatives) {
           const idx = trace.indexOf(needle, cursor);
-          if (idx !== -1 && (best === -1 || idx < best)) {
+          if (idx !== -1 && (best === -1 || idx < best || (idx === best && needle.length < bestLen))) {
             best = idx;
             bestLen = needle.length;
           }
