@@ -179,3 +179,6 @@ export { SkillsManager, getSkillsManager, resetSkillsManager } from './runners/s
 
 // Recommendations types
 export type { Recommendation, Recommendations } from './recommendations/types.js';
+
+// Mock HTTP runtime — real auth0 CLI against a local mock Management API
+export * as mockHttp from './mock-http/index.js';

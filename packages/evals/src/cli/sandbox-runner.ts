@@ -10,8 +10,9 @@
  * docker/entrypoint.sh inside the sandbox container.
  */
 
-import { writeFileSync, renameSync } from 'node:fs';
+import { writeFileSync, renameSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { config as loadDotenv } from 'dotenv';
 
 import {
@@ -29,11 +30,12 @@ import {
   logger,
   serialiseAgent,
   serialiseError,
+  mockHttp,
 } from '@a0/evals-core';
 import type { AgentType } from '@a0/evals-core';
 import { generateRunRecommendations } from '../recommendations/index.js';
 
-import { LLM_API_KEY_ENV } from './constants.js';
+import { LLM_API_KEY_ENV, SANDBOX_MOCK_CERT_DIR } from './constants.js';
 import { score } from '../scorer.js';
 import { ClaudeCodeRunner } from '../runners/claude-code/runner.js';
 import { CopilotCliRunner } from '../runners/copilot/runner.js';
@@ -100,7 +102,18 @@ async function main(): Promise<void> {
 
   const evalDef = await loadEval(evalConfig, frameworkRoot);
 
+  // HTTP-mocked CLI evals: start a mock Management API on loopback and point the
+  // real auth0 CLI at it (see mock-http/lifecycle.ts). Torn down in `finally`.
+  let mockCli: Awaited<ReturnType<typeof mockHttp.startMockCliForEval>> | undefined;
+
   try {
+    if (evalDef.httpRoutesDir) {
+      mockCli = await mockHttp.startMockCliForEval({
+        httpRoutesDir: evalDef.httpRoutesDir,
+        stateDir: mkdtempSync(join(tmpdir(), 'a0-mock-state-')),
+        certDir: SANDBOX_MOCK_CERT_DIR,
+      });
+    }
     if (evalDef.setupCommand) {
       logger.info(`  [Setup] Running: ${evalDef.setupCommand}`);
       runSetupCommand(workspace, evalDef.setupCommand);
@@ -167,6 +180,8 @@ async function main(): Promise<void> {
     writeFileSync(tmpPath, JSON.stringify(result, null, 2), 'utf-8');
     renameSync(tmpPath, resultsPath);
     process.exit(1);
+  } finally {
+    await mockCli?.stop();
   }
 }
 

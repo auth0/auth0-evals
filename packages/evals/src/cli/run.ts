@@ -20,6 +20,7 @@
  *   --braintrust       Log results to Braintrust experiment (requires BRAINTRUST_API_KEY)
  */
 
+import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pLimit from 'p-limit';
@@ -136,7 +137,14 @@ async function runAgentJob(
   // (CLAUDE.md / GEMINI.md / AGENTS.md). Must run before both the docker and
   // local execution paths so every runner picks it up.
   writeAgentGuidance(workspace, agentType, evalDef.compileCommand);
+  // HTTP-mocked CLI eval running locally (--dangerously-skip-sandbox): started
+  // below only on the non-sandbox path; the sandbox path handles it in-container.
+  let mockCli: Awaited<ReturnType<typeof import('@a0/evals-core').mockHttp.startMockCliForEval>> | undefined;
   try {
+    if (!sandbox && evalDef.httpRoutesDir) {
+      mockCli = await startLocalMockCli(evalDef.httpRoutesDir);
+    }
+
     if (!sandbox && evalDef.setupCommand) {
       runSetupCommand(workspace, evalDef.setupCommand);
     }
@@ -201,9 +209,52 @@ async function runAgentJob(
       agent_type: agentType,
     };
   } finally {
+    await mockCli?.stop();
     if (!keepWorkspace) {
       cleanupWorkspace(workspace);
     }
+  }
+}
+
+/**
+ * Starts the mock Management API for a local (`--dangerously-skip-sandbox`) run.
+ *
+ * Best-effort: it seeds an ISOLATED temp HOME (never the dev's ~/.config/auth0)
+ * and trusts the mock CA via SSL_CERT_FILE so the real Go auth0 CLI accepts the
+ * mock's TLS without touching the system trust store. Because it mutates shared
+ * process.env (HOME/SSL_CERT_FILE), local HTTP-mocked runs must use `--workers 1`.
+ */
+async function startLocalMockCli(httpRoutesDir: string) {
+  const { mockHttp } = await import('@a0/evals-core');
+  const { mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join: joinPath } = await import('node:path');
+
+  const repoRoot = findLocalRepoRoot();
+  const certDir = joinPath(repoRoot, 'docker', 'mock-ca');
+
+  // Isolated HOME so the seeded CLI config never overwrites the developer's own.
+  const homeDir = mkdtempSync(join(tmpdir(), 'a0-mock-home-'));
+  process.env.HOME = homeDir;
+  // Trust the mock CA for the Go auth0 CLI (system store untouched).
+  process.env.SSL_CERT_FILE = joinPath(certDir, 'mockCA.pem');
+
+  return mockHttp.startMockCliForEval({
+    httpRoutesDir,
+    stateDir: mkdtempSync(join(tmpdir(), 'a0-mock-state-')),
+    certDir,
+    homeDir,
+  });
+}
+
+/** Walks up from cwd to the monorepo root (the dir with docker/Dockerfile). */
+function findLocalRepoRoot(): string {
+  let dir = process.cwd();
+  for (;;) {
+    if (existsSync(join(dir, 'docker', 'Dockerfile'))) return dir;
+    const parent = join(dir, '..');
+    if (parent === dir) throw new Error('Could not find monorepo root (looking for docker/Dockerfile)');
+    dir = parent;
   }
 }
 

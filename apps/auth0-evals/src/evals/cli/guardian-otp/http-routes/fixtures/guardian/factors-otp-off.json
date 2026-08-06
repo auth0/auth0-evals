@@ -1,0 +1,6 @@
+[
+  { "name": "otp", "enabled": false },
+  { "name": "sms", "enabled": false },
+  { "name": "push-notification", "enabled": false },
+  { "name": "email", "enabled": false }
+]

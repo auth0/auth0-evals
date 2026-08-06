@@ -366,6 +366,14 @@ Authenticated HTTP MCP servers are configured with an `auth` block (`tokenUrl`, 
 
 ---
 
+## HTTP-mocked CLI evals
+
+Tenant-config evals run the **real `auth0` CLI** against a local mock Management API instead of a live tenant — hermetic, no auth, no network. An eval opts in by shipping an `http-routes/` dir next to `PROMPT.md`; no frontmatter is needed. The loader sets `EvalDefinition.httpRoutesDir` and auto-attaches the shared CLI platform context (`src/evals/contexts/cli-platform/AGENTS.md`).
+
+Before the agent runs, the lifecycle (`packages/evals-core/src/mock-http/`) starts a mock HTTPS server on `127.0.0.1:8443`, seeds a fake authenticated tenant into the CLI config (dummy token, far-future expiry) so the CLI targets the mock and skips login, and sets `AUTH0_CLI_ANALYTICS=false`. Interception is DNS+TLS, not config-pointing: the CLI has no base-URL override and no `--insecure`, so the mock CA (`docker/mock-ca/mockCA.pem`, test-only, signs one loopback leaf) is baked into the container trust store at image build; the real `auth0` binary (pinned in `docker/Dockerfile`) trusts it via the system store. Routes are declarative (`<surface>.routes.json` + `fixtures/` + optional `handlers.js`) with `create`/`set`/`reflect`/`static`/`handler` verbs and filesystem-backed state for read-after-write; unmatched writes → `{"ok":true}`, reads → `{}`. Grade with event graders (`ranCommand`/`ranCommandOneOf`, L4). Full guide: [docs/ADDING_EVALS.md](docs/ADDING_EVALS.md); internals: `packages/evals-core/src/mock-http/README.md`. Local `--dangerously-skip-sandbox` runs of these evals require `--workers 1`.
+
+---
+
 ## Models
 
 ### Known working models

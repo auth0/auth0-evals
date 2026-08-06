@@ -1,0 +1,19 @@
+{
+  "surface": "guardian",
+  "consumedBy": ["guardian_otp_cli"],
+  "routes": [
+    {
+      "match": "PUT guardian/factors/otp",
+      "verb": "create",
+      "state": "guardian.otp",
+      "body": "otp-enabled.json"
+    },
+    {
+      "match": "GET guardian/factors",
+      "verb": "reflect",
+      "state": "guardian.otp",
+      "present": "factors-otp-on.json",
+      "absent": "factors-otp-off.json"
+    }
+  ]
+}

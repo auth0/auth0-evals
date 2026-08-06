@@ -46,6 +46,13 @@ export const DOCKER_WORKSPACE_MOUNT = '/workspace';
 export const SANDBOX_RESULTS_FILE = '.eval-results.json';
 
 /**
+ * In-container directory holding the mock Management API leaf cert/key
+ * (`mockServer.pem` / `mockServer.key`). Copied here by docker/Dockerfile; its
+ * CA is added to the container trust store at build time.
+ */
+export const SANDBOX_MOCK_CERT_DIR = '/app/docker/mock-ca';
+
+/**
  * Parses the `--tools` flag value into a sorted, deduplicated, lowercase array.
  *
  * Supports both bare comma-separated values (`skills,mcp`) and the brace-wrapped
