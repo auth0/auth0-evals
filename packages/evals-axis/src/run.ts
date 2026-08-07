@@ -21,6 +21,8 @@ export interface RunAxisOptions extends RunAuth0GradersOptions {
   onGraderResults?: (scenarioKey: string, agentName: string, results: GraderResult[]) => void;
   /** Called with the AXIS score after scoring completes for each result. Defaults to console logging. */
   onAxisScore?: (scenarioKey: string, agentName: string, score: ScoredOutput['results'][number]['score']) => void;
+  /** When true, adapters capture raw stdout lines for debugging (written as .raw.ndjson files). */
+  debug?: boolean;
 }
 
 export interface RunAxisResult {
@@ -44,7 +46,7 @@ export interface RunAxisResult {
  * settings — runGraders() reads them via the framework config singleton.
  */
 export async function runAxis(options: RunAxisOptions): Promise<RunAxisResult> {
-  const { configPath, onGraderResults, onAxisScore, ...graderOptions } = options;
+  const { configPath, onGraderResults, onAxisScore, debug, ...graderOptions } = options;
 
   // Collect grader results for each job so callers can build reports.
   const allGraderResults = new Map<string, GraderResult[]>();
@@ -52,6 +54,7 @@ export async function runAxis(options: RunAxisOptions): Promise<RunAxisResult> {
   // Step 1: run agents, fire our grader hook after each job.
   const runOutput = await run({
     ...(configPath ? { configPath } : {}),
+    ...(debug ? { debug } : {}),
     onResult: async (result) => {
       try {
         const graderResults = await runAuth0Graders(result, graderOptions);

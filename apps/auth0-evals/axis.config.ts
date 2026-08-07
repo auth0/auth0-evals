@@ -6,8 +6,11 @@
  * automatically adds a new AXIS scenario with no extra maintenance.
  *
  * Run:
- *   npm run axis          # programmatic runner (includes auth0-evals graders)
- *   npx axis run          # AXIS CLI only (no grader overlay)
+ *   npm run axis                                          # all evals, all agents
+ *   npm run axis -- --eval react_quickstart               # single eval
+ *   npm run axis -- --eval react_quickstart --agent codex # single eval + agent
+ *   npm run axis -- --workers 4                           # limit parallelism
+ *   npx axis run                                          # AXIS CLI only (no grader overlay)
  */
 
 import { readFileSync } from 'node:fs';
@@ -22,6 +25,15 @@ const APP_ROOT = fileURLToPath(new URL('.', import.meta.url));
 
 // Optional: AXIS_EVAL=react_quickstart npm run axis  (comma-separated for multiple)
 const evalFilter = process.env.AXIS_EVAL ? new Set(process.env.AXIS_EVAL.split(',').map((s) => s.trim())) : null;
+
+// Optional: AXIS_AGENT=claude-code npm run axis  (comma-separated for multiple)
+const agentFilter = process.env.AXIS_AGENT ? new Set(process.env.AXIS_AGENT.split(',').map((s) => s.trim())) : null;
+
+// Optional: AXIS_WORKERS=4 npm run axis  (parallel job limit)
+const workers = process.env.AXIS_WORKERS ? parseInt(process.env.AXIS_WORKERS, 10) : undefined;
+
+// Optional: AXIS_MODEL=claude-sonnet-5 npm run axis  (override model for all agents)
+const modelOverride = process.env.AXIS_MODEL?.trim() || undefined;
 
 const evalConfigs = discoverEvals('src/evals', APP_ROOT).filter((cfg) => evalFilter === null || evalFilter.has(cfg.id));
 
@@ -62,12 +74,32 @@ const scenarios = evalConfigs.map((cfg) => {
   };
 });
 
+// All agents supported by this config. AXIS_AGENT filters to a subset.
+// Models match eval.config.js's known list so proxy aliases resolve correctly.
+// Override the default for all agents with --model (or AXIS_MODEL env var).
+const allAgents: AxisConfig['agents'] = [
+  { agent: 'claude-code', model: 'claude-sonnet-5' },
+  { agent: 'codex', model: 'gpt-5.6-luna' },
+  { agent: 'gemini', model: 'gemini-3.1-pro-preview' },
+];
+
+const filteredAgents =
+  agentFilter === null ? allAgents : allAgents.filter((a) => typeof a !== 'string' && agentFilter.has(a.agent));
+
+const agents = modelOverride
+  ? filteredAgents.map((a) => (typeof a === 'string' ? a : { ...a, model: modelOverride }))
+  : filteredAgents;
+
 export default {
   scenarios,
-  // The AXIS claude-code adapter uses the claude CLI with ANTHROPIC_BASE_URL
-  // pointing to the proxy's /anthropic endpoint, which requires full Bedrock IDs.
-  agents: [{ agent: 'claude-code', model: 'global.anthropic.claude-opus-4-8' }],
+  agents,
+  // AXIS passes through the default API key vars automatically. These extra
+  // entries pass through the per-adapter proxy base URL env vars set by
+  // apps/auth0-evals/src/axis/run.ts at startup — without them AXIS strips
+  // the vars before the CLI process sees them.
+  env: ['ANTHROPIC_BASE_URL', 'OPENAI_BASE_URL', 'GOOGLE_GEMINI_BASE_URL', 'NPM_CONFIG_REGISTRY'],
   settings: {
+    ...(workers !== undefined ? { concurrency: workers } : {}),
     limits: {
       scenario: {
         // 30 minutes per scenario — matches auth0-evals runner task timeout.

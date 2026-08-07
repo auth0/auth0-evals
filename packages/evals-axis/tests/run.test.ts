@@ -199,6 +199,24 @@ describe('runAxis', () => {
     );
   });
 
+  it('forwards debug:true to run() when set', async () => {
+    const result = makeRunResult();
+
+    mockRun.mockImplementation(async () => ({
+      version: '1',
+      timestamp: '2026-01-01T00:00:00Z',
+      durationMs: 1000,
+      summary: { total: 1, completed: 1, failed: 0 },
+      results: [result],
+    }));
+    mockRunAuth0Graders.mockResolvedValue([]);
+    mockScoreResults.mockResolvedValue(makeScoredOutput(result));
+
+    await runAxis({ frameworkRoot: '/tmp', apiKey: 'key', debug: true });
+
+    expect(mockRun.mock.calls[0][0]).toMatchObject({ debug: true });
+  });
+
   it('strips workingDirectory before passing results to scoreResults', async () => {
     const result = makeRunResult({ workingDirectory: '/tmp/workspace' });
 

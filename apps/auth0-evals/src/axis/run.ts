@@ -9,6 +9,8 @@
  *
  * Usage:
  *   npm run axis
+ *   npm run axis -- --eval react_quickstart --agent claude-code --model claude-sonnet-5
+ *   npm run axis -- --output /tmp/scores.json --debug
  */
 
 /* eslint-disable no-console */
@@ -18,6 +20,7 @@ import { setFrameworkConfig, loadConfig } from '@a0/evals-core';
 import { renderHtml } from '@a0/evals-reporter';
 import { config as loadDotenv } from 'dotenv';
 import { writeFileSync } from 'node:fs';
+import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -30,8 +33,44 @@ const APP_ROOT = join(__dirname, '..', '..');
 // Load .env before anything else so all downstream code sees the vars.
 loadDotenv({ path: join(APP_ROOT, '.env') });
 
-// Bridge auth0-evals env vars to the names AXIS's claude-code adapter expects.
-// AXIS checks for ANTHROPIC_API_KEY at startup; our .env uses LLM_API_KEY.
+// Parse CLI flags. Values are merged into process.env so axis.config.ts picks
+// them up when AXIS loads it inside run(). Flags take precedence over env vars.
+//
+//   --eval react_quickstart          filter to one scenario (repeatable)
+//   --agent codex                    filter to one agent (repeatable)
+//   --workers 4                      parallel job limit
+//   --model claude-sonnet-5          override model for all configured agents
+//   --output /path/scores.json       where to write scores-axis.json (default: APP_ROOT)
+//   --debug                          capture raw adapter stdout for debugging
+//
+// Examples:
+//   npm run axis -- --eval react_quickstart
+//   npm run axis -- --eval react_quickstart --agent codex --workers 2
+//   npm run axis -- --agent claude-code --model claude-sonnet-5
+const { values: flags } = parseArgs({
+  args: process.argv.slice(2),
+  options: {
+    eval: { type: 'string', multiple: true, short: 'e' },
+    agent: { type: 'string', multiple: true, short: 'a' },
+    workers: { type: 'string', short: 'w' },
+    model: { type: 'string', short: 'm' },
+    output: { type: 'string', short: 'o' },
+    debug: { type: 'boolean' },
+  },
+  strict: false,
+});
+
+if (flags.eval?.length) process.env.AXIS_EVAL = flags.eval.join(',');
+if (flags.agent?.length) process.env.AXIS_AGENT = flags.agent.join(',');
+if (typeof flags.workers === 'string') process.env.AXIS_WORKERS = flags.workers;
+if (typeof flags.model === 'string') process.env.AXIS_MODEL = flags.model;
+
+// Bridge auth0-evals env vars to the names each AXIS adapter expects.
+// AXIS always passes through the default API key vars (ANTHROPIC_API_KEY,
+// CODEX_API_KEY, GEMINI_API_KEY) but filters out everything else — base URL
+// vars must be listed in axis.config.ts's `env` array to reach the CLI.
+
+// claude-code: AXIS checks ANTHROPIC_API_KEY; our .env uses LLM_API_KEY.
 if (!process.env.ANTHROPIC_API_KEY && process.env.LLM_API_KEY) {
   process.env.ANTHROPIC_API_KEY = process.env.LLM_API_KEY;
 }
@@ -39,6 +78,30 @@ if (!process.env.ANTHROPIC_API_KEY && process.env.LLM_API_KEY) {
 // straight to Anthropic which rejects non-Anthropic keys in CI.
 if (!process.env.ANTHROPIC_BASE_URL && process.env.CLAUDE_PROXY_BASE_URL) {
   process.env.ANTHROPIC_BASE_URL = process.env.CLAUDE_PROXY_BASE_URL.replace(/\/$/, '');
+}
+
+// codex: AXIS checks CODEX_API_KEY; the codex CLI reads OPENAI_BASE_URL
+// (OpenAI SDK convention) for the proxy endpoint, appended with /v1.
+if (!process.env.CODEX_API_KEY && process.env.LLM_API_KEY) {
+  process.env.CODEX_API_KEY = process.env.LLM_API_KEY;
+}
+if (!process.env.OPENAI_BASE_URL) {
+  const codexBase = process.env.CODEX_PROXY_BASE_URL ?? process.env.LLM_PROXY_BASE_URL;
+  if (codexBase) {
+    const normalized = codexBase.replace(/\/+$/, '');
+    process.env.OPENAI_BASE_URL = normalized.endsWith('/v1') ? normalized : `${normalized}/v1`;
+  }
+}
+
+// gemini: AXIS checks GEMINI_API_KEY; the Gemini CLI reads GOOGLE_GEMINI_BASE_URL.
+if (!process.env.GEMINI_API_KEY && process.env.LLM_API_KEY) {
+  process.env.GEMINI_API_KEY = process.env.LLM_API_KEY;
+}
+if (!process.env.GOOGLE_GEMINI_BASE_URL) {
+  const geminiBase = process.env.GEMINI_PROXY_BASE_URL ?? process.env.LLM_PROXY_BASE_URL;
+  if (geminiBase) {
+    process.env.GOOGLE_GEMINI_BASE_URL = geminiBase.replace(/\/+$/, '');
+  }
 }
 
 // Load auth0-evals framework config so runGraders() has access to judge model,
@@ -56,6 +119,7 @@ const { scoredOutput, graderResults } = await runAxis({
   configPath: join(APP_ROOT, 'axis.config.ts'),
   frameworkRoot: APP_ROOT,
   apiKey: process.env.LLM_API_KEY ?? '',
+  ...(flags.debug === true ? { debug: true } : {}),
 });
 
 console.log(
@@ -65,7 +129,7 @@ console.log(
 
 // Write scores-axis.json and report-axis.html so results appear in npm run report.
 const scores = buildAxisScores(scoredOutput, graderResults);
-const scoresPath = join(APP_ROOT, 'scores-axis.json');
+const scoresPath = typeof flags.output === 'string' ? flags.output : join(APP_ROOT, 'scores-axis.json');
 writeFileSync(scoresPath, JSON.stringify(scores, null, 2), 'utf-8');
 console.log(`[axis] Scores: ${scoresPath}`);
 
