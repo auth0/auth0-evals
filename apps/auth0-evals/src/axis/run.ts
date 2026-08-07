@@ -16,7 +16,7 @@
 /* eslint-disable no-console */
 
 import { runAxis, buildAxisScores } from '@a0/evals-axis';
-import { setFrameworkConfig, loadConfig } from '@a0/evals-core';
+import { setFrameworkConfig, loadConfig, discoverEvals } from '@a0/evals-core';
 import { renderHtml } from '@a0/evals-reporter';
 import { config as loadDotenv } from 'dotenv';
 import { writeFileSync } from 'node:fs';
@@ -128,7 +128,8 @@ console.log(
 );
 
 // Write scores-axis.json and report-axis.html so results appear in npm run report.
-const scores = buildAxisScores(scoredOutput, graderResults);
+const evalCategories = Object.fromEntries(discoverEvals('src/evals', APP_ROOT).map((cfg) => [cfg.id, cfg.category]));
+const scores = buildAxisScores(scoredOutput, graderResults, evalCategories);
 const scoresPath = typeof flags.output === 'string' ? flags.output : join(APP_ROOT, 'scores-axis.json');
 writeFileSync(scoresPath, JSON.stringify(scores, null, 2), 'utf-8');
 console.log(`[axis] Scores: ${scoresPath}`);
