@@ -70,12 +70,23 @@ export function notContainsInSource(
   };
 }
 
-export function judge(question: string, level?: GraderLevel): GraderDef {
+/** Options for the `judge` primitive. */
+export interface JudgeOptions {
+  /**
+   * Append the agent's successful command trace to the judge's input. Use for
+   * evals whose artifact is CLI invocations rather than files (no files to
+   * inspect). Defaults to false, so file-based judges are unaffected.
+   */
+  includeCommandTrace?: boolean;
+}
+
+export function judge(question: string, level?: GraderLevel, options: JudgeOptions = {}): GraderDef {
   return {
     kind: 'judge',
     question,
     name: question,
     level,
+    includeCommandTrace: options.includeCommandTrace ?? false,
   };
 }
 

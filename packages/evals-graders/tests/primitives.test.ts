@@ -182,6 +182,16 @@ describe('judge', () => {
     const def = judge('Is this correct?');
     expect(def.level).toBeUndefined();
   });
+
+  it('defaults includeCommandTrace to false', () => {
+    const def = judge('Is this correct?');
+    expect(def.includeCommandTrace).toBe(false);
+  });
+
+  it('sets includeCommandTrace when opted in via options', () => {
+    const def = judge('Did the CLI enforce MFA?', undefined, { includeCommandTrace: true });
+    expect(def.includeCommandTrace).toBe(true);
+  });
 });
 
 // ── compiles ──────────────────────────────────────────────────────────────────

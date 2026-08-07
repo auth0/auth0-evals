@@ -95,7 +95,7 @@ Graders define the acceptance criteria. Export a single `defineGraders()` functi
 | `notContains(needle, description?, level?, options?)` | No workspace file contains the substring (case-sensitive by default) |
 | `notContainsInSource(needle, description?, level?, options?)` | No **source** file contains the substring (skips `.env`, `.json`, `.plist`, config files) |
 | `matches(pattern, description?, level?)` | Any workspace file matches the regex pattern |
-| `judge(question, level?)` | An LLM judge answers "yes" given the full workspace contents |
+| `judge(question, level?, options?)` | An LLM judge answers "yes" given the full workspace contents. Pass `{ includeCommandTrace: true }` to also append the agent's successful shell commands (for CLI-only evals with no files to inspect) |
 | `ranCommand(command, args, description, level)` | Agent ran a successful shell command containing `command` and all `args` substrings |
 | `ranCommandOneOf(commands, description, level)` | Agent ran at least one successful command from the list (substring match) |
 | `wroteFile(path, description, level, expected?)` | Agent wrote a file whose path contains the substring. With optional `expected` (string or string array), the combined content of all writes to that path must also contain every `expected` substring |
