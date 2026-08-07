@@ -6,6 +6,12 @@ const remoteSkillsBranch = process.env.REMOTE_SKILLS_BRANCH || 'main';
 // required at runtime (the CLI fails fast if proxy.baseUrl is empty).
 const PROXY_BASE_URL = process.env.LLM_PROXY_BASE_URL ?? '';
 
+// Name of the HTTP header the proxy authenticates on (e.g. `x-litellm-api-key`).
+// Unset by default, which leaves the framework on its provider-native API-key
+// path. When set, the token in LLM_PROXY_TOKEN rides this header instead —
+// though LLM_API_KEY still takes precedence whenever it is exported.
+const PROXY_AUTH_HEADER_NAME = process.env.LLM_PROXY_AUTH_HEADER ?? '';
+
 // Per-agent proxy overrides. Each falls back to the shared PROXY_BASE_URL when
 // its agent-specific env var is unset.
 const CLAUDE_PROXY_BASE_URL = process.env.CLAUDE_PROXY_BASE_URL ?? PROXY_BASE_URL;
@@ -23,6 +29,15 @@ export default {
 
   proxy: {
     baseUrl: PROXY_BASE_URL,
+    ...(PROXY_AUTH_HEADER_NAME
+      ? {
+          authHeader: {
+            name: PROXY_AUTH_HEADER_NAME,
+            valuePrefix: 'Bearer ',
+            tokenEnv: 'LLM_PROXY_TOKEN',
+          },
+        }
+      : {}),
   },
 
   agents: {
@@ -108,7 +123,7 @@ export default {
     // Host env vars forwarded into the Docker sandbox (names only; values resolved
     // from process.env at launch). Needed so the authenticated auth0-hosted-mcp
     // server can mint its token inside the container.
-    passthroughEnv: ['MCP_TENANT_DOMAIN', 'MCP_CLIENT_ID', 'MCP_CLIENT_SECRET'],
+    passthroughEnv: ['MCP_TENANT_DOMAIN', 'MCP_CLIENT_ID', 'MCP_CLIENT_SECRET', 'LLM_PROXY_TOKEN'],
   },
 
   braintrust: {

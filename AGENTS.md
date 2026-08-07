@@ -327,6 +327,47 @@ else: score = 100 × passed / relevant.length
 | Gemini CLI  | `gemini-cli`  | Gemini models via Gemini CLI         | Auto-selected for `gemini-*` models when no `--agent-type` flag |
 | Codex CLI   | `codex`       | GPT models via OpenAI Codex CLI      | Auto-selected for `gpt-*` models when no `--agent-type` flag    |
 
+### Proxy auth header
+
+By default every runner authenticates by injecting `LLM_API_KEY` into the provider's native credential var (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, or the Copilot provider's `apiKey`).
+
+When a proxy requires its own header instead, declare it in `eval.config.js`:
+
+```javascript
+proxy: {
+  baseUrl: PROXY_BASE_URL,
+  authHeader: { name: 'x-litellm-api-key', valuePrefix: 'Bearer ', tokenEnv: 'LLM_PROXY_TOKEN' },
+}
+```
+
+In this app the header name comes from the `LLM_PROXY_AUTH_HEADER` env var, and the `authHeader` block is omitted entirely when that variable is unset.
+
+The framework then sends `x-litellm-api-key: Bearer <token>` on every proxy request — from all four agent runners, the baseline runner, the LLM judge, and the recommendation generator — and sets the provider-native key var to the inert placeholder `unused-see-proxy-auth-header`. The placeholder is required rather than cosmetic: the Gemini CLI's auth validator rejects a run with an empty `GEMINI_API_KEY`, and the Claude binary requires one of its credential vars to be set.
+
+**`LLM_API_KEY` takes precedence.** When it is set, the framework uses the provider-native API key and ignores `proxy.authHeader` — logging one line saying so, so the ignored config is never silent. Existing deployments therefore keep working unchanged, and switching to the custom header is an explicit act: **unset `LLM_API_KEY`** so the header path takes over. Because the header path requires that variable to be absent, the CLI no longer fails fast on a missing `LLM_API_KEY` when `proxy.authHeader` is configured.
+
+Two credentials, two switches:
+
+| `LLM_API_KEY` | `proxy.authHeader` | What authenticates |
+| ------------- | ------------------ | ------------------ |
+| set           | unset              | provider-native API key (default) |
+| set           | configured         | provider-native API key — header ignored |
+| unset         | configured         | the configured header, token from `tokenEnv` |
+| unset         | unset              | nothing — CLI exits with an error |
+
+Per-runner mechanism:
+
+| Runner      | Mechanism                                                                                                                                                 |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| claude-code | `ANTHROPIC_CUSTOM_HEADERS` env var                                                                                                                        |
+| codex       | `[model_providers.llmproxy.env_http_headers]` in `config.toml`, referencing the `LLM_PROXY_AUTH_TOKEN` env var so the token is never written to disk     |
+| gemini-cli  | `GEMINI_CLI_CUSTOM_HEADERS` env var (requires gemini-cli ≥ 0.51)                                                                                         |
+| copilot     | `ProviderConfig.headers`                                                                                                                                  |
+
+**Sandbox:** the token's env var is app-named, so add it to `sandbox.passthroughEnv` in `eval.config.js` — otherwise sandboxed runs fail to authenticate while host runs succeed. If `proxy.authHeader` is set but its `tokenEnv` is unset, the framework logs a warning naming the variable and falls back to the API-key path.
+
+**Do not "simplify" the gemini-cli loopback proxy.** When `GEMINI_PROXY_BASE_URL` points at a loopback port (e.g. `http://127.0.0.1:9876`), that is `scripts/gemini-sse-proxy.js` in the runner repo — an SSE-unwrapping workaround for a LiteLLM v1.86.0+ bug that double-wraps `streamGenerateContent` responses. It is unrelated to authentication (it forwards headers verbatim) and is still required: bypassing it makes Gemini runs fail with `TypeError: fetch failed sending request` after nine retries, while with it running the same eval passes. The auth header travels through it unchanged.
+
 ### Auto-routing logic
 
 When `--agent-type` is **not** specified, the runner is selected by model prefix:
@@ -399,6 +440,7 @@ The judge sends `thinking: { type: 'disabled' }`. Opus 5 runs adaptive thinking 
 | Setting              | Value                                            |
 | -------------------- | ------------------------------------------------ |
 | Base URL             | Configured in `eval.config.js` (`proxy.baseUrl`) |
+| Proxy auth header    | Optional — `proxy.authHeader` in `eval.config.js` |
 | Judge model          | `claude-opus-5`                                  |
 | Judge max tokens     | 4096                                             |
 | Judge max code chars | 32,768                                           |

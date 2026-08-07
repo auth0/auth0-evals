@@ -31,11 +31,13 @@ const mockGetFrameworkConfig = vi.hoisted(() =>
   }),
 );
 const mintMcpTokenMock = vi.hoisted(() => vi.fn());
+const mockResolveProxyAuthHeader = vi.hoisted(() => vi.fn().mockReturnValue(undefined));
 
 vi.mock('@a0/evals-core', async () => ({
   ...(await vi.importActual('@a0/evals-core')),
   getFrameworkConfig: mockGetFrameworkConfig,
   mintMcpToken: mintMcpTokenMock,
+  resolveProxyAuthHeader: mockResolveProxyAuthHeader,
 }));
 
 // ── Mock spawn ────────────────────────────────────────────────────────────────

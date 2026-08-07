@@ -25,9 +25,10 @@ flowchart TB
         subgraph CLI["1 · Kick off — @a0/evals"]
             direction TB
             Bin["Start a run<br/>bin.ts (local or CI)"]
+            Auth["Resolve credential<br/>validateApiKey() + resolveProxyAuthHeader()<br/>LLM_API_KEY wins when set"]
             Matrix["Plan the work<br/>buildJobList()<br/>eval × model × mode × tools"]
             Pool["Run jobs in parallel<br/>pLimit(workers) · spawnEval()"]
-            Bin --> Matrix --> Pool
+            Bin --> Auth --> Matrix --> Pool
         end
 
         subgraph Setup["2 · Prepare each job — @a0/evals-core"]
@@ -76,12 +77,14 @@ flowchart TB
     Runners ==> Engine
     Judge ==> Scorer
     Recs ==> Results
+    Auth -. credential .-> Runners
+    Auth -. credential .-> Judge
 
     classDef control fill:#E7F0FF,stroke:#4C6EF5,color:#1A1A2E;
     classDef work    fill:#FFE8CC,stroke:#E8590C,color:#1A1A2E;
     classDef data    fill:#D3F9D8,stroke:#2F9E44,color:#1A1A2E;
 
-    class Bin,Matrix,Pool,Discover,WS,Engine,Judge,Scorer,Recs control;
+    class Bin,Auth,Matrix,Pool,Discover,WS,Engine,Judge,Scorer,Recs control;
     class Runners,Invest work;
     class Results,Report,BT data;
 
@@ -194,15 +197,18 @@ sequenceDiagram
     end
 
     U->>CLI: a0-eval --eval react_quickstart --mode agent --tools mcp
+    CLI->>CLI: validateApiKey() + resolveProxyAuthHeader()
+    Note over CLI: LLM_API_KEY wins when set;<br/>else proxy.authHeader + its tokenEnv
     CLI->>CLI: buildJobList() → matrix
 
     loop per job [eval × model × mode × tools]
         CLI->>CLI: spawnEval() — one subprocess
         CLI->>Exec: setupWorkspace() + dispatch (Docker / local)
-        Exec->>Agent: run task in workspace
+        Note over Exec: sandbox.passthroughEnv forwards the<br/>token var into the container
+        Exec->>Agent: run task in workspace (credential injected —<br/>native key header, or the configured proxy header)
         Agent-->>Exec: edited workspace + RunRecord trace
         Exec->>Grade: runGraders(workspace, levels)
-        Grade->>Grade: LLM-judge for judge graders
+        Grade->>Grade: LLM-judge for judge graders (same credential resolution)
         Grade-->>Score: GraderResult[]
         Score->>Score: 8 dimensions → overall + grade
         opt skills or MCP active
@@ -272,7 +278,7 @@ By default each job runs inside a hardened, ephemeral **Docker sandbox**. The co
 
 ## Framework vs. consumer
 
-The **framework** ([auth0/auth0-evals](https://github.com/auth0/auth0-evals)) — the engine, graders, runners, and eval suite — is environment-agnostic. A **consumer** supplies only two things to run it: a settings file (`eval.config.js` — which models, docs MCP server, and skills to use) and an access key (`LLM_API_KEY`, read from the env). Everything environment-specific lives in the consumer, so the framework stays clean and behaves identically wherever it runs.
+The **framework** ([auth0/auth0-evals](https://github.com/auth0/auth0-evals)) — the engine, graders, runners, and eval suite — is environment-agnostic. A **consumer** supplies only two things to run it: a settings file (`eval.config.js` — which models, docs MCP server, and skills to use) and a credential — either `LLM_API_KEY` in the env, or `proxy.authHeader` plus its token var for a proxy that authenticates on its own header (`LLM_API_KEY` wins when both are present). Everything environment-specific lives in the consumer, so the framework stays clean and behaves identically wherever it runs.
 
 | Consumer | What it is |
 |---|---|

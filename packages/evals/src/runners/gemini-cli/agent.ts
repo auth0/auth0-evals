@@ -31,6 +31,8 @@ import {
   makeSessionId,
   mintMcpToken,
   mcpBearerTokenEnvVar,
+  resolveProxyAuthHeader,
+  PLACEHOLDER_API_KEY,
 } from '@a0/evals-core';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/evals-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
@@ -237,7 +239,18 @@ export async function runGeminiCliAgent(
   for (const [key, value] of Object.entries(mcpBearerTokens)) {
     geminiEnv[key] = value;
   }
-  if (process.env[LLM_API_KEY_ENV]) {
+  // Gemini CLI 0.51+ reads GEMINI_CLI_CUSTOM_HEADERS (comma-separated
+  // `Name: Value`) and merges it into the headers sent to the model endpoint, so
+  // no header-injecting shim is needed. GEMINI_API_KEY must still be non-empty —
+  // validateAuthMethod rejects a `gemini-api-key` run without it — so it gets an
+  // inert placeholder while the real credential rides the custom header.
+  const proxyAuth = resolveProxyAuthHeader();
+  if (proxyAuth) {
+    geminiEnv.GOOGLE_GEMINI_BASE_URL = getAgentProxyBaseUrl('gemini-cli');
+    geminiEnv.GEMINI_CLI_CUSTOM_HEADERS = `${proxyAuth.name}: ${proxyAuth.value}`;
+    geminiEnv.GEMINI_API_KEY = PLACEHOLDER_API_KEY;
+    logger.info(`[GeminiCLI] Proxy auth header: ${proxyAuth.name}`);
+  } else if (process.env[LLM_API_KEY_ENV]) {
     geminiEnv.GOOGLE_GEMINI_BASE_URL = getAgentProxyBaseUrl('gemini-cli');
     geminiEnv.GEMINI_API_KEY = process.env[LLM_API_KEY_ENV]!;
   } else {

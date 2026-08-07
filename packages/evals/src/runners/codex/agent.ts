@@ -39,6 +39,8 @@ import {
   makeSessionId,
   mintMcpToken,
   mcpBearerTokenEnvVar,
+  resolveProxyAuthHeader,
+  PLACEHOLDER_API_KEY,
 } from '@a0/evals-core';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/evals-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
@@ -51,6 +53,17 @@ export const CODEX_MODEL_ID = 'codex';
 
 /** Default model for the Codex CLI runner. */
 export const CODEX_DEFAULT_MODEL = 'gpt-5.6-sol';
+
+/**
+ * Env var the proxy auth token is injected under inside the Codex subprocess.
+ *
+ * Fixed rather than the app's configured `tokenEnv`: `filteredEnv()` strips
+ * everything outside its allowlist, so the app-facing name would not survive into
+ * the subprocess, and a fixed name cannot collide with a Codex config key.
+ * `config.toml` references this name via `env_http_headers`, so the token itself
+ * is never written to disk.
+ */
+const CODEX_PROXY_AUTH_TOKEN_ENV = 'LLM_PROXY_AUTH_TOKEN';
 
 /**
  * Writes Codex config.toml to configure a custom proxy provider.
@@ -103,12 +116,19 @@ function writeCodexConfig(
   workspace: string,
   mcpServers: Record<string, MCPServerConfig> = {},
   bearerTokenEnvVars: Record<string, string> = {},
+  proxyAuthHeaderName?: string,
 ): void {
   mkdirSync(codexHome, { recursive: true });
   // Resolve canonical path — on macOS /var is a symlink to /private/var.
   // Codex stores trusted project paths canonically, so we must match that.
   const resolvedWorkspace = tomlEscape(realpathSync(workspace));
   const safeBaseUrl = tomlEscape(proxyBaseUrl);
+  // `env_http_headers` maps a header name to an ENV VAR NAME, so the token is
+  // resolved by Codex at runtime and never written to this file — the same
+  // reasoning behind `bearer_token_env_var` for authenticated MCP servers.
+  const authHeaderToml = proxyAuthHeaderName
+    ? `\n[model_providers.llmproxy.env_http_headers]\n"${tomlEscape(proxyAuthHeaderName)}" = "${CODEX_PROXY_AUTH_TOKEN_ENV}"\n`
+    : '';
   const configToml = `model_provider = "llmproxy"
 model_reasoning_effort = "medium"
 
@@ -117,7 +137,7 @@ name = "LLM Proxy"
 base_url = "${safeBaseUrl}"
 env_key = "OPENAI_API_KEY"
 wire_api = "responses"
-
+${authHeaderToml}
 [projects."${resolvedWorkspace}"]
 trust_level = "trusted"
 ${buildMcpToml(mcpServers, bearerTokenEnvVars)}`;
@@ -507,7 +527,9 @@ export async function runCodexAgent(
 
   const normalizedBaseUrl = proxyBaseUrl.replace(/\/+$/, '');
   const codexApiUrl = normalizedBaseUrl.endsWith('/v1') ? normalizedBaseUrl : `${normalizedBaseUrl}/v1`;
-  writeCodexConfig(codexHome, codexApiUrl, workspace, mcpServers, bearerTokenEnvVars);
+  const proxyAuth = resolveProxyAuthHeader();
+  writeCodexConfig(codexHome, codexApiUrl, workspace, mcpServers, bearerTokenEnvVars, proxyAuth?.name);
+  if (proxyAuth) logger.info(`[Codex] Proxy auth header: ${proxyAuth.name}`);
   logger.info(`[Codex] Proxy: ${proxyBaseUrl}`);
   logger.info(`[Codex] CODEX_HOME: ${codexHome}`);
   if (Object.keys(mcpServers).length > 0) {
@@ -521,7 +543,12 @@ export async function runCodexAgent(
 
   // Build environment — inherit from process, injecting the API key for the proxy.
   const codexEnv: Record<string, string> = { ...filteredEnv() };
-  if (process.env[LLM_API_KEY_ENV]) {
+  if (proxyAuth) {
+    // The real credential reaches Codex only through this env var, which
+    // config.toml references by name via env_http_headers.
+    codexEnv[CODEX_PROXY_AUTH_TOKEN_ENV] = proxyAuth.value;
+    codexEnv.OPENAI_API_KEY = PLACEHOLDER_API_KEY;
+  } else if (process.env[LLM_API_KEY_ENV]) {
     codexEnv.OPENAI_API_KEY = process.env[LLM_API_KEY_ENV]!;
   } else {
     logger.warn(`[Codex] ${LLM_API_KEY_ENV} not set — requests will fail.`);
