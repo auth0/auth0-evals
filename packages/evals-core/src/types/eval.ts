@@ -21,5 +21,12 @@ export interface EvalDefinition {
   setupCommand?: string;
   compileCommand?: string;
   skills: string[];
+  /**
+   * Absolute path to the eval's `http-routes/` directory when present. Signals
+   * that this eval drives the real auth0 CLI against a mock Management API: the
+   * run lifecycle starts a mock HTTPS server seeded from these route manifests
+   * and points the CLI at it. Undefined for evals that don't mock the CLI.
+   */
+  httpRoutesDir?: string;
   metadata: Record<string, string>;
 }

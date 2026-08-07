@@ -54,7 +54,15 @@ export async function loadEval(
   const gradersPath = existsSync(distGradersPath) ? distGradersPath : srcGradersPath;
   const graders = await loadGraders(gradersPath);
   const scaffoldDir = resolveScaffoldFromMeta(meta.scaffold, evalPath, frameworkRoot);
-  const scaffold = loadScaffold(scaffoldDir);
+  // Shared platform context (guidance, not code) is auto-attached by convention:
+  // an eval that ships an `http-routes/` dir drives the real auth0 CLI against a
+  // mock Management API, so it inherits the shared CLI platform-context AGENTS.md
+  // — no per-eval frontmatter needed. Merged on top of the scaffold; its AGENTS.md
+  // is injected into the runner's context file by writeAgentGuidance and wins over
+  // a scaffold AGENTS.md if both exist.
+  const httpRoutesDir = resolveHttpRoutesDir(evalPath);
+  const context = httpRoutesDir ? loadSharedCliContext(frameworkRoot) : {};
+  const scaffold = { ...loadScaffold(scaffoldDir), ...context };
 
   const skillsRaw = meta.skills ?? '';
   const skills = skillsRaw
@@ -77,6 +85,7 @@ export async function loadEval(
     setupCommand,
     compileCommand,
     skills,
+    httpRoutesDir,
     metadata: {
       provider_name: meta.provider_name ?? 'Auth0',
       provider_url: meta.provider_url ?? 'auth0.com',
@@ -153,6 +162,36 @@ function resolveScaffoldFromMeta(scaffoldMeta: string | undefined, evalPath: str
   }
 
   return resolvedPath;
+}
+
+// ── HTTP-mocked CLI eval convention ───────────────────────────────────────────
+
+/**
+ * Well-known location of the shared CLI platform-context `AGENTS.md`, relative
+ * to `frameworkRoot`. Auto-attached to any eval that ships an `http-routes/` dir.
+ */
+const CLI_PLATFORM_CONTEXT = 'src/evals/contexts/cli-platform/AGENTS.md';
+
+/**
+ * Returns the absolute path to the eval's `http-routes/` directory if it exists
+ * (the marker that this eval mocks the auth0 CLI's HTTP calls), else undefined.
+ */
+function resolveHttpRoutesDir(evalPath: string): string | undefined {
+  const dir = join(evalPath, 'http-routes');
+  return existsSync(dir) && statSync(dir).isDirectory() ? dir : undefined;
+}
+
+/**
+ * Loads the shared CLI platform-context AGENTS.md as a scaffold entry. Returns
+ * `{ 'AGENTS.md': content }` when the shared file exists, else `{}` (safe when
+ * the app hasn't defined the shared context).
+ */
+function loadSharedCliContext(frameworkRoot: string): Record<string, string> {
+  const contextFile = join(frameworkRoot, CLI_PLATFORM_CONTEXT);
+  if (existsSync(contextFile) && statSync(contextFile).isFile()) {
+    return { 'AGENTS.md': readFileSync(contextFile, 'utf-8') };
+  }
+  return {};
 }
 
 // ── scaffold file loader ──────────────────────────────────────────────────────

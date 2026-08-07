@@ -404,3 +404,38 @@ describe('loadEval - integration', () => {
     expect((err as EvalNotFoundError).message).toContain('nonexistent');
   });
 });
+
+// ── HTTP-mocked CLI eval convention ───────────────────────────────────────────
+
+describe('loadEval - http-routes/ detection', () => {
+  it('leaves httpRoutesDir undefined for a normal eval', async () => {
+    makeEvalDir(tmpBase);
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+    expect(result.httpRoutesDir).toBeUndefined();
+  });
+
+  it('sets httpRoutesDir and auto-attaches the shared CLI context when http-routes/ exists', async () => {
+    const evalDir = makeEvalDir(tmpBase);
+    mkdirSync(join(evalDir, 'http-routes'), { recursive: true });
+    writeFileSync(
+      join(evalDir, 'http-routes', 'tenant.routes.json'),
+      JSON.stringify({ surface: 'tenant', routes: [] }),
+    );
+    // Provide the shared context file at the framework-root well-known path.
+    const contextDir = join(tmpBase, 'src', 'evals', 'contexts', 'cli-platform');
+    mkdirSync(contextDir, { recursive: true });
+    writeFileSync(join(contextDir, 'AGENTS.md'), '# Platform context\nUse the Auth0 CLI.');
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+    expect(result.httpRoutesDir).toBe(join(evalDir, 'http-routes'));
+    expect(result.scaffold['AGENTS.md']).toContain('Use the Auth0 CLI');
+  });
+
+  it('sets httpRoutesDir even when the shared context file is absent', async () => {
+    const evalDir = makeEvalDir(tmpBase);
+    mkdirSync(join(evalDir, 'http-routes'), { recursive: true });
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+    expect(result.httpRoutesDir).toBe(join(evalDir, 'http-routes'));
+    expect(result.scaffold['AGENTS.md']).toBeUndefined();
+  });
+});

@@ -101,6 +101,15 @@ async function main(): Promise<void> {
   const evalDef = await loadEval(evalConfig, frameworkRoot);
 
   try {
+    // HTTP-mocked CLI evals are not yet supported in the Docker sandbox (the
+    // image ships neither the auth0 CLI nor the mock CA). Run them locally with
+    // `--dangerously-skip-sandbox --workers 1`.
+    if (evalDef.httpRoutesDir) {
+      throw new Error(
+        `[sandbox] HTTP-mocked CLI eval '${evalId}' is not supported in the Docker sandbox yet; ` +
+          `run it locally with --dangerously-skip-sandbox --workers 1`,
+      );
+    }
     if (evalDef.setupCommand) {
       logger.info(`  [Setup] Running: ${evalDef.setupCommand}`);
       runSetupCommand(workspace, evalDef.setupCommand);

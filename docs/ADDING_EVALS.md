@@ -322,6 +322,55 @@ scaffold/
     └── index.js
 ```
 
+### HTTP-mocked CLI evals (optional)
+
+Some tasks are about **tenant configuration** performed through the real Auth0 CLI (`auth0 api <METHOD> <path>`) rather than about writing application source. These evals run the **real `auth0` binary** against a local mock of the Management API, so the CLI's request construction is genuinely exercised while the network hop stays hermetic — no auth, no network, no live side effects.
+
+To make an eval an HTTP-mocked CLI eval, add an **`http-routes/`** directory next to `PROMPT.md`:
+
+```
+my-cli-eval/
+├── PROMPT.md
+├── graders.ts
+└── http-routes/
+    ├── <surface>.routes.json     # one manifest per Management API surface
+    ├── fixtures/
+    │   └── <surface>/
+    │       └── *.json            # response bodies referenced by routes
+    └── handlers.js               # optional: request-shaped logic
+```
+
+Shipping `http-routes/` opts the eval in automatically — no frontmatter needed:
+
+- The run lifecycle starts a mock HTTPS Management API on loopback, seeds a fake authenticated tenant into the CLI config (so the CLI targets it and skips login), and disables CLI telemetry.
+- The shared **CLI platform context** (`src/evals/contexts/cli-platform/AGENTS.md`) is auto-attached, telling the agent to use the `auth0 api` passthrough and that the CLI is already installed and authenticated.
+
+**Route manifest schema** (`<surface>.routes.json`):
+
+```json
+{
+  "surface": "guardian",
+  "routes": [
+    { "match": "PUT guardian/factors/otp", "verb": "create", "state": "guardian.otp", "body": "otp-enabled.json" },
+    { "match": "GET guardian/factors", "verb": "reflect", "state": "guardian.otp",
+      "present": "factors-otp-on.json", "absent": "factors-otp-off.json" }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `match` | `"<METHOD> <path>"`; the path is written **without** the `api/v2/` prefix. `*` matches exactly one path segment. |
+| `verb` | `create`/`set` (mark state, respond 201 + `body`), `reflect` (respond `present`/`absent` by state — enables read-after-write), `static` (always respond `body`), `handler` (call a named function in `handlers.js`). |
+| `state` | Dotted, namespaced key (e.g. `guardian.otp`) — required for `create`/`set`/`reflect`. |
+| `body` / `present` / `absent` | Inline JSON, or a string naming a file in `fixtures/<surface>/`. |
+
+Unmatched writes fall through to `{"ok":true}`; unmatched reads to `{}`, so the CLI always gets a deterministic answer.
+
+Grade these evals with **event graders** (`ranCommand` / `ranCommandOneOf`, L4) asserting the agent ran the right `auth0 api` calls — there is no source artifact to grade with `contains`/`judge`. See `src/evals/cli/guardian-otp/` for a worked example. The mock CA/leaf certs live in `docker/mock-ca/`; regenerate with `node apps/auth0-evals/scripts/gen-mock-ca.mjs`.
+
+> **Local-only for now:** HTTP-mocked CLI evals run only via `--dangerously-skip-sandbox`. This path mutates shared `process.env` (isolated `HOME`, CA trust via `SSL_CERT_FILE`), so run them with `--workers 1`. The Docker sandbox does **not** support them yet — the image ships neither the `auth0` CLI nor the mock CA, and the sandbox runner rejects an `httpRoutesDir` eval with a clear error. Docker support is deferred to a follow-up.
+
 ---
 
 ## 4. Auto-Discovery

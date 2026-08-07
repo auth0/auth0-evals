@@ -1,5 +1,22 @@
-/** Common across all platforms. */
-const COMMON_KEYS = ['PATH', 'HOME', 'LANG', 'TERM', 'NODE_OPTIONS', 'NODE_EXTRA_CA_CERTS'];
+/**
+ * Common across all platforms.
+ *
+ * `SSL_CERT_FILE` / `SSL_CERT_DIR` let Go binaries (the auth0 CLI) trust an
+ * extra CA locally without root; `AUTH0_CLI_ANALYTICS` disables the CLI's
+ * telemetry ping. All three are non-secret and only take effect when the
+ * mock-CLI lifecycle sets them, so forwarding them by default is safe.
+ */
+const COMMON_KEYS = [
+  'PATH',
+  'HOME',
+  'LANG',
+  'TERM',
+  'NODE_OPTIONS',
+  'NODE_EXTRA_CA_CERTS',
+  'SSL_CERT_FILE',
+  'SSL_CERT_DIR',
+  'AUTH0_CLI_ANALYTICS',
+];
 
 /** macOS / Linux — TMPDIR is the standard temp-dir variable on Darwin. */
 const POSIX_KEYS = ['TMPDIR', 'USER', 'SHELL'];
