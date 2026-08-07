@@ -8,10 +8,12 @@ The Auth0 CLI has **no** env var or flag to override the Management API base URL
 
 1. **Seed a fake tenant** (`cli-config.ts`) — the CLI config's `default_tenant` is set to `127.0.0.1:<port>` with a dummy token and a far-future expiry, so the CLI targets the mock and skips login.
 2. **Serve HTTPS on loopback** (`server.ts`) — an `https` server binds `127.0.0.1:<port>` using a committed leaf cert whose SAN is IP `127.0.0.1`.
-3. **Trust the CA** — the mock CA (`docker/mock-ca/mockCA.pem`) is baked into the container trust store at image build time, so Go's `net/http` (the CLI) accepts the mock's TLS. Locally, the CA is trusted via `SSL_CERT_FILE`.
+3. **Trust the CA** — the mock CA (`docker/mock-ca/mockCA.pem`) is trusted for the run via `SSL_CERT_FILE`, so Go's `net/http` (the CLI) accepts the mock's TLS without touching the system trust store.
 4. **Disable telemetry** — `AUTH0_CLI_ANALYTICS=false`.
 
-The server binds a non-privileged port (default 8443) and runs as the unprivileged agent user; the sandbox iptables policy already allows loopback.
+The server binds a non-privileged port (default 8443) on loopback.
+
+> **Local-only for now.** These evals run only via `--dangerously-skip-sandbox` (with `--workers 1`, since the mock mutates shared `process.env`). The Docker sandbox does not support them yet — the image ships neither the `auth0` CLI nor the mock CA. Docker support is deferred to a follow-up.
 
 ## Manifest format
 
@@ -41,11 +43,10 @@ Unmatched writes → `{"ok":true}`; unmatched reads → `{}`.
 
 ## Regenerating the CA / leaf cert
 
-The certs in `docker/mock-ca/` are **test-only** — the CA signs exactly one loopback (`127.0.0.1`) leaf served inside an ephemeral sandbox and guards nothing real. To rotate:
+The certs in `docker/mock-ca/` are **test-only** — the CA signs exactly one loopback (`127.0.0.1`) leaf and guards nothing real. To rotate:
 
 ```bash
 node apps/auth0-evals/scripts/gen-mock-ca.mjs   # needs openssl
-# then rebuild the Docker image so the new CA is baked into the trust store
 ```
 
 ## Entry points

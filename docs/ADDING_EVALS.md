@@ -369,7 +369,7 @@ Unmatched writes fall through to `{"ok":true}`; unmatched reads to `{}`, so the 
 
 Grade these evals with **event graders** (`ranCommand` / `ranCommandOneOf`, L4) asserting the agent ran the right `auth0 api` calls — there is no source artifact to grade with `contains`/`judge`. See `src/evals/cli/guardian-otp/` for a worked example. The mock CA/leaf certs live in `docker/mock-ca/`; regenerate with `node apps/auth0-evals/scripts/gen-mock-ca.mjs`.
 
-> **Local runs:** `--dangerously-skip-sandbox` works but mutates shared `process.env` (isolated `HOME`, CA trust), so run HTTP-mocked CLI evals locally with `--workers 1`. The Docker sandbox path has no such restriction.
+> **Local-only for now:** HTTP-mocked CLI evals run only via `--dangerously-skip-sandbox`. This path mutates shared `process.env` (isolated `HOME`, CA trust via `SSL_CERT_FILE`), so run them with `--workers 1`. The Docker sandbox does **not** support them yet — the image ships neither the `auth0` CLI nor the mock CA, and the sandbox runner rejects an `httpRoutesDir` eval with a clear error. Docker support is deferred to a follow-up.
 
 ---
 

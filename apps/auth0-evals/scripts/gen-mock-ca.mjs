@@ -4,12 +4,12 @@
  * HTTP server (packages/evals-core/src/mock-http/server.ts).
  *
  * These certs are TEST-ONLY. The CA signs exactly one leaf, whose SubjectAltName
- * is the loopback IP 127.0.0.1, and the server only ever binds loopback inside
- * an ephemeral sandbox. The CA guards NOTHING real — it exists solely so the
- * container's trust store (and Go's auth0 CLI) accept the mock server's TLS.
+ * is the loopback IP 127.0.0.1, and the server only ever binds loopback. The CA
+ * guards NOTHING real — it exists solely so Go's auth0 CLI accepts the mock
+ * server's TLS.
  *
- * Trust is established at image build time by copying mockCA.pem into the
- * container CA store. Rotate by re-running this script and rebuilding the image:
+ * Trust is established at run time via SSL_CERT_FILE pointing at mockCA.pem
+ * (local `--dangerously-skip-sandbox` runs). Rotate by re-running this script:
  *
  *   node apps/auth0-evals/scripts/gen-mock-ca.mjs
  *
@@ -23,7 +23,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-// Repo-root docker/ is the Docker build context (see packages/evals/src/sandbox/docker.ts).
+// Certs live under repo-root docker/mock-ca/ (referenced at run time via SSL_CERT_FILE).
 const outDir = join(here, '..', '..', '..', 'docker', 'mock-ca');
 const CA_DAYS = 3650;
 const LEAF_DAYS = 3650;
@@ -68,10 +68,10 @@ try {
   ]);
 
   mkdirSync(outDir, { recursive: true });
-  // Commit only what's needed: the CA cert (baked into the container trust
-  // store) and the leaf cert+key (served by the mock). The CA private key is
-  // NOT persisted — regeneration mints a fresh chain, so keeping it would only
-  // add a needless private key to the repo.
+  // Commit only what's needed: the CA cert (trusted at run time via
+  // SSL_CERT_FILE) and the leaf cert+key (served by the mock). The CA private
+  // key is NOT persisted — regeneration mints a fresh chain, so keeping it
+  // would only add a needless private key to the repo.
   copyFileSync(caCert, join(outDir, 'mockCA.pem'));
   copyFileSync(leafCert, join(outDir, 'mockServer.pem'));
   copyFileSync(leafKey, join(outDir, 'mockServer.key'));

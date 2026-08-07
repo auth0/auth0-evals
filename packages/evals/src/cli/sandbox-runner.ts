@@ -10,9 +10,8 @@
  * docker/entrypoint.sh inside the sandbox container.
  */
 
-import { writeFileSync, renameSync, mkdtempSync } from 'node:fs';
+import { writeFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { config as loadDotenv } from 'dotenv';
 
 import {
@@ -30,12 +29,11 @@ import {
   logger,
   serialiseAgent,
   serialiseError,
-  mockHttp,
 } from '@a0/evals-core';
 import type { AgentType } from '@a0/evals-core';
 import { generateRunRecommendations } from '../recommendations/index.js';
 
-import { LLM_API_KEY_ENV, SANDBOX_MOCK_CERT_DIR } from './constants.js';
+import { LLM_API_KEY_ENV } from './constants.js';
 import { score } from '../scorer.js';
 import { ClaudeCodeRunner } from '../runners/claude-code/runner.js';
 import { CopilotCliRunner } from '../runners/copilot/runner.js';
@@ -102,17 +100,15 @@ async function main(): Promise<void> {
 
   const evalDef = await loadEval(evalConfig, frameworkRoot);
 
-  // HTTP-mocked CLI evals: start a mock Management API on loopback and point the
-  // real auth0 CLI at it (see mock-http/lifecycle.ts). Torn down in `finally`.
-  let mockCli: Awaited<ReturnType<typeof mockHttp.startMockCliForEval>> | undefined;
-
   try {
+    // HTTP-mocked CLI evals are not yet supported in the Docker sandbox (the
+    // image ships neither the auth0 CLI nor the mock CA). Run them locally with
+    // `--dangerously-skip-sandbox --workers 1`.
     if (evalDef.httpRoutesDir) {
-      mockCli = await mockHttp.startMockCliForEval({
-        httpRoutesDir: evalDef.httpRoutesDir,
-        stateDir: mkdtempSync(join(tmpdir(), 'a0-mock-state-')),
-        certDir: SANDBOX_MOCK_CERT_DIR,
-      });
+      throw new Error(
+        `[sandbox] HTTP-mocked CLI eval '${evalId}' is not supported in the Docker sandbox yet; ` +
+          `run it locally with --dangerously-skip-sandbox --workers 1`,
+      );
     }
     if (evalDef.setupCommand) {
       logger.info(`  [Setup] Running: ${evalDef.setupCommand}`);
@@ -180,8 +176,6 @@ async function main(): Promise<void> {
     writeFileSync(tmpPath, JSON.stringify(result, null, 2), 'utf-8');
     renameSync(tmpPath, resultsPath);
     process.exit(1);
-  } finally {
-    await mockCli?.stop();
   }
 }
 
