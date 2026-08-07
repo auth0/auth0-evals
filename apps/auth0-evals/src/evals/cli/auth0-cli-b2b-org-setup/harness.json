@@ -1,0 +1,8 @@
+{
+  "$comment": "Optional live-environment descriptor for this eval. The auth0-evals framework never reads this file — its loader only parses PROMPT.md and graders.ts, and tsc compiles src/**/*.ts, so this JSON and the sibling verify.js are inert to discovery and the build. It is a hint for a runner that can provision a live Auth0 tenant: `environment: auth0-tenant` requests a provisioned tenant, `options.escalate` asks the runner to grant the tenant's management client the Management API scopes this flow exercises, and `verify` names the ground-truth script to run against the live tenant before teardown. An eval that needs no live environment simply omits this file.",
+  "environment": "auth0-tenant",
+  "options": {
+    "escalate": true
+  },
+  "verify": "verify.js"
+}
