@@ -24,10 +24,18 @@ import type { AxisConfig } from '@netlify/axis';
 const APP_ROOT = fileURLToPath(new URL('.', import.meta.url));
 
 // Optional: AXIS_EVAL=react_quickstart npm run axis  (comma-separated for multiple)
-const evalFilter = process.env.AXIS_EVAL ? new Set(process.env.AXIS_EVAL.split(',').map((s) => s.trim())) : null;
+const evalValues =
+  process.env.AXIS_EVAL?.split(',')
+    .map((s) => s.trim())
+    .filter(Boolean) ?? [];
+const evalFilter = evalValues.length > 0 ? new Set(evalValues) : null;
 
 // Optional: AXIS_AGENT=claude-code npm run axis  (comma-separated for multiple)
-const agentFilter = process.env.AXIS_AGENT ? new Set(process.env.AXIS_AGENT.split(',').map((s) => s.trim())) : null;
+const agentValues =
+  process.env.AXIS_AGENT?.split(',')
+    .map((s) => s.trim())
+    .filter(Boolean) ?? [];
+const agentFilter = agentValues.length > 0 ? new Set(agentValues) : null;
 
 // Optional: AXIS_WORKERS=4 npm run axis  (parallel job limit)
 const workersRaw = parseInt(process.env.AXIS_WORKERS ?? '', 10);
