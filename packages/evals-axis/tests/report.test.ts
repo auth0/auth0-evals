@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildAxisScores, scoreToGrade } from '../src/report.js';
+import { buildAxisScores, countInterruptions, scoreToGrade } from '../src/report.js';
 import type { ScoredOutput } from '@netlify/axis';
 import type { GraderResult } from '@a0/evals-graders';
 
@@ -91,6 +91,72 @@ describe('scoreToGrade', () => {
 });
 
 // ---------------------------------------------------------------------------
+// countInterruptions
+// ---------------------------------------------------------------------------
+
+describe('countInterruptions', () => {
+  it('returns 0 for an empty transcript', () => {
+    expect(countInterruptions([])).toBe(0);
+  });
+
+  it('returns 0 when no interruption tools are called', () => {
+    const transcript = [
+      { type: 'tool_use', timestamp: '', content: { name: 'write_file', id: 't1', input: {} } },
+      { type: 'tool_result', timestamp: '', content: { tool_use_id: 't1', content: 'ok' } },
+    ] as never;
+    expect(countInterruptions(transcript)).toBe(0);
+  });
+
+  it('counts AskUserQuestion in standard tool_use entries (claude-code runner)', () => {
+    const transcript = [
+      { type: 'tool_use', timestamp: '', content: { name: 'AskUserQuestion', id: 't1', input: {} } },
+      { type: 'tool_use', timestamp: '', content: { name: 'AskUserQuestion', id: 't2', input: {} } },
+      { type: 'tool_use', timestamp: '', content: { name: 'write_file', id: 't3', input: {} } },
+    ] as never;
+    expect(countInterruptions(transcript)).toBe(2);
+  });
+
+  it('counts ask_user in standard tool_use entries (copilot runner)', () => {
+    const transcript = [
+      { type: 'tool_use', timestamp: '', content: { name: 'ask_user', id: 't1', input: {} } },
+    ] as never;
+    expect(countInterruptions(transcript)).toBe(1);
+  });
+
+  it('counts AskUserQuestion nested inside assistant entries (claude-code AXIS adapter)', () => {
+    const transcript = [
+      {
+        type: 'assistant',
+        timestamp: '',
+        content: {
+          message: {
+            content: [
+              { type: 'tool_use', name: 'write_file' },
+              { type: 'tool_use', name: 'AskUserQuestion' },
+            ],
+          },
+        },
+      },
+    ] as never;
+    expect(countInterruptions(transcript)).toBe(1);
+  });
+
+  it('handles mixed standard and assistant-nested formats', () => {
+    const transcript = [
+      { type: 'tool_use', timestamp: '', content: { name: 'AskUserQuestion', id: 't1', input: {} } },
+      {
+        type: 'assistant',
+        timestamp: '',
+        content: {
+          message: { content: [{ type: 'tool_use', name: 'AskUserQuestion' }] },
+        },
+      },
+    ] as never;
+    expect(countInterruptions(transcript)).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // buildAxisScores
 // ---------------------------------------------------------------------------
 
@@ -168,13 +234,46 @@ describe('buildAxisScores', () => {
     expect(result.tokens).toBe(0);
   });
 
-  it('maps totalCostUsd to cost_usd and total_cost_usd, leaving judge_cost_usd as 0', () => {
+  it('maps totalCostUsd to cost_usd and total_cost_usd, leaving judge_cost_usd as 0 when no judge graders ran', () => {
     const output = makeScoredOutput({ totalCostUsd: 0.05 });
     const [result] = buildAxisScores(output, new Map());
 
     expect(result.cost_usd).toBe(0.05);
     expect(result.total_cost_usd).toBe(0.05);
     expect(result.judge_cost_usd).toBe(0);
+  });
+
+  it('computes judge_cost_usd from grader token usage and adds it to total_cost_usd', () => {
+    // claude-opus-5: $5/M input, $25/M output
+    // 1000 input + 200 output = (1000×5 + 200×25) / 1_000_000 = 0.01
+    const graders: GraderResult[] = [
+      {
+        name: 'Holistic judge',
+        kind: 'judge',
+        passed: true,
+        detail: 'yes',
+        inputTokens: 1000,
+        outputTokens: 200,
+        judgeModel: 'claude-opus-5',
+      },
+    ];
+    const output = makeScoredOutput({ totalCostUsd: 0.05 });
+    const map = new Map([['react_quickstart|claude-code|global.anthropic.claude-opus-4-8', graders]]);
+    const [result] = buildAxisScores(output, map);
+
+    expect(result.cost_usd).toBe(0.05);
+    expect(result.judge_cost_usd).toBeCloseTo(0.01, 6);
+    expect(result.total_cost_usd).toBeCloseTo(0.06, 6);
+  });
+
+  it('sets judge_cost_usd to 0 when graders have no token usage', () => {
+    const graders: GraderResult[] = [{ name: 'Uses SDK', kind: 'contains', passed: true, detail: 'found' }];
+    const output = makeScoredOutput({ totalCostUsd: 0.02 });
+    const map = new Map([['react_quickstart|claude-code|global.anthropic.claude-opus-4-8', graders]]);
+    const [result] = buildAxisScores(output, map);
+
+    expect(result.judge_cost_usd).toBe(0);
+    expect(result.total_cost_usd).toBe(0.02);
   });
 
   it('produces 4 AXIS dimensions with correct weights', () => {
@@ -196,5 +295,99 @@ describe('buildAxisScores', () => {
     const [result] = buildAxisScores(output, new Map());
 
     expect(result.tool_calls).toBe(1);
+  });
+
+  it('uses transcriptAnalysis.toolUseCount for tool_calls when available (claude-code adapter)', () => {
+    // The claude-code adapter embeds tool calls inside assistant entries — the raw
+    // transcript never has type==='tool_use'. transcriptAnalysis.toolUseCount is
+    // populated by AXIS scoring after re-classifying those entries, so it reflects
+    // the real call count even when the raw transcript count is 0.
+    const output = makeScoredOutput({});
+    output.results[0].output.transcript = [
+      { type: 'assistant', content: { message: { content: [{ type: 'tool_use', name: 'write_file' }] } } },
+    ] as never;
+    output.results[0].output.transcriptAnalysis = { toolUseCount: 5 } as never;
+    const [result] = buildAxisScores(output, new Map());
+
+    expect(result.tool_calls).toBe(5);
+  });
+
+  it('uses category from the categories map when provided', () => {
+    const output = makeScoredOutput({ scenarioKey: 'react_quickstart' });
+    const [result] = buildAxisScores(output, new Map(), { react_quickstart: 'quickstarts' });
+
+    expect(result.category).toBe('quickstarts');
+  });
+
+  it('falls back to empty string when scenarioKey is not in the categories map', () => {
+    const output = makeScoredOutput({ scenarioKey: 'react_quickstart' });
+    const [result] = buildAxisScores(output, new Map(), {});
+
+    expect(result.category).toBe('');
+  });
+
+  it('falls back to empty string when categories map is omitted', () => {
+    const output = makeScoredOutput({ scenarioKey: 'react_quickstart' });
+    const [result] = buildAxisScores(output, new Map());
+
+    expect(result.category).toBe('');
+  });
+
+  it('computes active_time from sparseIndex.stats.totalDurationMs', () => {
+    const output = makeScoredOutput({});
+    output.results[0].score.sparseIndex = { stats: { totalDurationMs: 11840 } } as never;
+    const [result] = buildAxisScores(output, new Map());
+
+    expect(result.active_time).toBe(11.84);
+  });
+
+  it('sets active_time to 0 when sparseIndex is absent', () => {
+    const output = makeScoredOutput({});
+    const [result] = buildAxisScores(output, new Map());
+
+    expect(result.active_time).toBe(0);
+  });
+
+  it('counts AskUserQuestion tool_use entries as interruptions', () => {
+    const output = makeScoredOutput({});
+    output.results[0].output.transcript = [
+      { type: 'tool_use', timestamp: '', content: { name: 'AskUserQuestion', id: 't1', input: {} } },
+      { type: 'tool_use', timestamp: '', content: { name: 'write_file', id: 't2', input: {} } },
+    ] as never;
+    const [result] = buildAxisScores(output, new Map());
+
+    expect(result.interruptions).toBe(1);
+  });
+
+  it('sets cost_usd on GraderSummary for judge graders with token usage', () => {
+    // claude-opus-5: $5/M input, $25/M output → (1000×5 + 200×25) / 1_000_000 = 0.01
+    const graders: GraderResult[] = [
+      {
+        name: 'Holistic judge',
+        kind: 'judge',
+        passed: true,
+        detail: 'yes',
+        inputTokens: 1000,
+        outputTokens: 200,
+        judgeModel: 'claude-opus-5',
+      },
+      { name: 'Uses SDK', kind: 'contains', passed: true, detail: 'found' },
+    ];
+    const output = makeScoredOutput({});
+    const map = new Map([['react_quickstart|claude-code|global.anthropic.claude-opus-4-8', graders]]);
+    const [result] = buildAxisScores(output, map);
+
+    expect(result.graders[0].cost_usd).toBeCloseTo(0.01, 6);
+    expect(result.graders[1].cost_usd).toBeUndefined();
+  });
+
+  it('sets interruptions to 0 when no interruption tools appear in the transcript', () => {
+    const output = makeScoredOutput({});
+    output.results[0].output.transcript = [
+      { type: 'tool_use', timestamp: '', content: { name: 'write_file', id: 't1', input: {} } },
+    ] as never;
+    const [result] = buildAxisScores(output, new Map());
+
+    expect(result.interruptions).toBe(0);
   });
 });

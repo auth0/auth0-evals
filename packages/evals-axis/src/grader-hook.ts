@@ -6,7 +6,7 @@
  * and calls the auth0-evals grader engine against the workspace.
  */
 
-import { discoverEvals, loadEval, runGraders, runCompileCommand, AGENT_LEVELS } from '@a0/evals-core';
+import { discoverEvals, loadEval, runGraders, runCompileCommand, runSetupCommand, AGENT_LEVELS } from '@a0/evals-core';
 import type { GraderResult } from '@a0/evals-graders';
 import type { RunResult } from '@netlify/axis';
 import { axisTranscriptToToolCalls } from './adapter.js';
@@ -26,7 +26,8 @@ export interface RunAuth0GradersOptions {
  * Runs auth0-evals graders against a completed AXIS job.
  *
  * Discovers the eval matching result.scenarioKey, converts the AXIS transcript
- * to EventToolCall[], runs the compile command if declared, then grades the
+ * to EventToolCall[], runs the compile command (and setup command, if declared)
+ * or the setup command alone when there is no compile step, then grades the
  * workspace with L1-L4 graders (AGENT_LEVELS).
  */
 export async function runAuth0Graders(result: RunResult, options: RunAuth0GradersOptions): Promise<GraderResult[]> {
@@ -47,11 +48,14 @@ export async function runAuth0Graders(result: RunResult, options: RunAuth0Grader
   const evalDef = await loadEval(evalConfig, frameworkRoot);
   const toolCalls = axisTranscriptToToolCalls(result.output.transcript);
 
-  const compileResult = evalDef.compileCommand
-    ? runCompileCommand(result.workingDirectory, evalDef.compileCommand, {
-        setupCommand: evalDef.setupCommand,
-      })
-    : undefined;
+  let compileResult;
+  if (evalDef.compileCommand) {
+    compileResult = runCompileCommand(result.workingDirectory, evalDef.compileCommand, {
+      setupCommand: evalDef.setupCommand,
+    });
+  } else if (evalDef.setupCommand) {
+    runSetupCommand(result.workingDirectory, evalDef.setupCommand);
+  }
 
   return runGraders(
     evalDef.graders,

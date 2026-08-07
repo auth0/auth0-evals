@@ -20,6 +20,7 @@ vi.mock('@a0/evals-core', () => ({
   loadEval: vi.fn(),
   runGraders: vi.fn(),
   runCompileCommand: vi.fn(),
+  runSetupCommand: vi.fn(),
   AGENT_LEVELS: AGENT_LEVELS_FIXTURE,
 }));
 
@@ -28,7 +29,7 @@ vi.mock('../src/adapter.js', () => ({
 }));
 
 import { runAuth0Graders } from '../src/grader-hook.js';
-import { discoverEvals, loadEval, runGraders, runCompileCommand } from '@a0/evals-core';
+import { discoverEvals, loadEval, runGraders, runCompileCommand, runSetupCommand } from '@a0/evals-core';
 import { axisTranscriptToToolCalls } from '../src/adapter.js';
 import type { EvalDefinition } from '@a0/evals-core';
 
@@ -38,6 +39,7 @@ const mockDiscoverEvals = vi.mocked(discoverEvals);
 const mockLoadEval = vi.mocked(loadEval);
 const mockRunGraders = vi.mocked(runGraders);
 const mockRunCompileCommand = vi.mocked(runCompileCommand);
+const mockRunSetupCommand = vi.mocked(runSetupCommand);
 
 function makeResult(overrides: Partial<RunResult> = {}): RunResult {
   return {
@@ -168,6 +170,28 @@ describe('runAuth0Graders', () => {
 
   it('skips compile command when eval has none', async () => {
     await runAuth0Graders(makeResult(), BASE_OPTIONS);
+    expect(mockRunCompileCommand).not.toHaveBeenCalled();
+  });
+
+  it('runs setupCommand alone when eval has setup but no compile command', async () => {
+    mockLoadEval.mockResolvedValue({
+      id: 'react_quickstart',
+      name: 'React Quickstart',
+      graders: [],
+      compileCommand: undefined,
+      setupCommand: 'npm install',
+    } as unknown as EvalDefinition);
+
+    await runAuth0Graders(makeResult(), BASE_OPTIONS);
+
+    expect(mockRunSetupCommand).toHaveBeenCalledWith('/tmp/workspace', 'npm install');
+    expect(mockRunCompileCommand).not.toHaveBeenCalled();
+  });
+
+  it('skips setupCommand when eval has neither compile nor setup command', async () => {
+    await runAuth0Graders(makeResult(), BASE_OPTIONS);
+
+    expect(mockRunSetupCommand).not.toHaveBeenCalled();
     expect(mockRunCompileCommand).not.toHaveBeenCalled();
   });
 
