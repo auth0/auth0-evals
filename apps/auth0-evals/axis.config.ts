@@ -78,7 +78,7 @@ const scenarios = evalConfigs.map((cfg) => {
     key: cfg.id,
     name: cfg.name,
     prompt,
-    judge: `Did the agent correctly implement the ${cfg.name} Auth0 integration — using the right SDK packages, wiring up the provider correctly, and avoiding hallucinated or deprecated APIs? The task uses placeholder credentials and a non-existent domain (e.g. dev-barkbook.us.auth0.com). Do NOT visit or validate any URLs from the task — they are intentionally fake. Evaluate based on code structure, SDK usage, and configuration correctness alone.`,
+    judge: `Did the agent correctly implement the ${cfg.name} Auth0 integration — using the right SDK packages, wiring up the provider correctly, and avoiding hallucinated or deprecated APIs? The task uses intentional test placeholders: the domain (e.g. dev-barkbook.us.auth0.com), client ID (e.g. barkbook_client_abc123xyz), and audience are all fake but structurally correct stand-ins. Treat them as valid values for evaluation purposes — do NOT penalize the agent for using them. Do NOT visit or validate any URLs from the task. Evaluate based on code structure, SDK usage, and configuration correctness alone.`,
     ...(setup.length > 0 ? { setup } : {}),
   };
 });
