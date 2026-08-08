@@ -114,7 +114,14 @@ export default {
   // entries pass through the per-adapter proxy base URL env vars set by
   // apps/auth0-evals/src/axis/run.ts at startup — without them AXIS strips
   // the vars before the CLI process sees them.
-  env: ['ANTHROPIC_BASE_URL', 'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'GOOGLE_GEMINI_BASE_URL', 'NPM_CONFIG_REGISTRY'],
+  env: [
+    'ANTHROPIC_BASE_URL',
+    'OPENAI_API_KEY',
+    'OPENAI_BASE_URL',
+    'GOOGLE_GEMINI_BASE_URL',
+    'NPM_CONFIG_REGISTRY',
+    'NPM_CONFIG_USERCONFIG',
+  ],
   settings: {
     ...(workers !== undefined ? { concurrency: workers } : {}),
     limits: {
