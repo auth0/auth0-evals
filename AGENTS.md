@@ -438,6 +438,15 @@ npm run evals -- --eval react_quickstart --mode agent --keep-workspace
 
 # Generate HTML report from results
 npm run report
+
+# AXIS — run all evals across all agents (claude-code, codex, gemini)
+npm run axis
+npm run axis -- --eval react_quickstart                              # single eval
+npm run axis -- --eval react_quickstart --agent claude-code          # single eval + agent
+npm run axis -- --agent claude-code --model claude-sonnet-5          # override model
+npm run axis -- --workers 4                                          # limit parallelism
+npm run axis -- --output /tmp/scores.json                            # custom output path
+npm run axis -- --eval react_quickstart --agent codex --debug        # capture raw stdout
 ```
 
 ### CLI flags
@@ -454,6 +463,19 @@ npm run report
 | `--keep-workspace`           | flag                                            | off                  | Don't delete temp workspace after run                    |
 | `--dangerously-skip-sandbox` | flag                                            | off                  | Disable Docker sandbox — run agent jobs directly on host |
 | `--braintrust`               | flag                                            | off                  | Log results to Braintrust experiment                     |
+
+### AXIS flags (`npm run axis`)
+
+| Flag | Values | Default | Notes |
+| ---- | ------ | ------- | ----- |
+| `--eval <id>` | Any registered eval ID | all evals | Repeatable |
+| `--agent <name>` | `claude-code`, `codex`, `gemini` | all agents | Repeatable |
+| `--workers <n>` | number | AXIS default | Parallel job limit |
+| `--model <model>` | Any model string | per-agent default | Override model for all configured agents |
+| `--output <path>` | file path | `scores-axis.json` in app root | Where to write the scores file |
+| `--debug` | flag | off | Capture raw adapter stdout as `.raw.ndjson` for debugging |
+
+Flags take precedence over the equivalent env vars (`AXIS_EVAL`, `AXIS_AGENT`, `AXIS_WORKERS`, `AXIS_MODEL`).
 
 ---
 
