@@ -8,6 +8,8 @@ function makeScoredOutput(overrides: {
   scenarioKey?: string;
   agentName?: string;
   exitCode?: number;
+  error?: string;
+  result?: string | null;
   axisScore?: number;
   totalCostUsd?: number;
   tokenUsage?: { input: number; output: number; cacheReadInput?: number };
@@ -16,6 +18,8 @@ function makeScoredOutput(overrides: {
     scenarioKey = 'react_quickstart',
     agentName = 'claude-code|global.anthropic.claude-opus-4-8',
     exitCode = 0,
+    error,
+    result = 'Done.',
     axisScore = 80,
     totalCostUsd,
     tokenUsage,
@@ -36,12 +40,13 @@ function makeScoredOutput(overrides: {
         agentConfig: {} as never,
         output: {
           transcript: [],
-          result: 'Done.',
+          result,
           metadata: {
             startTime: '2026-01-01T00:00:00Z',
             endTime: '2026-01-01T00:00:01Z',
             durationMs: 1000,
             exitCode,
+            ...(error !== undefined ? { error } : {}),
             ...(totalCostUsd !== undefined ? { totalCostUsd } : {}),
             ...(tokenUsage !== undefined ? { tokenUsage } : {}),
           },
@@ -196,6 +201,14 @@ describe('buildAxisScores', () => {
     expect(result.agent_type).toBe('codex');
   });
 
+  it('maps gemini AXIS agent name to gemini-cli agent_type', () => {
+    const output = makeScoredOutput({ agentName: 'gemini|gemini-3.1-pro-preview' });
+    const [result] = buildAxisScores(output, new Map());
+
+    expect(result.agent_type).toBe('gemini-cli');
+    expect(result.model).toBe('gemini-3.1-pro-preview');
+  });
+
   it('falls back to claude-code for an unrecognised agent type', () => {
     const output = makeScoredOutput({ agentName: 'unknown-runner|some-model' });
     const [result] = buildAxisScores(output, new Map());
@@ -216,6 +229,27 @@ describe('buildAxisScores', () => {
     const [result] = buildAxisScores(output, new Map());
 
     expect(result.status).toBe('failure');
+  });
+
+  it('sets status to failure when error is set even if exitCode is 0 (e.g. gemini API auth error)', () => {
+    const output = makeScoredOutput({ exitCode: 0, error: 'Gemini API key is missing or not configured.' });
+    const [result] = buildAxisScores(output, new Map());
+
+    expect(result.status).toBe('failure');
+  });
+
+  it('uses error as response_text fallback when result is null', () => {
+    const output = makeScoredOutput({ result: null, error: 'Gemini API key is missing or not configured.' });
+    const [result] = buildAxisScores(output, new Map());
+
+    expect(result.response_text).toBe('Gemini API key is missing or not configured.');
+  });
+
+  it('prefers result over error for response_text when both are present', () => {
+    const output = makeScoredOutput({ result: 'Agent output here', error: 'Some warning' });
+    const [result] = buildAxisScores(output, new Map());
+
+    expect(result.response_text).toBe('Agent output here');
   });
 
   it('populates tokens from tokenUsage when available', () => {

@@ -11,7 +11,18 @@ import type { GraderResult } from '@a0/evals-graders';
 import type { AgentJobResult, AgentType, DimensionSummary, GraderSummary } from '@a0/evals-core';
 import { estimateCost } from '@a0/evals-core';
 
-const KNOWN_AGENT_TYPES: AgentType[] = ['claude-code', 'copilot', 'gemini-cli', 'codex'];
+/**
+ * Maps AXIS agent names (the `agent` field in axis.config.ts agents[]) to our
+ * AgentType identifiers. The AXIS gemini adapter is named "gemini" but our
+ * framework uses "gemini-cli" — without this mapping the fallback fires and
+ * every gemini result is mislabelled as "claude-code".
+ */
+const AXIS_AGENT_TO_TYPE: Record<string, AgentType> = {
+  'claude-code': 'claude-code',
+  codex: 'codex',
+  gemini: 'gemini-cli',
+  copilot: 'copilot',
+};
 
 /**
  * Tool names that represent user-interruption calls across all runners.
@@ -94,9 +105,7 @@ export function buildAxisScores(
     // not guaranteed by the AXIS API — if the format changes, rawAgentType
     // falls through to the claude-code default and model falls back to agentName.
     const [rawAgentType, model] = result.agentName.split('|');
-    const agentType: AgentType = KNOWN_AGENT_TYPES.includes(rawAgentType as AgentType)
-      ? (rawAgentType as AgentType)
-      : 'claude-code';
+    const agentType: AgentType = AXIS_AGENT_TO_TYPE[rawAgentType ?? ''] ?? 'claude-code';
 
     const dimensions: DimensionSummary[] = [
       {
@@ -149,13 +158,18 @@ export function buildAxisScores(
       eval_id: result.scenarioKey,
       category: categories[result.scenarioKey] ?? '',
       prompt: result.prompt,
-      response_text: result.output.result ?? '',
+      // Fall back to the AXIS error description so failed runs show why they
+      // failed in the HTML report rather than an unhelpful blank field.
+      response_text: result.output.result ?? result.output.metadata.error ?? '',
       model: model ?? result.agentName,
       mode: 'agent',
       agent_type: agentType,
       tools: ['axis'],
       session_id: result.scenarioKey,
-      status: result.output.metadata.exitCode === 0 ? 'success' : 'failure',
+      // A run is successful only when the process exited cleanly and AXIS did
+      // not set an error description. Matching AXIS's own isFailedRun() check
+      // ensures our status field agrees with the completed/failed summary.
+      status: result.output.metadata.exitCode === 0 && !result.output.metadata.error ? 'success' : 'failure',
       overall_score: result.score.axisScore,
       overall_grade: scoreToGrade(result.score.axisScore),
       grader_pass_rate: graders.length > 0 ? passed / graders.length : 0,
