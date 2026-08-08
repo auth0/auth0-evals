@@ -88,7 +88,15 @@ const scenarios = evalConfigs.map((cfg) => {
 // Override the default for all agents with --model (or AXIS_MODEL env var).
 const allAgents: AxisConfig['agents'] = [
   { agent: 'claude-code', model: 'claude-sonnet-5' },
-  { agent: 'codex', model: 'gpt-5.6-luna' },
+  // codex 0.140+ removed --full-auto (the AXIS default) in favour of
+  // --dangerously-bypass-approvals-and-sandbox for headless execution.
+  // Proxy config is injected via the `codex` wrapper prepended to PATH by
+  // apps/auth0-evals/src/axis/run.ts at startup.
+  {
+    agent: 'codex',
+    model: 'gpt-5.6-luna',
+    flags: { 'full-auto': false, 'dangerously-bypass-approvals-and-sandbox': true },
+  },
   { agent: 'gemini', model: 'gemini-3.1-pro-preview' },
 ];
 
@@ -106,7 +114,7 @@ export default {
   // entries pass through the per-adapter proxy base URL env vars set by
   // apps/auth0-evals/src/axis/run.ts at startup — without them AXIS strips
   // the vars before the CLI process sees them.
-  env: ['ANTHROPIC_BASE_URL', 'OPENAI_BASE_URL', 'GOOGLE_GEMINI_BASE_URL', 'NPM_CONFIG_REGISTRY'],
+  env: ['ANTHROPIC_BASE_URL', 'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'GOOGLE_GEMINI_BASE_URL', 'NPM_CONFIG_REGISTRY'],
   settings: {
     ...(workers !== undefined ? { concurrency: workers } : {}),
     limits: {
