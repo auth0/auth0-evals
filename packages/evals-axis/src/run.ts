@@ -8,8 +8,8 @@
 
 /* eslint-disable no-console */
 
-import { run, scoreResults } from '@netlify/axis';
-import type { ScoredOutput } from '@netlify/axis';
+import { run, scoreResults, loadConfig } from '@netlify/axis';
+import type { ScoredOutput, AgentConfig } from '@netlify/axis';
 import type { GraderResult } from '@a0/evals-graders';
 import { runAuth0Graders } from './grader-hook.js';
 import type { RunAuth0GradersOptions } from './grader-hook.js';
@@ -80,21 +80,36 @@ export async function runAxis(options: RunAxisOptions): Promise<RunAxisResult> {
   });
 
   // Step 2: score with AXIS's LLM judge (goal achievement + 3 process dimensions).
-  // By default AXIS uses the agent's own model as judge (self-scoring).
-  //
-  // The runner's cleanup() deletes workingDirectory before run() returns, so
-  // callJudge() must not try to use the now-deleted path as cwd. Strip it from
-  // results so callJudge() falls back to creating a fresh temp workspace.
+  // Pass workingDirectory as undefined so the judge runs in a fresh empty temp
+  // dir (AXIS's callJudge() fallback). The judging agent has filesystem and web
+  // tools blocked in axis.config.ts (Bash,Read,Glob,Grep,WebFetch,WebSearch) so
+  // it evaluates purely from the transcript + final result text in its prompt —
+  // no file reads that would put JSON into the response and break parseJsonFromText.
   console.log('[axis] Scoring results with AXIS judge...');
   const runOutputForScoring = {
     ...runOutput,
     results: runOutput.results.map((r) => ({ ...r, workingDirectory: undefined })),
   };
-  const scoredOutput = await scoreResults(runOutputForScoring);
+
+  const axisConfig = configPath ? await loadConfig(configPath) : undefined;
+  const judgingAgents = axisConfig?.config?.judging?.agents?.filter(
+    (a: string | AgentConfig): a is AgentConfig => typeof a !== 'string',
+  );
+
+  const scoredOutput = await scoreResults(runOutputForScoring, {
+    ...(judgingAgents?.length ? { judging: judgingAgents } : {}),
+  });
 
   for (const result of scoredOutput.results) {
     const reporter = onAxisScore ?? logAxisScore;
     reporter(result.scenarioKey, result.agentName, result.score);
+    // Temporary: log goal rationale to diagnose goal=0
+    const goalCriteria = result.score.goalAchievement?.criteria ?? [];
+    if (goalCriteria.length === 0) {
+      console.log(`[axis-debug] goal: no criteria (result.judge was falsy — judge never called)`);
+    } else {
+      console.log(`[axis-debug] goal rationale: ${goalCriteria[0]?.rationale ?? '(none)'}`);
+    }
   }
 
   return { scoredOutput, graderResults: allGraderResults };

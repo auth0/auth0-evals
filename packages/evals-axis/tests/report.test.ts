@@ -196,6 +196,14 @@ describe('buildAxisScores', () => {
     expect(result.agent_type).toBe('codex');
   });
 
+  it('maps gemini AXIS agent name to gemini-cli agent_type', () => {
+    const output = makeScoredOutput({ agentName: 'gemini|gemini-3.1-pro-preview' });
+    const [result] = buildAxisScores(output, new Map());
+
+    expect(result.agent_type).toBe('gemini-cli');
+    expect(result.model).toBe('gemini-3.1-pro-preview');
+  });
+
   it('falls back to claude-code for an unrecognised agent type', () => {
     const output = makeScoredOutput({ agentName: 'unknown-runner|some-model' });
     const [result] = buildAxisScores(output, new Map());

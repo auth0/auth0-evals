@@ -9,7 +9,7 @@
     "evals": "a0-eval",
     "prereport": "npm run build",
     "report": "a0-eval report",
-    "preaxis": "npm run build",
+    "preaxis": "npm run build && node scripts/patch-axis-debug.js",
     "axis": "node dist/axis/run.js"
   },
   "dependencies": {

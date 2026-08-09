@@ -11,7 +11,18 @@ import type { GraderResult } from '@a0/evals-graders';
 import type { AgentJobResult, AgentType, DimensionSummary, GraderSummary } from '@a0/evals-core';
 import { estimateCost } from '@a0/evals-core';
 
-const KNOWN_AGENT_TYPES: AgentType[] = ['claude-code', 'copilot', 'gemini-cli', 'codex'];
+/**
+ * Maps AXIS agent names (the `agent` field in axis.config.ts agents[]) to our
+ * AgentType identifiers. The AXIS gemini adapter is named "gemini" but our
+ * framework uses "gemini-cli" — without this mapping the fallback fires and
+ * every gemini result is mislabelled as "claude-code".
+ */
+const AXIS_AGENT_TO_TYPE: Record<string, AgentType> = {
+  'claude-code': 'claude-code',
+  codex: 'codex',
+  gemini: 'gemini-cli',
+  copilot: 'copilot',
+};
 
 /**
  * Tool names that represent user-interruption calls across all runners.
@@ -94,9 +105,7 @@ export function buildAxisScores(
     // not guaranteed by the AXIS API — if the format changes, rawAgentType
     // falls through to the claude-code default and model falls back to agentName.
     const [rawAgentType, model] = result.agentName.split('|');
-    const agentType: AgentType = KNOWN_AGENT_TYPES.includes(rawAgentType as AgentType)
-      ? (rawAgentType as AgentType)
-      : 'claude-code';
+    const agentType: AgentType = AXIS_AGENT_TO_TYPE[rawAgentType ?? ''] ?? 'claude-code';
 
     const dimensions: DimensionSummary[] = [
       {
