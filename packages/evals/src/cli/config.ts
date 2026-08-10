@@ -110,11 +110,28 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
   const program = new Command();
   program
     .description('Eval Runner')
-    .option('--eval <id>', 'Eval ID(s) to run (default: all)', (v, prev: string[]) => [...prev, v], [] as string[])
+    .option(
+      '--eval <id>',
+      'Eval ID(s) to run (default: all)',
+      (v, prev: string[]) => [
+        ...prev,
+        ...v
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+      ],
+      [] as string[],
+    )
     .option(
       '--model <model>',
       `Model(s) to run (default: ${options.defaultModel && options.defaultModel.length > 0 ? options.defaultModel : DEFAULT_MODEL})`,
-      (v, prev: string[]) => [...prev, v],
+      (v, prev: string[]) => [
+        ...prev,
+        ...v
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+      ],
       [] as string[],
     )
     .option('--mode <mode>', 'Execution mode: baseline | agent | all (default: baseline)')

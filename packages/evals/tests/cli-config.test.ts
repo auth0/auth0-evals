@@ -140,6 +140,16 @@ describe('--model', () => {
     expect(config.models).toEqual(['gpt-5.2', 'claude-sonnet-4-6']);
   });
 
+  it('accepts comma-separated models in a single --model flag', () => {
+    const config = parse('--model', 'gpt-5.2,claude-sonnet-4-6');
+    expect(config.models).toEqual(['gpt-5.2', 'claude-sonnet-4-6']);
+  });
+
+  it('trims whitespace from comma-separated models', () => {
+    const config = parse('--model', 'gpt-5.2, claude-sonnet-4-6');
+    expect(config.models).toEqual(['gpt-5.2', 'claude-sonnet-4-6']);
+  });
+
   it('--model all expands to every known working model', () => {
     const config = parse('--model', 'all');
     expect(config.models).toEqual(KNOWN_WORKING_MODELS);
@@ -232,6 +242,16 @@ describe('--eval', () => {
 
   it('accumulates multiple --eval flags', () => {
     const config = parse('--eval', VALID_EVAL_ID, '--eval', VALID_EVAL_ID_2);
+    expect(config.evalIds).toEqual([VALID_EVAL_ID, VALID_EVAL_ID_2]);
+  });
+
+  it('accepts comma-separated eval IDs in a single --eval flag', () => {
+    const config = parse('--eval', `${VALID_EVAL_ID},${VALID_EVAL_ID_2}`);
+    expect(config.evalIds).toEqual([VALID_EVAL_ID, VALID_EVAL_ID_2]);
+  });
+
+  it('trims whitespace from comma-separated eval IDs', () => {
+    const config = parse('--eval', `${VALID_EVAL_ID}, ${VALID_EVAL_ID_2}`);
     expect(config.evalIds).toEqual([VALID_EVAL_ID, VALID_EVAL_ID_2]);
   });
 
