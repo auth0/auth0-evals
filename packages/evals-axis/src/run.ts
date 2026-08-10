@@ -56,10 +56,11 @@ export async function runAxis(options: RunAxisOptions): Promise<RunAxisResult> {
     ...(configPath ? { configPath } : {}),
     ...(debug ? { debug } : {}),
     onResult: async (result) => {
+      const key = `${result.scenarioKey}|${result.agentName}`;
+      const reporter = onGraderResults ?? logGraderResults;
       try {
         const graderResults = await runAuth0Graders(result, graderOptions);
-        allGraderResults.set(`${result.scenarioKey}|${result.agentName}`, graderResults);
-        const reporter = onGraderResults ?? logGraderResults;
+        allGraderResults.set(key, graderResults);
         reporter(result.scenarioKey, result.agentName, graderResults);
       } catch (err) {
         console.error(`[auth0-graders] Error grading ${result.scenarioKey}:`, err);
@@ -71,9 +72,7 @@ export async function runAxis(options: RunAxisOptions): Promise<RunAxisResult> {
           passed: false,
           detail: `Grading failed: ${err instanceof Error ? err.message : String(err)}`,
         };
-        const key = `${result.scenarioKey}|${result.agentName}`;
         allGraderResults.set(key, [errorResult]);
-        const reporter = onGraderResults ?? logGraderResults;
         reporter(result.scenarioKey, result.agentName, [errorResult]);
       }
     },
@@ -91,7 +90,7 @@ export async function runAxis(options: RunAxisOptions): Promise<RunAxisResult> {
     results: runOutput.results.map((r) => ({ ...r, workingDirectory: undefined })),
   };
 
-  const axisConfig = configPath ? await loadConfig(configPath) : undefined;
+  const axisConfig = await loadConfig(configPath);
   const judgingAgents = axisConfig?.config?.judging?.agents?.filter(
     (a: string | AgentConfig): a is AgentConfig => typeof a !== 'string',
   );
@@ -103,13 +102,6 @@ export async function runAxis(options: RunAxisOptions): Promise<RunAxisResult> {
   for (const result of scoredOutput.results) {
     const reporter = onAxisScore ?? logAxisScore;
     reporter(result.scenarioKey, result.agentName, result.score);
-    // Temporary: log goal rationale to diagnose goal=0
-    const goalCriteria = result.score.goalAchievement?.criteria ?? [];
-    if (goalCriteria.length === 0) {
-      console.log(`[axis-debug] goal: no criteria (result.judge was falsy — judge never called)`);
-    } else {
-      console.log(`[axis-debug] goal rationale: ${goalCriteria[0]?.rationale ?? '(none)'}`);
-    }
   }
 
   return { scoredOutput, graderResults: allGraderResults };

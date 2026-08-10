@@ -4,6 +4,7 @@ import type { RunResult, ScoredOutput } from '@netlify/axis';
 vi.mock('@netlify/axis', () => ({
   run: vi.fn(),
   scoreResults: vi.fn(),
+  loadConfig: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../src/grader-hook.js', () => ({
