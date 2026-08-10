@@ -2,6 +2,7 @@
 id: auth0_cli_b2b_org_setup
 name: Auth0 CLI B2B Organization Setup
 skills: auth0
+provision: auth0-tenant
 ---
 
 ## Task
