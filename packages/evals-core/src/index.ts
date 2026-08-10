@@ -97,7 +97,6 @@ export type {
   SetupWorkspaceOptions,
   RunSetupCommandOptions,
   RunCompileCommandOptions,
-  AgentGuidanceOptions,
   CollectFilesOptions,
 } from './workspace/index.js';
 

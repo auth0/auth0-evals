@@ -61,35 +61,39 @@ export const AGENT_CONTEXT_FILENAMES: Record<AgentType, string> = {
 };
 
 /**
- * Options for {@link writeAgentGuidance}.
+ * Options for {@link writeAgentGuidance}. Internal to the framework — callers
+ * build the object inline; the type is not part of the public surface.
  */
-export interface AgentGuidanceOptions {
-  /** When set, appends {@link compileGuidance} pointing the agent at the build command. */
+interface AgentGuidanceOptions {
+  /**
+   * Build command the agent is told to run to verify compilation. Appended via
+   * {@link compileGuidance}. An internal, per-run detail — not exposed as config.
+   */
   compileCommand?: string;
   /**
-   * Extra context appended after {@link AGENT_GUIDANCE} — e.g. the provider-specific
-   * platform context for a provisioned environment (resolved by the caller from
-   * `FrameworkConfig.provisionContext`). The framework stays provider-agnostic: it
+   * CLI/platform context appended after {@link AGENT_GUIDANCE} — the guidance a
+   * CLI/tenant-config eval needs (resolved by the caller from
+   * `FrameworkConfig.cliContext`). The framework stays provider-agnostic: it
    * appends whatever text the caller supplies, without knowing its contents.
    */
-  extraContext?: string;
+  cliContext?: string;
 }
 
 /**
  * Writes {@link AGENT_GUIDANCE} into the context file the given runner reads.
  * Appends (preserving any scaffold-provided content) when the file already
- * exists; creates it otherwise. When `extraContext` is provided (e.g. a
- * provisioned-environment platform context), it is appended after the base
- * guidance; when `compileCommand` is provided, the compile-verification guidance
- * (see {@link compileGuidance}) is appended last.
+ * exists; creates it otherwise. When `cliContext` is provided (a
+ * CLI/platform context for the eval's provisioned environment), it is appended
+ * after the base guidance; when `compileCommand` is provided, the
+ * compile-verification guidance (see {@link compileGuidance}) is appended last.
  */
 export function writeAgentGuidance(workspace: string, agentType: AgentType, options: AgentGuidanceOptions = {}): void {
-  const { compileCommand, extraContext } = options;
+  const { compileCommand, cliContext } = options;
   const filename = AGENT_CONTEXT_FILENAMES[agentType];
   const dest = join(workspace, filename);
 
   const parts = [AGENT_GUIDANCE];
-  if (extraContext) parts.push(extraContext);
+  if (cliContext) parts.push(cliContext);
   if (compileCommand) parts.push(compileGuidance(compileCommand));
   const guidance = parts.join('\n');
 

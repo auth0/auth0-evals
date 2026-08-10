@@ -138,10 +138,10 @@ async function runAgentJob(
   // `provision` kind, also inject the app-configured platform context for it —
   // the `## System` section only feeds baseline mode, so this is how that
   // guidance reaches the agent.
-  const provisionContext = evalDef.provision ? getFrameworkConfig().provisionContext?.[evalDef.provision] : undefined;
+  const cliContext = evalDef.provision ? getFrameworkConfig().cliContext?.[evalDef.provision] : undefined;
   writeAgentGuidance(workspace, agentType, {
     compileCommand: evalDef.compileCommand,
-    extraContext: provisionContext,
+    cliContext,
   });
   try {
     if (!sandbox && evalDef.setupCommand) {

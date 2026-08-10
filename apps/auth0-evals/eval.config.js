@@ -111,21 +111,27 @@ export default {
     passthroughEnv: ['MCP_TENANT_DOMAIN', 'MCP_CLIENT_ID', 'MCP_CLIENT_SECRET'],
   },
 
-  // Platform context injected into the agent's context file for evals that
+  // CLI/platform context injected into the agent's context file for evals that
   // declare a matching `provision` frontmatter kind. The framework owns the
   // injection mechanism (see writeAgentGuidance); this Auth0-specific wording
   // lives here so evals-core stays provider-agnostic. Injecting it here — rather
   // than in a PROMPT.md `## System` section — is also what makes it reach the
   // agent at all: `## System` only feeds baseline mode.
-  provisionContext: {
+  //
+  // Scope: only generic facts about operating the already-authenticated `auth0`
+  // CLI against the live tenant — nothing task- or feature-specific (that lives
+  // in each eval's `## Task`). No MFA/B2B endpoints here, so the graded answer
+  // isn't leaked. The `auth0 api` passthrough is mentioned because many tenant
+  // resources have no dedicated subcommand; the specific paths are the agent's
+  // to find.
+  cliContext: {
     'auth0-tenant':
-      'You are a **platform engineer**. Auth0 tenant configuration is managed operationally ' +
-      'through the **Auth0 CLI** — not infrastructure-as-code and not the dashboard.\n\n' +
-      'You are working in a shell that is already authenticated to an Auth0 tenant through the ' +
-      '`auth0` CLI (a prior `auth0 login` has run, and the tenant is the active one). Do not run ' +
-      '`auth0 login` yourself, and do not look for or hardcode any domain, client ID, or secret.\n\n' +
-      "When the task requires changing tenant configuration, use the Auth0 CLI's Management API " +
-      'passthrough. It takes an HTTP method and a Management API path:\n\n' +
+      'You are working in a shell already authenticated to a live Auth0 tenant via the `auth0` ' +
+      'CLI (`auth0 login` has already run and that tenant is active). Do not run `auth0 login`, ' +
+      'and do not hardcode or look up the tenant domain, client ID, or client secret — the CLI ' +
+      'is already authenticated. Run commands non-interactively and never print or store secrets.' +
+      '\n\nTenant configuration that has no dedicated `auth0` subcommand can be done through the ' +
+      "Management API passthrough, which takes an HTTP method and a Management API path:\n\n" +
       "```bash\nauth0 api <METHOD> <path> --data '{ ... }'\n```\n",
   },
 

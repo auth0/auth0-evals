@@ -169,40 +169,40 @@ describe('writeAgentGuidance - runner-aware context file', () => {
     cleanupWorkspace(workspace);
   });
 
-  it('appends extraContext after the base guidance when provided', () => {
+  it('appends cliContext after the base guidance when provided', () => {
     const workspace = setupWorkspace({ 'index.js': 'ok' });
-    const extraContext = 'You are a platform engineer. Use the auth0 CLI.';
-    writeAgentGuidance(workspace, 'claude-code', { extraContext });
+    const cliContext = 'You are working in a shell authenticated to a live Auth0 tenant.';
+    writeAgentGuidance(workspace, 'claude-code', { cliContext });
 
     const content = readFileSync(join(workspace, 'CLAUDE.md'), 'utf-8');
-    expect(content).toBe(`${AGENT_GUIDANCE}\n${extraContext}`);
-    expect(content.indexOf(AGENT_GUIDANCE)).toBeLessThan(content.indexOf(extraContext));
+    expect(content).toBe(`${AGENT_GUIDANCE}\n${cliContext}`);
+    expect(content.indexOf(AGENT_GUIDANCE)).toBeLessThan(content.indexOf(cliContext));
 
     cleanupWorkspace(workspace);
   });
 
-  it('omits extraContext when not provided', () => {
+  it('omits cliContext when not provided', () => {
     const workspace = setupWorkspace({ 'index.js': 'ok' });
     writeAgentGuidance(workspace, 'claude-code', { compileCommand: 'npm run build' });
 
     const content = readFileSync(join(workspace, 'CLAUDE.md'), 'utf-8');
-    expect(content).not.toContain('platform engineer');
+    expect(content).not.toContain('live Auth0 tenant');
 
     cleanupWorkspace(workspace);
   });
 
-  it('orders sections as base guidance, then extraContext, then compile guidance', () => {
+  it('orders sections as base guidance, then cliContext, then compile guidance', () => {
     const workspace = setupWorkspace({ 'index.js': 'ok' });
-    const extraContext = 'PLATFORM_CONTEXT_MARKER';
-    writeAgentGuidance(workspace, 'claude-code', { extraContext, compileCommand: 'npm run build' });
+    const cliContext = 'PLATFORM_CONTEXT_MARKER';
+    writeAgentGuidance(workspace, 'claude-code', { cliContext, compileCommand: 'npm run build' });
 
     const content = readFileSync(join(workspace, 'CLAUDE.md'), 'utf-8');
     const basePos = content.indexOf(AGENT_GUIDANCE);
-    const extraPos = content.indexOf(extraContext);
+    const cliPos = content.indexOf(cliContext);
     const compilePos = content.indexOf('verify your integration compiles');
     expect(basePos).toBeGreaterThanOrEqual(0);
-    expect(basePos).toBeLessThan(extraPos);
-    expect(extraPos).toBeLessThan(compilePos);
+    expect(basePos).toBeLessThan(cliPos);
+    expect(cliPos).toBeLessThan(compilePos);
 
     cleanupWorkspace(workspace);
   });
