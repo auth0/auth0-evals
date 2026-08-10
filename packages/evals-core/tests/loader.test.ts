@@ -171,6 +171,26 @@ describe('loadEval - compileCommand', () => {
   });
 });
 
+// ── provision frontmatter tests ───────────────────────────────────────────────
+
+describe('loadEval - provision', () => {
+  it('parses provision from frontmatter', async () => {
+    makeEvalDir(tmpBase, '---\nskills: auth0\nprovision: auth0-tenant\n---\n\n## Task\nConfigure the tenant.\n');
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.provision).toBe('auth0-tenant');
+  });
+
+  it('returns undefined when provision is absent', async () => {
+    makeEvalDir(tmpBase, '---\nskills: auth0\n---\n\n## Task\nDo the task.\n');
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.provision).toBeUndefined();
+  });
+});
+
 // ── System prompt tests ───────────────────────────────────────────────────────
 
 describe('loadEval - system prompt', () => {

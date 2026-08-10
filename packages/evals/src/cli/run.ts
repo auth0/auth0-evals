@@ -134,8 +134,15 @@ async function runAgentJob(
   const workspace = setupWorkspace(evalDef.scaffold);
   // Inject "no docs files" guidance into the context file this runner reads
   // (CLAUDE.md / GEMINI.md / AGENTS.md). Must run before both the docker and
-  // local execution paths so every runner picks it up.
-  writeAgentGuidance(workspace, agentType, evalDef.compileCommand);
+  // local execution paths so every runner picks it up. When the eval declares a
+  // `provision` kind, also inject the app-configured platform context for it —
+  // the `## System` section only feeds baseline mode, so this is how that
+  // guidance reaches the agent.
+  const provisionContext = evalDef.provision ? getFrameworkConfig().provisionContext?.[evalDef.provision] : undefined;
+  writeAgentGuidance(workspace, agentType, {
+    compileCommand: evalDef.compileCommand,
+    extraContext: provisionContext,
+  });
   try {
     if (!sandbox && evalDef.setupCommand) {
       runSetupCommand(workspace, evalDef.setupCommand);

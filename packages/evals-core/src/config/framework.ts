@@ -171,4 +171,15 @@ export interface FrameworkConfig {
   scoring?: ScoringConfig;
   /** Docker sandbox settings (e.g. env vars to forward into the container). */
   sandbox?: SandboxConfig;
+  /**
+   * Agent context injected for evals that declare a `provision` frontmatter
+   * kind, keyed by that kind. When an eval sets `provision: auth0-tenant`, the
+   * matching entry here is appended to the agent's context file (CLAUDE.md /
+   * AGENTS.md / …) so the guidance actually reaches the agent — the `## System`
+   * section only feeds baseline mode. Keeping the text here (rather than in the
+   * framework) keeps `evals-core` provider-agnostic: the mechanism is the
+   * framework's, the provider-specific wording is the app's, mirroring
+   * {@link ScoringConfig.docUrlSources}. Empty by default.
+   */
+  provisionContext?: Record<string, string>;
 }

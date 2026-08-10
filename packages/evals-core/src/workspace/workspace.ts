@@ -61,16 +61,37 @@ export const AGENT_CONTEXT_FILENAMES: Record<AgentType, string> = {
 };
 
 /**
+ * Options for {@link writeAgentGuidance}.
+ */
+export interface AgentGuidanceOptions {
+  /** When set, appends {@link compileGuidance} pointing the agent at the build command. */
+  compileCommand?: string;
+  /**
+   * Extra context appended after {@link AGENT_GUIDANCE} — e.g. the provider-specific
+   * platform context for a provisioned environment (resolved by the caller from
+   * `FrameworkConfig.provisionContext`). The framework stays provider-agnostic: it
+   * appends whatever text the caller supplies, without knowing its contents.
+   */
+  extraContext?: string;
+}
+
+/**
  * Writes {@link AGENT_GUIDANCE} into the context file the given runner reads.
  * Appends (preserving any scaffold-provided content) when the file already
- * exists; creates it otherwise. When `compileCommand` is provided, the
- * compile-verification guidance (see {@link compileGuidance}) is appended too.
+ * exists; creates it otherwise. When `extraContext` is provided (e.g. a
+ * provisioned-environment platform context), it is appended after the base
+ * guidance; when `compileCommand` is provided, the compile-verification guidance
+ * (see {@link compileGuidance}) is appended last.
  */
-export function writeAgentGuidance(workspace: string, agentType: AgentType, compileCommand?: string): void {
+export function writeAgentGuidance(workspace: string, agentType: AgentType, options: AgentGuidanceOptions = {}): void {
+  const { compileCommand, extraContext } = options;
   const filename = AGENT_CONTEXT_FILENAMES[agentType];
   const dest = join(workspace, filename);
 
-  const guidance = compileCommand ? `${AGENT_GUIDANCE}\n${compileGuidance(compileCommand)}` : AGENT_GUIDANCE;
+  const parts = [AGENT_GUIDANCE];
+  if (extraContext) parts.push(extraContext);
+  if (compileCommand) parts.push(compileGuidance(compileCommand));
+  const guidance = parts.join('\n');
 
   // If the scaffold shipped AGENTS.md but the active runner reads a different
   // file, rename it so the guidance reaches the right runner.
