@@ -20,6 +20,14 @@ export interface EvalDefinition {
   scaffold: Record<string, string>;
   setupCommand?: string;
   compileCommand?: string;
+  /**
+   * Live-environment the eval requests, from the `provision` frontmatter field
+   * (e.g. `auth0-tenant`). The framework loader does not act on this itself; an
+   * external runner reads it to provision the environment, and the value keys
+   * into {@link FrameworkConfig.cliContext} to inject matching agent
+   * context (see `writeAgentGuidance`).
+   */
+  provision?: string;
   skills: string[];
   metadata: Record<string, string>;
 }

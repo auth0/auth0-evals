@@ -148,7 +148,7 @@ describe('writeAgentGuidance - runner-aware context file', () => {
 
   it('appends compile guidance containing the command when compileCommand is provided', () => {
     const workspace = setupWorkspace({ 'index.js': 'ok' });
-    writeAgentGuidance(workspace, 'claude-code', 'npm run build');
+    writeAgentGuidance(workspace, 'claude-code', { compileCommand: 'npm run build' });
 
     const content = readFileSync(join(workspace, 'CLAUDE.md'), 'utf-8');
     expect(content).toContain(AGENT_GUIDANCE);
@@ -165,6 +165,44 @@ describe('writeAgentGuidance - runner-aware context file', () => {
     const content = readFileSync(join(workspace, 'CLAUDE.md'), 'utf-8');
     expect(content).toBe(AGENT_GUIDANCE);
     expect(content).not.toContain('verify your integration compiles');
+
+    cleanupWorkspace(workspace);
+  });
+
+  it('appends cliContext after the base guidance when provided', () => {
+    const workspace = setupWorkspace({ 'index.js': 'ok' });
+    const cliContext = 'You are working in a shell authenticated to a live Auth0 tenant.';
+    writeAgentGuidance(workspace, 'claude-code', { cliContext });
+
+    const content = readFileSync(join(workspace, 'CLAUDE.md'), 'utf-8');
+    expect(content).toBe(`${AGENT_GUIDANCE}\n${cliContext}`);
+    expect(content.indexOf(AGENT_GUIDANCE)).toBeLessThan(content.indexOf(cliContext));
+
+    cleanupWorkspace(workspace);
+  });
+
+  it('omits cliContext when not provided', () => {
+    const workspace = setupWorkspace({ 'index.js': 'ok' });
+    writeAgentGuidance(workspace, 'claude-code', { compileCommand: 'npm run build' });
+
+    const content = readFileSync(join(workspace, 'CLAUDE.md'), 'utf-8');
+    expect(content).not.toContain('live Auth0 tenant');
+
+    cleanupWorkspace(workspace);
+  });
+
+  it('orders sections as base guidance, then cliContext, then compile guidance', () => {
+    const workspace = setupWorkspace({ 'index.js': 'ok' });
+    const cliContext = 'PLATFORM_CONTEXT_MARKER';
+    writeAgentGuidance(workspace, 'claude-code', { cliContext, compileCommand: 'npm run build' });
+
+    const content = readFileSync(join(workspace, 'CLAUDE.md'), 'utf-8');
+    const basePos = content.indexOf(AGENT_GUIDANCE);
+    const cliPos = content.indexOf(cliContext);
+    const compilePos = content.indexOf('verify your integration compiles');
+    expect(basePos).toBeGreaterThanOrEqual(0);
+    expect(basePos).toBeLessThan(cliPos);
+    expect(cliPos).toBeLessThan(compilePos);
 
     cleanupWorkspace(workspace);
   });
