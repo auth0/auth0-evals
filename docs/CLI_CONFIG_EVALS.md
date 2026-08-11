@@ -1,4 +1,4 @@
-# CLI / Tenant-Config Evals (Leg 2)
+# CLI / Tenant-Config Evals
 
 Most evals grade an **artifact on disk** — the app code an agent writes against an Auth0 SDK. A **CLI / tenant-config eval** grades something different: whether an agent can drive an Auth0 **tenant** into a required state (a factor enabled, a policy enforced, a profile created) using only the `auth0` CLI. The agent writes no source files, so there is nothing on disk to inspect. Instead, the artifact is the agent's **command trace** — the ordered list of shell commands it actually ran — evaluated against a real, throwaway tenant the CLI is pre-authenticated to.
 
