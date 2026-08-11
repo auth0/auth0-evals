@@ -88,14 +88,6 @@ export function defineGraders() {
 }
 ```
 
-### 3. Verify
-
-```bash
-npm run build && npm run lint && npm test
-```
-
-Then run the eval end-to-end in agent mode against a provisioned tenant. Locally, without a provisioned tenant the trace graders fail on an empty trace — that's expected; a real pass needs the eval runner's live tenant.
-
 ## Worked example
 
 The MFA tenant-config eval above lives at `apps/auth0-evals/src/evals/mfa/tenant-cli/` and is the reference implementation for this pattern.
