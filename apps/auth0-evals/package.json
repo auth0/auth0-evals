@@ -8,10 +8,13 @@
     "preevals": "npm run build",
     "evals": "a0-eval",
     "prereport": "npm run build",
-    "report": "a0-eval report"
+    "report": "a0-eval report",
+    "preaxis": "npm run build",
+    "axis": "node dist/axis/run.js"
   },
   "dependencies": {
     "@a0/evals": "*",
+    "@a0/evals-axis": "*",
     "@a0/evals-graders": "*",
     "@a0/evals-reporter": "*",
     "commander": "^15.0.0"
