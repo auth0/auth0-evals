@@ -2,6 +2,8 @@
 
 This guide walks through adding a new evaluation to `auth0-evals`.
 
+> Adding a **CLI / tenant-config eval** — one that grades the agent's command trace against a live tenant instead of files on disk? See [CLI_CONFIG_EVALS.md](./CLI_CONFIG_EVALS.md). This guide covers standard file-based evals.
+
 ---
 
 ## 1. Create the Folder Structure
