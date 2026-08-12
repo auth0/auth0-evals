@@ -18,6 +18,10 @@ report.html
 # Swift package manager
 **/.swiftpm/
 **/Package.resolved
+**/.build/
+
+# Gradle
+**/.gradle/
 
 # macOS
 .DS_Store
