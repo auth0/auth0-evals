@@ -65,7 +65,7 @@ npm run axis -- --eval react_quickstart --agent claude-code
 npm run axis -- --model claude-sonnet-5
 ```
 
-Results are written to `scores-axis.json` and `report-axis.html` in `apps/auth0-evals/`. Run `npm run report` to include them in the combined leaderboard.
+Results are written to `scores-axis.json` (in `apps/auth0-evals/` by default, or the path from `--output`) and `report-axis.html` in `apps/auth0-evals/`. Run `npm run report` to include them in the combined leaderboard.
 
 ## How it works
 

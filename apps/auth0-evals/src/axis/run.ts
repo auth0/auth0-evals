@@ -161,6 +161,12 @@ const frameworkConfig = await loadConfig({
 });
 setFrameworkConfig(frameworkConfig);
 
+const apiKey = process.env.LLM_API_KEY;
+if (!apiKey) {
+  console.error('[axis] LLM_API_KEY is not set — add it to .env or your shell before running');
+  process.exit(1);
+}
+
 // runGraders() uses config.proxy.baseUrl (the LiteLLM proxy) for judge calls,
 // not ANTHROPIC_BASE_URL. No model-ID remapping needed — the framework config's
 // judge model (e.g. 'claude-opus-4-8') is what LiteLLM expects. Passing no
@@ -168,7 +174,7 @@ setFrameworkConfig(frameworkConfig);
 const { scoredOutput, graderResults } = await runAxis({
   configPath: join(APP_ROOT, 'axis.config.ts'),
   frameworkRoot: APP_ROOT,
-  apiKey: process.env.LLM_API_KEY ?? '',
+  apiKey,
   ...(flags.debug === true ? { debug: true } : {}),
 });
 

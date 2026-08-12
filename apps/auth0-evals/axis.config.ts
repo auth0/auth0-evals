@@ -38,8 +38,8 @@ const agentValues =
 const agentFilter = agentValues.length > 0 ? new Set(agentValues) : null;
 
 // Optional: AXIS_WORKERS=4 npm run axis  (parallel job limit)
-const workersRaw = parseInt(process.env.AXIS_WORKERS ?? '', 10);
-const workers = Number.isFinite(workersRaw) ? workersRaw : undefined;
+const workersRaw = Number(process.env.AXIS_WORKERS);
+const workers = Number.isSafeInteger(workersRaw) && workersRaw > 0 ? workersRaw : undefined;
 
 // Optional: AXIS_MODEL=claude-sonnet-5 npm run axis  (override model for all agents)
 const modelOverride = process.env.AXIS_MODEL?.trim() || undefined;
