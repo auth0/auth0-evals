@@ -23,7 +23,7 @@
     "@anthropic-ai/claude-agent-sdk": "^0.3.220",
     "@anthropic-ai/claude-code": "2.1.220",
     "@github/copilot-sdk": "^1.0.8",
-    "@google/gemini-cli": "^0.52.0",
+    "@google/gemini-cli": "^0.54.4",
     "@openai/codex": "^0.147.0",
     "@openai/codex-sdk": "^0.147.0",
     "ai": "^7.0.47",
