@@ -100,7 +100,7 @@ const allAgents: AxisConfig['agents'] = [
   // apps/auth0-evals/src/axis/run.ts at startup.
   {
     agent: 'codex',
-    model: 'gpt-5.6-luna',
+    model: 'gpt-5.6-sol',
     flags: { 'full-auto': false, 'dangerously-bypass-approvals-and-sandbox': true },
   },
   { agent: 'gemini', model: 'gemini-3.1-pro-preview' },
