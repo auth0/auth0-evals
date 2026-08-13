@@ -5,7 +5,7 @@
  * logic lives in runner.ts (runGraders).
  */
 
-import type { GraderDef, GraderOptions, EventToolCall, EventGraderLevel } from './types.js';
+import type { GraderDef, GraderOptions, GraderSource, EventToolCall, EventGraderLevel } from './types.js';
 import { GraderLevel } from './types.js';
 
 export function contains(
@@ -86,7 +86,7 @@ export interface JudgeOptions {
    * Defaults to `'files'`. Use `'response'` or `'both'` for MCP-only evals
    * where the agent's answer is in its final reply, not written files.
    */
-  source?: 'files' | 'response' | 'both';
+  source?: GraderSource;
 }
 
 export function judge(question: string, level?: GraderLevel, options: JudgeOptions = {}): GraderDef {

@@ -88,6 +88,30 @@ Use `notContainsInSource` (not `notContains`) when a value like a client ID is a
 | `calledTool(toolName, description, level)` | Agent invoked an MCP tool whose name contains `toolName` (case-insensitive substring against `mcp__<server>__<tool>` calls; errored calls excluded) — event-based, level required (L4 or L5) |
 | `calledToolOneOf(toolNames, description, level)` | Agent invoked at least one of the named MCP tools — event-based, level required (L4 or L5) |
 
+### Grading the agent's final answer (MCP-only evals)
+
+For hosted-MCP evals the agent calls tools and replies with text — it never writes files. Every text-based grader defaults to `source: 'files'`, so without the `source` option the workspace corpus is empty and every grader silently scores 0.
+
+Use the `source` option to tell a grader where to look:
+
+| `source` value | What the grader searches |
+|---|---|
+| `'files'` (default) | Workspace files only — existing behavior, unchanged for all file-based evals |
+| `'response'` | Agent's final reply text only — use when the agent never writes files |
+| `'both'` | Workspace files **and** the agent's final reply |
+
+**Example — MCP eval where the agent answers in prose:**
+
+```typescript
+contains('useAuth0', 'uses useAuth0 hook', GraderLevel.L1, { source: 'response' }),
+notContains('auth0-js', 'no legacy SDK', GraderLevel.L2, { source: 'response' }),
+judge('Did the agent correctly describe wiring Auth0 to the React app?', undefined, { source: 'response' }),
+```
+
+- For `judge`, `source: 'response'` skips file collection entirely — the judge corpus is the agent's reply only, so scaffold files cannot inflate it past `maxCodeChars`.
+- For `contains` / `notContains` / `matches`, `source: 'both'` is useful when the agent both writes files **and** summarises the result in its reply and you want to check either.
+- All existing evals are unaffected: `source` defaults to `'files'` and `agentText` is `''` in baseline mode.
+
 ## Grading exclusions
 
 Graders run against all workspace files (scaffold + agent edits) minus the exclusions below. The following directories and files are excluded from the grading corpus:

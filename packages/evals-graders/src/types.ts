@@ -73,7 +73,7 @@ export interface GraderDef {
    * Use `'response'` or `'both'` for MCP-only evals where the agent never writes
    * files and the answer lives entirely in its final text reply.
    */
-  source?: 'files' | 'response' | 'both';
+  source?: GraderSource;
 }
 
 export interface GraderOptions {
@@ -82,8 +82,16 @@ export interface GraderOptions {
    * Where to search — see `GraderDef.source` for semantics.
    * Defaults to `'files'` (workspace files only).
    */
-  source?: 'files' | 'response' | 'both';
+  source?: GraderSource;
 }
 
 /** Levels valid for event-based graders (agent-only — no tool calls exist in baseline). */
 export type EventGraderLevel = GraderLevel.L4 | GraderLevel.L5;
+
+/**
+ * Where a text-search or judge grader looks for its content.
+ * - `'files'` (default) — workspace files only.
+ * - `'response'` — agent's final reply text only (no file search).
+ * - `'both'` — workspace files AND agent reply text.
+ */
+export type GraderSource = 'files' | 'response' | 'both';

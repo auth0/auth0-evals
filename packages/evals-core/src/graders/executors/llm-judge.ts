@@ -86,7 +86,7 @@ export const llmJudgeExecutor: GraderExecutor = {
 
     const source = def.source ?? 'files';
     const includeFiles = source !== 'response';
-    const includeAgentReply = (source === 'response' || source === 'both') && ctx.agentText;
+    const includeAgentReply = (source === 'response' || source === 'both') && ctx.agentText.length > 0;
 
     const judgeEntries = includeFiles ? Object.entries(ctx.files).filter(([k]) => !isJudgeExcluded(k)) : [];
     const fileText = judgeEntries.map(([k, v]) => `// FILE: ${k}\n${v}`).join('\n\n');

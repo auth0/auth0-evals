@@ -26,7 +26,7 @@ export const matchesExecutor: GraderExecutor = {
       const checkResponse = source === 'response' || source === 'both';
 
       const inFiles = checkFiles ? re.test(ctx.combinedText) : false;
-      const inAgent = checkResponse && ctx.agentText ? re.test(ctx.agentText) : false;
+      const inAgent = checkResponse && ctx.agentText.length > 0 ? re.test(ctx.agentText) : false;
 
       passed = inFiles || inAgent;
       const matchedIn = inAgent && !inFiles ? 'agent reply' : 'written files';

@@ -41,8 +41,8 @@ export interface GraderContext {
   toolCalls?: EventToolCall[];
   /** Result of running the eval's compile_command post-agent — used by the compile grader. */
   compileResult?: CompileResult;
-  /** Final reply text from the agent — populated for agent runs; undefined in baseline mode. */
-  agentText?: string;
+  /** Final reply text from the agent. Empty string in baseline mode or when no reply was captured. */
+  agentText: string;
 }
 
 /**

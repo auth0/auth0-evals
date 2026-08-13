@@ -7,6 +7,7 @@
 
 import type { GraderDef, GraderResult } from '@a0/evals-graders';
 import type { GraderContext, GraderExecutor } from './types.js';
+import { searchCorpus } from './search-corpus.js';
 
 export const containsExecutor: GraderExecutor = {
   kind: 'contains',
@@ -16,21 +17,7 @@ export const containsExecutor: GraderExecutor = {
     const caseSensitive = def.caseSensitive ?? true;
     const source = def.source ?? 'files';
 
-    const checkFiles = source === 'files' || source === 'both';
-    const checkResponse = source === 'response' || source === 'both';
-
-    const inFiles = checkFiles
-      ? caseSensitive
-        ? ctx.combinedText.includes(needle)
-        : ctx.combinedLower.includes(needle.toLowerCase())
-      : false;
-
-    const inAgent =
-      checkResponse && ctx.agentText
-        ? caseSensitive
-          ? ctx.agentText.includes(needle)
-          : ctx.agentText.toLowerCase().includes(needle.toLowerCase())
-        : false;
+    const { inFiles, inAgent } = searchCorpus(ctx, needle, caseSensitive, source);
 
     const passed = inFiles || inAgent;
     const foundIn = inAgent && !inFiles ? 'agent reply' : 'written files';

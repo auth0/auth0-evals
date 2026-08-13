@@ -151,7 +151,7 @@ export async function runGraders(
     },
     toolCalls,
     compileResult,
-    agentText,
+    agentText: agentText ?? '',
   };
 
   const results: GraderResult[] = [];
