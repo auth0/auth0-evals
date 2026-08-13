@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildAxisScores, countInterruptions, scoreToGrade } from '../src/report.js';
+import { buildAxisScores, buildReportManifest, countInterruptions, scoreToGrade } from '../src/report.js';
 import type { ScoredOutput } from '@netlify/axis';
 import type { GraderResult } from '@a0/evals-graders';
 
@@ -397,5 +397,89 @@ describe('buildAxisScores', () => {
     const [result] = buildAxisScores(output, new Map());
 
     expect(result.interruptions).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildReportManifest
+// ---------------------------------------------------------------------------
+
+describe('buildReportManifest', () => {
+  it('passes through top-level fields from ScoredOutput', () => {
+    const output = makeScoredOutput({});
+    const manifest = buildReportManifest(output);
+
+    expect(manifest.version).toBe('1');
+    expect(manifest.timestamp).toBe('2026-01-01T00:00:00Z');
+    expect(manifest.durationMs).toBe(1000);
+    expect(manifest.summary).toEqual({ total: 1, completed: 1, failed: 0 });
+    expect(manifest.name).toBe('Auth0 SDK Evals');
+  });
+
+  it('generates reportId from timestamp', () => {
+    const output = makeScoredOutput({});
+    const manifest = buildReportManifest(output);
+
+    expect(manifest.reportId).toBe('auth0-evals-2026-01-01T00:00:00Z');
+  });
+
+  it('maps result fields to ReportResultEntry', () => {
+    const output = makeScoredOutput({ scenarioKey: 'react_quickstart', axisScore: 80 });
+    const manifest = buildReportManifest(output);
+    const [entry] = manifest.results;
+
+    expect(entry.scenarioKey).toBe('react_quickstart');
+    expect(entry.scenarioName).toBe('react_quickstart');
+    expect(entry.agentName).toBe('claude-code|global.anthropic.claude-opus-4-8');
+    expect(entry.durationMs).toBe(1000);
+    expect(entry.exitCode).toBe(0);
+    expect(entry.prompt).toBe('Test prompt');
+    expect(entry.judge).toBe('Did it work?');
+    expect(entry.score).toBeDefined();
+    expect(entry.file).toBe('');
+  });
+
+  it('sets failed to false when exitCode is 0 and no error', () => {
+    const output = makeScoredOutput({ exitCode: 0 });
+    const [entry] = buildReportManifest(output).results;
+
+    expect(entry.failed).toBe(false);
+  });
+
+  it('sets failed to true when exitCode is non-zero', () => {
+    const output = makeScoredOutput({ exitCode: 1 });
+    const [entry] = buildReportManifest(output).results;
+
+    expect(entry.failed).toBe(true);
+  });
+
+  it('sets failed to true when error is present', () => {
+    const output = makeScoredOutput({ exitCode: 0 });
+    output.results[0].output.metadata.error = 'agent timed out';
+    const [entry] = buildReportManifest(output).results;
+
+    expect(entry.failed).toBe(true);
+    expect(entry.error).toBe('agent timed out');
+  });
+
+  it('passes through tokenUsage when present', () => {
+    const output = makeScoredOutput({ tokenUsage: { input: 1000, output: 500 } });
+    const [entry] = buildReportManifest(output).results;
+
+    expect(entry.tokenUsage).toEqual({ input: 1000, output: 500 });
+  });
+
+  it('passes through totalCostUsd when present', () => {
+    const output = makeScoredOutput({ totalCostUsd: 0.05 });
+    const [entry] = buildReportManifest(output).results;
+
+    expect(entry.totalCostUsd).toBe(0.05);
+  });
+
+  it('produces one entry per result', () => {
+    const output = makeScoredOutput({});
+    const manifest = buildReportManifest(output);
+
+    expect(manifest.results).toHaveLength(1);
   });
 });

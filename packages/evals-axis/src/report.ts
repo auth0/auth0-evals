@@ -6,7 +6,7 @@
  * run entry point, which triggers side-effects on import.
  */
 
-import type { ScoredOutput, TranscriptEntry } from '@netlify/axis';
+import type { ScoredOutput, TranscriptEntry, ReportManifest } from '@netlify/axis';
 import type { GraderResult } from '@a0/evals-graders';
 import type { AgentJobResult, AgentType, DimensionSummary, GraderSummary } from '@a0/evals-core';
 import { estimateCost } from '@a0/evals-core';
@@ -188,6 +188,42 @@ export function buildAxisScores(
       turn_metrics: [],
     };
   });
+}
+
+/**
+ * Maps AXIS ScoredOutput to a ReportManifest consumed by @netlify/axis's
+ * generateReportHtml(), producing the official AXIS-style HTML report.
+ */
+export function buildReportManifest(output: ScoredOutput): ReportManifest {
+  return {
+    version: output.version,
+    reportId: `auth0-evals-${output.timestamp}`,
+    name: 'Auth0 SDK Evals',
+    timestamp: output.timestamp,
+    durationMs: output.durationMs,
+    summary: output.summary,
+    results: output.results.map((result) => ({
+      scenarioKey: result.scenarioKey,
+      scenarioName: result.scenarioName,
+      agentName: result.agentName,
+      durationMs: result.output.metadata.durationMs,
+      exitCode: result.output.metadata.exitCode,
+      failed: result.output.metadata.exitCode !== 0 || !!result.output.metadata.error,
+      tokenUsage: result.output.metadata.tokenUsage,
+      totalCostUsd: result.output.metadata.totalCostUsd,
+      score: result.score,
+      error: result.output.metadata.error,
+      // No per-run result files are written — drill-down links are unavailable.
+      file: '',
+      prompt: result.prompt,
+      judge: result.judge,
+      agentConfig: result.agentConfig,
+      resolvedConfig: result.resolvedConfig,
+      artifacts: result.artifacts,
+      setupOutput: result.setupOutput,
+      teardownOutput: result.teardownOutput,
+    })),
+  };
 }
 
 /** Maps a 0–100 score to a letter grade using the framework's thresholds. */
