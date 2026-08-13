@@ -48,7 +48,6 @@ const modelOverride = process.env.AXIS_MODEL?.trim() || undefined;
 // Set CLAUDE_CODE_USE_BEDROCK_PROXY=1 to use full `global.anthropic.*` model IDs
 // (required by the Bedrock proxy); otherwise short aliases are used.
 const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY === '1';
-const CLAUDE_SONNET_5 = useBedrock ? 'global.anthropic.claude-sonnet-5' : 'claude-sonnet-5';
 const CLAUDE_OPUS_5 = useBedrock ? 'global.anthropic.claude-opus-5' : 'claude-opus-5';
 
 const evalConfigs = discoverEvals('src/evals', APP_ROOT).filter((cfg) => evalFilter === null || evalFilter.has(cfg.id));
@@ -94,7 +93,7 @@ const scenarios = evalConfigs.map((cfg) => {
 // Models match eval.config.js's known list so proxy aliases resolve correctly.
 // Override the default for all agents with --model (or AXIS_MODEL env var).
 const allAgents: AxisConfig['agents'] = [
-  { agent: 'claude-code', model: CLAUDE_SONNET_5 },
+  { agent: 'claude-code', model: CLAUDE_OPUS_5 },
   // codex 0.140+ removed --full-auto (the AXIS default) in favour of
   // --dangerously-bypass-approvals-and-sandbox for headless execution.
   // Proxy config is injected via the `codex` wrapper prepended to PATH by
