@@ -84,7 +84,11 @@ export const llmJudgeExecutor: GraderExecutor = {
 
     const { model, baseUrl, maxTokens, maxCodeChars, enforceMaxChars } = ctx.judge;
 
-    const judgeEntries = Object.entries(ctx.files).filter(([k]) => !isJudgeExcluded(k));
+    const source = def.source ?? 'files';
+    const includeFiles = source !== 'response';
+    const includeAgentReply = (source === 'response' || source === 'both') && ctx.agentText;
+
+    const judgeEntries = includeFiles ? Object.entries(ctx.files).filter(([k]) => !isJudgeExcluded(k)) : [];
     const fileText = judgeEntries.map(([k, v]) => `// FILE: ${k}\n${v}`).join('\n\n');
 
     // For CLI-only evals the artifact is the command trace, not files. When the
@@ -94,8 +98,6 @@ export const llmJudgeExecutor: GraderExecutor = {
 
     // For MCP-only evals the agent never writes files — include the agent's final
     // reply only when the grader explicitly opts in via source: 'response' | 'both'.
-    const source = def.source ?? 'files';
-    const includeAgentReply = (source === 'response' || source === 'both') && ctx.agentText;
     const agentReplyText = includeAgentReply ? `// AGENT REPLY:\n${ctx.agentText}` : '';
 
     const judgeText = [fileText, traceText, agentReplyText].filter((s) => s.length > 0).join('\n\n');
