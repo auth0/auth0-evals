@@ -57,6 +57,10 @@ export async function runAuth0Graders(result: RunResult, options: RunAuth0Grader
     runSetupCommand(result.workingDirectory, evalDef.setupCommand);
   }
 
+  // result.output.result is the agent's final prose reply — pass it as agentText
+  // so judge() and contains() work on MCP-only evals that write no files.
+  const agentText = result.output.result ?? undefined;
+
   return runGraders(
     evalDef.graders,
     result.workingDirectory,
@@ -66,5 +70,6 @@ export async function runAuth0Graders(result: RunResult, options: RunAuth0Grader
     true, // enforceMaxChars — truncate workspace to judge's 32 768-char limit
     toolCalls,
     compileResult,
+    agentText,
   );
 }
