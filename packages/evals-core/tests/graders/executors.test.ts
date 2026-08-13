@@ -107,7 +107,7 @@ describe('notContainsExecutor', () => {
     const def = makeDef({ kind: 'not_contains', needle: 'fake-package' });
     const result = await notContainsExecutor.execute(def, ctx);
     expect(result.passed).toBe(false);
-    expect(result.detail).toContain('FOUND (bad)');
+    expect(result.detail).toContain('FOUND in written files (bad)');
   });
 
   it('is case-sensitive by default', async () => {

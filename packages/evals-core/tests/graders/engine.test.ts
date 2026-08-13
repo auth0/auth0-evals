@@ -1315,3 +1315,124 @@ describe('runGraders - compile', () => {
     expect(results[0]!.detail).toContain('compile was not run');
   });
 });
+
+// ── runGraders — agentText (MCP-only evals, no workspace files) ───────────────
+
+describe('runGraders - agentText', () => {
+  it('contains: passes when needle is in agentText and workspace is empty', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [contains('useAuth0')],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Here is your integration: useAuth0() is the hook you need.',
+    );
+    expect(results[0]!.passed).toBe(true);
+    expect(results[0]!.detail).toContain('agent reply');
+  });
+
+  it('contains: fails when needle is absent from both workspace and agentText', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [contains('useAuth0')],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'The answer uses a different hook entirely.',
+    );
+    expect(results[0]!.passed).toBe(false);
+    expect(results[0]!.detail).toContain('NOT found');
+  });
+
+  it('contains: still passes when needle is in a workspace file even if absent from agentText', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'app.ts'), 'import { useAuth0 } from "@auth0/auth0-react";');
+    const results = await runGraders(
+      [contains('useAuth0')],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'No mention here.',
+    );
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('notContains: fails when needle is found in agentText even with empty workspace', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [notContains('hardcoded-secret')],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Set the value to hardcoded-secret in your config.',
+    );
+    expect(results[0]!.passed).toBe(false);
+    expect(results[0]!.detail).toContain('agent reply');
+  });
+
+  it('notContains: passes when needle is absent from both workspace and agentText', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [notContains('hardcoded-secret')],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Use environment variables instead.',
+    );
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('matches: passes when pattern matches in agentText and workspace is empty', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [matches('useAuth0\\(\\)')],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Call useAuth0() at the top of your component.',
+    );
+    expect(results[0]!.passed).toBe(true);
+    expect(results[0]!.detail).toContain('agent reply');
+  });
+
+  it('matches: fails when pattern matches neither workspace nor agentText', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [matches('useAuth0\\(\\)')],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Use a different hook.',
+    );
+    expect(results[0]!.passed).toBe(false);
+  });
+});

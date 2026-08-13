@@ -187,6 +187,7 @@ async function runAgentJob(
         true,
         record.toolCalls,
         compileResult,
+        record.finalSummary,
       );
     }
 

@@ -18,8 +18,12 @@ export const matchesExecutor: GraderExecutor = {
       // Case-insensitive by default; honor caseSensitive to match the other
       // text-search executors (contains/notContains). Always multiline.
       const flags = def.caseSensitive === true ? 'm' : 'im';
-      passed = new RegExp(pattern, flags).test(ctx.combinedText);
-      detail = `/${pattern}/ ${passed ? 'matched' : 'NOT matched'}`;
+      const re = new RegExp(pattern, flags);
+      const inFiles = re.test(ctx.combinedText);
+      const inAgent = ctx.agentText ? re.test(ctx.agentText) : false;
+      passed = inFiles || inAgent;
+      const source = inAgent && !inFiles ? 'agent reply' : 'written files';
+      detail = `/${pattern}/ ${passed ? `matched in ${source}` : 'NOT matched in written files or agent reply'}`;
     } catch (e) {
       passed = false;
       detail = `/(invalid regex: ${e})/ NOT matched`;

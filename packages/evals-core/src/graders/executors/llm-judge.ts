@@ -91,7 +91,12 @@ export const llmJudgeExecutor: GraderExecutor = {
     // judge opts in, append it so there is content to evaluate; otherwise the
     // judge sees only files (unchanged behaviour for every existing judge).
     const traceText = def.includeCommandTrace ? formatCommandTrace(ctx.toolCalls ?? []) : '';
-    const judgeText = [fileText, traceText].filter((s) => s.length > 0).join('\n\n');
+
+    // For MCP-only evals the agent never writes files — append the agent's final
+    // reply so the judge has something to evaluate.
+    const agentReplyText = ctx.agentText ? `// AGENT REPLY:\n${ctx.agentText}` : '';
+
+    const judgeText = [fileText, traceText, agentReplyText].filter((s) => s.length > 0).join('\n\n');
 
     logger.info(`[judge] ${judgeEntries.length} files, ${judgeText.length} chars total (limit: ${maxCodeChars})`);
     for (const [k, v] of judgeEntries) {

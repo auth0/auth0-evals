@@ -12,15 +12,22 @@ export const notContainsExecutor: GraderExecutor = {
 
   async execute(def: GraderDef, ctx: GraderContext): Promise<GraderResult> {
     const needle = def.needle!;
-    const passed =
-      (def.caseSensitive ?? true)
-        ? !ctx.combinedText.includes(needle)
-        : !ctx.combinedLower.includes(needle.toLowerCase());
+    const caseSensitive = def.caseSensitive ?? true;
+    const inFiles = caseSensitive
+      ? ctx.combinedText.includes(needle)
+      : ctx.combinedLower.includes(needle.toLowerCase());
+    const inAgent = ctx.agentText
+      ? caseSensitive
+        ? ctx.agentText.includes(needle)
+        : ctx.agentText.toLowerCase().includes(needle.toLowerCase())
+      : false;
+    const passed = !inFiles && !inAgent;
+    const foundIn = inFiles && inAgent ? 'written files and agent reply' : inFiles ? 'written files' : 'agent reply';
     return {
       name: def.name,
       kind: def.kind,
       passed,
-      detail: `'${needle}' ${passed ? 'NOT found (good)' : 'FOUND (bad)'} in written files`,
+      detail: `'${needle}' ${passed ? 'NOT found (good)' : `FOUND in ${foundIn} (bad)`}`,
       level: def.level,
     };
   },
