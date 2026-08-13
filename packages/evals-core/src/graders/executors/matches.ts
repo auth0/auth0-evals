@@ -1,7 +1,8 @@
 /**
  * Grader executor: matches
  *
- * Checks that a regex pattern matches in workspace files.
+ * Checks that a regex pattern matches in workspace files and/or the agent's
+ * final reply, depending on the grader's `source` option.
  */
 
 import type { GraderDef, GraderResult } from '@a0/evals-graders';
@@ -19,11 +20,19 @@ export const matchesExecutor: GraderExecutor = {
       // text-search executors (contains/notContains). Always multiline.
       const flags = def.caseSensitive === true ? 'm' : 'im';
       const re = new RegExp(pattern, flags);
-      const inFiles = re.test(ctx.combinedText);
-      const inAgent = ctx.agentText ? re.test(ctx.agentText) : false;
+      const source = def.source ?? 'files';
+
+      const checkFiles = source === 'files' || source === 'both';
+      const checkResponse = source === 'response' || source === 'both';
+
+      const inFiles = checkFiles ? re.test(ctx.combinedText) : false;
+      const inAgent = checkResponse && ctx.agentText ? re.test(ctx.agentText) : false;
+
       passed = inFiles || inAgent;
-      const source = inAgent && !inFiles ? 'agent reply' : 'written files';
-      detail = `/${pattern}/ ${passed ? `matched in ${source}` : 'NOT matched in written files or agent reply'}`;
+      const matchedIn = inAgent && !inFiles ? 'agent reply' : 'written files';
+      const searchScope =
+        source === 'files' ? 'written files' : source === 'response' ? 'agent reply' : 'written files or agent reply';
+      detail = `/${pattern}/ ${passed ? `matched in ${matchedIn}` : `NOT matched in ${searchScope}`}`;
     } catch (e) {
       passed = false;
       detail = `/(invalid regex: ${e})/ NOT matched`;

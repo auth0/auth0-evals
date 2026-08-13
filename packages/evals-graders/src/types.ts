@@ -63,10 +63,26 @@ export interface GraderDef {
    * file-based judges are unaffected.
    */
   includeCommandTrace?: boolean;
+  /**
+   * Where to search for the needle / pattern / judge input.
+   *
+   * - `'files'` (default) — workspace files only (existing behavior, unchanged).
+   * - `'response'` — agent's final reply text only (no file search).
+   * - `'both'` — workspace files AND agent reply text.
+   *
+   * Use `'response'` or `'both'` for MCP-only evals where the agent never writes
+   * files and the answer lives entirely in its final text reply.
+   */
+  source?: 'files' | 'response' | 'both';
 }
 
 export interface GraderOptions {
   caseSensitive?: boolean;
+  /**
+   * Where to search — see `GraderDef.source` for semantics.
+   * Defaults to `'files'` (workspace files only).
+   */
+  source?: 'files' | 'response' | 'both';
 }
 
 /** Levels valid for event-based graders (agent-only — no tool calls exist in baseline). */

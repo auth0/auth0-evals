@@ -1316,13 +1316,14 @@ describe('runGraders - compile', () => {
   });
 });
 
-// ── runGraders — agentText (MCP-only evals, no workspace files) ───────────────
+// ── runGraders — agentText with opt-in source field (MCP-only evals) ──────────
 
-describe('runGraders - agentText', () => {
-  it('contains: passes when needle is in agentText and workspace is empty', async () => {
+describe('runGraders - agentText opt-in via source field', () => {
+  // contains — source: 'response'
+  it('contains: passes with source:response when needle is in agentText and workspace is empty', async () => {
     const dir = tmpDir();
     const results = await runGraders(
-      [contains('useAuth0')],
+      [contains('useAuth0', undefined, undefined, { source: 'response' })],
       dir,
       'unused',
       undefined,
@@ -1336,10 +1337,10 @@ describe('runGraders - agentText', () => {
     expect(results[0]!.detail).toContain('agent reply');
   });
 
-  it('contains: fails when needle is absent from both workspace and agentText', async () => {
+  it('contains: fails with source:response when needle is absent from agentText', async () => {
     const dir = tmpDir();
     const results = await runGraders(
-      [contains('useAuth0')],
+      [contains('useAuth0', undefined, undefined, { source: 'response' })],
       dir,
       'unused',
       undefined,
@@ -1353,11 +1354,28 @@ describe('runGraders - agentText', () => {
     expect(results[0]!.detail).toContain('NOT found');
   });
 
-  it('contains: still passes when needle is in a workspace file even if absent from agentText', async () => {
+  it('contains: default source:files does NOT search agentText (guards against regression)', async () => {
+    const dir = tmpDir();
+    // No source option → default 'files' → agentText is ignored even when it matches
+    const results = await runGraders(
+      [contains('useAuth0')],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Here is your integration: useAuth0() is the hook you need.',
+    );
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('contains: source:both passes when needle is in workspace file and agentText is absent', async () => {
     const dir = tmpDir();
     writeFileSync(join(dir, 'app.ts'), 'import { useAuth0 } from "@auth0/auth0-react";');
     const results = await runGraders(
-      [contains('useAuth0')],
+      [contains('useAuth0', undefined, undefined, { source: 'both' })],
       dir,
       'unused',
       undefined,
@@ -1370,10 +1388,11 @@ describe('runGraders - agentText', () => {
     expect(results[0]!.passed).toBe(true);
   });
 
-  it('notContains: fails when needle is found in agentText even with empty workspace', async () => {
+  // notContains — source: 'response'
+  it('notContains: fails with source:response when needle is in agentText', async () => {
     const dir = tmpDir();
     const results = await runGraders(
-      [notContains('hardcoded-secret')],
+      [notContains('hardcoded-secret', undefined, undefined, { source: 'response' })],
       dir,
       'unused',
       undefined,
@@ -1387,10 +1406,10 @@ describe('runGraders - agentText', () => {
     expect(results[0]!.detail).toContain('agent reply');
   });
 
-  it('notContains: passes when needle is absent from both workspace and agentText', async () => {
+  it('notContains: passes with source:both when needle is absent from both workspace and agentText', async () => {
     const dir = tmpDir();
     const results = await runGraders(
-      [notContains('hardcoded-secret')],
+      [notContains('hardcoded-secret', undefined, undefined, { source: 'both' })],
       dir,
       'unused',
       undefined,
@@ -1403,10 +1422,11 @@ describe('runGraders - agentText', () => {
     expect(results[0]!.passed).toBe(true);
   });
 
-  it('matches: passes when pattern matches in agentText and workspace is empty', async () => {
+  // matches — source: 'response'
+  it('matches: passes with source:response when pattern matches in agentText', async () => {
     const dir = tmpDir();
     const results = await runGraders(
-      [matches('useAuth0\\(\\)')],
+      [matches('useAuth0\\(\\)', undefined, undefined, { source: 'response' })],
       dir,
       'unused',
       undefined,
@@ -1420,10 +1440,10 @@ describe('runGraders - agentText', () => {
     expect(results[0]!.detail).toContain('agent reply');
   });
 
-  it('matches: fails when pattern matches neither workspace nor agentText', async () => {
+  it('matches: fails with source:both when pattern matches neither workspace nor agentText', async () => {
     const dir = tmpDir();
     const results = await runGraders(
-      [matches('useAuth0\\(\\)')],
+      [matches('useAuth0\\(\\)', undefined, undefined, { source: 'both' })],
       dir,
       'unused',
       undefined,

@@ -92,9 +92,11 @@ export const llmJudgeExecutor: GraderExecutor = {
     // judge sees only files (unchanged behaviour for every existing judge).
     const traceText = def.includeCommandTrace ? formatCommandTrace(ctx.toolCalls ?? []) : '';
 
-    // For MCP-only evals the agent never writes files — append the agent's final
-    // reply so the judge has something to evaluate.
-    const agentReplyText = ctx.agentText ? `// AGENT REPLY:\n${ctx.agentText}` : '';
+    // For MCP-only evals the agent never writes files — include the agent's final
+    // reply only when the grader explicitly opts in via source: 'response' | 'both'.
+    const source = def.source ?? 'files';
+    const includeAgentReply = (source === 'response' || source === 'both') && ctx.agentText;
+    const agentReplyText = includeAgentReply ? `// AGENT REPLY:\n${ctx.agentText}` : '';
 
     const judgeText = [fileText, traceText, agentReplyText].filter((s) => s.length > 0).join('\n\n');
 
