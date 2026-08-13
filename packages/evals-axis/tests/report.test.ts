@@ -274,6 +274,48 @@ describe('buildAxisScores', () => {
     expect(result.total_cost_usd).toBeCloseTo(0.06, 6);
   });
 
+  it('estimates cost from tokenUsage when totalCostUsd is absent (codex/gemini case)', () => {
+    // gpt-5.6-sol: $5/M input, $30/M output → (1000×5 + 500×30) / 1_000_000 = 0.02
+    const output = makeScoredOutput({
+      agentName: 'codex|gpt-5.6-sol',
+      tokenUsage: { input: 1000, output: 500 },
+      // totalCostUsd intentionally absent
+    });
+    const [result] = buildAxisScores(output, new Map());
+
+    expect(result.cost_usd).toBeCloseTo(0.02, 6);
+    expect(result.total_cost_usd).toBeCloseTo(0.02, 6);
+  });
+
+  it('estimates cost from tokenUsage for gemini when totalCostUsd is absent', () => {
+    // gemini-3.1-pro-preview: $2/M input, $12/M output → (1000×2 + 500×12) / 1_000_000 = 0.008
+    const output = makeScoredOutput({
+      agentName: 'gemini|gemini-3.1-pro-preview',
+      tokenUsage: { input: 1000, output: 500 },
+    });
+    const [result] = buildAxisScores(output, new Map());
+
+    expect(result.cost_usd).toBeCloseTo(0.008, 6);
+  });
+
+  it('sets cost_usd to 0 when both totalCostUsd and tokenUsage are absent', () => {
+    const output = makeScoredOutput({});
+    const [result] = buildAxisScores(output, new Map());
+
+    expect(result.cost_usd).toBe(0);
+    expect(result.total_cost_usd).toBe(0);
+  });
+
+  it('prefers totalCostUsd over tokenUsage-based estimate when both are present', () => {
+    const output = makeScoredOutput({
+      totalCostUsd: 0.05,
+      tokenUsage: { input: 1000, output: 500 },
+    });
+    const [result] = buildAxisScores(output, new Map());
+
+    expect(result.cost_usd).toBe(0.05);
+  });
+
   it('sets judge_cost_usd to 0 when graders have no token usage', () => {
     const graders: GraderResult[] = [{ name: 'Uses SDK', kind: 'contains', passed: true, detail: 'found' }];
     const output = makeScoredOutput({ totalCostUsd: 0.02 });
@@ -474,6 +516,24 @@ describe('buildReportManifest', () => {
     const [entry] = buildReportManifest(output).results;
 
     expect(entry.totalCostUsd).toBe(0.05);
+  });
+
+  it('estimates totalCostUsd from tokenUsage when absent (codex/gemini case)', () => {
+    // gpt-5.6-sol: $5/M input, $30/M output → (1000×5 + 500×30) / 1_000_000 = 0.02
+    const output = makeScoredOutput({
+      agentName: 'codex|gpt-5.6-sol',
+      tokenUsage: { input: 1000, output: 500 },
+    });
+    const [entry] = buildReportManifest(output).results;
+
+    expect(entry.totalCostUsd).toBeCloseTo(0.02, 6);
+  });
+
+  it('leaves totalCostUsd undefined when both are absent', () => {
+    const output = makeScoredOutput({});
+    const [entry] = buildReportManifest(output).results;
+
+    expect(entry.totalCostUsd).toBeUndefined();
   });
 
   it('produces one entry per result', () => {

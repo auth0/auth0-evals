@@ -31,6 +31,27 @@ const AXIS_AGENT_TO_TYPE: Record<string, AgentType> = {
 const INTERRUPTION_TOOL_NAMES = new Set(['AskUserQuestion', 'ask_user']);
 
 /**
+ * Infers agent inference cost from an AXIS result metadata block.
+ *
+ * AXIS only populates totalCostUsd for adapters that receive cost from the
+ * protocol (currently claude-code only). For codex and gemini the field is
+ * undefined even though tokenUsage is present, so we fall back to estimateCost()
+ * using the model's pricing table entry. Returns undefined when neither is available
+ * (used by buildReportManifest so the HTML report omits the column rather than
+ * showing $0.0000).
+ */
+function inferAgentCost(
+  agentName: string,
+  metadata: { totalCostUsd?: number; tokenUsage?: { input: number; output: number } },
+): number | undefined {
+  if (metadata.totalCostUsd != null) return metadata.totalCostUsd;
+  const [, model] = agentName.split('|');
+  const resolvedModel = model ?? agentName;
+  if (metadata.tokenUsage) return estimateCost(resolvedModel, metadata.tokenUsage.input, metadata.tokenUsage.output);
+  return undefined;
+}
+
+/**
  * Sums token usage across judge grader results and estimates cost.
  * Mirrors the private computeJudgeCost helper in @a0/evals-core serializers.
  */
@@ -153,13 +174,15 @@ export function buildAxisScores(
     });
 
     const tokenUsage = result.output.metadata.tokenUsage;
+    const resolvedModel = model ?? result.agentName;
+    const inferredCost = inferAgentCost(result.agentName, result.output.metadata) ?? 0;
 
     return {
       eval_id: result.scenarioKey,
       category: categories[result.scenarioKey] ?? '',
       prompt: result.prompt,
       response_text: result.output.result ?? '',
-      model: model ?? result.agentName,
+      model: resolvedModel,
       mode: 'agent',
       agent_type: agentType,
       tools: ['axis'],
@@ -179,9 +202,9 @@ export function buildAxisScores(
         result.output.transcript.filter((e) => e.type === 'tool_use').length,
       interruptions: countInterruptions(result.output.transcript),
       tokens: tokenUsage ? tokenUsage.input + tokenUsage.output + (tokenUsage.cacheReadInput ?? 0) : 0,
-      cost_usd: result.output.metadata.totalCostUsd ?? 0,
+      cost_usd: inferredCost,
       judge_cost_usd: judgeCost,
-      total_cost_usd: (result.output.metadata.totalCostUsd ?? 0) + judgeCost,
+      total_cost_usd: inferredCost + judgeCost,
       dimensions,
       graders: graderSummaries,
       session_trace: [],
@@ -210,7 +233,7 @@ export function buildReportManifest(output: ScoredOutput): ReportManifest {
       exitCode: result.output.metadata.exitCode,
       failed: result.output.metadata.exitCode !== 0 || !!result.output.metadata.error,
       tokenUsage: result.output.metadata.tokenUsage,
-      totalCostUsd: result.output.metadata.totalCostUsd,
+      totalCostUsd: inferAgentCost(result.agentName, result.output.metadata),
       score: result.score,
       error: result.output.metadata.error,
       // No per-run result files are written — drill-down links are unavailable.
