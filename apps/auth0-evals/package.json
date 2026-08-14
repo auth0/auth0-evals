@@ -1,6 +1,6 @@
 {
   "name": "auth0-evals",
-  "version": "0.1.2",
+  "version": "1.0.1",
   "type": "module",
   "scripts": {
     "build": "tsc",
