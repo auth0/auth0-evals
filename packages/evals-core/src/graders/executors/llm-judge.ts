@@ -84,14 +84,23 @@ export const llmJudgeExecutor: GraderExecutor = {
 
     const { model, baseUrl, maxTokens, maxCodeChars, enforceMaxChars } = ctx.judge;
 
-    const judgeEntries = Object.entries(ctx.files).filter(([k]) => !isJudgeExcluded(k));
+    const source = def.source ?? 'files';
+    const includeFiles = source !== 'response';
+    const includeAgentReply = (source === 'response' || source === 'both') && ctx.agentText.length > 0;
+
+    const judgeEntries = includeFiles ? Object.entries(ctx.files).filter(([k]) => !isJudgeExcluded(k)) : [];
     const fileText = judgeEntries.map(([k, v]) => `// FILE: ${k}\n${v}`).join('\n\n');
 
     // For CLI-only evals the artifact is the command trace, not files. When the
     // judge opts in, append it so there is content to evaluate; otherwise the
     // judge sees only files (unchanged behaviour for every existing judge).
     const traceText = def.includeCommandTrace ? formatCommandTrace(ctx.toolCalls ?? []) : '';
-    const judgeText = [fileText, traceText].filter((s) => s.length > 0).join('\n\n');
+
+    // For MCP-only evals the agent never writes files — include the agent's final
+    // reply only when the grader explicitly opts in via source: 'response' | 'both'.
+    const agentReplyText = includeAgentReply ? `// AGENT REPLY:\n${ctx.agentText}` : '';
+
+    const judgeText = [fileText, traceText, agentReplyText].filter((s) => s.length > 0).join('\n\n');
 
     logger.info(`[judge] ${judgeEntries.length} files, ${judgeText.length} chars total (limit: ${maxCodeChars})`);
     for (const [k, v] of judgeEntries) {

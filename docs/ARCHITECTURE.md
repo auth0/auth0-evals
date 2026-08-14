@@ -97,7 +97,7 @@ Bottom-up, with a clean acyclic dependency graph (`@a0/evals-graders` is the lea
 
 ### `@a0/evals-graders`
 - **Purpose**: Grader primitive factories + level taxonomy.
-- **Responsibilities**: Produce `GraderDef` descriptors (`contains`, `notContains`, `notContainsInSource`, `matches`, `judge`, `ranCommand`, `ranCommandOneOf`, `wroteFile`); define `GraderLevel` (L1–L5) and validate that event graders use L4/L5 only.
+- **Responsibilities**: Produce `GraderDef` descriptors (`contains`, `notContains`, `notContainsInSource`, `matches`, `judge`, `ranCommand`, `ranCommandOneOf`, `wroteFile`); define `GraderLevel` (L1–L5) and validate that event graders use L4/L5 only. Text-search graders (`contains`, `notContains`, `matches`, `judge`) accept a `source` option (`'files' | 'response' | 'both'`, default `'files'`) — set `source: 'response'` or `source: 'both'` to include the agent's final reply text in the search corpus (needed for MCP-only evals where the agent never writes files).
 - **Dependencies**: None (leaf).
 - **Type**: Shared library / SDK.
 
@@ -206,8 +206,9 @@ sequenceDiagram
         CLI->>CLI: spawnEval() — one subprocess
         CLI->>Exec: setupWorkspace() + dispatch (Docker / local)
         Exec->>Agent: run task in workspace
-        Agent-->>Exec: edited workspace + RunRecord trace
-        Exec->>Grade: runGraders(workspace, levels)
+        Agent-->>Exec: edited workspace + RunRecord trace (includes finalSummary)
+        Exec->>Grade: runGraders(workspace, levels, agentText?)
+        Note over Grade: agentText = record.finalSummary<br/>searched only when grader sets source: 'response' | 'both'
         Grade->>Grade: LLM-judge for judge graders
         Grade-->>Score: GraderResult[]
         Score->>Score: 8 dimensions → overall + grade
@@ -263,7 +264,8 @@ sequenceDiagram
         Axis->>Agent: run task in isolated workspace
         Agent-->>Axis: edited workspace + transcript
         Axis->>Hook: onResult hook (before workspace teardown)
-        Hook->>GE: runGraders(workspace, L1–L4)
+        Hook->>GE: runGraders(workspace, L1–L4, agentText?)
+        Note over GE: agentText = result.output.result<br/>searched only when grader sets source: 'response' | 'both'
         GE-->>Hook: GraderResult[]
         Hook-->>Axis: GraderResult[]
     end

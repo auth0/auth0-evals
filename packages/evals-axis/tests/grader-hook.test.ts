@@ -127,6 +127,7 @@ describe('runAuth0Graders', () => {
       true,
       [MOCK_TOOL_CALL],
       undefined,
+      undefined,
     );
     expect(results).toEqual([graderResult]);
   });
@@ -141,6 +142,7 @@ describe('runAuth0Graders', () => {
       expect.anything(),
       expect.anything(),
       expect.anything(),
+      undefined,
       undefined,
     );
   });
@@ -195,6 +197,28 @@ describe('runAuth0Graders', () => {
     expect(mockRunCompileCommand).not.toHaveBeenCalled();
   });
 
+  it('passes result.output.result as agentText when present', async () => {
+    const result = makeResult({
+      output: {
+        transcript: [],
+        result: 'Here is your integration: useAuth0() is the hook you need.',
+        metadata: { startTime: '', endTime: '', durationMs: 0, exitCode: 0 },
+      },
+    });
+    await runAuth0Graders(result, BASE_OPTIONS);
+    expect(mockRunGraders).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      undefined,
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      undefined,
+      'Here is your integration: useAuth0() is the hook you need.',
+    );
+  });
+
   it('passes compile result into runGraders', async () => {
     const compileResult = { ok: false, exitCode: 1, signal: null, output: 'error', command: 'tsc' };
     mockLoadEval.mockResolvedValue({
@@ -217,6 +241,7 @@ describe('runAuth0Graders', () => {
       expect.anything(),
       expect.anything(),
       compileResult,
+      undefined,
     );
   });
 });

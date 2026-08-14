@@ -106,7 +106,12 @@ Graders define the acceptance criteria. Export a single `defineGraders()` functi
 | `calledTool(toolName, description, level)` | Agent invoked an MCP tool whose name contains the substring (trace-based; L4/L5 only) |
 | `calledToolOneOf(toolNames, description, level)` | Agent invoked at least one of the named MCP tools (trace-based; L4/L5 only) |
 
-The `options` parameter is an object with an optional `caseSensitive` field (defaults to `true`).
+The `options` parameter accepts:
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `caseSensitive` | `boolean` | `true` | Whether the needle / pattern match is case-sensitive |
+| `source` | `'files' \| 'response' \| 'both'` | `'files'` | Where to search: workspace files only, the agent's final reply text only, or both. Use `'response'` or `'both'` for MCP-only evals where the agent never writes files. Not applicable to `notContainsInSource`. |
 
 The event-based primitives (`ranCommand`, `ranCommandOneOf`, `wroteFile`) inspect the agent's tool-call trace rather than workspace file contents. They only produce meaningful results in agent mode — in baseline mode (no tool calls), they gracefully fail. The `level` parameter is **required** and must be `GraderLevel.L4` or `GraderLevel.L5` (the type system enforces this). Use L4 for behavioral checks like verifying the agent explicitly installed dependencies. To grade compilation, prefer `compiles()` over `ranCommand(...build...)`: `ranCommand` only checks whether the agent ran a build in its trace, whereas `compiles()` runs the eval's `compile_command` itself after the agent finishes, so output that compiles passes even if the agent never ran the build.
 

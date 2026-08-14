@@ -75,11 +75,11 @@ Use `notContainsInSource` (not `notContains`) when a value like a client ID is a
 
 | Primitive                                        | What it does                                                                                                                                                                                                                                   |
 | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `contains(needle)`                               | Substring present in any non-excluded workspace file                                                                                                                                                                                           |
-| `notContains(needle)`                            | Substring must NOT appear in any non-excluded workspace file                                                                                                                                                                                   |
+| `contains(needle)`                               | Substring present in any non-excluded workspace file. Pass `{ source: 'response' }` or `{ source: 'both' }` in options to also (or exclusively) search the agent's final reply text — use for MCP-only evals that write no files.             |
+| `notContains(needle)`                            | Substring must NOT appear in any non-excluded workspace file. Same `source` option as `contains` to extend the search to the agent reply.                                                                                                      |
 | `notContainsInSource(needle)`                    | Substring must NOT appear in source files (allowed in config)                                                                                                                                                                                  |
-| `matches(pattern)`                               | Regex match in any non-excluded workspace file                                                                                                                                                                                                 |
-| `judge(question, level?, options?)`              | LLM-as-judge yes/no question — uses `claude-opus-5`. Pass `{ includeCommandTrace: true }` to also append the agent's successful shell commands (for CLI-only evals with no files to inspect)                                                    |
+| `matches(pattern)`                               | Regex match in any non-excluded workspace file. Same `source` option as `contains` to extend the search to the agent reply.                                                                                                                    |
+| `judge(question, level?, options?)`              | LLM-as-judge yes/no question — uses `claude-opus-5`. Pass `{ includeCommandTrace: true }` to also append the agent's successful shell commands (for CLI-only evals with no files to inspect). Pass `{ source: 'response' }` or `{ source: 'both' }` to include the agent's final reply text in the judge's corpus (for MCP-only evals). |
 | `ranCommand(command, args, description, level)`  | Agent ran a shell command containing `command` (and all `args`) — event-based, level required (L4 or L5)                                                                                                                                       |
 | `ranCommandOneOf(commands, description, level)`  | Agent ran at least one command from the list — event-based, level required (L4 or L5)                                                                                                                                                          |
 | `ranCommandsInOrder(steps, description, level)`  | Agent ran a sequence of commands in order — each step (a needle, or a one-of array of alternatives) must match after the previous step's match, checked across the whole command trace (non-adjacent commands and single-command `a && b` chains both count); errored commands ignored — event-based, level required (L4 or L5) |
@@ -87,6 +87,30 @@ Use `notContainsInSource` (not `notContains`) when a value like a client ID is a
 | `compiles(description, level)` | Framework runs the eval's `compile_command` against the workspace after the agent finishes and passes/fails on its exit code — level required (L4 or L5). Decoupled from whether the agent ran the build itself, so output that compiles passes even if the agent never ran the build. Requires `compile_command` in PROMPT.md frontmatter or the grader fails. |
 | `calledTool(toolName, description, level)` | Agent invoked an MCP tool whose name contains `toolName` (case-insensitive substring against `mcp__<server>__<tool>` calls; errored calls excluded) — event-based, level required (L4 or L5) |
 | `calledToolOneOf(toolNames, description, level)` | Agent invoked at least one of the named MCP tools — event-based, level required (L4 or L5) |
+
+### Grading the agent's final answer (MCP-only evals)
+
+For hosted-MCP evals the agent calls tools and replies with text — it never writes files. Text-based graders that need to inspect the reply must set `source: 'response'` or `source: 'both'`. Without that option, they search workspace files only; negative checks (`notContains`) can still pass when the files corpus is empty.
+
+Use the `source` option to tell a grader where to look:
+
+| `source` value | What the grader searches |
+|---|---|
+| `'files'` (default) | Workspace files only — existing behavior, unchanged for all file-based evals |
+| `'response'` | Agent's final reply text only — use when the agent never writes files |
+| `'both'` | Workspace files **and** the agent's final reply |
+
+**Example — MCP eval where the agent answers in prose:**
+
+```typescript
+contains('useAuth0', 'uses useAuth0 hook', GraderLevel.L1, { source: 'response' }),
+notContains('auth0-js', 'no legacy SDK', GraderLevel.L2, { source: 'response' }),
+judge('Did the agent correctly describe wiring Auth0 to the React app?', undefined, { source: 'response' }),
+```
+
+- For `judge`, `source: 'response'` skips file collection entirely — the judge corpus is the agent's reply only, so scaffold files cannot inflate it past `maxCodeChars`.
+- For `contains` / `notContains` / `matches`, `source: 'both'` is useful when the agent both writes files **and** summarises the result in its reply and you want to check either.
+- All existing evals are unaffected: `source` defaults to `'files'`. In baseline mode `agentText` is set to the full LLM response text, so `source: 'response'` and `source: 'both'` search the raw prose reply (not the extracted code that gets written to disk).
 
 ## Grading exclusions
 

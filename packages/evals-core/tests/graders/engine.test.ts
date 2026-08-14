@@ -1315,3 +1315,309 @@ describe('runGraders - compile', () => {
     expect(results[0]!.detail).toContain('compile was not run');
   });
 });
+
+// ── runGraders — agentText with opt-in source field (MCP-only evals) ──────────
+
+describe('runGraders - agentText opt-in via source field', () => {
+  // contains — source: 'response'
+  it('contains: passes with source:response when needle is in agentText and workspace is empty', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [contains('useAuth0', undefined, undefined, { source: 'response' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Here is your integration: useAuth0() is the hook you need.',
+    );
+    expect(results[0]!.passed).toBe(true);
+    expect(results[0]!.detail).toContain('agent reply');
+  });
+
+  it('contains: fails with source:response when needle is absent from agentText', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [contains('useAuth0', undefined, undefined, { source: 'response' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'The answer uses a different hook entirely.',
+    );
+    expect(results[0]!.passed).toBe(false);
+    expect(results[0]!.detail).toContain('NOT found');
+  });
+
+  it('contains: default source:files does NOT search agentText (guards against regression)', async () => {
+    const dir = tmpDir();
+    // No source option → default 'files' → agentText is ignored even when it matches
+    const results = await runGraders(
+      [contains('useAuth0')],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Here is your integration: useAuth0() is the hook you need.',
+    );
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('contains: source:both passes when needle is in workspace file and agentText is absent', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'app.ts'), 'import { useAuth0 } from "@auth0/auth0-react";');
+    const results = await runGraders(
+      [contains('useAuth0', undefined, undefined, { source: 'both' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'No mention here.',
+    );
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('contains: source:both passes when needle is only in agentText (no workspace files)', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [contains('useAuth0', undefined, undefined, { source: 'both' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Call useAuth0() to get the token.',
+    );
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('notContains: fails with source:both when needle is only in agentText', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [notContains('hardcoded-secret', undefined, undefined, { source: 'both' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Set value to hardcoded-secret in your config.',
+    );
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('matches: source:both passes when pattern matches only in agentText (no workspace files)', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [matches('useAuth0\\(\\)', undefined, undefined, { source: 'both' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Call useAuth0() at the top of your component.',
+    );
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  // notContains — source: 'response'
+  it('notContains: fails with source:response when needle is in agentText', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [notContains('hardcoded-secret', undefined, undefined, { source: 'response' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Set the value to hardcoded-secret in your config.',
+    );
+    expect(results[0]!.passed).toBe(false);
+    expect(results[0]!.detail).toContain('agent reply');
+  });
+
+  it('notContains: passes with source:both when needle is absent from both workspace and agentText', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [notContains('hardcoded-secret', undefined, undefined, { source: 'both' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Use environment variables instead.',
+    );
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  // matches — source: 'response'
+  it('matches: passes with source:response when pattern matches in agentText', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [matches('useAuth0\\(\\)', undefined, undefined, { source: 'response' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Call useAuth0() at the top of your component.',
+    );
+    expect(results[0]!.passed).toBe(true);
+    expect(results[0]!.detail).toContain('agent reply');
+  });
+
+  it('matches: fails with source:both when pattern matches neither workspace nor agentText', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [matches('useAuth0\\(\\)', undefined, undefined, { source: 'both' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Use a different hook.',
+    );
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  // judge — source: 'response' (corpus = reply only, no workspace files)
+  it('judge: source:response sends only agent reply to LLM (skips workspace files)', async () => {
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'scaffold.ts'), 'export const scaffoldCode = true;');
+    const { judge } = await import('@a0/evals-graders');
+    const agentReply = 'The user should call useAuth0() to get the token.';
+    await runGraders(
+      [judge('Did the agent answer the question?', undefined, { source: 'response' })],
+      dir,
+      'key',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      agentReply,
+    );
+    const messages = capturedBody!.messages as Array<{ role: string; content: string }>;
+    const userContent = messages.find((m) => m.role === 'user')!.content;
+    expect(userContent).toContain('AGENT REPLY');
+    expect(userContent).toContain(agentReply);
+    // Scaffold file must NOT appear — source:'response' skips file collection entirely
+    expect(userContent).not.toContain('scaffold.ts');
+    expect(userContent).not.toContain('scaffoldCode');
+  });
+
+  it('judge: source:response passes when LLM returns yes', async () => {
+    vi.stubGlobal('fetch', mockFetchResponse('The reply answers the question.\n\nyes'));
+    const dir = tmpDir();
+    const { judge } = await import('@a0/evals-graders');
+    const results = await runGraders(
+      [judge('Did the agent answer?', undefined, { source: 'response' })],
+      dir,
+      'key',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Here is the answer: useAuth0() is the hook.',
+    );
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  // judge — source: 'both' (corpus = workspace files + agent reply)
+  it('judge: source:both sends both workspace files and agent reply to LLM', async () => {
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'App.tsx'), 'import { useAuth0 } from "@auth0/auth0-react";');
+    const { judge } = await import('@a0/evals-graders');
+    const agentReply = 'I wired up useAuth0() in the component.';
+    await runGraders(
+      [judge('Is Auth0 integrated?', undefined, { source: 'both' })],
+      dir,
+      'key',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      agentReply,
+    );
+    const messages = capturedBody!.messages as Array<{ role: string; content: string }>;
+    const userContent = messages.find((m) => m.role === 'user')!.content;
+    expect(userContent).toContain('App.tsx');
+    expect(userContent).toContain('@auth0/auth0-react');
+    expect(userContent).toContain('AGENT REPLY');
+    expect(userContent).toContain(agentReply);
+  });
+
+  // judge — default source ('files') must NOT include agent reply
+  it('judge: default source:files does NOT include agent reply in corpus (regression guard)', async () => {
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'App.tsx'), 'import { useAuth0 } from "@auth0/auth0-react";');
+    const { judge } = await import('@a0/evals-graders');
+    const agentReply = 'AGENT_REPLY_SENTINEL_12345';
+    await runGraders(
+      [judge('Is Auth0 integrated?')],
+      dir,
+      'key',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      agentReply,
+    );
+    const messages = capturedBody!.messages as Array<{ role: string; content: string }>;
+    const userContent = messages.find((m) => m.role === 'user')!.content;
+    expect(userContent).toContain('App.tsx');
+    // Sentinel must NOT appear — default is files-only
+    expect(userContent).not.toContain('AGENT_REPLY_SENTINEL_12345');
+  });
+});
