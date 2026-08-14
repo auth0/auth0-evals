@@ -5,7 +5,7 @@
  * runs AXIS and layers our graders on top of every job result.
  *
  * After the run, writes scores-axis.json (same format as scores-agent.json)
- * and auto-generates report-axis.html using the existing evals reporter.
+ * and auto-generates report-axis.html using @netlify/axis's generateReportHtml().
  *
  * Usage:
  *   npm run axis
@@ -15,9 +15,9 @@
 
 /* eslint-disable no-console */
 
-import { runAxis, buildAxisScores } from '@a0/evals-axis';
+import { runAxis, buildAxisScores, buildReportManifest } from '@a0/evals-axis';
 import { setFrameworkConfig, loadConfig, discoverEvals } from '@a0/evals-core';
-import { renderHtml } from '@a0/evals-reporter';
+import { generateReportHtml } from '@netlify/axis';
 import { config as loadDotenv } from 'dotenv';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -190,14 +190,6 @@ const scoresPath = typeof flags.output === 'string' ? flags.output : join(APP_RO
 writeFileSync(scoresPath, JSON.stringify(scores, null, 2), 'utf-8');
 console.log(`[axis] Scores: ${scoresPath}`);
 
-const now = new Date();
-const generatedAt =
-  `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}` +
-  ` ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 const reportPath = join(APP_ROOT, 'report-axis.html');
-// renderHtml's input type is Record<string, unknown>[] — a loose signature that
-// predates the typed JobResult union. AgentJobResult is structurally compatible
-// but TypeScript rejects the direct assignment due to the index signature gap,
-// so the double cast is intentional rather than masking a real type mismatch.
-writeFileSync(reportPath, renderHtml(scores as unknown as Record<string, unknown>[], generatedAt), 'utf-8');
+writeFileSync(reportPath, generateReportHtml(buildReportManifest(scoredOutput, graderResults)), 'utf-8');
 console.log(`[axis] Report: ${reportPath}`);

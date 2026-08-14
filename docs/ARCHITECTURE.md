@@ -122,7 +122,7 @@ Bottom-up, with a clean acyclic dependency graph (`@a0/evals-graders` is the lea
 
 ### `@a0/evals-axis`
 - **Purpose**: AXIS integration bridge.
-- **Responsibilities**: Wraps `@netlify/axis` `run()` and layers auth0-evals graders on top of every job result. Exposes `runAxis()` (orchestrates the full AXIS run + grader hook) and `buildAxisScores()` (maps `ScoredOutput` + `GraderResult[]` into the `AgentJobResult[]` shape that `@a0/evals-reporter` expects). The grader hook (`runAuth0Graders`) fires inside the `onResult` callback — before AXIS tears down the workspace — and runs L1–L4 graders against the live workspace. `axisTranscriptToToolCalls()` translates the AXIS transcript into the `EventToolCall[]` format the grader engine understands.
+- **Responsibilities**: Wraps `@netlify/axis` `run()` and layers auth0-evals graders on top of every job result. Exposes `runAxis()` (orchestrates the full AXIS run + grader hook), `buildAxisScores()` (maps `ScoredOutput` + `GraderResult[]` into the `AgentJobResult[]` shape that `@a0/evals-reporter` expects, written as `scores-axis.json`), and `buildReportManifest()` (converts `ScoredOutput` + `GraderResult[]` into the `ReportManifest` consumed by `@netlify/axis`'s `generateReportHtml()`, written as `report-axis.html`). The grader hook (`runAuth0Graders`) fires inside the `onResult` callback — before AXIS tears down the workspace — and runs L1–L4 graders against the live workspace. `axisTranscriptToToolCalls()` translates the AXIS transcript into the `EventToolCall[]` format the grader engine understands.
 - **Dependencies**: `@a0/evals-core`, `@a0/evals-graders`, `@netlify/axis`.
 - **Type**: Application infrastructure / bridge.
 
@@ -251,6 +251,7 @@ sequenceDiagram
     end
     box rgba(243,232,255,0.55) Output
         participant Build as buildAxisScores()
+        participant Manifest as buildReportManifest()
         participant Out as scores-axis.json + report-axis.html
     end
 
@@ -270,12 +271,14 @@ sequenceDiagram
     Axis->>Axis: AXIS 4-dimension judge (goal / environment / service / agent)
     Axis-->>Run: { scoredOutput, graderResults }
     Run->>Build: buildAxisScores(scoredOutput, graderResults)
-    Build-->>Out: AgentJobResult[] → scores-axis.json + report-axis.html
+    Build-->>Out: AgentJobResult[] → scores-axis.json
+    Run->>Manifest: buildReportManifest(scoredOutput, graderResults)
+    Manifest-->>Out: ReportManifest → generateReportHtml() → report-axis.html
 ```
 
 ### How AXIS and auth0-evals scoring combine
 
-AXIS scores every job on **4 dimensions** (0–10 each) via its own LLM judge. auth0-evals adds **L1–L4 grader pass rates** alongside. `buildAxisScores()` maps the combined result into the same `AgentJobResult` shape that `a0-eval run` produces, so `npm run report` renders both in a unified leaderboard.
+AXIS scores every job on **4 dimensions** (0–10 each) via its own LLM judge. auth0-evals adds **L1–L4 grader pass rates** alongside. `buildAxisScores()` maps the combined result into the same `AgentJobResult` shape that `a0-eval run` produces, written as `scores-axis.json` so `npm run report` renders both in a unified leaderboard. `buildReportManifest()` converts the same data into the `ReportManifest` shape consumed by `@netlify/axis`'s `generateReportHtml()`, producing `report-axis.html` — the native AXIS report UI.
 
 | Source | What it measures |
 |---|---|
@@ -293,7 +296,7 @@ AXIS scores every job on **4 dimensions** (0–10 each) via its own LLM judge. a
 | Agents | one model/runner per run | claude-code, codex, gemini in one pass |
 | Scoring | 8-dimension weighted sum | AXIS 4-dimension judge + grader pass rates |
 | Modes | baseline, agent, agent+mcp, … | agent only (no baseline, no MCP toggle) |
-| Output | `scores-agent.json` / `scores-baseline.json` | `scores-axis.json` |
+| Output | `scores-agent.json` / `scores-baseline.json` | `scores-axis.json` + `report-axis.html` |
 
 ## Scoring — 8 dimensions
 

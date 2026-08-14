@@ -1,3 +1,5 @@
+/* eslint-disable no-console */
+
 /**
  * Maps AXIS ScoredOutput + auth0-evals grader results to AgentJobResult[],
  * the format consumed by @a0/evals-reporter's renderHtml().
@@ -6,7 +8,7 @@
  * run entry point, which triggers side-effects on import.
  */
 
-import type { ScoredOutput, TranscriptEntry } from '@netlify/axis';
+import type { ScoredOutput, TranscriptEntry, ReportManifest } from '@netlify/axis';
 import type { GraderResult } from '@a0/evals-graders';
 import type { AgentJobResult, AgentType, DimensionSummary, GraderSummary } from '@a0/evals-core';
 import { estimateCost } from '@a0/evals-core';
@@ -29,6 +31,27 @@ const AXIS_AGENT_TO_TYPE: Record<string, AgentType> = {
  * claude-code uses AskUserQuestion; copilot uses ask_user.
  */
 const INTERRUPTION_TOOL_NAMES = new Set(['AskUserQuestion', 'ask_user']);
+
+/**
+ * Infers agent inference cost from an AXIS result metadata block.
+ *
+ * AXIS only populates totalCostUsd for adapters that receive cost from the
+ * protocol (currently claude-code only). For codex and gemini the field is
+ * undefined even though tokenUsage is present, so we fall back to estimateCost()
+ * using the model's pricing table entry. Returns undefined when neither is available
+ * (used by buildReportManifest so the HTML report omits the column rather than
+ * showing $0.0000).
+ */
+function inferAgentCost(
+  agentName: string,
+  metadata: { totalCostUsd?: number; tokenUsage?: { input: number; output: number } },
+): number | undefined {
+  if (metadata.totalCostUsd != null) return metadata.totalCostUsd;
+  const [, model] = agentName.split('|');
+  const resolvedModel = model ?? agentName;
+  if (metadata.tokenUsage) return estimateCost(resolvedModel, metadata.tokenUsage.input, metadata.tokenUsage.output);
+  return undefined;
+}
 
 /**
  * Sums token usage across judge grader results and estimates cost.
@@ -153,13 +176,19 @@ export function buildAxisScores(
     });
 
     const tokenUsage = result.output.metadata.tokenUsage;
+    const resolvedModel = model ?? result.agentName;
+    const rawCost = inferAgentCost(result.agentName, result.output.metadata);
+    if (rawCost === undefined) {
+      console.debug(`[report] Cost unavailable for ${result.agentName} — cost_usd will show $0`);
+    }
+    const inferredCost = rawCost ?? 0;
 
     return {
       eval_id: result.scenarioKey,
       category: categories[result.scenarioKey] ?? '',
       prompt: result.prompt,
       response_text: result.output.result ?? '',
-      model: model ?? result.agentName,
+      model: resolvedModel,
       mode: 'agent',
       agent_type: agentType,
       tools: ['axis'],
@@ -179,15 +208,63 @@ export function buildAxisScores(
         result.output.transcript.filter((e) => e.type === 'tool_use').length,
       interruptions: countInterruptions(result.output.transcript),
       tokens: tokenUsage ? tokenUsage.input + tokenUsage.output + (tokenUsage.cacheReadInput ?? 0) : 0,
-      cost_usd: result.output.metadata.totalCostUsd ?? 0,
+      cost_usd: inferredCost,
       judge_cost_usd: judgeCost,
-      total_cost_usd: (result.output.metadata.totalCostUsd ?? 0) + judgeCost,
+      total_cost_usd: inferredCost + judgeCost,
       dimensions,
       graders: graderSummaries,
       session_trace: [],
       turn_metrics: [],
     };
   });
+}
+
+/**
+ * Maps AXIS ScoredOutput to a ReportManifest consumed by @netlify/axis's
+ * generateReportHtml(), producing the official AXIS-style HTML report.
+ */
+export function buildReportManifest(
+  output: ScoredOutput,
+  allGraderResults: Map<string, GraderResult[]> = new Map(),
+): ReportManifest {
+  return {
+    version: output.version,
+    reportId: `auth0-evals-${output.timestamp}`,
+    name: 'Auth0 SDK Evals',
+    timestamp: output.timestamp,
+    durationMs: output.durationMs,
+    summary: output.summary,
+    results: output.results.map((result) => {
+      const key = `${result.scenarioKey}|${result.agentName}`;
+      const judgeCost = computeJudgeCost(allGraderResults.get(key) ?? []);
+      const agentCost = inferAgentCost(result.agentName, result.output.metadata);
+      if (agentCost === undefined) {
+        console.debug(`[manifest] Cost unavailable for ${result.scenarioKey} / ${result.agentName}`);
+      }
+      const totalCostUsd = agentCost !== undefined ? agentCost + judgeCost : undefined;
+      return {
+        scenarioKey: result.scenarioKey,
+        scenarioName: result.scenarioName,
+        agentName: result.agentName,
+        durationMs: result.output.metadata.durationMs,
+        exitCode: result.output.metadata.exitCode,
+        failed: result.output.metadata.exitCode !== 0 || !!result.output.metadata.error,
+        tokenUsage: result.output.metadata.tokenUsage,
+        totalCostUsd,
+        score: result.score,
+        error: result.output.metadata.error,
+        // No per-run result files are written — drill-down links are unavailable.
+        file: '',
+        prompt: result.prompt,
+        judge: result.judge,
+        agentConfig: result.agentConfig,
+        resolvedConfig: result.resolvedConfig,
+        artifacts: result.artifacts,
+        setupOutput: result.setupOutput,
+        teardownOutput: result.teardownOutput,
+      };
+    }),
+  };
 }
 
 /** Maps a 0–100 score to a letter grade using the framework's thresholds. */

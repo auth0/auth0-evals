@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildAxisScores, countInterruptions, scoreToGrade } from '../src/report.js';
+import { buildAxisScores, buildReportManifest, countInterruptions, scoreToGrade } from '../src/report.js';
 import type { ScoredOutput } from '@netlify/axis';
 import type { GraderResult } from '@a0/evals-graders';
 
@@ -274,6 +274,48 @@ describe('buildAxisScores', () => {
     expect(result.total_cost_usd).toBeCloseTo(0.06, 6);
   });
 
+  it('estimates cost from tokenUsage when totalCostUsd is absent (codex/gemini case)', () => {
+    // gpt-5.6-sol: $5/M input, $30/M output → (1000×5 + 500×30) / 1_000_000 = 0.02
+    const output = makeScoredOutput({
+      agentName: 'codex|gpt-5.6-sol',
+      tokenUsage: { input: 1000, output: 500 },
+      // totalCostUsd intentionally absent
+    });
+    const [result] = buildAxisScores(output, new Map());
+
+    expect(result.cost_usd).toBeCloseTo(0.02, 6);
+    expect(result.total_cost_usd).toBeCloseTo(0.02, 6);
+  });
+
+  it('estimates cost from tokenUsage for gemini when totalCostUsd is absent', () => {
+    // gemini-3.1-pro-preview: $2/M input, $12/M output → (1000×2 + 500×12) / 1_000_000 = 0.008
+    const output = makeScoredOutput({
+      agentName: 'gemini|gemini-3.1-pro-preview',
+      tokenUsage: { input: 1000, output: 500 },
+    });
+    const [result] = buildAxisScores(output, new Map());
+
+    expect(result.cost_usd).toBeCloseTo(0.008, 6);
+  });
+
+  it('sets cost_usd to 0 when both totalCostUsd and tokenUsage are absent', () => {
+    const output = makeScoredOutput({});
+    const [result] = buildAxisScores(output, new Map());
+
+    expect(result.cost_usd).toBe(0);
+    expect(result.total_cost_usd).toBe(0);
+  });
+
+  it('prefers totalCostUsd over tokenUsage-based estimate when both are present', () => {
+    const output = makeScoredOutput({
+      totalCostUsd: 0.05,
+      tokenUsage: { input: 1000, output: 500 },
+    });
+    const [result] = buildAxisScores(output, new Map());
+
+    expect(result.cost_usd).toBe(0.05);
+  });
+
   it('sets judge_cost_usd to 0 when graders have no token usage', () => {
     const graders: GraderResult[] = [{ name: 'Uses SDK', kind: 'contains', passed: true, detail: 'found' }];
     const output = makeScoredOutput({ totalCostUsd: 0.02 });
@@ -397,5 +439,144 @@ describe('buildAxisScores', () => {
     const [result] = buildAxisScores(output, new Map());
 
     expect(result.interruptions).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildReportManifest
+// ---------------------------------------------------------------------------
+
+describe('buildReportManifest', () => {
+  it('passes through top-level fields from ScoredOutput', () => {
+    const output = makeScoredOutput({});
+    const manifest = buildReportManifest(output);
+
+    expect(manifest.version).toBe('1');
+    expect(manifest.timestamp).toBe('2026-01-01T00:00:00Z');
+    expect(manifest.durationMs).toBe(1000);
+    expect(manifest.summary).toEqual({ total: 1, completed: 1, failed: 0 });
+    expect(manifest.name).toBe('Auth0 SDK Evals');
+  });
+
+  it('generates reportId from timestamp', () => {
+    const output = makeScoredOutput({});
+    const manifest = buildReportManifest(output);
+
+    expect(manifest.reportId).toBe('auth0-evals-2026-01-01T00:00:00Z');
+  });
+
+  it('maps result fields to ReportResultEntry', () => {
+    const output = makeScoredOutput({ scenarioKey: 'react_quickstart', axisScore: 80 });
+    const manifest = buildReportManifest(output);
+    const [entry] = manifest.results;
+
+    expect(entry.scenarioKey).toBe('react_quickstart');
+    expect(entry.scenarioName).toBe('react_quickstart');
+    expect(entry.agentName).toBe('claude-code|global.anthropic.claude-opus-4-8');
+    expect(entry.durationMs).toBe(1000);
+    expect(entry.exitCode).toBe(0);
+    expect(entry.prompt).toBe('Test prompt');
+    expect(entry.judge).toBe('Did it work?');
+    expect(entry.score).toBeDefined();
+    expect(entry.file).toBe('');
+  });
+
+  it('sets failed to false when exitCode is 0 and no error', () => {
+    const output = makeScoredOutput({ exitCode: 0 });
+    const [entry] = buildReportManifest(output).results;
+
+    expect(entry.failed).toBe(false);
+  });
+
+  it('sets failed to true when exitCode is non-zero', () => {
+    const output = makeScoredOutput({ exitCode: 1 });
+    const [entry] = buildReportManifest(output).results;
+
+    expect(entry.failed).toBe(true);
+  });
+
+  it('sets failed to true when error is present', () => {
+    const output = makeScoredOutput({ exitCode: 0 });
+    output.results[0].output.metadata.error = 'agent timed out';
+    const [entry] = buildReportManifest(output).results;
+
+    expect(entry.failed).toBe(true);
+    expect(entry.error).toBe('agent timed out');
+  });
+
+  it('passes through tokenUsage when present', () => {
+    const output = makeScoredOutput({ tokenUsage: { input: 1000, output: 500 } });
+    const [entry] = buildReportManifest(output).results;
+
+    expect(entry.tokenUsage).toEqual({ input: 1000, output: 500 });
+  });
+
+  it('passes through totalCostUsd when present', () => {
+    const output = makeScoredOutput({ totalCostUsd: 0.05 });
+    const [entry] = buildReportManifest(output).results;
+
+    expect(entry.totalCostUsd).toBe(0.05);
+  });
+
+  it('estimates totalCostUsd from tokenUsage when absent (codex/gemini case)', () => {
+    // gpt-5.6-sol: $5/M input, $30/M output → (1000×5 + 500×30) / 1_000_000 = 0.02
+    const output = makeScoredOutput({
+      agentName: 'codex|gpt-5.6-sol',
+      tokenUsage: { input: 1000, output: 500 },
+    });
+    const [entry] = buildReportManifest(output).results;
+
+    expect(entry.totalCostUsd).toBeCloseTo(0.02, 6);
+  });
+
+  it('leaves totalCostUsd undefined when both are absent even with judge cost', () => {
+    const graders: GraderResult[] = [
+      {
+        name: 'Holistic judge',
+        kind: 'judge',
+        passed: true,
+        detail: 'yes',
+        inputTokens: 1000,
+        outputTokens: 200,
+        judgeModel: 'claude-opus-5',
+      },
+    ];
+    const output = makeScoredOutput({});
+    const map = new Map([['react_quickstart|claude-code|global.anthropic.claude-opus-4-8', graders]]);
+    const [entry] = buildReportManifest(output, map).results;
+
+    expect(entry.totalCostUsd).toBeUndefined();
+  });
+
+  it('adds judge cost to totalCostUsd when agent cost is available', () => {
+    // gpt-5.6-sol agent cost: (1000×5 + 500×30) / 1_000_000 = 0.02
+    // claude-opus-5 judge: (1000×5 + 200×25) / 1_000_000 = 0.01
+    // total = 0.03
+    const graders: GraderResult[] = [
+      {
+        name: 'Holistic judge',
+        kind: 'judge',
+        passed: true,
+        detail: 'yes',
+        inputTokens: 1000,
+        outputTokens: 200,
+        judgeModel: 'claude-opus-5',
+      },
+    ];
+    const output = makeScoredOutput({
+      agentName: 'codex|gpt-5.6-sol',
+      tokenUsage: { input: 1000, output: 500 },
+    });
+    const map = new Map([['react_quickstart|codex|gpt-5.6-sol', graders]]);
+    const [entry] = buildReportManifest(output, map).results;
+
+    expect(entry.totalCostUsd).toBeCloseTo(0.03, 6);
+  });
+
+  it('produces one entry per result', () => {
+    const output = makeScoredOutput({});
+    const manifest = buildReportManifest(output);
+
+    expect(manifest.results).toHaveLength(1);
   });
 });
