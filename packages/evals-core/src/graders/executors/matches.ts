@@ -7,6 +7,7 @@
 
 import type { GraderDef, GraderResult } from '@a0/evals-graders';
 import type { GraderContext, GraderExecutor } from './types.js';
+import { searchCorpusRegex } from './search-corpus.js';
 
 export const matchesExecutor: GraderExecutor = {
   kind: 'matches',
@@ -22,11 +23,7 @@ export const matchesExecutor: GraderExecutor = {
       const re = new RegExp(pattern, flags);
       const source = def.source ?? 'files';
 
-      const checkFiles = source === 'files' || source === 'both';
-      const checkResponse = source === 'response' || source === 'both';
-
-      const inFiles = checkFiles ? re.test(ctx.combinedText) : false;
-      const inAgent = checkResponse && ctx.agentText.length > 0 ? re.test(ctx.agentText) : false;
+      const { inFiles, inAgent } = searchCorpusRegex(ctx, re, source);
 
       passed = inFiles || inAgent;
       const matchedIn = inAgent && !inFiles ? 'agent reply' : 'written files';

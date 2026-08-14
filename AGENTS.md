@@ -90,7 +90,7 @@ Use `notContainsInSource` (not `notContains`) when a value like a client ID is a
 
 ### Grading the agent's final answer (MCP-only evals)
 
-For hosted-MCP evals the agent calls tools and replies with text — it never writes files. Every text-based grader defaults to `source: 'files'`, so without the `source` option the workspace corpus is empty and every grader silently scores 0.
+For hosted-MCP evals the agent calls tools and replies with text — it never writes files. Text-based graders that need to inspect the reply must set `source: 'response'` or `source: 'both'`. Without that option, they search workspace files only; negative checks (`notContains`) can still pass when the files corpus is empty.
 
 Use the `source` option to tell a grader where to look:
 
@@ -110,7 +110,7 @@ judge('Did the agent correctly describe wiring Auth0 to the React app?', undefin
 
 - For `judge`, `source: 'response'` skips file collection entirely — the judge corpus is the agent's reply only, so scaffold files cannot inflate it past `maxCodeChars`.
 - For `contains` / `notContains` / `matches`, `source: 'both'` is useful when the agent both writes files **and** summarises the result in its reply and you want to check either.
-- All existing evals are unaffected: `source` defaults to `'files'` and `agentText` is `''` in baseline mode.
+- All existing evals are unaffected: `source` defaults to `'files'`. In baseline mode `agentText` is set to the full LLM response text, so `source: 'response'` and `source: 'both'` search the raw prose reply (not the extracted code that gets written to disk).
 
 ## Grading exclusions
 

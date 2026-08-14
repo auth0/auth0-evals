@@ -7,6 +7,7 @@
  * the match was found for detail messages).
  */
 
+import type { GraderSource } from '@a0/evals-graders';
 import type { GraderContext } from './types.js';
 
 export interface SearchResult {
@@ -14,7 +15,12 @@ export interface SearchResult {
   inAgent: boolean;
 }
 
-export function searchCorpus(ctx: GraderContext, needle: string, caseSensitive: boolean, source: string): SearchResult {
+export function searchCorpus(
+  ctx: GraderContext,
+  needle: string,
+  caseSensitive: boolean,
+  source: GraderSource,
+): SearchResult {
   const checkFiles = source !== 'response';
   const checkResponse = source !== 'files';
 
@@ -30,6 +36,16 @@ export function searchCorpus(ctx: GraderContext, needle: string, caseSensitive: 
         ? ctx.agentText.includes(needle)
         : ctx.agentText.toLowerCase().includes(needle.toLowerCase())
       : false;
+
+  return { inFiles, inAgent };
+}
+
+export function searchCorpusRegex(ctx: GraderContext, re: RegExp, source: GraderSource): SearchResult {
+  const checkFiles = source !== 'response';
+  const checkResponse = source !== 'files';
+
+  const inFiles = checkFiles ? re.test(ctx.combinedText) : false;
+  const inAgent = checkResponse && ctx.agentText.length > 0 ? re.test(ctx.agentText) : false;
 
   return { inFiles, inAgent };
 }
