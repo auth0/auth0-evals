@@ -62,7 +62,7 @@ export function notContainsInSource(
   needle: string,
   description?: string,
   level?: GraderLevel,
-  options: GraderOptions = {},
+  options: Pick<GraderOptions, 'caseSensitive'> = {},
 ): GraderDef {
   return {
     kind: 'not_contains_in_source',

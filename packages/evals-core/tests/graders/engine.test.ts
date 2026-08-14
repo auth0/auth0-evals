@@ -1388,6 +1388,54 @@ describe('runGraders - agentText opt-in via source field', () => {
     expect(results[0]!.passed).toBe(true);
   });
 
+  it('contains: source:both passes when needle is only in agentText (no workspace files)', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [contains('useAuth0', undefined, undefined, { source: 'both' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Call useAuth0() to get the token.',
+    );
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('notContains: fails with source:both when needle is only in agentText', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [notContains('hardcoded-secret', undefined, undefined, { source: 'both' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Set value to hardcoded-secret in your config.',
+    );
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('matches: source:both passes when pattern matches only in agentText (no workspace files)', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [matches('useAuth0\\(\\)', undefined, undefined, { source: 'both' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Call useAuth0() at the top of your component.',
+    );
+    expect(results[0]!.passed).toBe(true);
+  });
+
   // notContains — source: 'response'
   it('notContains: fails with source:response when needle is in agentText', async () => {
     const dir = tmpDir();
