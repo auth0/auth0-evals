@@ -529,11 +529,48 @@ describe('buildReportManifest', () => {
     expect(entry.totalCostUsd).toBeCloseTo(0.02, 6);
   });
 
-  it('leaves totalCostUsd undefined when both are absent', () => {
+  it('leaves totalCostUsd undefined when both are absent even with judge cost', () => {
+    const graders: GraderResult[] = [
+      {
+        name: 'Holistic judge',
+        kind: 'judge',
+        passed: true,
+        detail: 'yes',
+        inputTokens: 1000,
+        outputTokens: 200,
+        judgeModel: 'claude-opus-5',
+      },
+    ];
     const output = makeScoredOutput({});
-    const [entry] = buildReportManifest(output).results;
+    const map = new Map([['react_quickstart|claude-code|global.anthropic.claude-opus-4-8', graders]]);
+    const [entry] = buildReportManifest(output, map).results;
 
     expect(entry.totalCostUsd).toBeUndefined();
+  });
+
+  it('adds judge cost to totalCostUsd when agent cost is available', () => {
+    // gpt-5.6-sol agent cost: (1000×5 + 500×30) / 1_000_000 = 0.02
+    // claude-opus-5 judge: (1000×5 + 200×25) / 1_000_000 = 0.01
+    // total = 0.03
+    const graders: GraderResult[] = [
+      {
+        name: 'Holistic judge',
+        kind: 'judge',
+        passed: true,
+        detail: 'yes',
+        inputTokens: 1000,
+        outputTokens: 200,
+        judgeModel: 'claude-opus-5',
+      },
+    ];
+    const output = makeScoredOutput({
+      agentName: 'codex|gpt-5.6-sol',
+      tokenUsage: { input: 1000, output: 500 },
+    });
+    const map = new Map([['react_quickstart|codex|gpt-5.6-sol', graders]]);
+    const [entry] = buildReportManifest(output, map).results;
+
+    expect(entry.totalCostUsd).toBeCloseTo(0.03, 6);
   });
 
   it('produces one entry per result', () => {

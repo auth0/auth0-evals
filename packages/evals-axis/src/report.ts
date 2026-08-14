@@ -1,3 +1,5 @@
+/* eslint-disable no-console */
+
 /**
  * Maps AXIS ScoredOutput + auth0-evals grader results to AgentJobResult[],
  * the format consumed by @a0/evals-reporter's renderHtml().
@@ -175,7 +177,11 @@ export function buildAxisScores(
 
     const tokenUsage = result.output.metadata.tokenUsage;
     const resolvedModel = model ?? result.agentName;
-    const inferredCost = inferAgentCost(result.agentName, result.output.metadata) ?? 0;
+    const rawCost = inferAgentCost(result.agentName, result.output.metadata);
+    if (rawCost === undefined) {
+      console.debug(`[report] Cost unavailable for ${result.agentName} — cost_usd will show $0`);
+    }
+    const inferredCost = rawCost ?? 0;
 
     return {
       eval_id: result.scenarioKey,
@@ -217,7 +223,10 @@ export function buildAxisScores(
  * Maps AXIS ScoredOutput to a ReportManifest consumed by @netlify/axis's
  * generateReportHtml(), producing the official AXIS-style HTML report.
  */
-export function buildReportManifest(output: ScoredOutput): ReportManifest {
+export function buildReportManifest(
+  output: ScoredOutput,
+  allGraderResults: Map<string, GraderResult[]> = new Map(),
+): ReportManifest {
   return {
     version: output.version,
     reportId: `auth0-evals-${output.timestamp}`,
@@ -225,27 +234,36 @@ export function buildReportManifest(output: ScoredOutput): ReportManifest {
     timestamp: output.timestamp,
     durationMs: output.durationMs,
     summary: output.summary,
-    results: output.results.map((result) => ({
-      scenarioKey: result.scenarioKey,
-      scenarioName: result.scenarioName,
-      agentName: result.agentName,
-      durationMs: result.output.metadata.durationMs,
-      exitCode: result.output.metadata.exitCode,
-      failed: result.output.metadata.exitCode !== 0 || !!result.output.metadata.error,
-      tokenUsage: result.output.metadata.tokenUsage,
-      totalCostUsd: inferAgentCost(result.agentName, result.output.metadata),
-      score: result.score,
-      error: result.output.metadata.error,
-      // No per-run result files are written — drill-down links are unavailable.
-      file: '',
-      prompt: result.prompt,
-      judge: result.judge,
-      agentConfig: result.agentConfig,
-      resolvedConfig: result.resolvedConfig,
-      artifacts: result.artifacts,
-      setupOutput: result.setupOutput,
-      teardownOutput: result.teardownOutput,
-    })),
+    results: output.results.map((result) => {
+      const key = `${result.scenarioKey}|${result.agentName}`;
+      const judgeCost = computeJudgeCost(allGraderResults.get(key) ?? []);
+      const agentCost = inferAgentCost(result.agentName, result.output.metadata);
+      if (agentCost === undefined) {
+        console.debug(`[manifest] Cost unavailable for ${result.scenarioKey} / ${result.agentName}`);
+      }
+      const totalCostUsd = agentCost !== undefined ? agentCost + judgeCost : undefined;
+      return {
+        scenarioKey: result.scenarioKey,
+        scenarioName: result.scenarioName,
+        agentName: result.agentName,
+        durationMs: result.output.metadata.durationMs,
+        exitCode: result.output.metadata.exitCode,
+        failed: result.output.metadata.exitCode !== 0 || !!result.output.metadata.error,
+        tokenUsage: result.output.metadata.tokenUsage,
+        totalCostUsd,
+        score: result.score,
+        error: result.output.metadata.error,
+        // No per-run result files are written — drill-down links are unavailable.
+        file: '',
+        prompt: result.prompt,
+        judge: result.judge,
+        agentConfig: result.agentConfig,
+        resolvedConfig: result.resolvedConfig,
+        artifacts: result.artifacts,
+        setupOutput: result.setupOutput,
+        teardownOutput: result.teardownOutput,
+      };
+    }),
   };
 }
 

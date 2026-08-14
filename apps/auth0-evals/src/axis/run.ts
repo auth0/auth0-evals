@@ -191,5 +191,5 @@ writeFileSync(scoresPath, JSON.stringify(scores, null, 2), 'utf-8');
 console.log(`[axis] Scores: ${scoresPath}`);
 
 const reportPath = join(APP_ROOT, 'report-axis.html');
-writeFileSync(reportPath, generateReportHtml(buildReportManifest(scoredOutput)), 'utf-8');
+writeFileSync(reportPath, generateReportHtml(buildReportManifest(scoredOutput, graderResults)), 'utf-8');
 console.log(`[axis] Report: ${reportPath}`);
