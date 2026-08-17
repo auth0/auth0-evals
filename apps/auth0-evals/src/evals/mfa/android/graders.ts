@@ -23,10 +23,13 @@ export function defineGraders() {
     notContains('auth0-java', 'No auth0-java (server-side SDK, not for Android)', GraderLevel.L2),
     // Auth0.Android has no Credentials.claims property — claims come from credentials.user.
     notContains('credentials.claims', 'No hallucinated Credentials.claims property', GraderLevel.L2),
+    // Every embedded-MFA path carries the mfa_token, whether or not the
+    // MfaApiClient type is ever named.
     notContains(
-      'mfaClient',
-      'Does not use the embedded MFA grant (MFAClient) — wrong approach for a Universal Login app',
+      'mfaToken',
+      'Does not use the embedded MFA grant (MfaApiClient) — wrong approach for a Universal Login app',
       GraderLevel.L2,
+      { caseSensitive: false },
     ),
     notContains('mfa/challenge', 'Does not call the raw MFA challenge endpoint', GraderLevel.L2),
 

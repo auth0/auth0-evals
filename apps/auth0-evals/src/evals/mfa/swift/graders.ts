@@ -20,10 +20,13 @@ export function defineGraders() {
 
     // ── L2: Hallucination / wrong approach ────────────────────────────────
     notContains('Auth0SDK', 'No hallucinated Auth0SDK package name (correct package is Auth0)', GraderLevel.L2),
+    // Every embedded-MFA path carries the mfa_token, whether or not the
+    // MFAClient type is ever named (Auth0.mfa().verify(otp:mfaToken:)).
     notContains(
-      'mfaClient',
-      'Does not use the embedded MFA grant (MFAClient) — wrong approach for a Universal Login app',
+      'mfaToken',
+      'Does not use the embedded MFA grant (Auth0.mfa()/MFAClient) — wrong approach for a Universal Login app',
       GraderLevel.L2,
+      { caseSensitive: false },
     ),
     notContains('mfa/challenge', 'Does not call the raw MFA challenge endpoint', GraderLevel.L2),
 
