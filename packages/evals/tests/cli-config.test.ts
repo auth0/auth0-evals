@@ -90,12 +90,14 @@ describe('API key with proxy.authHeader configured', () => {
     } as unknown as Required<FrameworkConfig>);
   }
 
-  it('returns an empty apiKey instead of exiting when LLM_API_KEY is unset and authHeader is configured', () => {
+  it('returns an empty apiKey instead of exiting when LLM_API_KEY is unset, authHeader is configured, and its token is set', () => {
     delete process.env.LLM_API_KEY;
+    process.env.LLM_PROXY_TOKEN = 'jwt-abc';
     withAuthHeader({ name: 'x-litellm-api-key', tokenEnv: 'LLM_PROXY_TOKEN' });
     const config = parse();
     expect(config.apiKey).toBe('');
     expect(process.exit).not.toHaveBeenCalled();
+    delete process.env.LLM_PROXY_TOKEN;
   });
 
   it('still exits when LLM_API_KEY is unset and no authHeader is configured', () => {
@@ -109,6 +111,21 @@ describe('API key with proxy.authHeader configured', () => {
     withAuthHeader({ name: 'x-litellm-api-key', tokenEnv: 'LLM_PROXY_TOKEN' });
     const config = parse();
     expect(config.apiKey).toBe('my-secret-key');
+  });
+
+  it('exits when LLM_API_KEY is unset, authHeader is configured, but its token env var is also unset', () => {
+    delete process.env.LLM_API_KEY;
+    delete process.env.LLM_PROXY_TOKEN;
+    withAuthHeader({ name: 'x-litellm-api-key', tokenEnv: 'LLM_PROXY_TOKEN' });
+    expect(() => parse()).toThrow('process.exit(1)');
+  });
+
+  it('prints the token env var name in the error when it is unset', () => {
+    delete process.env.LLM_API_KEY;
+    delete process.env.LLM_PROXY_TOKEN;
+    withAuthHeader({ name: 'x-litellm-api-key', tokenEnv: 'LLM_PROXY_TOKEN' });
+    expect(() => parse()).toThrow();
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('LLM_PROXY_TOKEN'));
   });
 });
 

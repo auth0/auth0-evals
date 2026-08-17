@@ -52,10 +52,12 @@ export const PLACEHOLDER_API_KEY = 'unused-see-proxy-auth-header';
  * Resolves the configured proxy auth header, or `undefined` when none is
  * configured or its token env var is empty.
  *
- * A configured-but-empty token is treated as "not configured" and warns: failing
- * closed here would break every run on a typo'd env var name, whereas the warning
- * surfaces the misconfiguration at startup rather than as an opaque 401 mid-run.
- * This mirrors how `mintMcpToken` reports a failed mint.
+ * A configured-but-empty token is treated as "not configured" and warns rather
+ * than throwing — this function runs per-request, not once at startup, so it
+ * cannot fail closed itself. The eval CLI's `validateApiKey()` (in
+ * `packages/evals/src/cli/validators.ts`) is the actual fail-closed check: it
+ * exits before any job starts when `proxy.authHeader` is configured but its
+ * token env var is unset. This mirrors how `mintMcpToken` reports a failed mint.
  *
  * Returns `undefined` when `LLM_API_KEY` is set — see the module comment.
  */
