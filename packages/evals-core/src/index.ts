@@ -152,6 +152,7 @@ export { isBedrockModel, isClaudeModel, isGeminiModel, isGptModel } from './conf
 export {
   runGraders,
   llmJudge,
+  JUDGE_DEFAULT_MAX_TOKENS,
   passRate,
   collectGraderFiles,
   gradeText,

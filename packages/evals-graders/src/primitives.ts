@@ -5,7 +5,7 @@
  * logic lives in runner.ts (runGraders).
  */
 
-import type { GraderDef, GraderOptions, EventToolCall, EventGraderLevel } from './types.js';
+import type { GraderDef, GraderOptions, GraderSource, EventToolCall, EventGraderLevel } from './types.js';
 import { GraderLevel } from './types.js';
 
 export function contains(
@@ -20,6 +20,7 @@ export function contains(
     name: description ?? `contains '${needle}'`,
     level,
     caseSensitive: options.caseSensitive ?? true,
+    source: options.source,
   };
 }
 
@@ -35,6 +36,7 @@ export function notContains(
     name: description ?? `not_contains '${needle}'`,
     level,
     caseSensitive: options.caseSensitive ?? true,
+    source: options.source,
   };
 }
 
@@ -52,6 +54,7 @@ export function matches(
     // Default (undefined) keeps the regex case-insensitive; pass
     // caseSensitive: true to require an exact-case match.
     caseSensitive: options.caseSensitive,
+    source: options.source,
   };
 }
 
@@ -59,7 +62,7 @@ export function notContainsInSource(
   needle: string,
   description?: string,
   level?: GraderLevel,
-  options: GraderOptions = {},
+  options: Pick<GraderOptions, 'caseSensitive'> = {},
 ): GraderDef {
   return {
     kind: 'not_contains_in_source',
@@ -70,12 +73,30 @@ export function notContainsInSource(
   };
 }
 
-export function judge(question: string, level?: GraderLevel): GraderDef {
+/** Options for the `judge` primitive. */
+export interface JudgeOptions {
+  /**
+   * Append the agent's successful command trace to the judge's input. Use for
+   * evals whose artifact is CLI invocations rather than files (no files to
+   * inspect). Defaults to false, so file-based judges are unaffected.
+   */
+  includeCommandTrace?: boolean;
+  /**
+   * Where to look for content to judge — see `GraderDef.source` for semantics.
+   * Defaults to `'files'`. Use `'response'` or `'both'` for MCP-only evals
+   * where the agent's answer is in its final reply, not written files.
+   */
+  source?: GraderSource;
+}
+
+export function judge(question: string, level?: GraderLevel, options: JudgeOptions = {}): GraderDef {
   return {
     kind: 'judge',
     question,
     name: question,
     level,
+    includeCommandTrace: options.includeCommandTrace ?? false,
+    source: options.source,
   };
 }
 
@@ -142,6 +163,65 @@ export function ranCommandOneOf(
     level,
     predicate: (toolCalls: EventToolCall[]) =>
       getRunCommands(toolCalls).some((cmd) => commands.some((c) => cmd.includes(c))),
+  };
+}
+
+/**
+ * Asserts that the agent ran a sequence of commands **in order**.
+ *
+ * Each step is a needle (or a one-of array of alternative needles) that must be
+ * found in the successful command trace, with every step matching *after* the
+ * previous step's match ends. Ordering is checked across the concatenated trace,
+ * so steps may be:
+ *   - non-adjacent (unrelated commands between them), and
+ *   - chained within a single shell command (`enable && enforce`) — agents
+ *     commonly run an enable-then-enforce pair as one call.
+ *
+ * A single occurrence of a needle cannot satisfy two steps: step N+1 searches
+ * only the text that starts after step N's match. Errored commands are ignored.
+ *
+ * This encodes causal dependencies that an unordered set of `ranCommand`s can't —
+ * e.g. a factor must be enabled *before* a policy enforces it. Useful for
+ * file-less CLI/tenant-config evals whose correctness lives entirely in the
+ * command sequence.
+ *
+ * @param steps - Ordered needles; a nested array is a one-of alternative for that position
+ */
+export function ranCommandsInOrder(
+  steps: Array<string | string[]>,
+  description: string | undefined,
+  level: EventGraderLevel,
+): GraderDef {
+  validateEventLevel(level, 'ranCommandsInOrder');
+  const label = steps.map((step) => (Array.isArray(step) ? `(${step.join(' | ')})` : step)).join(' → ');
+  return {
+    kind: 'event',
+    name: description ?? `ran commands in order [${label}]`,
+    level,
+    predicate: (toolCalls: EventToolCall[]) => {
+      // Concatenate the successful command trace in order; a moving cursor
+      // guarantees each step matches text after the previous step's match.
+      const trace = getRunCommands(toolCalls).join('\n');
+      let cursor = 0;
+      for (const step of steps) {
+        const alternatives = Array.isArray(step) ? step : [step];
+        // Earliest match among this step's alternatives at/after the cursor.
+        // On a tie (same index), prefer the shorter needle: it advances the
+        // cursor the least, so it can never hide text a later step needs.
+        let best = -1;
+        let bestLen = 0;
+        for (const needle of alternatives) {
+          const idx = trace.indexOf(needle, cursor);
+          if (idx !== -1 && (best === -1 || idx < best || (idx === best && needle.length < bestLen))) {
+            best = idx;
+            bestLen = needle.length;
+          }
+        }
+        if (best === -1) return false;
+        cursor = best + bestLen;
+      }
+      return true;
+    },
   };
 }
 

@@ -13,6 +13,17 @@ import { resolveProxyAuthHeader } from '../config/proxy-auth.js';
 
 // ── LLM Judge ─────────────────────────────────────────────────────────────────
 
+/**
+ * Default output budget for a judge call.
+ *
+ * Sized with headroom rather than to the ~150 tokens a verdict actually needs:
+ * thinking-capable models (e.g. Opus 5) count reasoning tokens against
+ * `max_tokens`, so a tight budget truncates the response before its final
+ * yes/no line. The judge disables thinking, but this also covers proxies that
+ * ignore that flag.
+ */
+export const JUDGE_DEFAULT_MAX_TOKENS = 4096;
+
 export interface LlmJudgeOptions {
   question: string;
   code: string;
@@ -34,7 +45,7 @@ export interface LlmJudgeResult {
 export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
   const { question, code, apiKey, model, baseUrl, enforceMaxChars = true } = opts;
   const judgeMaxCodeChars = opts.maxCodeChars ?? 32_768;
-  const judgeMaxTokens = opts.maxTokens ?? 1024;
+  const judgeMaxTokens = opts.maxTokens ?? JUDGE_DEFAULT_MAX_TOKENS;
 
   if (!model) {
     throw new JudgeError(
@@ -50,22 +61,47 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
   }
 
   const system = SYSTEM_PROMPT;
+  // Truncate rather than throw. An oversized corpus is an infrastructure limit, not a defect in
+  // the agent's output, so throwing scored correct solutions as grader failures — a large scaffold
+  // could fail every judge in an eval without the model ever being asked.
+  let judgeCode = code;
   if (code.length > judgeMaxCodeChars) {
     if (enforceMaxChars) {
-      throw new Error(
-        `[judge] Code corpus exceeds limit: ${code.length} chars > ${judgeMaxCodeChars}. ` +
-          `Increase judge.maxCodeChars or reduce the number or size of files being judged.`,
+      // Clamp the notice as well: with a limit shorter than the notice itself, appending it
+      // whole would push the result back over the budget we are enforcing.
+      const notice = `\n\n… (truncated at ${judgeMaxCodeChars} chars; ${code.length} chars total)`.slice(
+        0,
+        judgeMaxCodeChars,
       );
+      judgeCode = code.slice(0, judgeMaxCodeChars - notice.length) + notice;
     }
-    logger.warn(`[judge] Code corpus exceeds limit (${code.length} > ${judgeMaxCodeChars} chars) — proceeding anyway`);
+    logger.warn(
+      `[judge] Code corpus exceeds limit (${code.length} > ${judgeMaxCodeChars} chars) — ` +
+        (enforceMaxChars ? 'truncating' : 'proceeding anyway'),
+    );
   }
   // Use function replacers so `question`/`code` are inserted verbatim. A string
   // replacement would interpret `$&`, `` $` ``, `$'`, and `$1` specially, and
   // since `code` is untrusted agent output this would silently corrupt the prompt.
-  const user = USER_TEMPLATE.replace('{question}', () => question).replace('{code}', () => code);
+  const user = USER_TEMPLATE.replace('{question}', () => question).replace('{code}', () => judgeCode);
 
   // The judge hits the /chat/completions endpoint, which serves models under
   // their plain alias, so the model is sent as-is (no Bedrock ID mapping).
+  //
+  // `thinking: disabled` is deliberate. Claude Opus 5 runs adaptive thinking by
+  // default, and `max_tokens` caps thinking *plus* visible text together — so
+  // reasoning tokens ate the budget and the response was cut off before the
+  // final verdict line, failing correct solutions. The judge only needs 1-3
+  // sentences plus a yes/no, so the whole budget should go to visible output.
+  //
+  // It also keeps the grading instrument stable: every judge verdict recorded
+  // before Opus 5 came from a non-thinking judge (Opus 4.8 did not think unless
+  // asked), so disabling it here keeps old and new eval scores comparable.
+  //
+  // Careful if you add `output_config.effort`: Opus 5 only accepts
+  // `thinking: disabled` at effort `high` or lower, and rejects `xhigh`/`max`
+  // with a 400 — validated per request. We send no effort, so the default
+  // (`high`) applies and this is in bounds.
   const payload = JSON.stringify({
     model,
     messages: [
@@ -73,6 +109,7 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
       { role: 'user', content: user },
     ],
     max_tokens: judgeMaxTokens,
+    thinking: { type: 'disabled' },
   });
 
   try {
@@ -106,8 +143,26 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
     });
     const choices = data.choices as Record<string, unknown>[] | undefined;
     const message = choices?.[0]?.message as Record<string, unknown> | undefined;
+    const finishReason = choices?.[0]?.finish_reason as string | undefined;
     const answer = ((message?.content as string | undefined) ?? '').trim();
+
+    // Distinguish a response the provider cut off at the token ceiling from a
+    // genuinely malformed one. Reporting truncation as an "unexpected verdict"
+    // is actively misleading — it looks like the judge disagreed when in fact
+    // it never got to answer. Checked before the empty-answer branch because a
+    // model that spent the whole budget on reasoning returns no visible text at
+    // all, which would otherwise surface as a bare "empty response from LLM".
+    const wasTruncated = finishReason === 'length' || finishReason === 'max_tokens';
+    const reportTruncated = (): never => {
+      throw new JudgeError(
+        model,
+        `response truncated at the ${judgeMaxTokens}-token limit before a verdict was emitted — ` +
+          `raise judge.maxTokens.${answer ? ` Partial response: ${answer}` : ' No visible output was returned.'}`,
+      );
+    };
+
     if (!answer) {
+      if (wasTruncated) reportTruncated();
       throw new JudgeError(model, 'empty response from LLM');
     }
     const lines = answer
@@ -117,6 +172,7 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
     const lastLine = lines[lines.length - 1]!.toLowerCase();
     const m = /^(yes|no)\b/.exec(lastLine);
     if (!m) {
+      if (wasTruncated) reportTruncated();
       throw new JudgeError(model, `unexpected verdict ${JSON.stringify(lastLine)}: ${answer}`);
     }
 

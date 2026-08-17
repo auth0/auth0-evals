@@ -75,17 +75,42 @@ Use `notContainsInSource` (not `notContains`) when a value like a client ID is a
 
 | Primitive                                        | What it does                                                                                                                                                                                                                                   |
 | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `contains(needle)`                               | Substring present in any non-excluded workspace file                                                                                                                                                                                           |
-| `notContains(needle)`                            | Substring must NOT appear in any non-excluded workspace file                                                                                                                                                                                   |
+| `contains(needle)`                               | Substring present in any non-excluded workspace file. Pass `{ source: 'response' }` or `{ source: 'both' }` in options to also (or exclusively) search the agent's final reply text — use for MCP-only evals that write no files.             |
+| `notContains(needle)`                            | Substring must NOT appear in any non-excluded workspace file. Same `source` option as `contains` to extend the search to the agent reply.                                                                                                      |
 | `notContainsInSource(needle)`                    | Substring must NOT appear in source files (allowed in config)                                                                                                                                                                                  |
-| `matches(pattern)`                               | Regex match in any non-excluded workspace file                                                                                                                                                                                                 |
-| `judge(question, framework?)`                    | LLM-as-judge yes/no question — uses `claude-opus-5`                                                                                                                                                                                          |
+| `matches(pattern)`                               | Regex match in any non-excluded workspace file. Same `source` option as `contains` to extend the search to the agent reply.                                                                                                                    |
+| `judge(question, level?, options?)`              | LLM-as-judge yes/no question — uses `claude-opus-5`. Pass `{ includeCommandTrace: true }` to also append the agent's successful shell commands (for CLI-only evals with no files to inspect). Pass `{ source: 'response' }` or `{ source: 'both' }` to include the agent's final reply text in the judge's corpus (for MCP-only evals). |
 | `ranCommand(command, args, description, level)`  | Agent ran a shell command containing `command` (and all `args`) — event-based, level required (L4 or L5)                                                                                                                                       |
 | `ranCommandOneOf(commands, description, level)`  | Agent ran at least one command from the list — event-based, level required (L4 or L5)                                                                                                                                                          |
+| `ranCommandsInOrder(steps, description, level)`  | Agent ran a sequence of commands in order — each step (a needle, or a one-of array of alternatives) must match after the previous step's match, checked across the whole command trace (non-adjacent commands and single-command `a && b` chains both count); errored commands ignored — event-based, level required (L4 or L5) |
 | `wroteFile(path, description, level, expected?)` | Agent wrote a file whose path contains the substring. With optional `expected` (string or string array), the combined content of all writes to that path must also contain every `expected` substring — event-based, level required (L4 or L5) |
 | `compiles(description, level)` | Framework runs the eval's `compile_command` against the workspace after the agent finishes and passes/fails on its exit code — level required (L4 or L5). Decoupled from whether the agent ran the build itself, so output that compiles passes even if the agent never ran the build. Requires `compile_command` in PROMPT.md frontmatter or the grader fails. |
 | `calledTool(toolName, description, level)` | Agent invoked an MCP tool whose name contains `toolName` (case-insensitive substring against `mcp__<server>__<tool>` calls; errored calls excluded) — event-based, level required (L4 or L5) |
 | `calledToolOneOf(toolNames, description, level)` | Agent invoked at least one of the named MCP tools — event-based, level required (L4 or L5) |
+
+### Grading the agent's final answer (MCP-only evals)
+
+For hosted-MCP evals the agent calls tools and replies with text — it never writes files. Text-based graders that need to inspect the reply must set `source: 'response'` or `source: 'both'`. Without that option, they search workspace files only; negative checks (`notContains`) can still pass when the files corpus is empty.
+
+Use the `source` option to tell a grader where to look:
+
+| `source` value | What the grader searches |
+|---|---|
+| `'files'` (default) | Workspace files only — existing behavior, unchanged for all file-based evals |
+| `'response'` | Agent's final reply text only — use when the agent never writes files |
+| `'both'` | Workspace files **and** the agent's final reply |
+
+**Example — MCP eval where the agent answers in prose:**
+
+```typescript
+contains('useAuth0', 'uses useAuth0 hook', GraderLevel.L1, { source: 'response' }),
+notContains('auth0-js', 'no legacy SDK', GraderLevel.L2, { source: 'response' }),
+judge('Did the agent correctly describe wiring Auth0 to the React app?', undefined, { source: 'response' }),
+```
+
+- For `judge`, `source: 'response'` skips file collection entirely — the judge corpus is the agent's reply only, so scaffold files cannot inflate it past `maxCodeChars`.
+- For `contains` / `notContains` / `matches`, `source: 'both'` is useful when the agent both writes files **and** summarises the result in its reply and you want to check either.
+- All existing evals are unaffected: `source` defaults to `'files'`. In baseline mode `agentText` is set to the full LLM response text, so `source: 'response'` and `source: 'both'` search the raw prose reply (not the extracted code that gets written to disk).
 
 ## Grading exclusions
 
@@ -110,9 +135,17 @@ Graders run against all workspace files (scaffold + agent edits) minus the exclu
 
 - `package-lock.json` — noise
 - `tsconfig.tsbuildinfo` — TypeScript incremental build cache
-- `CLAUDE.md`, `GEMINI.md`, `AGENTS.md` — injected agent guidance. Before each agent run, the framework writes the "no documentation files" guidance into the context file the chosen runner reads (`CLAUDE.md` for Claude Code, `GEMINI.md` for Gemini CLI, `AGENTS.md` for Codex, and `.github/copilot-instructions.md` for Copilot — the `.github` dir is already excluded). All three are excluded so the injected text is never graded.
+- `CLAUDE.md`, `GEMINI.md`, `AGENTS.md` — injected agent guidance. Before each agent run, the framework writes the "no documentation files" guidance into the context file the chosen runner reads (`CLAUDE.md` for Claude Code, `GEMINI.md` for Gemini CLI, `AGENTS.md` for Codex, and `.github/copilot-instructions.md` for Copilot — the `.github` dir is already excluded). The same context file also receives the `compile_command` build-verification instruction and, when the eval declares a `provision` kind, the matching CLI/platform context from `cliContext` in `eval.config.js` (the mechanism lives in the framework; the Auth0-specific wording lives in the app config, so `evals-core` stays provider-agnostic). This is how CLI/tenant-config evals get their platform context to the agent — a `## System` section only feeds baseline mode. All the context files are excluded so the injected text is never graded.
 
 Additionally, the LLM judge excludes `tsconfig*.json` and `angular.json` files, plus the `.gradle` and `app/build` directories (large Android build artifacts), from its input to save token budget. It also excludes `.env*` files so credential values are never sent to the judge. Secret-in-source checks are handled deterministically by `notContainsInSource`; "credentials wired into `.env`" is verified via the event-based `wroteFile` grader — so the judge never needs `.env` contents.
+
+The judge also excludes binaries and generated native project files, since the workspace walker reads every file as UTF-8 and would otherwise feed the judge mojibake: `.jar`, image formats, fonts, keystores, and `.pbxproj` / `.storyboard` / `.xib` / `.xcscheme` / `.lock` / `gradlew`. On the bare React Native scaffold this drops the corpus from ~172K to ~24K chars — it was previously 5× over `maxCodeChars`, which failed every judge grader in that eval. Note that `.plist`, `.xml`, and `.gradle` are deliberately **not** excluded: judges assert on `Info.plist` (`CFBundleURLTypes`), `AndroidManifest.xml`, and `app/build.gradle` (`manifestPlaceholders`).
+
+When a corpus still exceeds `judge.maxCodeChars`, the judge **truncates** it and appends a `… (truncated at N chars)` notice rather than erroring. An oversized corpus is an infrastructure limit, not a defect in the agent's output, so it must not be reported as a grader failure.
+
+### Trace-aware judge
+
+`judge(question, level?, { includeCommandTrace })` — when `includeCommandTrace` is true, the agent's successful shell commands are appended to the judge input (under a `// COMMAND TRACE` header) alongside workspace files. This gives a judgeable artifact to evals whose work is entirely CLI invocations with no files to inspect (e.g. tenant config via the Auth0 CLI). Errored commands are dropped so the judge sees only what took effect. Off by default — every file-based judge is unchanged.
 
 ---
 
@@ -143,6 +176,7 @@ When you make a change, update every doc whose described behavior is affected. T
 | New eval added (`PROMPT.md` + `graders.ts`)                                          | `AGENTS.md` eval list (if maintaining one); `docs/ADDING_EVALS.md` if the change reveals a gap in the guide                                     |
 | `setup_command` behaviour changed (e.g. new syntax supported)                        | `docs/ADDING_EVALS.md` — frontmatter table and example; `AGENTS.md` checklist if relevant                                                       |
 | `compile_command` added to an eval or its context-injection behaviour changed        | `docs/ADDING_EVALS.md` — frontmatter table and example; `AGENTS.md` checklist if relevant                                                       |
+| `provision` frontmatter or `cliContext` config behaviour changed                     | `docs/ADDING_EVALS.md` — frontmatter table; `AGENTS.md` grading-exclusions context-injection note                                              |
 | New skill added or skill resolution logic changed                                    | `docs/TESTING_SKILLS.md`; `AGENTS.md` if skill tooling or config changed                                                                        |
 | New CLI flag or runner added                                                         | `AGENTS.md` CLI flags table and Agent runners table; `README.md` quick-start if the flag is commonly used                                       |
 | Scoring dimension added, changed, or removed                                         | `docs/SCORING_METHODOLOGY.md` first (per the workflow); then `AGENTS.md` scoring section once merged                                            |
@@ -424,6 +458,8 @@ Opus 4.5 is still supported by the framework (present in the effort-capable set 
 
 All LLM-as-judge graders use `claude-opus-5` via the configured LLM proxy (`proxy.baseUrl` in `eval.config.js`).
 
+The judge sends `thinking: { type: 'disabled' }`. Opus 5 runs adaptive thinking by default and counts reasoning tokens against `max_tokens`, so a thinking judge spends its budget on reasoning and gets truncated before emitting the final `yes`/`no` line — scoring correct solutions as failures. The judge only needs 1–3 sentences plus a verdict, so the whole budget goes to visible output. `judge.maxTokens` is also set to 4096 for headroom in case a proxy ignores the flag, and a truncated response now reports itself as truncated rather than as an unexpected verdict.
+
 ### Settings
 
 | Setting              | Value                                            |
@@ -431,7 +467,7 @@ All LLM-as-judge graders use `claude-opus-5` via the configured LLM proxy (`prox
 | Base URL             | Configured in `eval.config.js` (`proxy.baseUrl`) |
 | Proxy auth header    | Optional — `proxy.authHeader` in `eval.config.js` |
 | Judge model          | `claude-opus-5`                                  |
-| Judge max tokens     | 1024                                             |
+| Judge max tokens     | 4096                                             |
 | Judge max code chars | 32,768                                           |
 | Max agent turns      | 75                                               |
 | Runner task timeout  | 30 min (per eval, graceful abort)                |
@@ -469,6 +505,15 @@ npm run evals -- --eval react_quickstart --mode agent --keep-workspace
 
 # Generate HTML report from results
 npm run report
+
+# AXIS — run all evals across all agents (claude-code, codex, gemini)
+npm run axis
+npm run axis -- --eval react_quickstart                              # single eval
+npm run axis -- --eval react_quickstart --agent claude-code          # single eval + agent
+npm run axis -- --agent claude-code --model claude-sonnet-5          # override model
+npm run axis -- --workers 4                                          # limit parallelism
+npm run axis -- --output /tmp/scores.json                            # custom output path
+npm run axis -- --eval react_quickstart --agent codex --debug        # capture raw stdout
 ```
 
 ### CLI flags
@@ -485,6 +530,19 @@ npm run report
 | `--keep-workspace`           | flag                                            | off                  | Don't delete temp workspace after run                    |
 | `--dangerously-skip-sandbox` | flag                                            | off                  | Disable Docker sandbox — run agent jobs directly on host |
 | `--braintrust`               | flag                                            | off                  | Log results to Braintrust experiment                     |
+
+### AXIS flags (`npm run axis`)
+
+| Flag | Values | Default | Notes |
+| ---- | ------ | ------- | ----- |
+| `--eval <id>` | Any registered eval ID | all evals | Repeatable |
+| `--agent <name>` | `claude-code`, `codex`, `gemini` | all agents | Repeatable |
+| `--workers <n>` | number | AXIS default | Parallel job limit |
+| `--model <model>` | Any model string | per-agent default | Override model for all configured agents |
+| `--output <path>` | file path | `scores-axis.json` in app root | Where to write the scores file |
+| `--debug` | flag | off | Capture raw adapter stdout as `.raw.ndjson` for debugging |
+
+Flags take precedence over the equivalent env vars (`AXIS_EVAL`, `AXIS_AGENT`, `AXIS_WORKERS`, `AXIS_MODEL`).
 
 ---
 

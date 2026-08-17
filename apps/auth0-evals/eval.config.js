@@ -96,7 +96,10 @@ export default {
 
   judge: {
     model: 'claude-opus-5',
-    maxTokens: 1024,
+    // Headroom so a verbose judge still reaches its final yes/no line. Opus 5
+    // counts thinking against max_tokens; the judge disables thinking, but this
+    // also covers proxies that ignore that flag.
+    maxTokens: 4096,
     maxCodeChars: 32_768,
   },
 
@@ -121,6 +124,25 @@ export default {
     // from process.env at launch). Needed so the authenticated auth0-hosted-mcp
     // server can mint its token inside the container.
     passthroughEnv: ['MCP_TENANT_DOMAIN', 'MCP_CLIENT_ID', 'MCP_CLIENT_SECRET', 'LLM_PROXY_TOKEN'],
+  },
+
+  // CLI/platform context injected into the agent's context file for evals that
+  // declare a matching `provision` frontmatter kind. The framework owns the
+  // injection mechanism (see writeAgentGuidance); this Auth0-specific wording
+  // lives here so evals-core stays provider-agnostic. Injecting it here — rather
+  // than in a PROMPT.md `## System` section — is also what makes it reach the
+  // agent at all: `## System` only feeds baseline mode.
+  //
+  // Scope: only generic facts about operating the already-authenticated `auth0`
+  // CLI against the live tenant — nothing task- or feature-specific (that lives
+  // in each eval's `## Task`), and no CLI command surface, so the agent works
+  // out the commands itself and the graded answer isn't leaked.
+  cliContext: {
+    'auth0-tenant':
+      'You are working in a shell already authenticated to a live Auth0 tenant via the `auth0` ' +
+      'CLI (`auth0 login` has already run and that tenant is active). Do not run `auth0 login`, ' +
+      'and do not hardcode or look up the tenant domain, client ID, or client secret — the CLI ' +
+      'is already authenticated. Run commands non-interactively and never print or store secrets.\n',
   },
 
   braintrust: {

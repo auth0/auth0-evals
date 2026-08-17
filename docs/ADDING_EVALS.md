@@ -2,6 +2,8 @@
 
 This guide walks through adding a new evaluation to `auth0-evals`.
 
+> Adding a **CLI / tenant-config eval** — one that grades the agent's command trace against a live tenant instead of files on disk? See [CLI_CONFIG_EVALS.md](./CLI_CONFIG_EVALS.md). This guide covers standard file-based evals.
+
 ---
 
 ## 1. Create the Folder Structure
@@ -43,6 +45,7 @@ compile_command: npm run build
 | `skills` | no | Comma-separated skill names from [auth0/agent-skills](https://github.com/auth0/agent-skills). Injected into agent context when running with `--tools skills` |
 | `setup_command` | no | Command run before the agent starts (e.g. `npm install`). Split on whitespace and executed directly via `spawnSync` — no shell, no operators (`&&`, `\|`, etc.), no quoting. One command only. |
 | `compile_command` | no | Compile/build command (e.g. `npm run build`, `node --check server.js`, `.venv/bin/python -m py_compile main.py`). Used two ways: (1) an instruction pointing the agent at this command is appended to the agent's native context file (`CLAUDE.md` / `GEMINI.md` / `AGENTS.md` / `.github/copilot-instructions.md`) alongside the "no docs files" guidance, nudging the agent to verify the build; and (2) **the framework runs it against the workspace after the agent finishes and uses the result to drive any `compiles()` grader in `graders.ts`** — so an agent whose output compiles passes even if it never ran the build itself. Agent modes only — baseline ignores it. Omit for evals with no CLI compile step (e.g. mobile). If you add a `compiles()` grader, you MUST also declare `compile_command`, or the grader fails. |
+| `provision` | no | Names a live environment the eval needs (e.g. `auth0-tenant`). The framework loader does **not** provision anything itself — an external eval runner reads this field to stand up the environment (e.g. a throwaway Auth0 tenant the `auth0` CLI is pre-authenticated to). It also drives context injection: the matching entry in `cliContext` (in `eval.config.js`) is appended to the agent's native context file, so provider-specific platform guidance reaches the agent. Use this instead of a `## System` section for CLI/tenant-config evals — `## System` only feeds baseline mode and never reaches the agent. |
 
 To test a skill before it is pushed to the remote repo, see [TESTING_SKILLS.md](TESTING_SKILLS.md).
 
@@ -95,7 +98,7 @@ Graders define the acceptance criteria. Export a single `defineGraders()` functi
 | `notContains(needle, description?, level?, options?)` | No workspace file contains the substring (case-sensitive by default) |
 | `notContainsInSource(needle, description?, level?, options?)` | No **source** file contains the substring (skips `.env`, `.json`, `.plist`, config files) |
 | `matches(pattern, description?, level?)` | Any workspace file matches the regex pattern |
-| `judge(question, level?)` | An LLM judge answers "yes" given the full workspace contents |
+| `judge(question, level?, options?)` | An LLM judge answers "yes" given the full workspace contents. Pass `{ includeCommandTrace: true }` to also append the agent's successful shell commands (for CLI-only evals with no files to inspect) |
 | `ranCommand(command, args, description, level)` | Agent ran a successful shell command containing `command` and all `args` substrings |
 | `ranCommandOneOf(commands, description, level)` | Agent ran at least one successful command from the list (substring match) |
 | `wroteFile(path, description, level, expected?)` | Agent wrote a file whose path contains the substring. With optional `expected` (string or string array), the combined content of all writes to that path must also contain every `expected` substring |
@@ -103,7 +106,12 @@ Graders define the acceptance criteria. Export a single `defineGraders()` functi
 | `calledTool(toolName, description, level)` | Agent invoked an MCP tool whose name contains the substring (trace-based; L4/L5 only) |
 | `calledToolOneOf(toolNames, description, level)` | Agent invoked at least one of the named MCP tools (trace-based; L4/L5 only) |
 
-The `options` parameter is an object with an optional `caseSensitive` field (defaults to `true`).
+The `options` parameter accepts:
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `caseSensitive` | `boolean` | `true` | Whether the needle / pattern match is case-sensitive |
+| `source` | `'files' \| 'response' \| 'both'` | `'files'` | Where to search: workspace files only, the agent's final reply text only, or both. Use `'response'` or `'both'` for MCP-only evals where the agent never writes files. Not applicable to `notContainsInSource`. |
 
 The event-based primitives (`ranCommand`, `ranCommandOneOf`, `wroteFile`) inspect the agent's tool-call trace rather than workspace file contents. They only produce meaningful results in agent mode — in baseline mode (no tool calls), they gracefully fail. The `level` parameter is **required** and must be `GraderLevel.L4` or `GraderLevel.L5` (the type system enforces this). Use L4 for behavioral checks like verifying the agent explicitly installed dependencies. To grade compilation, prefer `compiles()` over `ranCommand(...build...)`: `ranCommand` only checks whether the agent ran a build in its trace, whereas `compiles()` runs the eval's `compile_command` itself after the agent finishes, so output that compiles passes even if the agent never ran the build.
 

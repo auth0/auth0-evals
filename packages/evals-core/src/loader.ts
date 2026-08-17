@@ -64,6 +64,7 @@ export async function loadEval(
 
   const setupCommand = meta.setup_command || undefined;
   const compileCommand = meta.compile_command || undefined;
+  const provision = meta.provision || undefined;
 
   return {
     id: evalConfig.id,
@@ -76,6 +77,7 @@ export async function loadEval(
     scaffold,
     setupCommand,
     compileCommand,
+    provision,
     skills,
     metadata: {
       provider_name: meta.provider_name ?? 'Auth0',

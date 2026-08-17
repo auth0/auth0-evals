@@ -43,14 +43,13 @@ const TEST_CONFIG: Required<FrameworkConfig> = {
 
 // Note: engine.ts reads config lazily (inside function calls, not at import time),
 // so setFrameworkConfig in beforeAll runs before any config access.
-import { passRate, runGraders, llmJudge } from '../../src/graders/engine.js';
+import { passRate, runGraders, llmJudge, JUDGE_DEFAULT_MAX_TOKENS } from '../../src/graders/engine.js';
 
 beforeAll(() => {
   setFrameworkConfig(TEST_CONFIG);
 });
 
 const JUDGE_MAX_CODE_CHARS = TEST_CONFIG.judge.maxCodeChars!;
-const JUDGE_MAX_TOKENS = TEST_CONFIG.judge.maxTokens!;
 
 const tmpDir = makeTmpDir('graders_test_');
 
@@ -395,6 +394,14 @@ function mockFetchResponse(content: string) {
   } as unknown as Response);
 }
 
+/** Mocks a response the provider truncated at the max_tokens ceiling. */
+function mockTruncatedResponse(content: string, finishReason = 'length') {
+  return vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ choices: [{ message: { content }, finish_reason: finishReason }] }),
+  } as unknown as Response);
+}
+
 describe('llmJudge', () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -435,7 +442,9 @@ describe('llmJudge', () => {
     expect(detail).toContain('loginWithRedirect call is present');
   });
 
-  it('request sends max_tokens equal to JUDGE_MAX_TOKENS by default', async () => {
+  // llmJudge takes maxTokens from its options, not the framework config, so this
+  // asserts its own fallback rather than TEST_CONFIG's value.
+  it('request falls back to the built-in max_tokens when maxTokens is omitted', async () => {
     let capturedBody: Record<string, unknown> | undefined;
     vi.stubGlobal(
       'fetch',
@@ -445,7 +454,7 @@ describe('llmJudge', () => {
       }),
     );
     await llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' });
-    expect(capturedBody?.max_tokens).toBe(JUDGE_MAX_TOKENS);
+    expect(capturedBody?.max_tokens).toBe(JUDGE_DEFAULT_MAX_TOKENS);
   });
 
   it('request sends explicit maxTokens when provided', async () => {
@@ -549,6 +558,93 @@ describe('llmJudge', () => {
     await expect(
       llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' }),
     ).rejects.toThrow('unexpected verdict');
+  });
+
+  // Regression: Opus 5 runs adaptive thinking by default, and `max_tokens` caps
+  // thinking + visible text together. The judge's reasoning was cut off before
+  // it could emit the final verdict line, which surfaced as a confusing
+  // "unexpected verdict" and scored a passing solution as a hard failure.
+  it.each(['length', 'max_tokens'])(
+    'reports truncation rather than an unexpected verdict on finish_reason=%s',
+    async (finishReason) => {
+      const partial = 'The implementation covers the essentials correctly: `Auth0.plist`';
+      vi.stubGlobal('fetch', mockTruncatedResponse(partial, finishReason));
+      const err = await llmJudge({
+        question: 'question',
+        code: 'code',
+        apiKey: 'key',
+        model: 'model',
+        baseUrl: 'http://test',
+        maxTokens: 1024,
+      }).catch((e: unknown) => e as Error);
+
+      expect(err.message).toMatch(/truncated/i);
+      // The diagnostic has to name the knob to turn and preserve what the judge
+      // did manage to say, or it's no more actionable than the old message.
+      expect(err.message).toContain('1024');
+      expect(err.message).toContain('judge.maxTokens');
+      expect(err.message).toContain(partial);
+      expect(err.message).not.toContain('unexpected verdict');
+    },
+  );
+
+  // The worst case of the same bug: reasoning consumed the entire budget, so
+  // there is no visible text at all. This must still report truncation rather
+  // than a bare "empty response from LLM", which points nowhere.
+  it.each(['length', 'max_tokens'])(
+    'reports truncation when the whole budget was consumed and no text was returned (finish_reason=%s)',
+    async (finishReason) => {
+      vi.stubGlobal('fetch', mockTruncatedResponse('', finishReason));
+      const err = await llmJudge({
+        question: 'question',
+        code: 'code',
+        apiKey: 'key',
+        model: 'model',
+        baseUrl: 'http://test',
+      }).catch((e: unknown) => e as Error);
+
+      expect(err.message).toMatch(/truncated/i);
+      expect(err.message).toContain('judge.maxTokens');
+      expect(err.message).not.toContain('empty response from LLM');
+    },
+  );
+
+  it('still reports an empty response when it was not truncated', async () => {
+    vi.stubGlobal('fetch', mockFetchResponse(''));
+    await expect(
+      llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' }),
+    ).rejects.toThrow('empty response from LLM');
+  });
+
+  it('does not report truncation when a verdict is present despite a length finish_reason', async () => {
+    vi.stubGlobal('fetch', mockTruncatedResponse('The provider is wired up correctly.\n\nyes'));
+    const { passed } = await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
+    expect(passed).toBe(true);
+  });
+
+  it('disables thinking so the token budget is spent on the verdict, not reasoning', async () => {
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
+    await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'claude-opus-5',
+      baseUrl: 'http://test',
+    });
+    expect(capturedBody?.thinking).toEqual({ type: 'disabled' });
   });
 
   it('extracts token usage from OpenAI-style usage (prompt_tokens/completion_tokens)', async () => {
@@ -698,18 +794,69 @@ describe('runGraders - allowedLevels', () => {
 describe('llmJudge - code corpus overflow', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('throws when code exceeds JUDGE_MAX_CODE_CHARS', async () => {
-    const oversized = 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1);
-    await expect(
-      llmJudge({
+  it('truncates rather than throwing when code exceeds JUDGE_MAX_CODE_CHARS', async () => {
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
+    const oversized = 'x'.repeat(JUDGE_MAX_CODE_CHARS + 5_000);
+
+    const { passed } = await llmJudge({
+      question: 'question',
+      code: oversized,
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+      maxCodeChars: JUDGE_MAX_CODE_CHARS,
+    });
+
+    expect(passed).toBe(true);
+    const messages = capturedBody!.messages as Array<{ role: string; content: string }>;
+    const userContent = messages.find((m) => m.role === 'user')!.content;
+    expect(userContent).toContain('… (truncated at');
+    expect(userContent).not.toContain(oversized);
+  });
+
+  it('stays within the budget when the limit is shorter than the truncation notice', async () => {
+    // Regression: the notice was appended whole, so a limit smaller than the notice produced
+    // slice(0, 0) + notice — longer than the limit it was meant to enforce.
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
+    // Baseline: the same call with a code body that fits, so the template overhead is known.
+    await llmJudge({
+      question: 'question',
+      code: '',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
+    const overhead = (capturedBody!.messages as Array<{ role: string; content: string }>).find(
+      (m) => m.role === 'user',
+    )!.content.length;
+
+    for (const limit of [1, 20, 47]) {
+      await llmJudge({
         question: 'question',
-        code: oversized,
+        code: 'y'.repeat(5_000),
         apiKey: 'key',
         model: 'model',
         baseUrl: 'http://test',
-        maxCodeChars: JUDGE_MAX_CODE_CHARS,
-      }),
-    ).rejects.toThrow(/Code corpus exceeds limit/);
+        maxCodeChars: limit,
+      });
+      const messages = capturedBody!.messages as Array<{ role: string; content: string }>;
+      const userContent = messages.find((m) => m.role === 'user')!.content;
+      expect(userContent.length - overhead).toBeLessThanOrEqual(limit);
+    }
   });
 
   it('does not throw when code is exactly at the limit', async () => {
@@ -776,32 +923,36 @@ describe('llmJudge - enforceMaxChars=false', () => {
   });
 });
 
-// ── runGraders — judge overflow propagation ─────────────────────────────────
+// ── runGraders — judge overflow handling ────────────────────────────────────
 
-describe('runGraders - judge overflow propagation', () => {
-  it('returns a failed result when judge grader throws overflow error', async () => {
+describe('runGraders - judge overflow handling', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('still grades the judge when the workspace corpus exceeds the limit', async () => {
+    // Regression: an oversized corpus used to throw, so a large scaffold (e.g. bare React
+    // Native, whose native projects blow past the limit) failed every judge grader without
+    // the model ever being asked.
+    vi.stubGlobal('fetch', mockFetchResponse('Looks correct.\n\nyes'));
     const dir = tmpDir();
-    // Write a single file that exceeds the limit
     writeFileSync(join(dir, 'App.js'), 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1));
     const { judge } = await import('@a0/evals-graders');
-    const graders = [judge('Does the code work?')];
 
-    const results = await runGraders(graders, dir, 'unused');
+    const results = await runGraders([judge('Does the code work?')], dir, 'unused');
     expect(results.length).toBe(1);
-    expect(results[0].passed).toBe(false);
-    expect(results[0].detail).toMatch(/Code corpus exceeds limit/);
+    expect(results[0].passed).toBe(true);
+    expect(results[0].detail).not.toMatch(/Code corpus exceeds limit/);
   });
 
-  it('continues running remaining graders after one throws', async () => {
+  it('grades remaining graders alongside an oversized judge corpus', async () => {
+    vi.stubGlobal('fetch', mockFetchResponse('Looks correct.\n\nyes'));
     const dir = tmpDir();
     writeFileSync(join(dir, 'App.js'), 'x'.repeat(JUDGE_MAX_CODE_CHARS + 1));
     const { judge, contains } = await import('@a0/evals-graders');
-    const graders = [judge('Does the code work?'), contains('x')];
 
-    const results = await runGraders(graders, dir, 'unused');
+    const results = await runGraders([judge('Does the code work?'), contains('x')], dir, 'unused');
     expect(results.length).toBe(2);
-    expect(results[0].passed).toBe(false); // judge failed with error
-    expect(results[1].passed).toBe(true); // contains still ran
+    expect(results[0].passed).toBe(true);
+    expect(results[1].passed).toBe(true);
   });
 });
 
@@ -1162,5 +1313,311 @@ describe('runGraders - compile', () => {
     const results = await runGraders([compiles('builds', GraderLevel.L4)], dir, 'test-key');
     expect(results[0]!.passed).toBe(false);
     expect(results[0]!.detail).toContain('compile was not run');
+  });
+});
+
+// ── runGraders — agentText with opt-in source field (MCP-only evals) ──────────
+
+describe('runGraders - agentText opt-in via source field', () => {
+  // contains — source: 'response'
+  it('contains: passes with source:response when needle is in agentText and workspace is empty', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [contains('useAuth0', undefined, undefined, { source: 'response' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Here is your integration: useAuth0() is the hook you need.',
+    );
+    expect(results[0]!.passed).toBe(true);
+    expect(results[0]!.detail).toContain('agent reply');
+  });
+
+  it('contains: fails with source:response when needle is absent from agentText', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [contains('useAuth0', undefined, undefined, { source: 'response' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'The answer uses a different hook entirely.',
+    );
+    expect(results[0]!.passed).toBe(false);
+    expect(results[0]!.detail).toContain('NOT found');
+  });
+
+  it('contains: default source:files does NOT search agentText (guards against regression)', async () => {
+    const dir = tmpDir();
+    // No source option → default 'files' → agentText is ignored even when it matches
+    const results = await runGraders(
+      [contains('useAuth0')],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Here is your integration: useAuth0() is the hook you need.',
+    );
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('contains: source:both passes when needle is in workspace file and agentText is absent', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'app.ts'), 'import { useAuth0 } from "@auth0/auth0-react";');
+    const results = await runGraders(
+      [contains('useAuth0', undefined, undefined, { source: 'both' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'No mention here.',
+    );
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('contains: source:both passes when needle is only in agentText (no workspace files)', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [contains('useAuth0', undefined, undefined, { source: 'both' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Call useAuth0() to get the token.',
+    );
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  it('notContains: fails with source:both when needle is only in agentText', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [notContains('hardcoded-secret', undefined, undefined, { source: 'both' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Set value to hardcoded-secret in your config.',
+    );
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  it('matches: source:both passes when pattern matches only in agentText (no workspace files)', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [matches('useAuth0\\(\\)', undefined, undefined, { source: 'both' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Call useAuth0() at the top of your component.',
+    );
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  // notContains — source: 'response'
+  it('notContains: fails with source:response when needle is in agentText', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [notContains('hardcoded-secret', undefined, undefined, { source: 'response' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Set the value to hardcoded-secret in your config.',
+    );
+    expect(results[0]!.passed).toBe(false);
+    expect(results[0]!.detail).toContain('agent reply');
+  });
+
+  it('notContains: passes with source:both when needle is absent from both workspace and agentText', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [notContains('hardcoded-secret', undefined, undefined, { source: 'both' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Use environment variables instead.',
+    );
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  // matches — source: 'response'
+  it('matches: passes with source:response when pattern matches in agentText', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [matches('useAuth0\\(\\)', undefined, undefined, { source: 'response' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Call useAuth0() at the top of your component.',
+    );
+    expect(results[0]!.passed).toBe(true);
+    expect(results[0]!.detail).toContain('agent reply');
+  });
+
+  it('matches: fails with source:both when pattern matches neither workspace nor agentText', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [matches('useAuth0\\(\\)', undefined, undefined, { source: 'both' })],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Use a different hook.',
+    );
+    expect(results[0]!.passed).toBe(false);
+  });
+
+  // judge — source: 'response' (corpus = reply only, no workspace files)
+  it('judge: source:response sends only agent reply to LLM (skips workspace files)', async () => {
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'scaffold.ts'), 'export const scaffoldCode = true;');
+    const { judge } = await import('@a0/evals-graders');
+    const agentReply = 'The user should call useAuth0() to get the token.';
+    await runGraders(
+      [judge('Did the agent answer the question?', undefined, { source: 'response' })],
+      dir,
+      'key',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      agentReply,
+    );
+    const messages = capturedBody!.messages as Array<{ role: string; content: string }>;
+    const userContent = messages.find((m) => m.role === 'user')!.content;
+    expect(userContent).toContain('AGENT REPLY');
+    expect(userContent).toContain(agentReply);
+    // Scaffold file must NOT appear — source:'response' skips file collection entirely
+    expect(userContent).not.toContain('scaffold.ts');
+    expect(userContent).not.toContain('scaffoldCode');
+  });
+
+  it('judge: source:response passes when LLM returns yes', async () => {
+    vi.stubGlobal('fetch', mockFetchResponse('The reply answers the question.\n\nyes'));
+    const dir = tmpDir();
+    const { judge } = await import('@a0/evals-graders');
+    const results = await runGraders(
+      [judge('Did the agent answer?', undefined, { source: 'response' })],
+      dir,
+      'key',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      'Here is the answer: useAuth0() is the hook.',
+    );
+    expect(results[0]!.passed).toBe(true);
+  });
+
+  // judge — source: 'both' (corpus = workspace files + agent reply)
+  it('judge: source:both sends both workspace files and agent reply to LLM', async () => {
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'App.tsx'), 'import { useAuth0 } from "@auth0/auth0-react";');
+    const { judge } = await import('@a0/evals-graders');
+    const agentReply = 'I wired up useAuth0() in the component.';
+    await runGraders(
+      [judge('Is Auth0 integrated?', undefined, { source: 'both' })],
+      dir,
+      'key',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      agentReply,
+    );
+    const messages = capturedBody!.messages as Array<{ role: string; content: string }>;
+    const userContent = messages.find((m) => m.role === 'user')!.content;
+    expect(userContent).toContain('App.tsx');
+    expect(userContent).toContain('@auth0/auth0-react');
+    expect(userContent).toContain('AGENT REPLY');
+    expect(userContent).toContain(agentReply);
+  });
+
+  // judge — default source ('files') must NOT include agent reply
+  it('judge: default source:files does NOT include agent reply in corpus (regression guard)', async () => {
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'App.tsx'), 'import { useAuth0 } from "@auth0/auth0-react";');
+    const { judge } = await import('@a0/evals-graders');
+    const agentReply = 'AGENT_REPLY_SENTINEL_12345';
+    await runGraders(
+      [judge('Is Auth0 integrated?')],
+      dir,
+      'key',
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      agentReply,
+    );
+    const messages = capturedBody!.messages as Array<{ role: string; content: string }>;
+    const userContent = messages.find((m) => m.role === 'user')!.content;
+    expect(userContent).toContain('App.tsx');
+    // Sentinel must NOT appear — default is files-only
+    expect(userContent).not.toContain('AGENT_REPLY_SENTINEL_12345');
   });
 });
