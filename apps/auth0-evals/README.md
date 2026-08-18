@@ -50,6 +50,13 @@ See [`@a0/evals` CLI docs](../../packages/evals/) for the full list of flags and
 | `fastapi_quickstart` | quickstarts | Protect a FastAPI API using `auth0-fastapi-api` |
 | `fastify_api_quickstart` | quickstarts | Protect a Fastify API using `@auth0/auth0-fastify-api` |
 | `flask_quickstart` | quickstarts | Add Auth0 login to a Flask web app |
+| `react_mfa` | mfa | Gate a sensitive action in a React SPA behind MFA step-up |
+| `vue_mfa` | mfa | Gate a sensitive action in a Vue 3 SPA behind MFA step-up |
+| `angular_mfa` | mfa | Gate a sensitive action in an Angular app behind MFA step-up |
+| `swift_mfa` | mfa | Gate a sensitive action in a Swift iOS app behind MFA step-up |
+| `android_mfa` | mfa | Gate a sensitive action in an Android app behind MFA step-up |
+| `mfa_tenant_cli` | mfa | Enable and enforce a required MFA factor on a live tenant using the Auth0 CLI |
+| `spa_js_dpop` | dpop | Add DPoP token binding to a vanilla JS SPA using `@auth0/auth0-spa-js` |
 
 ## Configuration
 
