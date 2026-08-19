@@ -25,4 +25,4 @@ Requirements:
 
 The list of brands changes as we onboard partners, so read it from a `TRUSTED_ISSUERS` environment variable (comma-separated) rather than hardcoding the domains in the source.
 
-There is a `.env.example` in the project — create the real `.env` from it with the values above.
+There is a `.env.example` in the project — create the real `.env` from it. Note it ships the old single-issuer settings, so make sure `.env` ends up matching the new configuration.

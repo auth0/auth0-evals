@@ -14,14 +14,31 @@ export function defineGraders() {
     // ── L1: Positive presence ──────────────────────────────────────────
     contains('express-oauth2-jwt-bearer', 'Uses express-oauth2-jwt-bearer SDK', GraderLevel.L1),
     matches(String.raw`dpop\s*:\s*\{`, 'Passes a dpop option block to auth()', GraderLevel.L1),
-    matches(String.raw`required\s*:\s*true`, 'Sets dpop.required to reject Bearer tokens', GraderLevel.L1),
+    // Lookbehind is load-bearing: `matches` is case-insensitive and unanchored,
+    // so a bare `required\s*:\s*true` also matches `authRequired: true` — a real
+    // express-oauth2-jwt-bearer option — letting a solution with no DPoP at all
+    // pass this grader.
+    matches(String.raw`(?<![A-Za-z])required\s*:\s*true`, 'Sets dpop.required to reject Bearer tokens', GraderLevel.L1),
     matches(String.raw`iatOffset\s*:\s*120`, 'Sets iatOffset to 120 (2-minute proof window)', GraderLevel.L1),
     matches(String.raw`iatLeeway\s*:\s*15`, 'Sets iatLeeway to 15 (clock skew tolerance)', GraderLevel.L1),
 
     // ── L2: Hallucination / wrong SDK ─────────────────────────────────
     notContains('express-dpop', 'No invented express-dpop package', GraderLevel.L2),
     notContains('dpop-express', 'No invented dpop-express package', GraderLevel.L2),
-    notContains('jose', 'No jose dependency — the SDK validates DPoP proofs internally', GraderLevel.L2),
+    // Anchored on jose's own API rather than the bare string 'jose': jose@^4 is
+    // express-oauth2-jwt-bearer's direct dependency, so a 'jose' needle would
+    // also fire on prose like "no need for jose here". These two calls are what
+    // hand-rolled DPoP proof validation actually uses.
+    notContains(
+      'calculateJwkThumbprint',
+      'No hand-rolled DPoP thumbprint check via jose — the SDK validates proofs internally',
+      GraderLevel.L2,
+    ),
+    notContains(
+      'compactVerify',
+      'No hand-rolled proof verification via jose — the SDK validates proofs internally',
+      GraderLevel.L2,
+    ),
     notContains('crypto.subtle', 'No hand-rolled DPoP proof cryptography', GraderLevel.L2),
     notContains('jwt.verify', 'No manual JWT verification (SDK handles verification)', GraderLevel.L2),
 
@@ -47,9 +64,11 @@ export function defineGraders() {
     contains('requiredScopes', 'Existing requiredScopes() scope checks retained', GraderLevel.L4),
     judge(
       'Is DPoP configured so that plain Bearer tokens are rejected? ' +
-        'The correct configuration passes a dpop object to auth() with BOTH enabled: true (or omitted, since it ' +
-        'defaults to true) AND required: true. Note that dpop: { enabled: false, required: true } is a ' +
-        'misconfiguration that does NOT enforce DPoP — DPoP would be ignored entirely and Bearer tokens accepted.',
+        'In express-oauth2-jwt-bearer, dpop.enabled defaults to true and dpop.required defaults to false, so ' +
+        'DPoP proofs are ACCEPTED but not DEMANDED unless required: true is set. Answer no if the solution ' +
+        'passes a dpop object without required: true (for example only setting iatOffset/iatLeeway, or setting ' +
+        'only enabled: true), since Bearer tokens would still be accepted. Answer no as well if DPoP enforcement ' +
+        'is attempted with hand-written middleware that inspects the Authorization header instead of the dpop option.',
       GraderLevel.L4,
     ),
 
@@ -78,8 +97,8 @@ export function defineGraders() {
     // ── Holistic judge ────────────────────────────────────────────────
     judge(
       'Does the solution correctly enforce DPoP-only authentication on the Express API using ' +
-        'express-oauth2-jwt-bearer? It should pass a dpop option object to auth() that both enables DPoP and ' +
-        'sets required: true so plain Bearer tokens are rejected, set iatOffset to 120 seconds and iatLeeway to ' +
+        'express-oauth2-jwt-bearer? It should pass a dpop option object to auth() with required: true so plain ' +
+        'Bearer tokens are rejected, set iatOffset to 120 seconds and iatLeeway to ' +
         '15 seconds, enable Express proxy trust so the DPoP htu claim is validated against the external URL, ' +
         'and keep the existing read:balance and write:transfers scope checks. The issuer and audience may come ' +
         'from ISSUER_BASE_URL / AUDIENCE environment variables — judge only from the source code and do not ' +

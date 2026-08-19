@@ -23,10 +23,12 @@ report-axis.html
 
 # Gradle / Android build artifacts. Scaffolds ship sources only; build.gradle
 # and gradle/wrapper/ stay tracked — these patterns match generated dirs only.
+# Not anchored under android/: the Android scaffolds live at
+# scaffolds/android/auth0/app/build/, so an **/android/**/build/ pattern misses
+# them entirely.
 **/.gradle/
-**/android/build/
-**/android/app/build/
-**/android/.cxx/
+**/build/
+**/.cxx/
 local.properties
 
 # macOS

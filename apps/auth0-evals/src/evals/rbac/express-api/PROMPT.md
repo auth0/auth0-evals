@@ -20,7 +20,7 @@ Add these routes:
 - `POST /api/transfers/bulk` — the caller must have **both** the `write:transfers` and `approve:transfers` scopes. Missing either one is a 403.
 - `GET /api/reports` — the caller needs **either** the `read:reports` scope **or** the `read:audit` scope. Having just one is enough.
 - `DELETE /api/accounts/:id` — the caller must hold the `delete:accounts` RBAC **permission**. Remember that Auth0 RBAC puts permissions in a different token claim than scopes.
-- `GET /api/admin` — only callers whose token has an `isAdmin` claim exactly equal to boolean `true` may pass.
+- `GET /api/admin` — only callers whose token has an `isAdmin` claim exactly equal to boolean `true` may pass. An Action adds this claim; namespace it however you normally would.
 
 Keep the existing `/api/balance` and `/api/transfers` routes working as they are.
 

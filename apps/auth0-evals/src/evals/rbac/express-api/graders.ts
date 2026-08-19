@@ -17,6 +17,10 @@ export function defineGraders() {
     contains('claimIncludes', 'Uses claimIncludes() for the RBAC permissions check', GraderLevel.L1),
     contains('claimEquals', 'Uses claimEquals() for the exact isAdmin claim check', GraderLevel.L1),
     contains('permissions', 'References the RBAC permissions claim', GraderLevel.L1),
+    // Both either/or scopes must appear somewhere — the deterministic argument
+    // check on scopeIncludesAny was dropped (see the L4 section for why).
+    contains('read:reports', 'References the read:reports scope', GraderLevel.L1),
+    contains('read:audit', 'References the read:audit scope', GraderLevel.L1),
 
     // ── L2: Hallucination / wrong SDK ─────────────────────────────────
     notContains('requiredPermissions', 'No invented requiredPermissions() helper', GraderLevel.L2),
@@ -40,21 +44,27 @@ export function defineGraders() {
       'api.barkbook.com',
     ]),
     compiles('Project compiles (node --check succeeds)', GraderLevel.L4),
+    // Auth0 RBAC populates `permissions` unnamespaced, but a namespaced form is
+    // still a defensible reading of the task, so allow an optional namespace
+    // prefix here and on isAdmin below.
     matches(
-      String.raw`claimIncludes\s*\(\s*['"\`]permissions['"\`]\s*,\s*['"\`]delete:accounts['"\`]`,
+      String.raw`claimIncludes\s*\(\s*['"\`](?:[^'"\`]*\/)?permissions['"\`]\s*,\s*['"\`]delete:accounts['"\`]`,
       'DELETE /api/accounts/:id gated on the delete:accounts RBAC permission via claimIncludes',
       GraderLevel.L4,
     ),
+    // isAdmin is a custom claim, and Auth0 requires custom claims added by an
+    // Action to be namespaced — so a well-informed agent that writes
+    // 'https://barkbook.com/isAdmin' must not be penalised. The boolean `true`
+    // is still required: the string 'true' does not match.
     matches(
-      String.raw`claimEquals\s*\(\s*['"\`]isAdmin['"\`]\s*,\s*true\s*\)`,
+      String.raw`claimEquals\s*\(\s*['"\`](?:[^'"\`]*\/)?isAdmin['"\`]\s*,\s*true\s*\)`,
       'GET /api/admin gated on claimEquals with boolean true (not the string "true")',
       GraderLevel.L4,
     ),
-    matches(
-      String.raw`scopeIncludesAny\s*\(\s*(['"\`][^'"\`]*read:(reports|audit)|\[)`,
-      'GET /api/reports uses scopeIncludesAny for the read:reports / read:audit either-or check',
-      GraderLevel.L4,
-    ),
+    // No deterministic grader for the scopeIncludesAny arguments: they may be
+    // inline strings, an array, or a hoisted constant, and any regex tight enough
+    // to check the scopes rejects the hoisted form. L1 asserts the helper and both
+    // scope strings are present; the L5 judge checks they are wired to the route.
     // `requiredScopes` takes ONE argument (string | string[]). The multi-argument
     // form `requiredScopes('a', 'b')` silently drops everything after the first,
     // so it type-checks and runs but under-enforces. Match only the forms that

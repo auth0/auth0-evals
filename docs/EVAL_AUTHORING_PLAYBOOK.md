@@ -557,8 +557,8 @@ It is never graded — `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` are all in `EXCLUDE
 Both scaffolds accrue build residue when worked on locally.
 
 **`apps/auth0-evals/README.md` (+7)** — the eval table listed quickstarts only, so the author
-backfilled all 7 missing rows (`react_mfa`, `vue_mfa`, `angular_mfa`, `mfa_tenant_cli`, `spa_js_dpop`)
-alongside the 2 new ones.
+backfilled all 7 missing rows (`react_mfa`, `vue_mfa`, `angular_mfa`, `swift_mfa`, `android_mfa`,
+`mfa_tenant_cli`, `spa_js_dpop`) alongside the 2 new ones.
 
 > **Point 21 — updating the eval table is part of adding an eval.** AGENTS.md's docs table makes it
 > explicit: *"New eval added → AGENTS.md eval list; docs/ADDING_EVALS.md if the change reveals a gap."*
@@ -697,8 +697,13 @@ author flagged them as follow-ups:
    goes to reasoning tokens — `swift_mfa` baseline returned 0 characters. (The judge path already
    fixes this via `thinking: { type: 'disabled' }` + `maxTokens: 4096`; `runBaseline` did not get the
    same treatment.)
-2. **Baseline judges always see an empty corpus** — `gradeText` writes to `llm_response.txt` and the
-   judge excludes `.txt`.
+2. **Baseline judges see an empty corpus by default** — `gradeText` writes the extracted code to
+   `llm_response.txt`, and the judge's exclusion list drops both `.txt` and `.md`
+   (`packages/evals-core/src/graders/executors/llm-judge.ts`), so nothing reaches the judge. The
+   escape hatch is `judge(…, { source: 'response' })`: `gradeText` does pass the raw response through
+   as `agentText`, so a judge told to read the reply still gets a corpus. The same `.md` exclusion
+   also makes **agent**-mode judges blind to any Markdown deliverable the agent writes — so never
+   grade a doc artifact with a default-source judge.
 
 > **Point 22 — treat baseline numbers as unreliable until those land.** Grade on agent-mode columns.
 
