@@ -56,6 +56,21 @@ describe('collectSkillContent', () => {
     expect(result).not.toContain('data.json');
   });
 
+  it('reads references stored as directories', () => {
+    // The auth0 skill keeps each reference in its own directory, so a flat
+    // readdir for `*.md` matches nothing and the whole pool goes missing.
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'SKILL.md'), '# Router');
+    mkdirSync(join(dir, 'references', 'feature-mfa'), { recursive: true });
+    writeFileSync(join(dir, 'references', 'feature-mfa', 'index.md'), 'MFA hub');
+    writeFileSync(join(dir, 'references', 'feature-mfa', 'enrollment.md'), 'MFA leaf');
+
+    const result = collectSkillContent({ auth0: dir });
+    expect(result).toContain('### auth0/references/feature-mfa/index.md');
+    expect(result).toContain('MFA hub');
+    expect(result).toContain('MFA leaf');
+  });
+
   it('handles multiple skills', () => {
     const dir1 = tmpDir();
     const dir2 = tmpDir();
@@ -224,7 +239,10 @@ describe('generateRecommendations', () => {
     expect(result!.recommendations[0].category).toBe('grader');
   });
 
-  it('returns undefined on API error', async () => {
+  // A failed analysis comes back carrying its reason rather than as undefined: an
+  // empty list with no explanation renders as "this run was clean", which is the
+  // opposite of what a 500 means.
+  it('reports the reason on API error', async () => {
     const { generateRecommendations } = await import('../src/recommendations/generator.js');
     const dir = tmpDir();
 
@@ -235,10 +253,13 @@ describe('generateRecommendations', () => {
     });
 
     const result = await generateRecommendations(makeInput(dir));
-    expect(result).toBeUndefined();
+    expect(result.error).toContain('500');
+    expect(result.recommendations).toEqual([]);
+    expect(result.eval_id).toBe('react_quickstart');
+    expect(result.model).toBe('test-model');
   });
 
-  it('returns undefined on invalid JSON response', async () => {
+  it('reports the reason on invalid JSON response', async () => {
     const { generateRecommendations } = await import('../src/recommendations/generator.js');
     const dir = tmpDir();
 
@@ -248,10 +269,11 @@ describe('generateRecommendations', () => {
     });
 
     const result = await generateRecommendations(makeInput(dir));
-    expect(result).toBeUndefined();
+    expect(result.error).toBeTruthy();
+    expect(result.recommendations).toEqual([]);
   });
 
-  it('returns undefined when response is missing recommendations array', async () => {
+  it('reports the reason when response is missing recommendations array', async () => {
     const { generateRecommendations } = await import('../src/recommendations/generator.js');
     const dir = tmpDir();
 
@@ -261,7 +283,8 @@ describe('generateRecommendations', () => {
     });
 
     const result = await generateRecommendations(makeInput(dir));
-    expect(result).toBeUndefined();
+    expect(result.error).toContain('recommendations array');
+    expect(result.recommendations).toEqual([]);
   });
 
   it('filters out malformed recommendation items', async () => {
@@ -319,14 +342,54 @@ describe('generateRecommendations', () => {
     expect(body.messages[1].content).toContain('Add Auth0 login');
   });
 
-  it('returns undefined on network failure', async () => {
+  it('reports the reason on network failure', async () => {
     const { generateRecommendations } = await import('../src/recommendations/generator.js');
     const dir = tmpDir();
 
     globalThis.fetch = vi.fn().mockRejectedValue(new Error('network error'));
 
     const result = await generateRecommendations(makeInput(dir));
-    expect(result).toBeUndefined();
+    expect(result.error).toContain('network error');
+    expect(result.recommendations).toEqual([]);
+  });
+
+  it('masks credential values before the run trace leaves the machine', async () => {
+    // The trace is posted to the proxy, so a CLI eval that puts a client secret on
+    // the command line would otherwise ship it off-box on every analysis.
+    const { generateRecommendations } = await import('../src/recommendations/generator.js');
+    const dir = tmpDir();
+    const input = makeInput(dir);
+    input.record.toolCalls.push({
+      name: 'run_command',
+      args: {
+        command: 'auth0 api post clients --client-secret fixture_not_a_real_secret_abcdefghijklmnopqrstuvwxyz012345',
+      },
+      result: 'ok',
+      startTime: 2000,
+      endTime: 2500,
+      isDocLookup: false,
+      isInterruption: false,
+      causedError: false,
+      actionType: 'implementation',
+      isRetry: false,
+      recoveredFromError: false,
+    });
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: JSON.stringify({ recommendations: [], summary: '' }) } }],
+      }),
+    });
+    globalThis.fetch = fetchMock;
+
+    await generateRecommendations(input);
+
+    const userContent: string = JSON.parse(fetchMock.mock.calls[0][1].body).messages[1].content;
+    expect(userContent).not.toContain('fixture_not_a_real_secret_abcdefghijklmnopqrstuvwxyz012345');
+    expect(userContent).toContain('[REDACTED SECRET]');
+    // The command itself still has to be readable, or the diagnosis loses its subject.
+    expect(userContent).toContain('auth0 api post clients');
   });
 
   it('sends the model alias as-is, ignoring the Bedrock modelIds map', async () => {
@@ -418,6 +481,157 @@ describe('generateRecommendations', () => {
     expect(result!.recommendations[0].severity).toBe('high');
     expect(result!.recommendations[1].severity).toBe('medium');
     expect(result!.recommendations[2].severity).toBe('low');
+  });
+
+  it('puts failed commands and their error text in the run trace', async () => {
+    // Aggregate counts ("errors: 1") cannot tell an analyst which command failed or
+    // why, and for a CLI eval the commands are the entire artifact.
+    const { generateRecommendations } = await import('../src/recommendations/generator.js');
+    const dir = tmpDir();
+    const input = makeInput(dir);
+    input.record.toolCalls.push({
+      name: 'run_command',
+      args: { command: 'auth0 orgs members add acme --members user_1' },
+      result: 'Error: unknown flag: --members',
+      startTime: 1000,
+      endTime: 1500,
+      isDocLookup: false,
+      isInterruption: false,
+      causedError: true,
+      actionType: 'implementation',
+      isRetry: false,
+      recoveredFromError: true,
+      errorCategory: 'invalid_usage' as never,
+    });
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: JSON.stringify({ recommendations: [], summary: '' }) } }],
+      }),
+    });
+    globalThis.fetch = fetchMock;
+
+    await generateRecommendations(input);
+
+    const userContent: string = JSON.parse(fetchMock.mock.calls[0][1].body).messages[1].content;
+    expect(userContent).toContain('auth0 orgs members add acme --members user_1');
+    expect(userContent).toContain('unknown flag: --members');
+    expect(userContent).toContain('invalid_usage');
+    // A successful write_file carries no diagnostic signal — the workspace listing
+    // already shows what it produced.
+    expect(userContent).not.toContain('[ok] write_file');
+  });
+
+  it('disables thinking so the JSON body is not truncated', async () => {
+    const { generateRecommendations } = await import('../src/recommendations/generator.js');
+    const dir = tmpDir();
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: JSON.stringify({ recommendations: [], summary: '' }) } }],
+      }),
+    });
+    globalThis.fetch = fetchMock;
+
+    await generateRecommendations(makeInput(dir));
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.thinking).toEqual({ type: 'disabled' });
+    expect(body.max_tokens).toBeGreaterThan(2048);
+  });
+
+  it('keeps the diagnosis fields and drops an unrecognised root_cause', async () => {
+    const { generateRecommendations } = await import('../src/recommendations/generator.js');
+    const dir = tmpDir();
+
+    const llmResponse = JSON.stringify({
+      recommendations: [
+        {
+          category: 'skill',
+          severity: 'high',
+          root_cause: 'skill',
+          issue: 'The skill documents a flag the CLI does not accept',
+          what_happened: 'The agent ran `auth0 orgs members add --members`, which failed.',
+          what_should_have_happened: 'Members are added through `auth0 api post`.',
+          evidence: 'Error: unknown flag: --members',
+          suggestion: 'Correct the example in references/feature-organizations/index.md',
+          context: 'references/feature-organizations/index.md',
+        },
+        {
+          category: 'grader',
+          severity: 'low',
+          root_cause: 'not-a-cause',
+          issue: 'still a valid finding',
+          suggestion: 'fix',
+        },
+      ],
+      summary: 'One skill defect.',
+    });
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: llmResponse } }] }),
+    });
+
+    const result = await generateRecommendations(makeInput(dir));
+    expect(result!.recommendations).toHaveLength(2);
+    const [skillRec, graderRec] = result!.recommendations;
+    expect(skillRec.root_cause).toBe('skill');
+    expect(skillRec.what_happened).toContain('--members');
+    expect(skillRec.what_should_have_happened).toContain('auth0 api post');
+    expect(skillRec.evidence).toBe('Error: unknown flag: --members');
+    expect(graderRec.root_cause).toBeUndefined();
+    expect(graderRec.issue).toBe('still a valid finding');
+  });
+
+  it('sends the references the agent opened and lists the ones it did not', async () => {
+    const { generateRecommendations } = await import('../src/recommendations/generator.js');
+    const dir = tmpDir();
+    const input = makeInput(dir);
+    input.skillContent = '';
+    input.record.toolCalls.push({
+      name: 'read_file',
+      args: { path: '/skills/auth0/references/feature-organizations/index.md' },
+      result: 'ok',
+      startTime: 1000,
+      endTime: 1100,
+      isDocLookup: true,
+      isInterruption: false,
+      causedError: false,
+      actionType: 'exploration',
+      isRetry: false,
+      recoveredFromError: false,
+    });
+    // Two references, both far past the budget on their own: the one the agent
+    // opened has to win the space, and the other still has to be named.
+    input.skillFiles = [
+      { skill: 'auth0', relPath: 'SKILL.md', content: '# Router' },
+      { skill: 'auth0', relPath: 'references/feature-mfa/index.md', content: `MFA ${'x'.repeat(30_000)}` },
+      {
+        skill: 'auth0',
+        relPath: 'references/feature-organizations/index.md',
+        content: `ORGS ${'y'.repeat(30_000)}`,
+      },
+    ];
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: JSON.stringify({ recommendations: [], summary: '' }) } }],
+      }),
+    });
+    globalThis.fetch = fetchMock;
+
+    await generateRecommendations(input);
+
+    const userContent: string = JSON.parse(fetchMock.mock.calls[0][1].body).messages[1].content;
+    expect(userContent).toContain('opened by the agent during this run');
+    expect(userContent).toContain('ORGS');
+    expect(userContent).not.toContain('MFA xxx');
+    expect(userContent).toContain('Not shown');
+    expect(userContent).toContain('auth0/references/feature-mfa/index.md');
   });
 
   it('excludes .env files from the LLM prompt', async () => {

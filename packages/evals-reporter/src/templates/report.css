@@ -499,6 +499,18 @@ a { color: var(--link); }
 .rec-suggestion { font-size: 12px; color: var(--text-sec); }
 .rec-context { font-size: 11px; color: var(--text-ter); margin-top: 4px; font-style: italic; }
 
+/* Failed analysis — deliberately not styled like an empty state, since "nothing
+   came back" and "the run was clean" mean opposite things. */
+.rec-panel--failed { padding: 10px 12px; border: 1px solid var(--clr-amber); border-radius: 6px; background: var(--clr-amber-bg); }
+.rec-failed-title { font-size: 13px; font-weight: 600; color: var(--clr-amber); margin-bottom: 4px; }
+.rec-failed-reason { font-size: 12px; color: var(--text-primary); font-family: monospace; word-break: break-word; }
+.rec-failed-note { font-size: 11px; color: var(--text-ter); margin-top: 6px; font-style: italic; }
+
+/* ── Cross-run aggregate ("What to fix") ─────────────────────────────────── */
+.agg-note  { color: var(--text-sec); font-size: 12px; margin-bottom: 10px; }
+.agg-list  { margin-bottom: 24px; }
+.agg-count { font-size: 12px; font-weight: 700; color: var(--text-primary); min-width: 28px; }
+
 /* ── Metrics compact table (turn metrics / session trace) ────────────────── */
 .metrics-table       { width: 100%; border-collapse: collapse; font-size: 12px; }
 .metrics-thead       { background: var(--surface-2); }

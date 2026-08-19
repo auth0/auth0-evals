@@ -8,6 +8,7 @@ import type { GraderDef, GraderResult, EventToolCall } from '@a0/evals-graders';
 import type { GraderContext, GraderExecutor } from './types.js';
 import { llmJudge } from '../llm-judge.js';
 import { logger } from '../../utils/logger.js';
+import { redactSecrets } from '../../utils/redact.js';
 
 /**
  * File patterns (matched against the basename) excluded from the LLM judge input.
@@ -58,11 +59,15 @@ const RUN_COMMAND_NAMES = new Set(['run_command', 'bash']);
  * only when a judge opts in via `includeCommandTrace` — for evals whose artifact
  * is CLI invocations (no files to inspect). Errored calls are dropped so the
  * judge sees the commands that actually took effect.
+ *
+ * Credential values are masked before the trace leaves the machine, and the marker
+ * left behind is what a security judge reads: it says a secret occupied that
+ * position without sending the value to the proxy.
  */
 export function formatCommandTrace(toolCalls: EventToolCall[]): string {
   const commands = toolCalls
     .filter((tc) => RUN_COMMAND_NAMES.has(tc.name) && !tc.causedError)
-    .map((tc) => String(tc.args.command ?? '').trim())
+    .map((tc) => redactSecrets(String(tc.args.command ?? '').trim()))
     .filter((cmd) => cmd.length > 0);
   if (commands.length === 0) return '';
   return `// COMMAND TRACE (shell commands the agent ran)\n${commands.join('\n')}`;

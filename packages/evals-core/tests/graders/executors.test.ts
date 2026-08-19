@@ -431,6 +431,18 @@ describe('formatCommandTrace', () => {
   it('returns an empty string when there are no commands', () => {
     expect(formatCommandTrace([])).toBe('');
   });
+
+  it('masks credential values, leaving the marker for a security judge to read', () => {
+    // The trace is sent to the judge model, so a secret on a command line would leave
+    // the machine. The marker stays in place of the value, so a security judge can
+    // still see that a secret occupied that position.
+    const out = formatCommandTrace([
+      cmd('auth0 api post clients --client-secret fixture_not_a_real_secret_abcdef0123456789'),
+    ]);
+    expect(out).not.toContain('fixture_not_a_real_secret_abcdef0123456789');
+    expect(out).toContain('[REDACTED SECRET]');
+    expect(out).toContain('auth0 api post clients');
+  });
 });
 
 // ── llmJudgeExecutor: includeCommandTrace gate ───────────────────────────────

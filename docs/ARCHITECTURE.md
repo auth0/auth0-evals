@@ -246,7 +246,9 @@ The overall score is a **weighted sum** of 8 dimensions, split evenly between *h
 
 Scores diagnose; **recommendations prescribe** — the "every score must point to a fix" principle, in code.
 
-When a run had **skills or MCP enabled**, `generateRunRecommendations` hands the judge LLM the full run context (task, workspace output, injected skill content, grader results, scoring dimensions, efficiency breakdown) and gets back structured JSON: a `severity`-ranked list of fixes, each targeting one of four things to improve.
+`generateRunRecommendations` runs on **every agent job**, including the one with no tools at all. That run is the control: same task, same graders, same workspace, no skill and no MCP. If correct work fails a check there, the check is the suspect — so skipping the diagnosis on exactly those runs threw away the only evidence that separates a grader defect from a documentation defect. The skill is sent only when the skill was actually in the agent's context, and the prompt says so; handing the analyst documentation the agent never saw is how a control run acquires an invented "the skill should say X" finding. (True `--mode baseline` jobs have no workspace and no run record, so they are not analysed at all.)
+
+It hands the judge LLM the full run context (task, workspace output, the run trace, injected skill content, grader results, scoring dimensions, efficiency breakdown) and gets back structured JSON: a `severity`-ranked list of fixes, each targeting one of four things to improve.
 
 | Category | What it flags | Example |
 |---|---|---|
@@ -255,7 +257,20 @@ When a run had **skills or MCP enabled**, `generateRunRecommendations` hands the
 | `mcp` | Missing MCP tools, unhelpful responses, poor tool UX | "Add a `get_quickstart` tool returning the canonical snippet" |
 | `efficiency` | Thrashing that better docs/tools would prevent | "Agent retried the redirect-URI config 3× — document it" |
 
-Recommendations are scoped to **custom** skills/MCP tools (never the agent's built-in tools), then persisted alongside scores and surfaced in the leaderboard. The step is safe by construction: it never throws (returns `undefined` on failure) and strips `.env*` from the prompt.
+Each finding also carries a diagnosis: `what_happened`, `what_should_have_happened`, an `evidence` quote, and a `root_cause` of `skill`, `model`, `grader`, or `environment`. `root_cause` is the field to read first. The skill sits in the agent's context for the whole run, so a failure the skill was in a position to prevent and did not is a defect in the documentation rather than in the model — which is what the analyst is asked to separate from an agent that ignored correct guidance, and from a grader that failed work which was actually right.
+
+Two inputs make that attribution possible, and both are easy to lose:
+
+- **The run trace.** Every shell command, MCP call, and failed tool call, in order, with the error text of anything that failed. Aggregate counts ("errors: 7") cannot identify a wrong command, and for a CLI eval the commands *are* the artifact. When the trace exceeds its budget, failures are kept in preference to successful calls.
+- **The reference pool.** `collectSkillFiles` walks `references/` recursively, because a reference is not always one file — the auth0 skill stores each as a directory (`references/feature-mfa/index.md`). Files the agent opened during the run are sent whole; the rest are listed by path even when their content is cut, so the analyst never reports a documented topic as missing.
+
+Recommendations are scoped to **custom** skills/MCP tools (never the agent's built-in tools), then persisted alongside scores and surfaced in the leaderboard. The step is safe by construction: it never throws, and it strips `.env*` from the prompt.
+
+Three properties of that step are worth stating, because each fixes a way the analysis used to mislead:
+
+- **Secrets are masked before anything leaves the machine.** Withholding `.env` is not enough for a CLI eval, where the credentials sit on the command line and in error bodies. `redactSecrets` (in `evals-core`) replaces credential *values* with `[REDACTED SECRET]` in the run trace, in MCP arguments, and in error text, and the same scrubber runs on the trace appended to an LLM judge. The value is replaced rather than the line dropped so a security grader still sees that a secret occupied that position — judge prompts that check for secret exposure must therefore treat the marker as a violation, not as a clean line. Auth0 ids (`client_id`, `org_…`) stay readable, since a diagnosis that cannot name the resource is not a diagnosis.
+- **A failed analysis says so.** On a proxy error or an unparseable response the result comes back with an empty list *and* an `error` string, and the report renders the reason. An empty list with no explanation reads as "this run was clean", which is the opposite of what a 500 means.
+- **The report ranks findings across runs.** Per-run panels answer "what went wrong here"; `aggregateRecommendations` answers the question that drives work — which problem shows up in many runs. Findings are grouped by category, root cause, and normalised context, then sorted by run count before severity: a medium-severity finding that eight models hit is evidence about the skill or the grader, while a high-severity one-off is one model's bad run.
 
 ## Sandbox — running untrusted agent code safely
 
