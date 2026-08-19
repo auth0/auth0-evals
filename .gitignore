@@ -21,8 +21,13 @@ report-axis.html
 **/Package.resolved
 **/.build/
 
-# Gradle
+# Gradle / Android build artifacts. Scaffolds ship sources only; build.gradle
+# and gradle/wrapper/ stay tracked — these patterns match generated dirs only.
 **/.gradle/
+**/android/build/
+**/android/app/build/
+**/android/.cxx/
+local.properties
 
 # macOS
 .DS_Store

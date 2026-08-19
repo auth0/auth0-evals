@@ -42,6 +42,7 @@ compile_command: npm run build
 | `id` | **yes** | Unique snake_case identifier, used with `--eval` on the CLI |
 | `name` | no | Human-readable display name. Defaults to `id` |
 | `category` | no | Defaults to the parent directory name (e.g. `quickstarts`) |
+| `scaffold` | no | Path to a scaffold directory, resolved relative to the directory the CLI is invoked from (`apps/auth0-evals/`, since `npm run evals` runs there) and validated with `resolveInside`, so it cannot escape that root. Use it to share one scaffold across several evals, e.g. `src/evals/scaffolds/express-api/auth0`. When absent, the eval's own `scaffold/` subdirectory is used — and unlike an explicit path, a missing `scaffold/` is not an error, it just yields an empty workspace. |
 | `skills` | no | Comma-separated skill names from [auth0/agent-skills](https://github.com/auth0/agent-skills). Injected into agent context when running with `--tools skills` |
 | `setup_command` | no | Command run before the agent starts (e.g. `npm install`). Split on whitespace and executed directly via `spawnSync` — no shell, no operators (`&&`, `\|`, etc.), no quoting. One command only. |
 | `compile_command` | no | Compile/build command (e.g. `npm run build`, `node --check server.js`, `.venv/bin/python -m py_compile main.py`). Used two ways: (1) an instruction pointing the agent at this command is appended to the agent's native context file (`CLAUDE.md` / `GEMINI.md` / `AGENTS.md` / `.github/copilot-instructions.md`) alongside the "no docs files" guidance, nudging the agent to verify the build; and (2) **the framework runs it against the workspace after the agent finishes and uses the result to drive any `compiles()` grader in `graders.ts`** — so an agent whose output compiles passes even if it never ran the build itself. Agent modes only — baseline ignores it. Omit for evals with no CLI compile step (e.g. mobile). If you add a `compiles()` grader, you MUST also declare `compile_command`, or the grader fails. |
@@ -321,7 +322,7 @@ export function defineGraders() {
 
 ### Scaffold Files (optional)
 
-If the task needs starter code, add a `scaffold/` directory. Files are copied verbatim into the agent's temporary workspace before the run.
+If the task needs starter code, add a `scaffold/` directory. Every file in it is copied into the agent's temporary workspace before the run. To share one scaffold across several evals, put it under `src/evals/scaffolds/<framework>/<variant>/` and point at it with the `scaffold` frontmatter field instead — this is what the existing evals do (e.g. `src/evals/scaffolds/react/auth0`, `.../react/basic`).
 
 ```
 scaffold/
@@ -329,6 +330,12 @@ scaffold/
     ├── App.js
     └── index.js
 ```
+
+Three things to know about how the copy works:
+
+- **Text only.** `loadScaffold` reads every file with `readFileSync(path, 'utf-8')` and `setupWorkspace` writes it back as UTF-8, so any non-UTF-8 byte is replaced with U+FFFD. Binaries (`.png`, `.jar`, keystores) arrive in the workspace corrupted and larger than the original. Keep binaries out of scaffolds unless nothing in the eval actually reads them. `gradlew` is the one special case — it gets `chmod 0755` on write.
+- **No exclusions.** The walker has no ignore list: it recurses the whole directory and copies everything it finds, `node_modules/` and build caches included. Never leave install or build output inside a scaffold directory — it lands in every workspace and bloats the grading corpus.
+- **`.env` never survives commit.** The repo's `.gitignore` excludes `.env`, so a scaffold `.env` is silently dropped at commit time and every clean-clone run starts without config. Ship a committed `.env.example`, tell the agent in `PROMPT.md` to create the real `.env` from it, and verify with `wroteFile('.env', …, expected)`.
 
 ---
 
