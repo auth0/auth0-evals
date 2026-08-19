@@ -6,6 +6,7 @@ export type {
   GraderResult,
   GraderDef,
   GraderOptions,
+  GraderSource,
   EventToolCall,
   EventGraderLevel,
   CompileResult,

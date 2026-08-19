@@ -111,6 +111,25 @@ export default {
     passthroughEnv: ['MCP_TENANT_DOMAIN', 'MCP_CLIENT_ID', 'MCP_CLIENT_SECRET'],
   },
 
+  // CLI/platform context injected into the agent's context file for evals that
+  // declare a matching `provision` frontmatter kind. The framework owns the
+  // injection mechanism (see writeAgentGuidance); this Auth0-specific wording
+  // lives here so evals-core stays provider-agnostic. Injecting it here — rather
+  // than in a PROMPT.md `## System` section — is also what makes it reach the
+  // agent at all: `## System` only feeds baseline mode.
+  //
+  // Scope: only generic facts about operating the already-authenticated `auth0`
+  // CLI against the live tenant — nothing task- or feature-specific (that lives
+  // in each eval's `## Task`), and no CLI command surface, so the agent works
+  // out the commands itself and the graded answer isn't leaked.
+  cliContext: {
+    'auth0-tenant':
+      'You are working in a shell already authenticated to a live Auth0 tenant via the `auth0` ' +
+      'CLI (`auth0 login` has already run and that tenant is active). Do not run `auth0 login`, ' +
+      'and do not hardcode or look up the tenant domain, client ID, or client secret — the CLI ' +
+      'is already authenticated. Run commands non-interactively and never print or store secrets.\n',
+  },
+
   braintrust: {
     projectId: '38395851-dd41-46ec-a971-a30402db6921',
     datasetName: 'auth0-evals',

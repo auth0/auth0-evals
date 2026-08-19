@@ -5,7 +5,7 @@
  * logic lives in runner.ts (runGraders).
  */
 
-import type { GraderDef, GraderOptions, EventToolCall, EventGraderLevel } from './types.js';
+import type { GraderDef, GraderOptions, GraderSource, EventToolCall, EventGraderLevel } from './types.js';
 import { GraderLevel } from './types.js';
 
 export function contains(
@@ -20,6 +20,7 @@ export function contains(
     name: description ?? `contains '${needle}'`,
     level,
     caseSensitive: options.caseSensitive ?? true,
+    source: options.source,
   };
 }
 
@@ -35,6 +36,7 @@ export function notContains(
     name: description ?? `not_contains '${needle}'`,
     level,
     caseSensitive: options.caseSensitive ?? true,
+    source: options.source,
   };
 }
 
@@ -52,6 +54,7 @@ export function matches(
     // Default (undefined) keeps the regex case-insensitive; pass
     // caseSensitive: true to require an exact-case match.
     caseSensitive: options.caseSensitive,
+    source: options.source,
   };
 }
 
@@ -59,7 +62,7 @@ export function notContainsInSource(
   needle: string,
   description?: string,
   level?: GraderLevel,
-  options: GraderOptions = {},
+  options: Pick<GraderOptions, 'caseSensitive'> = {},
 ): GraderDef {
   return {
     kind: 'not_contains_in_source',
@@ -78,6 +81,12 @@ export interface JudgeOptions {
    * inspect). Defaults to false, so file-based judges are unaffected.
    */
   includeCommandTrace?: boolean;
+  /**
+   * Where to look for content to judge — see `GraderDef.source` for semantics.
+   * Defaults to `'files'`. Use `'response'` or `'both'` for MCP-only evals
+   * where the agent's answer is in its final reply, not written files.
+   */
+  source?: GraderSource;
 }
 
 /**
@@ -132,6 +141,7 @@ export function judge(question: string, level?: GraderLevel, options: JudgeOptio
     name: question,
     level,
     includeCommandTrace: options.includeCommandTrace ?? false,
+    source: options.source,
   };
 }
 

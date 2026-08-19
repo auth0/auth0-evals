@@ -14,10 +14,15 @@ dist/
 scores-*.json
 results_*.jsonl
 report.html
+report-axis.html
 
 # Swift package manager
 **/.swiftpm/
 **/Package.resolved
+**/.build/
+
+# Gradle
+**/.gradle/
 
 # macOS
 .DS_Store
