@@ -1,10 +1,12 @@
 /**
- * Tests for the cross-run aggregation behind the report's "What to fix" section.
+ * Tests for the cross-run fold of the per-run recommendations, plus the report panel
+ * that renders them.
  *
- * The point of the section is ranking by repetition, so that is what these tests
- * pin down: the same finding across models outranks a one-off, a chatty run cannot
+ * The point of the fold is ranking by repetition, so that is what these tests pin
+ * down: the same finding across models outranks a one-off, a chatty run cannot
  * inflate its own count, and a failed analysis contributes nothing but is counted
- * separately so the section does not read as complete when it is not.
+ * separately so a caller does not read the result as complete when it is not. The
+ * report itself renders findings only inside each run's own panel.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -100,13 +102,17 @@ describe('aggregateRecommendations', () => {
   });
 
   it('sorts by run count, then severity', () => {
+    // Each finding needs its own wording, since wording is what identifies a finding.
+    const low = rec({ context: 'a', severity: 'low', issue: 'The tenant settings section omits the audience' });
+    const high = rec({ context: 'b', severity: 'high', issue: 'The callback example points at the wrong port' });
+    const both = rec({
+      context: 'c',
+      severity: 'medium',
+      issue: 'The invitation recipe passes an identifier as a name',
+    });
     const issues = aggregateRecommendations([
-      result('gpt-5.2', [
-        rec({ context: 'a', severity: 'low' }),
-        rec({ context: 'b', severity: 'high' }),
-        rec({ context: 'c', severity: 'medium' }),
-      ]),
-      result('claude-sonnet-4-6', [rec({ context: 'c', severity: 'medium' })]),
+      result('gpt-5.2', [low, high, both]),
+      result('claude-sonnet-4-6', [both]),
     ]);
     expect(issues.map((i) => i.context)).toEqual(['c', 'b', 'a']);
   });
@@ -122,6 +128,15 @@ describe('aggregateRecommendations', () => {
       },
     });
     expect(aggregateRecommendations([result('gpt-5.2', undefined), failed])).toEqual([]);
+  });
+
+  it('folds a finding whose wording carries no distinctive term', () => {
+    // Nothing in "the flag is wrong" survives the term filter, and an empty signature
+    // matches nothing — so without the whole-text fallback this reported twice.
+    const terse = rec({ issue: 'the flag is wrong', context: '' });
+    const issues = aggregateRecommendations([result('gpt-5.2', [terse]), result('claude-sonnet-4-6', [terse])]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].run_count).toBe(2);
   });
 
   it('returns an empty list for no results', () => {
@@ -146,32 +161,29 @@ describe('countFailedAnalyses', () => {
   });
 });
 
-describe('renderHtml — What to fix section', () => {
-  it('renders the ranked issue with its run count', () => {
+describe('renderHtml — recommendations panel', () => {
+  it('shows a run’s findings in that run’s own panel', () => {
     const html = renderHtml([result('gpt-5.2', [rec()]), result('claude-sonnet-4-6', [rec()])], '2024-01-01 00:00');
     const body = html.slice(html.indexOf('</style>'));
-    expect(body).toContain('What to fix');
-    expect(body).toContain('2&times;');
     expect(body).toContain('feature-mfa/index.md');
+    expect(body).toContain('Replace the flag with the api call');
   });
 
-  it('omits the section entirely when nothing was recommended', () => {
-    const html = renderHtml([result('gpt-5.2', undefined)], '2024-01-01 00:00');
-    expect(html.slice(html.indexOf('</style>'))).not.toContain('What to fix');
+  it('renders a finding once per run and nowhere else', () => {
+    const html = renderHtml([result('gpt-5.2', [rec()]), result('claude-sonnet-4-6', [rec()])], '2024-01-01 00:00');
+    const body = html.slice(html.indexOf('</style>'));
+    expect(body.split('Replace the flag with the api call')).toHaveLength(3);
   });
 
-  it('says how many runs could not be analysed', () => {
-    const failed = result('gpt-5.2', undefined, {
-      recommendations: {
-        eval_id: 'auth0_cli_mfa',
-        model: 'gpt-5.2',
-        tools: [],
-        recommendations: [],
-        error: 'HTTP 500',
-      },
-    });
-    const body = renderHtml([failed], '2024-01-01 00:00');
-    expect(body).toContain('could not be analysed');
+  it('counts the findings by severity so the tab leads with how bad it is', () => {
+    const html = renderHtml(
+      [result('gpt-5.2', [rec({ severity: 'high' }), rec({ context: 'other', severity: 'low' })])],
+      '2024-01-01 00:00',
+    );
+    const body = html.slice(html.indexOf('</style>'));
+    expect(body).toContain('2 findings');
+    expect(body).toContain('1 high');
+    expect(body).toContain('1 low');
   });
 
   it('shows the reason on the run whose analysis failed instead of "no recommendations"', () => {

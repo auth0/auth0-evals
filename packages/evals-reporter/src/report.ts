@@ -10,10 +10,11 @@ import { fileURLToPath } from 'url';
 import nunjucks from 'nunjucks';
 import { registerFilters } from './report-filters.js';
 import { MODES, resultVariant, groupResults, groupByVariant, computeDeltas } from './report/processors.js';
-import { aggregateRecommendations, countFailedAnalyses } from './report/aggregate.js';
 
 // Re-export for backward compatibility with existing consumers and tests.
 export { resultVariant, loadScores, groupResults, groupByVariant, computeDeltas } from './report/processors.js';
+// Exported for callers asking "which finding repeats across models" — the HTML itself
+// renders findings per run.
 export { aggregateRecommendations, countFailedAnalyses } from './report/aggregate.js';
 export type { AggregatedIssue } from './report/aggregate.js';
 
@@ -53,13 +54,6 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
 
   const groupedSortedKeys = Object.keys(grouped).sort();
 
-  // Ranked cross-run view of what to fix. Capped for the page, and the cap is
-  // reported rather than silently applied.
-  const aggregatedAll = aggregateRecommendations(results);
-  const aggregatedIssues = aggregatedAll.slice(0, 25);
-  const aggregatedHidden = aggregatedAll.length - aggregatedIssues.length;
-  const failedAnalyses = countFailedAnalyses(results);
-
   const env = nunjucks.configure(resolveTemplatesDir(), {
     autoescape: true,
     noCache: true,
@@ -79,9 +73,6 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
     variants_run: variantsRun,
     variants_present: variantsPresent,
     evals_run: evalsRun,
-    aggregated_issues: aggregatedIssues,
-    aggregated_hidden: aggregatedHidden,
-    failed_analyses: failedAnalyses,
     generated_at: generatedAt,
     MODES,
   });

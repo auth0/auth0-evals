@@ -256,37 +256,56 @@
 
 {% macro render_recommendations(recs) %}
 {% if recs and recs.recommendations and recs.recommendations | length > 0 %}
+{% set all_recs = recs.recommendations %}
+{% set high     = all_recs | selectattr("severity", "equalto", "high")   | list | length %}
+{% set medium   = all_recs | selectattr("severity", "equalto", "medium") | list | length %}
+{% set low      = all_recs | selectattr("severity", "equalto", "low")    | list | length %}
 <div class="rec-panel">
+  {# Counts by severity before the prose: the first thing a reader wants from this
+     tab is how much is wrong and how badly, which a paragraph makes them read for. #}
+  <div class="rec-tally">
+    <span class="rec-tally-total">{{ all_recs | length }} finding{{ "s" if all_recs | length != 1 }}</span>
+    {%- if high %}<span class="rec-chip rec-chip--high">{{ high }} high</span>{% endif %}
+    {%- if medium %}<span class="rec-chip rec-chip--medium">{{ medium }} medium</span>{% endif %}
+    {%- if low %}<span class="rec-chip rec-chip--low">{{ low }} low</span>{% endif %}
+  </div>
   {% if recs.summary %}
   <div class="rec-summary">{{ recs.summary }}</div>
   {% endif %}
-  <ul class="rec-list">
-    {% for r in recs.recommendations %}
+  <ol class="rec-list">
+    {% for r in all_recs %}
     <li class="rec-item rec-severity-{{ r.severity }}">
       <div class="rec-item-header">
+        <span class="rec-num">{{ loop.index }}</span>
         <span class="rec-badge rec-badge--{{ r.category }}">{{ r.category }}</span>
-        <span class="rec-badge" style="background: var(--clr-dim-bg); color: var(--text-sec);">{{ r.severity }}</span>
+        <span class="rec-badge rec-badge--neutral">{{ r.severity }}</span>
         {% if r.root_cause %}
-        <span class="rec-badge" style="background: var(--clr-dim-bg); color: var(--text-sec);">cause: {{ r.root_cause }}</span>
+        <span class="rec-badge rec-badge--neutral">cause: {{ r.root_cause }}</span>
         {% endif %}
+        {# Where the fix goes belongs beside the labels, not trailing the item: it is
+           what tells you whose problem this is. #}
+        {% if r.context %}<span class="rec-where">{{ r.context }}</span>{% endif %}
       </div>
       <div class="rec-issue">{{ r.issue }}</div>
-      {% if r.what_happened %}
-      <div class="rec-context"><strong>What happened:</strong> {{ r.what_happened }}</div>
-      {% endif %}
-      {% if r.what_should_have_happened %}
-      <div class="rec-context"><strong>Should have:</strong> {{ r.what_should_have_happened }}</div>
+      {% if r.what_happened or r.what_should_have_happened %}
+      <dl class="rec-detail">
+        {% if r.what_happened %}
+        <dt class="rec-detail-key">Did</dt>
+        <dd class="rec-detail-val">{{ r.what_happened }}</dd>
+        {% endif %}
+        {% if r.what_should_have_happened %}
+        <dt class="rec-detail-key">Should</dt>
+        <dd class="rec-detail-val">{{ r.what_should_have_happened }}</dd>
+        {% endif %}
+      </dl>
       {% endif %}
       {% if r.evidence %}
-      <pre class="rec-context">{{ r.evidence }}</pre>
+      <pre class="rec-evidence">{{ r.evidence }}</pre>
       {% endif %}
-      <div class="rec-suggestion">💡 {{ r.suggestion }}</div>
-      {% if r.context %}
-      <div class="rec-context">{{ r.context }}</div>
-      {% endif %}
+      <div class="rec-suggestion"><span class="rec-suggestion-key">Fix</span><span>{{ r.suggestion }}</span></div>
     </li>
     {% endfor %}
-  </ul>
+  </ol>
 </div>
 {% elif recs and recs.error %}
 {# A failed analysis is not a clean run. Saying "no recommendations" for a proxy
@@ -449,44 +468,6 @@
     {{ render_summary_table_for_mode(variant, variant_grouped, evals_run, models_run, deltas) }}
   </div>
   {% endfor %}
-
-  {# ── What to fix ──────────────────────────────────────────────────────────
-     Every run's findings, folded together and ranked by how many runs hit each
-     one. Repeat across models is the signal: it separates a defect in the skill
-     or the grader from one model's bad run. #}
-  {% if aggregated_issues | length > 0 or failed_analyses > 0 %}
-  <h2 class="section-heading">What to fix</h2>
-  <div class="agg-note">
-    {{ aggregated_issues | length }} distinct issue{{ "s" if aggregated_issues | length != 1 }} across {{ total_runs }} run{{ "s" if total_runs != 1 }}, most-reported first.
-    {%- if aggregated_hidden > 0 %} {{ aggregated_hidden }} more not shown.{% endif %}
-    {%- if failed_analyses > 0 %} {{ failed_analyses }} run{{ "s" if failed_analyses != 1 }} could not be analysed, so their findings are missing here.{% endif %}
-  </div>
-  {% if aggregated_issues | length > 0 %}
-  <ul class="rec-list agg-list">
-    {% for issue in aggregated_issues %}
-    <li class="rec-item rec-severity-{{ issue.severity }}">
-      <div class="rec-item-header">
-        <span class="agg-count">{{ issue.run_count }}&times;</span>
-        <span class="rec-badge rec-badge--{{ issue.category }}">{{ issue.category }}</span>
-        <span class="rec-badge" style="background: var(--clr-dim-bg); color: var(--text-sec);">{{ issue.severity }}</span>
-        <span class="rec-badge" style="background: var(--clr-dim-bg); color: var(--text-sec);">cause: {{ issue.root_cause }}</span>
-      </div>
-      {% if issue.context %}<div class="rec-issue"><strong>{{ issue.context }}</strong></div>{% endif %}
-      {% for text in issue.issues %}
-      <div class="rec-issue">{{ text }}</div>
-      {% endfor %}
-      {% for text in issue.suggestions %}
-      <div class="rec-suggestion">💡 {{ text }}</div>
-      {% endfor %}
-      <div class="rec-context">
-        {{ issue.models | join(", ") }}
-        {%- if issue.evals | length > 0 %} &middot; {{ issue.evals | join(", ") }}{% endif %}
-      </div>
-    </li>
-    {% endfor %}
-  </ul>
-  {% endif %}
-  {% endif %}
 
   <h2 class="section-heading section-heading--details">Details</h2>
 

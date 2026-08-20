@@ -1,6 +1,8 @@
 /**
- * Recommendation generator — analyses a completed agent run and produces
- * structured improvement suggestions for graders, skills, MCP, and efficiency.
+ * Recommendation generator — analyses a completed agent run and produces structured
+ * improvement suggestions, each routed to the surface that owns the fix: the skill,
+ * a grader, the eval's own task definition, the `auth0` CLI, the docs, the docs MCP
+ * server, or the agent's efficiency.
  */
 
 import { readFileSync } from 'node:fs';
@@ -288,18 +290,63 @@ function buildPrompt(input: RecommendationInput): { system: string; user: string
     ? '- "skill" — the skill was in context and the agent did what it says, but what it says is wrong, incomplete, or ambiguous. A failure the skill was in a position to prevent and did not is a skill defect, even when the agent also reasoned badly. Quote the line at fault.\n- "model" — the skill is correct and clear on this point and the agent ignored or misread it.'
     : '- "skill" — NOT AVAILABLE on this run. No skill was in the agent\'s context, so no finding may be attributed to documentation the agent never saw.\n- "model" — the agent got this wrong on its own knowledge.';
 
-  const categories = ['grader', ...(skillsInContext ? ['skill'] : []), ...(mcpInContext ? ['mcp'] : []), 'efficiency']
+  // The CLI is only a candidate surface when the run actually drove it. Offering
+  // "cli" to a React eval invites a fabricated complaint about a binary that never
+  // ran.
+  const usedCli = record.toolCalls.some(
+    (tc) => RUN_COMMAND_NAMES.has(tc.name) && /\bauth0\s/.test(String(tc.args.command ?? '')),
+  );
+  const readDocs = mcpInContext || record.toolCalls.some((tc) => /auth0\.com\/docs/.test(JSON.stringify(tc.args)));
+
+  const categories = [
+    'grader',
+    'eval',
+    ...(skillsInContext ? ['skill'] : []),
+    ...(usedCli ? ['cli'] : []),
+    ...(readDocs ? ['docs'] : []),
+    ...(mcpInContext ? ['mcp'] : []),
+    'efficiency',
+  ]
     .map((c) => `"${c}"`)
     .join('|');
+
+  // Which surface owns the fix. Without this list an analyst routes every finding
+  // to the skill, because the skill is the only surface it was shown — so an
+  // ambiguous task prompt and a CLI with no subcommand for the job both came back
+  // as "the reference should explain this better", and the actual owner never heard.
+  const surfaces = [
+    '- "skill" — the skill\'s own text is wrong, incomplete, or ambiguous.',
+    '- "grader" — one check in the eval\'s graders.ts is wrong: it matches one spelling of a command with several valid routes, asserts something the task never asked for, or is phrased so a correct run scores as a failure.',
+    '- "eval" — the task definition is at fault, not the work: PROMPT.md is ambiguous or contradicts a grader, asks for something the environment cannot do, or its scaffold/provisioning is wrong. A field two models filled two defensible ways is an eval defect, not a skill gap.',
+    ...(usedCli
+      ? [
+          '- "cli" — the `auth0` CLI itself was the obstacle: no subcommand exists for the job so the agent had to fall back to `auth0 api`, a flag is named misleadingly or takes an undocumented form, an error message does not say what is wrong, or an operation needs a prerequisite the CLI never mentions. Report these even when the agent recovered — this is product feedback for the CLI team, and nothing in this repo can fix it.',
+        ]
+      : []),
+    ...(readDocs
+      ? ['- "docs" — an Auth0 documentation page the agent read is wrong, missing, or hard to act on.']
+      : []),
+    ...(mcpInContext
+      ? ['- "mcp" — an Auth0 docs MCP tool returned the wrong thing, was missing, or its output was unusable.']
+      : []),
+    '- "efficiency" — turns were wasted with no defect behind it.',
+  ].join('\n');
 
   const system = `You are an evaluation analyst. A coding agent was given the task below and scored by the graders below. ${premise}
 
 Diagnose the run. For each finding, say what the agent actually did, what should have happened instead, and where the fault lies:
 ${skillCause}
 - "grader" — the agent's work is actually correct and the grader is wrong: it matches one spelling of a command that has several valid routes, asserts something the task never asked for, or is phrased so a correct run scores as a failure.
-- "environment" — the CLI, API, or tenant behaved in a way neither the skill nor the agent could have anticipated.
+- "eval" — the task definition made the outcome unwinnable or ambiguous, so neither the agent nor the skill could have got it right.
+- "cli" — the \`auth0\` CLI's own surface was the obstacle: the subcommand does not exist, the flag is misnamed, the error says nothing useful, or a required prerequisite is never mentioned.
+- "environment" — the API or tenant behaved in a way nothing could have anticipated.
 
-Only the skill documentation and the custom MCP tools can be changed. The agent's built-in tools (read_file, write_file, list_files, run_command, fetch_url, ask_user, finish_task) are owned by the framework — never propose changes to them.
+Then say which surface has to change, as \`category\`:
+${surfaces}
+
+Cover every surface the evidence reaches, not just the skill. The skill is the surface you were shown the most of, which makes it the easy answer and often the wrong one: check the task prompt against the graders, and check the commands against the tool that ran them, before attributing a failure to documentation.
+
+The agent's built-in tools (read_file, write_file, list_files, run_command, fetch_url, ask_user, finish_task) are owned by the framework — never propose changes to them.
 
 Respond with ONLY a JSON object:
 {
@@ -436,9 +483,9 @@ function parseResponse(raw: string, input: RecommendationInput): Recommendations
       return failed(input, 'Response was missing the recommendations array');
     }
 
-    const VALID_CATEGORIES = new Set(['grader', 'skill', 'mcp', 'efficiency']);
+    const VALID_CATEGORIES = new Set(['grader', 'skill', 'eval', 'cli', 'docs', 'mcp', 'efficiency']);
     const VALID_SEVERITIES = new Set(['high', 'medium', 'low']);
-    const VALID_ROOT_CAUSES = new Set(['skill', 'model', 'grader', 'environment']);
+    const VALID_ROOT_CAUSES = new Set(['skill', 'model', 'grader', 'eval', 'cli', 'environment']);
     const SEVERITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
     const recommendations: Recommendation[] = parsed.recommendations
