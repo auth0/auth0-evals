@@ -468,10 +468,40 @@ async function callLlm(system: string, user: string, apiKey: string, baseUrl: st
 
 // ── Response parsing ──────────────────────────────────────────────────────────
 
+/**
+ * Pull the analysis JSON out of a model reply. A reply may contain more than one
+ * fenced block (e.g. a ```bash fence quoting a command as evidence before the
+ * ```json fence), so every candidate — each fence in order, the raw text, and the
+ * outermost braces — is tried and the first one that parses to an object wins.
+ */
+function extractJsonCandidates(raw: string): string[] {
+  const candidates: string[] = [];
+  for (const [, body] of raw.matchAll(/```[^\n`]*\n?([\s\S]*?)```/g)) {
+    if (body?.trim()) candidates.push(body.trim());
+  }
+  candidates.push(raw.trim());
+  const first = raw.indexOf('{');
+  const last = raw.lastIndexOf('}');
+  if (first !== -1 && last > first) candidates.push(raw.slice(first, last + 1));
+  return candidates;
+}
+
 function parseResponse(raw: string, input: RecommendationInput): Recommendations {
-  // Extract JSON from response (may be wrapped in markdown code fences)
-  const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) ?? [null, raw];
-  const jsonStr = jsonMatch[1]?.trim() ?? raw.trim();
+  let jsonStr = raw.trim();
+  let lastErr: unknown;
+  for (const candidate of extractJsonCandidates(raw)) {
+    try {
+      const value: unknown = JSON.parse(candidate);
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        jsonStr = candidate;
+        lastErr = undefined;
+        break;
+      }
+    } catch (err) {
+      lastErr ??= err;
+    }
+  }
+  if (lastErr !== undefined) return failed(input, `JSON parse failed: ${lastErr}`);
 
   try {
     const parsed = JSON.parse(jsonStr) as {

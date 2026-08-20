@@ -239,6 +239,57 @@ describe('generateRecommendations', () => {
     expect(result!.recommendations[0].category).toBe('grader');
   });
 
+  // A reply that quotes a command as evidence opens with a ```bash fence; taking the
+  // first fence would lose every finding to `Unexpected token 'b', "bash\nauth"`.
+  it('finds the JSON when an earlier fence quotes a command', async () => {
+    const { generateRecommendations } = await import('../src/recommendations/generator.js');
+    const dir = tmpDir();
+
+    const llmResponse =
+      'The run piped the banner into jq:\n\n' +
+      '```bash\nauth0 api get "tenants/settings" 2>&1 | jq -r .default_redirection_uri\n```\n\n' +
+      '```json\n' +
+      JSON.stringify({
+        recommendations: [{ category: 'skill', severity: 'high', issue: 'redirects stderr', suggestion: 'drop 2>&1' }],
+        summary: 'A summary.',
+      }) +
+      '\n```';
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: llmResponse } }] }),
+    });
+
+    const result = await generateRecommendations(makeInput(dir));
+    expect(result.error).toBeUndefined();
+    expect(result.recommendations).toHaveLength(1);
+    expect(result.recommendations[0].issue).toBe('redirects stderr');
+  });
+
+  // Prose around the JSON with no fence at all: the braces are the only marker left.
+  it('finds the JSON when the reply wraps it in prose', async () => {
+    const { generateRecommendations } = await import('../src/recommendations/generator.js');
+    const dir = tmpDir();
+
+    const llmResponse =
+      'Here is the analysis:\n' +
+      JSON.stringify({
+        recommendations: [{ category: 'cli', severity: 'low', issue: 'x', suggestion: 'y' }],
+        summary: 'S.',
+      }) +
+      '\nLet me know if you want more detail.';
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: llmResponse } }] }),
+    });
+
+    const result = await generateRecommendations(makeInput(dir));
+    expect(result.error).toBeUndefined();
+    expect(result.recommendations).toHaveLength(1);
+    expect(result.recommendations[0].category).toBe('cli');
+  });
+
   // A failed analysis comes back carrying its reason rather than as undefined: an
   // empty list with no explanation renders as "this run was clean", which is the
   // opposite of what a 500 means.
