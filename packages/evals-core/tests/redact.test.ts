@@ -35,6 +35,7 @@ describe('redactSecrets — masks credential values', () => {
   it('masks bearer and basic authorization headers', () => {
     expect(redactSecrets('curl -H "Authorization: Bearer abc.def.ghi"')).not.toContain('abc.def.ghi');
     expect(redactSecrets('Authorization: Basic dXNlcjpwYXNz')).not.toContain('dXNlcjpwYXNz');
+    expect(redactSecrets('proxy-authorization: Bearer abc.def.ghi')).toContain(REDACTION_MARKER);
   });
 
   it('masks the password half of curl -u user:pass', () => {
@@ -81,6 +82,20 @@ describe('redactSecrets — keeps what a diagnosis needs', () => {
     // `token_endpoint_auth_method` ends in `method`, not in a credential word, so its
     // value is configuration and stays visible.
     const line = '"token_endpoint_auth_method": "none"';
+    expect(redactSecrets(line)).toBe(line);
+  });
+
+  it('keeps `--auth-method Basic` intact', () => {
+    // Regression: `Basic` here is Auth0's `token_endpoint_auth_method`, not an HTTP
+    // auth scheme. Masking on the bare scheme swallowed the `--grants` flag after it,
+    // and the security judge reads the marker as proof a secret was exposed — so a
+    // false positive here costs a run its security score.
+    const line = "auth0 apps create --name 'Smoke Automation' --type m2m --auth-method Basic --grants credentials";
+    expect(redactSecrets(line)).toBe(line);
+  });
+
+  it('keeps a bare `Basic`/`Bearer` word with no authorization header around it', () => {
+    const line = 'echo "Basic auth is enabled"';
     expect(redactSecrets(line)).toBe(line);
   });
 

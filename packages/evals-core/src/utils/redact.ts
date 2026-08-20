@@ -40,8 +40,12 @@ const PATTERNS: Array<[RegExp, string]> = [
   // and `expires_in` keep their values — they are configuration, not credentials,
   // and blanking them costs the analyst detail for nothing.
   [new RegExp(`(["']?[\\w.-]*(?:${SECRET_NAME})["']?\\s*[:=]\\s*)(?:${VALUE})`, 'gi'), `$1${REDACTION_MARKER}`],
-  // `Authorization: Bearer VALUE`, `Basic VALUE`
-  [/\b(Bearer|Basic)\s+[\w\-._~+/]+=*/gi, `$1 ${REDACTION_MARKER}`],
+  // `Authorization: Bearer VALUE`, `Authorization: Basic VALUE`. The header name is
+  // required: a bare `Basic` is also the value of Auth0's `--auth-method` flag
+  // (`token_endpoint_auth_method`), and matching the scheme alone masked the flag
+  // that followed it. A bearer token with no header around it is still caught by the
+  // JWT and long-opaque-token rules below.
+  [/\b((?:proxy-)?authorization\s*:\s*)(Bearer|Basic)(\s+)(?!--)[\w\-._~+/]+=*/gi, `$1$2$3${REDACTION_MARKER}`],
   // `curl -u user:VALUE`
   [/(-u\s+["']?[^\s:"']+:)[^\s"']+/g, `$1${REDACTION_MARKER}`],
   // A JWT, wherever it appears.
