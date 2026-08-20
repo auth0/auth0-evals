@@ -46,6 +46,8 @@ keep this shape:
     "acme": { "id": "…", "name": "…", "display_name": "…", "enabled_connection_id": "…" },
     "globex": { "id": "…", "name": "…", "display_name": "…", "enabled_connection_id": "…" }
   },
-  "invitation": { "id": "…", "org": "…", "invitee_email": "…", "role": "…" }
+  "invitation": { "id": "…", "org": "<org name>", "invitee_email": "…", "role": "<role name>" }
 }
 ```
+
+In `invitation`, `org` and `role` are the names, not the `org_…` / `rol_…` ids.

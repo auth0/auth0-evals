@@ -147,6 +147,8 @@ When a corpus still exceeds `judge.maxCodeChars`, the judge **truncates** it and
 
 `judge(question, level?, { includeCommandTrace })` — when `includeCommandTrace` is true, the agent's successful shell commands are appended to the judge input (under a `// COMMAND TRACE` header) alongside workspace files. This gives a judgeable artifact to evals whose work is entirely CLI invocations with no files to inspect (e.g. tenant config via the Auth0 CLI). Errored commands are dropped so the judge sees only what took effect. Off by default — every file-based judge is unchanged.
 
+The header spells out what the format does and does not show, because a judge left to infer it drew the wrong conclusions: command *output* is not captured, so an absent output is not evidence that a command did nothing, and each command runs in its own shell, so an id appearing as a literal in a later command is a value read from an earlier command's output rather than a fabricated one. Both had been read as the agent inventing data.
+
 ---
 
 ## Linting & formatting

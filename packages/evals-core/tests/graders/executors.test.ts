@@ -408,6 +408,15 @@ describe('formatCommandTrace', () => {
     expect(out).toContain('guardian/policies');
   });
 
+  it('tells the judge what the format does and does not show', () => {
+    // A judge left to infer these read "no output shown" and "id re-declared in a later
+    // command" as evidence the agent fabricated the values, and failed a correct run.
+    const out = formatCommandTrace([cmd('auth0 orgs list')]);
+    expect(out).toContain('exited');
+    expect(out).toContain('output is NOT captured');
+    expect(out).toContain('own shell');
+  });
+
   it('accepts the bash tool name as a shell command', () => {
     const out = formatCommandTrace([
       { name: 'bash', args: { command: 'auth0 api get guardian/factors' }, result: '', causedError: false },
