@@ -54,10 +54,16 @@ export function defineGraders() {
     ),
     // isAdmin is a custom claim, and Auth0 requires custom claims added by an
     // Action to be namespaced — so a well-informed agent that writes
-    // 'https://barkbook.com/isAdmin' must not be penalised. The boolean `true`
-    // is still required: the string 'true' does not match.
+    // 'https://barkbook.com/isAdmin' must not be penalised. The namespace may
+    // also arrive as a hoisted constant interpolated into a template literal
+    // (`${CLAIMS_NAMESPACE}isAdmin`), which a quote-anchored pattern misses —
+    // an agent-mode run failed this grader on exactly that form.
+    //
+    // So match on the argument boundary instead of the opening quote: anything
+    // up to `isAdmin`, then a comma and a bare `true`. The boolean is still
+    // load-bearing — `, 'true')` has a quote before the t and does not match.
     matches(
-      String.raw`claimEquals\s*\(\s*['"\`](?:[^'"\`]*\/)?isAdmin['"\`]\s*,\s*true\s*\)`,
+      String.raw`claimEquals\s*\(\s*[^,)]*isAdmin[^,)]*,\s*true\s*\)`,
       'GET /api/admin gated on claimEquals with boolean true (not the string "true")',
       GraderLevel.L4,
     ),
@@ -113,8 +119,12 @@ export function defineGraders() {
         'approve:transfers passed as a single space-separated string or array to requiredScopes; ' +
         'GET /api/reports must accept either read:reports or read:audit via scopeIncludesAny; ' +
         'DELETE /api/accounts/:id must check the delete:accounts RBAC permission via ' +
-        "claimIncludes('permissions', 'delete:accounts'); GET /api/admin must use claimEquals('isAdmin', true) " +
-        'with a boolean. The existing /api/balance and /api/transfers routes must still be protected. ' +
+        "claimIncludes('permissions', 'delete:accounts'); GET /api/admin must use claimEquals on an isAdmin " +
+        'claim compared against the boolean true (not the string "true"). The isAdmin claim name MAY be ' +
+        'namespaced — Auth0 requires custom claims added by an Action to be namespaced, so ' +
+        "claimEquals('https://example.com/isAdmin', true) is fully correct here and must not be marked wrong; " +
+        'the prompt explicitly leaves the namespace to the implementer. ' +
+        'The existing /api/balance and /api/transfers routes must still be protected. ' +
         'The issuer and audience may come from ISSUER_BASE_URL / AUDIENCE environment variables — judge only ' +
         'from the source code and do not assume the contents of any .env file.',
     ),
