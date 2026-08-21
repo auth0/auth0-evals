@@ -61,6 +61,7 @@ See [`@a0/evals` CLI docs](../../packages/evals/) for the full list of flags and
 | `express_api_dpop` | dpop | Enforce DPoP-bound access tokens on an Express API via `auth({ dpop: … })` |
 | `express_api_rbac` | rbac | Fine-grained authorization with `requiredScopes` / `scopeIncludesAny` / `claimIncludes` / `claimEquals` |
 | `express_api_mcd` | multi-tenant | Accept tokens from several Auth0 custom domains via `auth({ mcd: { issuers } })` |
+| `react_organizations` | organizations | Add Auth0 Organizations to a React SPA — org login, invitation acceptance, and org read-back from the `org_id` claim |
 
 ## Configuration
 
