@@ -1,0 +1,132 @@
+import {
+  contains,
+  notContains,
+  notContainsInSource,
+  matches,
+  judge,
+  wroteFile,
+  compiles,
+  GraderLevel,
+} from '@a0/evals-graders';
+
+export function defineGraders() {
+  return [
+    // ── L1: Positive presence ──────────────────────────────────────────
+    contains('express-oauth2-jwt-bearer', 'Uses express-oauth2-jwt-bearer SDK', GraderLevel.L1),
+    contains('scopeIncludesAny', 'Uses scopeIncludesAny() for the either/or scope check', GraderLevel.L1),
+    contains('claimIncludes', 'Uses claimIncludes() for the RBAC permissions check', GraderLevel.L1),
+    contains('claimEquals', 'Uses claimEquals() for the exact isAdmin claim check', GraderLevel.L1),
+    contains('permissions', 'References the RBAC permissions claim', GraderLevel.L1),
+    // Both either/or scopes must appear somewhere — the deterministic argument
+    // check on scopeIncludesAny was dropped (see the L4 section for why).
+    contains('read:reports', 'References the read:reports scope', GraderLevel.L1),
+    contains('read:audit', 'References the read:audit scope', GraderLevel.L1),
+
+    // ── L2: Hallucination / wrong SDK ─────────────────────────────────
+    notContains('requiredPermissions', 'No invented requiredPermissions() helper', GraderLevel.L2),
+    notContains('requiredScope(', 'No invented singular requiredScope() helper', GraderLevel.L2),
+    notContains('scopeIncludesAll', 'No invented scopeIncludesAll() helper', GraderLevel.L2),
+    notContains('claimMatches', 'No invented claimMatches() helper', GraderLevel.L2),
+    notContains('express-jwt-permissions', 'No third-party express-jwt-permissions package', GraderLevel.L2),
+    notContains('jsonwebtoken', 'No manual JWT decoding with jsonwebtoken', GraderLevel.L2),
+
+    // ── L3: Security checks ───────────────────────────────────────────
+    notContainsInSource(
+      'dev-barkbook.us.auth0.com',
+      'No hardcoded issuer domain in source files (ok in .env)',
+      GraderLevel.L3,
+    ),
+    notContainsInSource('api.barkbook.com', 'No hardcoded audience in source files (ok in .env)', GraderLevel.L3),
+
+    // ── L4: Structural / behavioral correctness ───────────────────────
+    wroteFile('.env', 'Wrote Auth0 config to .env file', GraderLevel.L4, [
+      'dev-barkbook.us.auth0.com',
+      'api.barkbook.com',
+    ]),
+    compiles('Project compiles (node --check succeeds)', GraderLevel.L4),
+    // Auth0 RBAC populates `permissions` unnamespaced, but a namespaced form is
+    // still a defensible reading of the task, so allow an optional namespace
+    // prefix here and on isAdmin below.
+    matches(
+      String.raw`claimIncludes\s*\(\s*['"\`](?:[^'"\`]*\/)?permissions['"\`]\s*,\s*['"\`]delete:accounts['"\`]`,
+      'DELETE /api/accounts/:id gated on the delete:accounts RBAC permission via claimIncludes',
+      GraderLevel.L4,
+    ),
+    // isAdmin is a custom claim, and Auth0 requires custom claims added by an
+    // Action to be namespaced — so a well-informed agent that writes
+    // 'https://barkbook.com/isAdmin' must not be penalised. The namespace may
+    // also arrive as a hoisted constant interpolated into a template literal
+    // (`${CLAIMS_NAMESPACE}isAdmin`), which a quote-anchored pattern misses —
+    // an agent-mode run failed this grader on exactly that form.
+    //
+    // So match on the argument boundary instead of the opening quote: anything
+    // up to `isAdmin`, then a comma and a bare `true`. The boolean is still
+    // load-bearing — `, 'true')` has a quote before the t and does not match.
+    matches(
+      String.raw`claimEquals\s*\(\s*[^,)]*isAdmin[^,)]*,\s*true\s*\)`,
+      'GET /api/admin gated on claimEquals with boolean true (not the string "true")',
+      GraderLevel.L4,
+    ),
+    // No deterministic grader for the scopeIncludesAny arguments: they may be
+    // inline strings, an array, or a hoisted constant, and any regex tight enough
+    // to check the scopes rejects the hoisted form. L1 asserts the helper and both
+    // scope strings are present; the L5 judge checks they are wired to the route.
+    // `requiredScopes` takes ONE argument (string | string[]). The multi-argument
+    // form `requiredScopes('a', 'b')` silently drops everything after the first,
+    // so it type-checks and runs but under-enforces. Match only the forms that
+    // pass both scopes together: a single quoted string, or an array literal.
+    matches(
+      String.raw`requiredScopes\s*\(\s*(?:\[(?=[^\]]*write:transfers)(?=[^\]]*approve:transfers)|['"\`](?=[^'"\`]*write:transfers)(?=[^'"\`]*approve:transfers))`,
+      'POST /api/transfers/bulk passes both scopes in one requiredScopes argument (string or array), not as two arguments',
+      GraderLevel.L4,
+    ),
+    judge(
+      'Does POST /api/transfers/bulk require BOTH the write:transfers AND approve:transfers scopes? ' +
+        'The correct call passes both scopes in ONE argument to requiredScopes — either as a single ' +
+        'space-separated string, e.g. requiredScopes("write:transfers approve:transfers"), or as an array, ' +
+        'e.g. requiredScopes(["write:transfers", "approve:transfers"]). ' +
+        'Answer no if the two scopes are passed as two separate arguments, e.g. ' +
+        'requiredScopes("write:transfers", "approve:transfers"), because that form silently ignores every ' +
+        'argument after the first and would let a caller through with only write:transfers.',
+      GraderLevel.L4,
+    ),
+
+    // ── L5: Version-specific API correctness ──────────────────────────
+    notContains(
+      'req.user',
+      'No req.user (express-oauth2-jwt-bearer exposes claims on req.auth.payload)',
+      GraderLevel.L5,
+    ),
+    notContains(
+      'req.auth.payload.scope.split',
+      'No hand-rolled scope string splitting — the SDK helpers do this',
+      GraderLevel.L5,
+    ),
+    judge(
+      'Does the solution delegate every authorization check to the express-oauth2-jwt-bearer middleware ' +
+        'helpers (requiredScopes, scopeIncludesAny, claimIncludes, claimEquals or claimCheck) applied as route ' +
+        'middleware, rather than hand-rolling checks inside route handlers by reading req.auth.payload.scope or ' +
+        'req.auth.payload.permissions and comparing manually? ' +
+        'Also confirm the RBAC permission check reads the permissions claim rather than the scope claim, ' +
+        'since Auth0 RBAC populates permissions and not scope.',
+      GraderLevel.L5,
+    ),
+
+    // ── Holistic judge ────────────────────────────────────────────────
+    judge(
+      'Does the solution correctly add fine-grained authorization to the Express API using ' +
+        'express-oauth2-jwt-bearer? POST /api/transfers/bulk must require both write:transfers and ' +
+        'approve:transfers passed as a single space-separated string or array to requiredScopes; ' +
+        'GET /api/reports must accept either read:reports or read:audit via scopeIncludesAny; ' +
+        'DELETE /api/accounts/:id must check the delete:accounts RBAC permission via ' +
+        "claimIncludes('permissions', 'delete:accounts'); GET /api/admin must use claimEquals on an isAdmin " +
+        'claim compared against the boolean true (not the string "true"). The isAdmin claim name MAY be ' +
+        'namespaced — Auth0 requires custom claims added by an Action to be namespaced, so ' +
+        "claimEquals('https://example.com/isAdmin', true) is fully correct here and must not be marked wrong; " +
+        'the prompt explicitly leaves the namespace to the implementer. ' +
+        'The existing /api/balance and /api/transfers routes must still be protected. ' +
+        'The issuer and audience may come from ISSUER_BASE_URL / AUDIENCE environment variables — judge only ' +
+        'from the source code and do not assume the contents of any .env file.',
+    ),
+  ];
+}

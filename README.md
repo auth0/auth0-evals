@@ -94,6 +94,7 @@ Agent runs are scored across 8 dimensions (process + output quality) into a JSON
 - [`packages/evals/README.md`](packages/evals/) - CLI usage, configuration, runners, scoring methodology
 - [`apps/auth0-evals/README.md`](apps/auth0-evals/) - Auth0 eval suite, available evals, how to add new ones
 - [`docs/ADDING_EVALS.md`](docs/ADDING_EVALS.md) - Full guide to writing evals
+- [`docs/EVAL_AUTHORING_PLAYBOOK.md`](docs/EVAL_AUTHORING_PLAYBOOK.md) - Grader-design judgement calls, worked from a real PR
 - [`docs/SCORING_METHODOLOGY.md`](docs/SCORING_METHODOLOGY.md) - Scoring philosophy and dimension details
 - [`docs/TESTING_SKILLS.md`](docs/TESTING_SKILLS.md) - How to test skills locally
 
