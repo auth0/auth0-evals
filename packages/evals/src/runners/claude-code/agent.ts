@@ -31,6 +31,8 @@ import {
   makeSessionId,
   filteredEnv,
   mintMcpToken,
+  resolveProxyAuthHeader,
+  PLACEHOLDER_API_KEY,
 } from '@a0/evals-core';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/evals-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
@@ -121,7 +123,16 @@ export async function runClaudeCodeAgent(
   const proxyEnv: Record<string, string> = {
     ANTHROPIC_BASE_URL: getAnthropicProxyUrl(),
   };
-  if (process.env[LLM_API_KEY_ENV]) {
+  // When a proxy auth header is configured, the credential rides that header.
+  // ANTHROPIC_API_KEY still has to be non-empty — the Claude binary requires one
+  // of its credential vars to be set — so it gets an inert placeholder.
+  // ANTHROPIC_CUSTOM_HEADERS is newline-separated `Name: Value` pairs.
+  const proxyAuth = resolveProxyAuthHeader();
+  if (proxyAuth) {
+    proxyEnv.ANTHROPIC_CUSTOM_HEADERS = `${proxyAuth.name}: ${proxyAuth.value}`;
+    proxyEnv.ANTHROPIC_API_KEY = PLACEHOLDER_API_KEY;
+    logger.info(`[ClaudeCode] Proxy auth header: ${proxyAuth.name}`);
+  } else if (process.env[LLM_API_KEY_ENV]) {
     proxyEnv.ANTHROPIC_API_KEY = process.env[LLM_API_KEY_ENV]!;
   }
 

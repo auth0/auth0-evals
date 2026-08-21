@@ -15,6 +15,8 @@ import {
   getModelIdMap,
   makeSessionId,
   BASELINE_TASK_TIMEOUT_MS,
+  resolveProxyAuthHeader,
+  PLACEHOLDER_API_KEY,
 } from '@a0/evals-core';
 import type { BaselineResult, EvalDefinition } from '@a0/evals-core';
 
@@ -65,9 +67,13 @@ export async function llmCall(
   const { proxy } = getFrameworkConfig();
   const apiModel = getModelIdMap()[model] ?? model;
 
+  // A proxy that rejects unauthenticated requests rejects the baseline call too,
+  // so it carries the same header as the agent runners.
+  const proxyAuth = resolveProxyAuthHeader();
   const openai = createOpenAI({
-    apiKey,
+    apiKey: proxyAuth ? PLACEHOLDER_API_KEY : apiKey,
     baseURL: proxy.baseUrl,
+    ...(proxyAuth ? { headers: { [proxyAuth.name]: proxyAuth.value } } : {}),
   });
 
   return generateText({

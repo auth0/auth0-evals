@@ -72,7 +72,10 @@ export const llmJudgeExecutor: GraderExecutor = {
   kind: 'judge',
 
   async execute(def: GraderDef, ctx: GraderContext): Promise<GraderResult> {
-    if (!ctx.apiKey || !ctx.judge) {
+    // `ctx.apiKey === ''` is the proxy-auth-header path (see validateApiKey in
+    // packages/evals/src/cli/validators.ts) — a deliberate empty credential,
+    // not a missing one. Only `undefined` means "no apiKey was ever provided".
+    if (ctx.apiKey === undefined || !ctx.judge) {
       return {
         name: def.name,
         kind: def.kind,
