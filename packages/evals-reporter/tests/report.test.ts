@@ -72,6 +72,55 @@ describe('renderHtml', () => {
   });
 });
 
+// ── incomplete runs ───────────────────────────────────────────────────────────
+
+describe('renderHtml for runs that did not reach success', () => {
+  const gradedFailure = () =>
+    makeResult('auth0_cli_b2b_org_setup', 'gpt-5.2', 'agent', {
+      status: 'failure',
+      grader_pass_rate: 0.5,
+      graders: [
+        { name: 'created the API', kind: 'event', passed: true, detail: 'ran auth0 apis create' },
+        { name: 'wrote the manifest', kind: 'event', passed: false, detail: 'no write recorded' },
+      ],
+      session_trace: [{ step: 1, tool: 'run_command', args: { command: 'auth0 apis create' }, duration: 1.2 }],
+      turn_metrics: [{ turn: 1, input_tokens: 100, output_tokens: 50, llm_latency: 2.0, tool_call_count: 1 }],
+      recommendations: {
+        recommendations: [
+          { category: 'skill', severity: 'high', issue: 'wrong flag documented', suggestion: 'fix it' },
+        ],
+        summary: 'One skill defect.',
+      },
+    });
+
+  it('shows the graders, trace, metrics, and recommendations of a graded failure', () => {
+    // Hitting the turn limit sets status=failure, but the run was fully graded —
+    // the card used to collapse to a one-line error and hide all of it.
+    const html = renderHtml([gradedFailure()], '2024-01-01 00:00');
+    expect(html).toContain('created the API');
+    expect(html).toContain('auth0 apis create');
+    expect(html).toContain('wrong flag documented');
+    expect(html).toContain('card--incomplete');
+  });
+
+  it('still flags the run as a failure', () => {
+    const html = renderHtml([gradedFailure()], '2024-01-01 00:00');
+    expect(html).toContain('FAILURE');
+    expect(html).toContain('stopped before reporting completion');
+  });
+
+  it('falls back to the bare error card when the job produced nothing', () => {
+    const html = renderHtml(
+      [makeResult('react_quickstart', 'gpt-5.2', 'agent', { status: 'error', error: 'spawn ENOENT' })],
+      '2024-01-01 00:00',
+    );
+    expect(html).toContain('card card--error');
+    expect(html).toContain('spawn ENOENT');
+    // The CSS block always defines the class, so assert against the body only.
+    expect(html.slice(html.indexOf('</style>'))).not.toContain('card--incomplete');
+  });
+});
+
 // ── loadScores + renderHtml integration ──────────────────────────────────────
 
 describe('renderHtml from score files', () => {
