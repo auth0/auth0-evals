@@ -23,20 +23,15 @@ export function defineGraders() {
       GraderLevel.L2,
     ),
     notContains('.authClient.mfa', 'Does not reach through to the internal auth client', GraderLevel.L2),
-    notContains('mfa/associate', 'Does not hand-roll a call to the /mfa/associate endpoint', GraderLevel.L2),
-    notContains('mfa/challenge', 'Does not hand-roll a call to the /mfa/challenge endpoint', GraderLevel.L2),
     notContains('/oauth/token', 'Does not hand-roll a raw token grant', GraderLevel.L2),
     notContains('grant-type/mfa-otp', 'Does not build the MFA OTP grant type by hand', GraderLevel.L2),
     notContains('grant-type/mfa-oob', 'Does not build the MFA OOB grant type by hand', GraderLevel.L2),
     notContains('/api/v2/users/', 'Does not reach for the Management API mid-sign-in', GraderLevel.L2),
-    notContains(
-      'authenticator_types',
-      'Uses camelCase authenticatorTypes, not the wire-level snake_case',
-      GraderLevel.L2,
-    ),
-    notContains('challenge_type', 'Uses camelCase challengeType, not the wire-level snake_case', GraderLevel.L2),
-    notContains('binding_code', 'Uses camelCase bindingCode, not the wire-level snake_case', GraderLevel.L2),
-    notContains('barcode_uri', 'Reads camelCase barcodeUri, not the wire-level snake_case', GraderLevel.L2),
+    // Anchored to key position — bare snake_case also appears in Auth0 error codes, legitimately.
+    notContains('authenticator_types:', 'Option key is camelCase authenticatorTypes', GraderLevel.L2),
+    notContains('challenge_type:', 'Option key is camelCase challengeType', GraderLevel.L2),
+    notContains('binding_code:', 'Option key is camelCase bindingCode', GraderLevel.L2),
+    notContains('.barcode_uri', 'Reads camelCase barcodeUri', GraderLevel.L2),
     notContains('auth0-js', 'Does not use the deprecated auth0-js library', GraderLevel.L2),
     notContains('speakeasy', 'No server-side TOTP library (speakeasy)', GraderLevel.L2),
     notContains('otplib', 'No server-side TOTP library (otplib)', GraderLevel.L2),
@@ -111,17 +106,17 @@ export function defineGraders() {
       GraderLevel.L5,
     ),
     judge(
-      'Is the MFA token read from the error cause as snake_case mfa_token and then passed into the SDK ' +
-        'options as camelCase mfaToken? Passing an option key named mfa_token to an SDK method is wrong — ' +
-        'the option is mfaToken.',
+      'Is the MFA token passed to SDK methods under the camelCase key mfaToken? Reading it off the ' +
+        'error cause as mfa_token is correct.',
       GraderLevel.L5,
     ),
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
-      'Does the solution correctly use the MFA APIs of @auth0/auth0-server-js — detecting mfa_required, ' +
-        'lifting the MFA token from the error cause, enrolling or challenging the right factor including ' +
-        'SMS, and verifying the submitted code so the session becomes signed in?',
+      'MFA in @auth0/auth0-server-js is Early Access and postdates your training data — judge against the ' +
+        'installed package types, not recall. Does the code detect mfa_required, lift the MFA token from ' +
+        'the error cause, enroll or challenge the right factor including SMS, and verify so the session ' +
+        'becomes signed in?',
     ),
   ];
 }
