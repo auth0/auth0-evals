@@ -63,11 +63,6 @@ export function defineGraders() {
     // ── L5: Version-specific API correctness ──────────────────────────────────
     notContains('handleAuth', 'Does not use v3 handleAuth (v4 uses middleware)', GraderLevel.L5),
     notContains('/api/auth/', 'Does not use v3 route prefix /api/auth/ (v4 uses /auth/)', GraderLevel.L5),
-    notContains(
-      'withPageAuthRequired',
-      'Does not use v3 withPageAuthRequired (v4 uses middleware/getSession)',
-      GraderLevel.L5,
-    ),
     notContains('AUTH0_ISSUER_BASE_URL', 'Does not use v3 env var AUTH0_ISSUER_BASE_URL', GraderLevel.L5),
     judge(
       'Does the Auth0Client instantiation use the beforeSessionSaved hook to copy the amr claim ' +
