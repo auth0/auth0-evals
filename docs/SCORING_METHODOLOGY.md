@@ -2,14 +2,14 @@
 
 This document captures the **why** behind methodology decisions — rationale, alternatives considered, and open questions. Git history tracks when changes happened; this file tracks why.
 
-AGENTS.md is the spec (formulas, constants, edge cases). This file is the reasoning. Agents don't need this file — humans do.
+This file captures the reasoning behind methodology decisions. Agents don't need this file — humans do.
 
 ## Workflow for methodology changes
 
 1. Author proposes the change in this file (rationale, options, recommendation)
 2. PR review → merge to master
 3. Engineer implements the code change
-4. AGENTS.md updated to reflect current state
+4. `docs/SCORING_METHODOLOGY.md` updated to reflect current state
 
 ---
 
@@ -99,7 +99,7 @@ efficiency (%) = max(0, 100 × (1 - waste_count / total_calls))
 
 A single tool call can match multiple waste predicates (e.g., a retry that also errors). To prevent `waste_count` from exceeding `total_calls`, each tool call contributes at most 1 to the count regardless of how many categories it matches. Per-category breakdowns are reported separately in notes for diagnostics.
 
-**Edge case:** When `total_calls == 0`, the formula is undefined. The scorer returns 100 but the process-dimension gate zeroes all process scores for runs with no tool calls (see AGENTS.md Overview), so this never produces a misleading result.
+**Edge case:** When `total_calls == 0`, the formula is undefined. The scorer returns 100 but the process-dimension gate zeroes all process scores for runs with no tool calls (see `packages/evals-core/src/scorer.ts`), so this never produces a misleading result.
 
 **Score behavior:**
 - Next.js with 40 tool calls and 2 errors → 95% (was 25% under old formula)
