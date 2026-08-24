@@ -13,6 +13,10 @@ import { MODES, resultVariant, groupResults, groupByVariant, computeDeltas } fro
 
 // Re-export for backward compatibility with existing consumers and tests.
 export { resultVariant, loadScores, groupResults, groupByVariant, computeDeltas } from './report/processors.js';
+// Exported for callers asking "which finding repeats across models" — the HTML itself
+// renders findings per run.
+export { aggregateRecommendations, countFailedAnalyses } from './report/aggregate.js';
+export type { AggregatedIssue } from './report/aggregate.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
