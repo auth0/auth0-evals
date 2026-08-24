@@ -113,10 +113,10 @@ export function defineGraders() {
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
-      'MFA in @auth0/auth0-server-js is Early Access and postdates your training data — judge against the ' +
-        'installed package types, not recall. Does the code detect mfa_required, lift the MFA token from ' +
-        'the error cause, enroll or challenge the right factor including SMS, and verify so the session ' +
-        'becomes signed in?',
+      'Does the solution correctly implement MFA API sign-in with @auth0/auth0-server-js — detecting ' +
+        'mfa_required via isMfaRequiredError and reading mfa_token off the error cause, enrolling or ' +
+        'challenging the right factor including the SMS path via challengeAuthenticator and bindingCode, ' +
+        'and finishing through mfa.verify so the session ends up signed in for later requests?',
     ),
   ];
 }
