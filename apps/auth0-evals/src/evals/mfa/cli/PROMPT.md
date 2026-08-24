@@ -1,6 +1,6 @@
 ---
-id: mfa_tenant_cli
-name: MFA Tenant Config (CLI)
+id: mfa_cli
+name: MFA Config (CLI)
 category: mfa
 skills: auth0
 provision: auth0-tenant

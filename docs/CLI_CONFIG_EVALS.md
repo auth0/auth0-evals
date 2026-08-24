@@ -24,8 +24,8 @@ State the required **end state**, not the commands — the agent should work out
 
 ```markdown
 ---
-id: mfa_tenant_cli
-name: MFA Tenant Config (CLI)
+id: mfa_cli
+name: MFA Config (CLI)
 category: mfa
 skills: auth0
 provision: auth0-tenant
@@ -90,4 +90,4 @@ export function defineGraders() {
 
 ## Worked example
 
-The MFA tenant-config eval above lives at `apps/auth0-evals/src/evals/mfa/tenant-cli/` and is the reference implementation for this pattern.
+The MFA CLI eval above lives at `apps/auth0-evals/src/evals/mfa/cli/` and is the reference implementation for this pattern.
