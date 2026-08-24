@@ -144,12 +144,41 @@ function scoreSpeed(record: RunRecord, opts?: ScoringOptions): [number, string] 
   return [Math.round(s * 10) / 10, notes];
 }
 
+function extractCliEndpoint(command: string): string {
+  const tokens = command
+    .trim()
+    .split(/\s+/)
+    .filter((t) => !t.startsWith('-'));
+  return tokens[tokens.length - 1] ?? command.trim();
+}
+
 function scoreEfficiency(record: RunRecord, opts?: ScoringOptions): [number, string] {
   const displayNames = opts?.toolDisplayNames ?? DEFAULT_TOOL_DISPLAY_NAMES;
 
   const total = record.toolCalls.length;
   if (total === 0) {
     return [100.0, 'N/A (no tools in baseline/skills mode)'];
+  }
+
+  const writeCount = record.toolCalls.filter((tc) => tc.name === 'write_file').length;
+  const cliCalls = record.toolCalls.filter((tc) => tc.name === 'run_command');
+  if (writeCount === 0 && cliCalls.length > 0) {
+    const endpointCounts: Record<string, number> = {};
+    for (const tc of cliCalls) {
+      const cmd = String((tc.args['command'] as string) ?? '');
+      const endpoint = extractCliEndpoint(cmd);
+      endpointCounts[endpoint] = (endpointCounts[endpoint] ?? 0) + 1;
+    }
+    const repeated = Object.entries(endpointCounts)
+      .filter(([, count]) => count > 1)
+      .map(([ep]) => ep);
+    const wasteCount = cliCalls.length - Object.keys(endpointCounts).length;
+    const s = Math.max(0, 100.0 * (1 - wasteCount / cliCalls.length));
+    const notes =
+      repeated.length === 0
+        ? `${cliCalls.length} api call(s); no repeated endpoints`
+        : `${cliCalls.length} api call(s); ${repeated.length} repeated endpoint(s): ${repeated.join(', ')}`;
+    return [Math.round(s * 10) / 10, notes];
   }
 
   const waste = analyzeWaste(record.toolCalls);

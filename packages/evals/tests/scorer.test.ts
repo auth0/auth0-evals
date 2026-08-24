@@ -266,6 +266,37 @@ describe('score - Efficiency', () => {
   });
 });
 
+// ── CLI efficiency (command-precision mode) ───────────────────────────────────
+
+describe('score - Efficiency (CLI mode)', () => {
+  it('no repeated endpoints scores 100', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    record.toolCalls = [
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api put guardian/factors/otp' } }),
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api put guardian/policies' } }),
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api get guardian/factors' } }),
+    ];
+    const result = score(record);
+    expect(getDim(result, 'Efficiency').rawScore).toBe(100.0);
+    expect(getDim(result, 'Efficiency').notes).toContain('no repeated endpoints');
+  });
+
+  it('one repeated endpoint out of three calls scores ~66.7', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir });
+    record.toolCalls = [
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api put guardian/factors/otp' } }),
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api put guardian/factors/otp' } }),
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api put guardian/policies' } }),
+    ];
+    const result = score(record);
+    expect(getDim(result, 'Efficiency').rawScore).toBeCloseTo(66.7, 0);
+    expect(getDim(result, 'Efficiency').notes).toContain('repeated endpoint');
+    expect(getDim(result, 'Efficiency').notes).toContain('guardian/factors/otp');
+  });
+});
+
 // ── analyzeWaste unit tests ───────────────────────────────────────────────────
 
 describe('analyzeWaste', () => {
