@@ -6,7 +6,7 @@ export function defineGraders() {
     contains('acr_values', 'Step-up request uses acr_values parameter', GraderLevel.L1),
     contains('amr', 'AMR claim checked to detect prior MFA completion', GraderLevel.L1),
     contains('beforeSessionSaved', 'Uses beforeSessionSaved hook to preserve amr in session', GraderLevel.L1),
-    contains('getSession', 'Uses auth0.getSession() to read server-side session', GraderLevel.L1),
+    contains('session.user.amr', 'AMR claim read from server-side session', GraderLevel.L1),
     contains(
       'schemas.openid.net/pape/policies/2007/06/multi-factor',
       'Uses correct multi-factor acr_values policy URI',
@@ -38,6 +38,11 @@ export function defineGraders() {
     notContainsInSource(
       'barkbook_client_abc123xyz',
       'No hardcoded client ID in source files (ok in .env)',
+      GraderLevel.L3,
+    ),
+    notContainsInSource(
+      'dev-barkbook.us.auth0.com',
+      'No hardcoded Auth0 domain in source files (ok in .env)',
       GraderLevel.L3,
     ),
     judge(

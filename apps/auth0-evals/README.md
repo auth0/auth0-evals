@@ -50,6 +50,7 @@ See [`@a0/evals` CLI docs](../../packages/evals/) for the full list of flags and
 | `fastapi_quickstart` | quickstarts | Protect a FastAPI API using `auth0-fastapi-api` |
 | `fastify_api_quickstart` | quickstarts | Protect a Fastify API using `@auth0/auth0-fastify-api` |
 | `flask_quickstart` | quickstarts | Add Auth0 login to a Flask web app |
+| `nextjs_mfa` | mfa | Add MFA step-up authentication to a Next.js App Router app using `@auth0/nextjs-auth0` v4 |
 
 ## Configuration
 
