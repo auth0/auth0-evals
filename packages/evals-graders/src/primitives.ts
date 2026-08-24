@@ -89,7 +89,52 @@ export interface JudgeOptions {
   source?: GraderSource;
 }
 
+/**
+ * Words that open a yes/no question. A prompt containing a sentence that both starts
+ * with one of these and ends in `?` is asking something, wherever in the prompt it sits.
+ */
+const INTERROGATIVES = /^(is|are|was|were|does|do|did|has|have|had|can|could|should|would|will|shall|must|may|am)\b/i;
+
+/**
+ * True when the prompt actually asks a question, rather than merely containing a `?`.
+ *
+ * Accepts both orders judges are written in — "Question? Answer yes only if …" and
+ * "… Long setup. Is X wired correctly?" — while rejecting an assertion with a stray
+ * `?` in a parenthetical, which is the case that silently inverts the verdict.
+ */
+function asksAQuestion(prompt: string): boolean {
+  const trimmed = prompt.trim();
+  if (trimmed.endsWith('?')) return true;
+  // Split on sentence ends; a fragment ending in '?' is a candidate question. The
+  // interrogative may open the sentence or a later clause ("Given the workspace,
+  // does the app …?"), so test each comma-separated clause.
+  return trimmed
+    .split(/(?<=[.!?])\s+/)
+    .filter((sentence) => sentence.trim().endsWith('?'))
+    .some((sentence) => sentence.split(',').some((clause) => INTERROGATIVES.test(clause.trim())));
+}
+
 export function judge(question: string, level?: GraderLevel, options: JudgeOptions = {}): GraderDef {
+  // The judge maps a final `yes` to pass and `no` to fail, so the prompt has to
+  // *ask* something. Phrased as an assertion ("No client secret must ever be
+  // exposed. Fail if …"), `no` means "no violation" to some models and "does not
+  // pass" to others — the same correct run then scores 100 or 0 depending on
+  // which reading the judge picked. Observed in the B2B org eval: all eight
+  // models reported no secret exposure, five ended `yes` and three ended `no`,
+  // zeroing the security dimension on three passing runs.
+  //
+  // Presence of a '?' anywhere used to be enough, which let an assertion through as
+  // long as it had a question mark in a parenthetical somewhere.
+  if (!asksAQuestion(question)) {
+    throw new Error(
+      `judge: prompt must ask a yes/no question (found none in ${JSON.stringify(question.slice(0, 60))}…). ` +
+        'A verdict of `yes` passes and `no` fails, so an assertion makes `no` ambiguous and scores ' +
+        'correct output as a failure. Rewrite it as a question the correct answer to which is "yes" — ' +
+        'e.g. "Is the trace free of any client secret value?" instead of "No client secret must be exposed." ' +
+        'The question may sit anywhere in the prompt as long as one sentence opens with is/are/does/did/' +
+        'has/can/should/will/must and ends with a question mark.',
+    );
+  }
   return {
     kind: 'judge',
     question,
@@ -147,22 +192,45 @@ export function ranCommand(
 }
 
 /**
- * Asserts that the agent ran at least one command from a list of alternatives.
- * Each entry is matched as a substring against executed commands.
+ * Asserts that the agent ran at least one command from a list of alternative routes,
+ * optionally carrying all of `args`.
+ *
+ * Each entry is a substring, or an array of substrings that must **all** appear in
+ * the same command. The array form exists for the Management API passthrough: the
+ * route `auth0 api post` and the resource `organizations` are each far too common on
+ * their own, and only together do they mean "created an organization".
+ *
+ * `args` separates the route from the identity of the thing acted on, the same way
+ * `ranCommand` does — so one grader can accept a dedicated subcommand *or* the raw
+ * API call while still insisting the command names the resource the task asked for.
+ * That is the difference between grading the effect and grading one spelling of it:
+ *
+ *     ranCommandOneOf(['auth0 apps create', 'clients'], 'Created the portal app',
+ *                     GraderLevel.L4, ['Smoke Portal'])
+ *
+ * @param commands - Alternative routes; a nested array requires every substring in it
+ * @param args - Optional arg(s) that must also appear in the matching command
  */
 export function ranCommandOneOf(
-  commands: string[],
+  commands: Array<string | string[]>,
   description: string | undefined,
   level: EventGraderLevel,
+  args?: string | string[],
 ): GraderDef {
   validateEventLevel(level, 'ranCommandOneOf');
-  const label = commands.join(' | ');
+  const argList = args ? (Array.isArray(args) ? args : [args]) : [];
+  const routeLabel = commands.map((c) => (Array.isArray(c) ? `(${c.join(' + ')})` : c)).join(' | ');
+  const label = argList.length > 0 ? `${routeLabel} with [${argList.join(', ')}]` : routeLabel;
   return {
     kind: 'event',
     name: description ?? `ran one of [${label}]`,
     level,
     predicate: (toolCalls: EventToolCall[]) =>
-      getRunCommands(toolCalls).some((cmd) => commands.some((c) => cmd.includes(c))),
+      getRunCommands(toolCalls).some(
+        (cmd) =>
+          commands.some((c) => (Array.isArray(c) ? c.every((part) => cmd.includes(part)) : cmd.includes(c))) &&
+          argList.every((arg) => cmd.includes(arg)),
+      ),
   };
 }
 

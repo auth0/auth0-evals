@@ -8,6 +8,7 @@ import type { GraderDef, GraderResult, EventToolCall } from '@a0/evals-graders';
 import type { GraderContext, GraderExecutor } from './types.js';
 import { llmJudge } from '../llm-judge.js';
 import { logger } from '../../utils/logger.js';
+import { redactSecrets } from '../../utils/redact.js';
 
 /**
  * File patterns (matched against the basename) excluded from the LLM judge input.
@@ -58,14 +59,30 @@ const RUN_COMMAND_NAMES = new Set(['run_command', 'bash']);
  * only when a judge opts in via `includeCommandTrace` — for evals whose artifact
  * is CLI invocations (no files to inspect). Errored calls are dropped so the
  * judge sees the commands that actually took effect.
+ *
+ * Credential values are masked before the trace leaves the machine, and the marker
+ * left behind is what a security judge reads: it says a secret occupied that
+ * position without sending the value to the proxy.
+ *
+ * The header spells out two properties of this format, because a judge that has to
+ * infer them gets them wrong: every listed command exited 0, and command output is
+ * not shown. A judge asked to confirm an end state read a later command re-declaring
+ * an id literal as evidence the agent had fabricated it, when it was the id the
+ * previous command printed, carried across a shell boundary.
  */
 export function formatCommandTrace(toolCalls: EventToolCall[]): string {
   const commands = toolCalls
     .filter((tc) => RUN_COMMAND_NAMES.has(tc.name) && !tc.causedError)
-    .map((tc) => String(tc.args.command ?? '').trim())
+    .map((tc) => redactSecrets(String(tc.args.command ?? '').trim()))
     .filter((cmd) => cmd.length > 0);
   if (commands.length === 0) return '';
-  return `// COMMAND TRACE (shell commands the agent ran)\n${commands.join('\n')}`;
+  const header =
+    '// COMMAND TRACE (shell commands the agent ran). Every command listed here exited\n' +
+    '// successfully — failed commands are omitted. Their output is NOT captured, so the\n' +
+    '// absence of output is not evidence a command did nothing. Each command runs in its\n' +
+    '// own shell, so an id assigned as a literal in a later command is a value read from\n' +
+    "// an earlier command's output, not a fabricated one.";
+  return `${header}\n${commands.join('\n')}`;
 }
 
 export const llmJudgeExecutor: GraderExecutor = {
