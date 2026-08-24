@@ -4,7 +4,6 @@ import {
   notContainsInSource,
   matches,
   judge,
-  wroteFile,
   compiles,
   GraderLevel,
 } from '@a0/evals-graders';
@@ -50,10 +49,16 @@ export function defineGraders() {
 
     // ── L4: Structural correctness ────────────────────────────────────────
     compiles('Project byte-compiles (compileall succeeds)', GraderLevel.L4),
-    wroteFile('.env', 'Wrote Auth0 config to the .env file', GraderLevel.L4, [
+    // Content-based (not event-based): confirms the provided Auth0 config was
+    // externalised into the workspace (conventionally .env). A `contains` check
+    // is robust to how the agent wrote the file — a runner that writes via a
+    // shell heredoc (`printf ... > .env`) instead of the write_file tool would
+    // slip past an event-based wroteFile grader.
+    contains(
       'dev-barkbook.us.auth0.com',
-      'barkbook_client_abc123xyz',
-    ]),
+      'Auth0 config (domain) externalised into the workspace, e.g. .env',
+      GraderLevel.L4,
+    ),
     matches(
       String.raw`start_interactive_login\s*\([\s\S]*?acr_values`,
       'Step-up authorization params are passed into start_interactive_login',
@@ -71,6 +76,12 @@ export function defineGraders() {
       'Does the code pass acr_values inside the authorization_params dict given to ' +
         'start_interactive_login (e.g. start_interactive_login({"authorization_params": {...}})) ' +
         'rather than as a top-level keyword argument?',
+      GraderLevel.L5,
+    ),
+    notContains(
+      'id_token.split',
+      'Reads the amr claim through the SDK session (get_user()/complete_interactive_login), ' +
+        'not by manually splitting/decoding the raw ID token',
       GraderLevel.L5,
     ),
 
