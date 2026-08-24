@@ -271,7 +271,7 @@ describe('score - Efficiency', () => {
 describe('score - Efficiency (CLI mode)', () => {
   it('no repeated endpoints scores 100', () => {
     const dir = tmpDir();
-    const record = makeRecord({ workspace: dir });
+    const record = makeRecord({ workspace: dir, evalType: 'cli' });
     record.toolCalls = [
       makeToolCall('run_command', 1, { args: { command: 'auth0 api put guardian/factors/otp' } }),
       makeToolCall('run_command', 1, { args: { command: 'auth0 api put guardian/policies' } }),
@@ -284,7 +284,7 @@ describe('score - Efficiency (CLI mode)', () => {
 
   it('one repeated endpoint out of three calls scores ~66.7', () => {
     const dir = tmpDir();
-    const record = makeRecord({ workspace: dir });
+    const record = makeRecord({ workspace: dir, evalType: 'cli' });
     record.toolCalls = [
       makeToolCall('run_command', 1, { args: { command: 'auth0 api put guardian/factors/otp' } }),
       makeToolCall('run_command', 1, { args: { command: 'auth0 api put guardian/factors/otp' } }),

@@ -160,9 +160,8 @@ function scoreEfficiency(record: RunRecord, opts?: ScoringOptions): [number, str
     return [100.0, 'N/A (no tools in baseline/skills mode)'];
   }
 
-  const writeCount = record.toolCalls.filter((tc) => tc.name === 'write_file').length;
   const cliCalls = record.toolCalls.filter((tc) => tc.name === 'run_command');
-  if (writeCount === 0 && cliCalls.length > 0) {
+  if (record.evalType === 'cli' && cliCalls.length > 0) {
     const endpointCounts: Record<string, number> = {};
     for (const tc of cliCalls) {
       const cmd = String((tc.args['command'] as string) ?? '');
