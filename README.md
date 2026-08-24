@@ -19,6 +19,7 @@ We use `auth0-evals` to measure how well AI agents integrate Auth0 across our SD
 - [`@a0/evals-core`](packages/evals-core/) - Framework core - config loader, eval discovery, grader engine, workspace lifecycle, type definitions.
 - [`@a0/evals-graders`](packages/evals-graders/) - Grader factory functions (`contains`, `notContains`, `matches`, `judge`) and the `GraderLevel` enum.
 - [`@a0/evals-reporter`](packages/evals-reporter/) - Generates HTML reports from scored results.
+- [`@a0/evals-axis`](packages/evals-axis/) - AXIS integration bridge - runs AXIS multi-agent orchestration and layers auth0-evals graders on top of every job result.
 - [`auth0-evals`](apps/auth0-evals/) - The Auth0 eval suite - task prompts, graders, scaffolds, and configuration.
 
 ## Running Evals
@@ -50,6 +51,21 @@ npm run evals -- --eval react_quickstart --mode baseline
 # Generate an HTML report
 npm run report
 ```
+
+You can also run evals using [AXIS](https://github.com/netlify/axis), Netlify's multi-agent evaluation framework. AXIS runs the same evals across claude-code, codex, and gemini in a single pass, scoring them with its own 4-dimension LLM judge (goal achievement, environment, service, agent) alongside our L1-L4 graders. AXIS runs do not require Docker.
+
+```bash
+# Run all evals across all agents
+npm run axis
+
+# Single eval, single agent
+npm run axis -- --eval react_quickstart --agent claude-code
+
+# Override model for all agents
+npm run axis -- --model claude-sonnet-5
+```
+
+Results are written to `scores-axis.json` (in `apps/auth0-evals/` by default, or the path from `--output`) and `report-axis.html` in `apps/auth0-evals/`. Run `npm run report` to include them in the combined leaderboard.
 
 ## How it works
 

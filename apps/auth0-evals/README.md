@@ -45,12 +45,25 @@ See [`@a0/evals` CLI docs](../../packages/evals/) for the full list of flags and
 | `swift_quickstart` | quickstarts | Add Auth0 login to a Swift iOS app using `Auth0.swift` |
 | `android_quickstart` | quickstarts | Add Auth0 login to an Android app using `Auth0.Android` |
 | `expo_quickstart` | quickstarts | Add Auth0 login to an Expo app using `react-native-auth0` (Auth0Provider + useAuth0 hook) |
+| `react_native_quickstart` | quickstarts | Add Auth0 login to a bare React Native app using `react-native-auth0` |
 | `express_quickstart` | quickstarts | Add Auth0 login to an Express web app using `express-openid-connect` |
 | `express_api_quickstart` | quickstarts | Protect an Express API using `express-oauth2-jwt-bearer` |
 | `fastapi_quickstart` | quickstarts | Protect a FastAPI API using `auth0-fastapi-api` |
 | `fastify_api_quickstart` | quickstarts | Protect a Fastify API using `@auth0/auth0-fastify-api` |
 | `flask_quickstart` | quickstarts | Add Auth0 login to a Flask web app |
+| `react_mfa` | mfa | Gate a sensitive action in a React SPA behind MFA step-up |
+| `vue_mfa` | mfa | Gate a sensitive action in a Vue 3 SPA behind MFA step-up |
+| `angular_mfa` | mfa | Gate a sensitive action in an Angular app behind MFA step-up |
+| `swift_mfa` | mfa | Gate a sensitive action in a Swift iOS app behind MFA step-up |
+| `android_mfa` | mfa | Gate a sensitive action in an Android app behind MFA step-up |
 | `nextjs_mfa` | mfa | Add MFA step-up authentication to a Next.js App Router app using `@auth0/nextjs-auth0` v4 |
+| `mfa_tenant_cli` | mfa | Enable and enforce a required MFA factor on a live tenant using the Auth0 CLI |
+| `spa_js_dpop` | dpop | Add DPoP token binding to a vanilla JS SPA using `@auth0/auth0-spa-js` |
+| `express_api_dpop` | dpop | Enforce DPoP-bound access tokens on an Express API via `auth({ dpop: … })` |
+| `express_api_rbac` | rbac | Fine-grained authorization with `requiredScopes` / `scopeIncludesAny` / `claimIncludes` / `claimEquals` |
+| `express_api_mcd` | multi-tenant | Accept tokens from several Auth0 custom domains via `auth({ mcd: { issuers } })` |
+| `react_organizations` | organizations | Add Auth0 Organizations to a React SPA — org login, invitation acceptance, and org read-back from the `org_id` claim |
+| `spa_js_organizations`    | organizations | Add Auth0 Organizations (org-scoped login, invitation acceptance, org_id read-back) to a vanilla JS SPA using `@auth0/auth0-spa-js` |
 
 ## Configuration
 

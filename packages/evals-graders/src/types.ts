@@ -55,11 +55,43 @@ export interface GraderDef {
   level?: GraderLevel;
   caseSensitive?: boolean;
   predicate?: (toolCalls: EventToolCall[]) => boolean;
+  /**
+   * Judge graders only. When true, the agent's command trace is appended to the
+   * judge's input alongside workspace files. Needed for evals whose work is
+   * entirely CLI invocations (no files to inspect) — e.g. tenant config via the
+   * Auth0 CLI — so the judge has something to evaluate. Defaults to false so
+   * file-based judges are unaffected.
+   */
+  includeCommandTrace?: boolean;
+  /**
+   * Where to search for the needle / pattern / judge input.
+   *
+   * - `'files'` (default) — workspace files only (existing behavior, unchanged).
+   * - `'response'` — agent's final reply text only (no file search).
+   * - `'both'` — workspace files AND agent reply text.
+   *
+   * Use `'response'` or `'both'` for MCP-only evals where the agent never writes
+   * files and the answer lives entirely in its final text reply.
+   */
+  source?: GraderSource;
 }
 
 export interface GraderOptions {
   caseSensitive?: boolean;
+  /**
+   * Where to search — see `GraderDef.source` for semantics.
+   * Defaults to `'files'` (workspace files only).
+   */
+  source?: GraderSource;
 }
 
 /** Levels valid for event-based graders (agent-only — no tool calls exist in baseline). */
 export type EventGraderLevel = GraderLevel.L4 | GraderLevel.L5;
+
+/**
+ * Where a text-search or judge grader looks for its content.
+ * - `'files'` (default) — workspace files only.
+ * - `'response'` — agent's final reply text only (no file search).
+ * - `'both'` — workspace files AND agent reply text.
+ */
+export type GraderSource = 'files' | 'response' | 'both';

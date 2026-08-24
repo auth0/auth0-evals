@@ -39,13 +39,15 @@ describe('gradeText', () => {
     const result = await gradeText(evalDef, text, 'fake-key');
 
     expect(mockedRunGraders).toHaveBeenCalledOnce();
-    const [graders, workspace, apiKey, judgeModel, allowedLevels, enforceMaxChars] = mockedRunGraders.mock.calls[0];
+    const [graders, workspace, apiKey, judgeModel, allowedLevels, enforceMaxChars, , , agentText] =
+      mockedRunGraders.mock.calls[0];
     expect(graders).toBe(evalDef.graders);
     expect(workspace).toMatch(/eval_grade_/);
     expect(apiKey).toBe('fake-key');
     expect(judgeModel).toBeUndefined();
     expect(allowedLevels).toBeUndefined();
     expect(enforceMaxChars).toBe(false);
+    expect(agentText).toBe(text);
     expect(result).toEqual([{ name: 'mock', passed: true }]);
     expect(existsSync(workspace as string)).toBe(false);
   });

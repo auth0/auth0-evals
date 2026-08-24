@@ -126,6 +126,7 @@ async function main(): Promise<void> {
         true,
         record.toolCalls,
         compileResult,
+        record.finalSummary,
       );
     }
 

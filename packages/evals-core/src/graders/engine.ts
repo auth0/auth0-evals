@@ -120,6 +120,7 @@ export async function runGraders(
   enforceMaxChars: boolean = true,
   toolCalls?: EventToolCall[],
   compileResult?: CompileResult,
+  agentText?: string,
 ): Promise<GraderResult[]> {
   const config = getFrameworkConfig();
   const resolvedJudgeModel = judgeModel ?? config.judge.model ?? '';
@@ -150,6 +151,7 @@ export async function runGraders(
     },
     toolCalls,
     compileResult,
+    agentText: agentText ?? '',
   };
 
   const results: GraderResult[] = [];

@@ -61,16 +61,41 @@ export const AGENT_CONTEXT_FILENAMES: Record<AgentType, string> = {
 };
 
 /**
+ * Options for {@link writeAgentGuidance}. Internal to the framework — callers
+ * build the object inline; the type is not part of the public surface.
+ */
+interface AgentGuidanceOptions {
+  /**
+   * Build command the agent is told to run to verify compilation. Appended via
+   * {@link compileGuidance}. An internal, per-run detail — not exposed as config.
+   */
+  compileCommand?: string;
+  /**
+   * CLI/platform context appended after {@link AGENT_GUIDANCE} — the guidance a
+   * CLI/tenant-config eval needs (resolved by the caller from
+   * `FrameworkConfig.cliContext`). The framework stays provider-agnostic: it
+   * appends whatever text the caller supplies, without knowing its contents.
+   */
+  cliContext?: string;
+}
+
+/**
  * Writes {@link AGENT_GUIDANCE} into the context file the given runner reads.
  * Appends (preserving any scaffold-provided content) when the file already
- * exists; creates it otherwise. When `compileCommand` is provided, the
- * compile-verification guidance (see {@link compileGuidance}) is appended too.
+ * exists; creates it otherwise. When `cliContext` is provided (a
+ * CLI/platform context for the eval's provisioned environment), it is appended
+ * after the base guidance; when `compileCommand` is provided, the
+ * compile-verification guidance (see {@link compileGuidance}) is appended last.
  */
-export function writeAgentGuidance(workspace: string, agentType: AgentType, compileCommand?: string): void {
+export function writeAgentGuidance(workspace: string, agentType: AgentType, options: AgentGuidanceOptions = {}): void {
+  const { compileCommand, cliContext } = options;
   const filename = AGENT_CONTEXT_FILENAMES[agentType];
   const dest = join(workspace, filename);
 
-  const guidance = compileCommand ? `${AGENT_GUIDANCE}\n${compileGuidance(compileCommand)}` : AGENT_GUIDANCE;
+  const parts = [AGENT_GUIDANCE];
+  if (cliContext) parts.push(cliContext);
+  if (compileCommand) parts.push(compileGuidance(compileCommand));
+  const guidance = parts.join('\n');
 
   // If the scaffold shipped AGENTS.md but the active runner reads a different
   // file, rename it so the guidance reaches the right runner.

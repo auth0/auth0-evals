@@ -1,11 +1,13 @@
 /**
  * Grader executor: matches
  *
- * Checks that a regex pattern matches in workspace files.
+ * Checks that a regex pattern matches in workspace files and/or the agent's
+ * final reply, depending on the grader's `source` option.
  */
 
 import type { GraderDef, GraderResult } from '@a0/evals-graders';
 import type { GraderContext, GraderExecutor } from './types.js';
+import { searchCorpusRegex } from './search-corpus.js';
 
 export const matchesExecutor: GraderExecutor = {
   kind: 'matches',
@@ -18,8 +20,16 @@ export const matchesExecutor: GraderExecutor = {
       // Case-insensitive by default; honor caseSensitive to match the other
       // text-search executors (contains/notContains). Always multiline.
       const flags = def.caseSensitive === true ? 'm' : 'im';
-      passed = new RegExp(pattern, flags).test(ctx.combinedText);
-      detail = `/${pattern}/ ${passed ? 'matched' : 'NOT matched'}`;
+      const re = new RegExp(pattern, flags);
+      const source = def.source ?? 'files';
+
+      const { inFiles, inAgent } = searchCorpusRegex(ctx, re, source);
+
+      passed = inFiles || inAgent;
+      const matchedIn = inAgent && !inFiles ? 'agent reply' : 'written files';
+      const searchScope =
+        source === 'files' ? 'written files' : source === 'response' ? 'agent reply' : 'written files or agent reply';
+      detail = `/${pattern}/ ${passed ? `matched in ${matchedIn}` : `NOT matched in ${searchScope}`}`;
     } catch (e) {
       passed = false;
       detail = `/(invalid regex: ${e})/ NOT matched`;

@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">Barkbook</string>
+    <string name="com_auth0_domain">dev-barkbook.us.auth0.com</string>
+    <string name="com_auth0_client_id">barkbook_client_abc123xyz</string>
+    <string name="com_auth0_scheme">com.barkbook.app</string>
+</resources>
