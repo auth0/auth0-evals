@@ -38,7 +38,18 @@ npm run axis
 npm run axis -- --eval react_quickstart --agent claude-code --model claude-sonnet-5
 ```
 
-Full CLI flags: `npm run evals -- --help`. AXIS flags: `npm run axis -- --help`.
+Full CLI flags and AXIS flags: see [`packages/evals/README.md`](packages/evals/README.md).
+
+### AXIS flags (`npm run axis`)
+
+| Flag | Values | Default | Notes |
+| ---- | ------ | ------- | ----- |
+| `--eval <id>` | Any registered eval ID | all evals | Repeatable |
+| `--agent <name>` | `claude-code`, `codex`, `gemini` | all agents | Repeatable |
+| `--workers <n>` | number | AXIS default | Parallel job limit |
+| `--model <model>` | Any model string | per-agent default | Override model for all configured agents |
+| `--output <path>` | file path | `scores-axis.json` in app root | Where to write the scores file |
+| `--debug` | flag | off | Capture raw adapter stdout as `.raw.ndjson` for debugging |
 
 ---
 
@@ -68,6 +79,8 @@ Always resolve paths with `resolveInside(context.workspace, args.path)` — not 
 ---
 
 ## Grader levels
+
+Two authoring rules: **grade the artifact, not the explanation** (verify generated code compiles and calls real SDK methods — never grade prose); **if every model passes, the eval is broken** (tighten graders when all models score >90%).
 
 Every grader must have a `GraderLevel`. End every eval with one holistic `judge` with no level:
 
@@ -99,6 +112,8 @@ Use `notContainsInSource` (not `notContains`) when a value is allowed in config 
 | `calledToolOneOf(toolNames, description, level)` | Agent invoked at least one of the named MCP tools — L4 or L5 required.                                                                        |
 
 For MCP-only evals (agent replies with text, no files written): use `source: 'response'` on graders. See `docs/ADDING_EVALS.md` for examples.
+
+> **Corpus scope:** `contains`, `notContains`, and `matches` search source files only. `.claude`, `node_modules`, `dist`, and `CLAUDE.md` are excluded from the grading corpus (see `engine.ts`).
 
 ---
 
@@ -134,4 +149,4 @@ Full guide: [docs/ADDING_EVALS.md](docs/ADDING_EVALS.md)
 
 ## Documentation
 
-When you change behavior, update the affected doc. Key docs: `docs/ADDING_EVALS.md` (eval authoring), `docs/SCORING_METHODOLOGY.md` (scoring changes first), `docs/ARCHITECTURE.md` (structure/data flow — update prose and Mermaid diagrams), `docs/TESTING_SKILLS.md` (skills).
+When you change behavior, update the affected doc. Key docs: `docs/ADDING_EVALS.md` (eval authoring), `docs/SCORING_METHODOLOGY.md` (scoring changes first), `docs/ARCHITECTURE.md` (structure/data flow — update prose and Mermaid diagrams), `docs/TESTING_SKILLS.md` (skills), `docs/PROTECTED_MCP.md` (protected MCP server setup and token forwarding).

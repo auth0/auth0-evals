@@ -111,7 +111,7 @@ export interface ScoredResult {
 
 /**
  * Overridable scoring constants. Every field is optional — unset fields
- * fall back to the framework defaults specified in `AGENTS.md`.
+ * fall back to the framework defaults specified in `packages/evals-core/src/scorer.ts`.
  */
 export interface ScoringOptions {
   /** Points deducted per interruption in Setup Friction (default: 14) */
