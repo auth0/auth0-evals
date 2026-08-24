@@ -17,6 +17,9 @@ export const GEMINI_MODELS = ['gemini-'];
 // Model name prefixes for GPT models routed through the Codex runner.
 export const GPT_MODELS = ['gpt-'];
 
+// Model name prefixes for DeepSeek models.
+export const DEEPSEEK_MODELS = ['deepseek-'];
+
 /**
  * Maps friendly model aliases to the model IDs the active proxy expects.
  *

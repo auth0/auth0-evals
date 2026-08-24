@@ -4,7 +4,7 @@
  * Determines which provider/routing a model belongs to based on known prefixes.
  */
 
-import { BEDROCK_MODELS, GEMINI_MODELS, GPT_MODELS } from './settings.js';
+import { BEDROCK_MODELS, GEMINI_MODELS, GPT_MODELS, DEEPSEEK_MODELS } from './settings.js';
 
 /**
  * Checks if the given model name corresponds to a Bedrock model by looking for known Bedrock model name prefixes.
@@ -33,4 +33,8 @@ export function isGeminiModel(model: string): boolean {
  */
 export function isGptModel(model: string): boolean {
   return GPT_MODELS.some((prefix) => model.startsWith(prefix));
+}
+
+export function isDeepSeekModel(model: string): boolean {
+  return DEEPSEEK_MODELS.some((prefix) => model.startsWith(prefix));
 }

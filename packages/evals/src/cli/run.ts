@@ -59,6 +59,7 @@ import { ClaudeCodeRunner } from '../runners/claude-code/runner.js';
 import { CopilotCliRunner } from '../runners/copilot/runner.js';
 import { GeminiCliRunner } from '../runners/gemini-cli/runner.js';
 import { CodexRunner } from '../runners/codex/runner.js';
+import { DeepSeekRunner } from '../runners/deepseek/runner.js';
 import { createBraintrustReporter } from '../reporters/braintrust.js';
 import { syncDataset, toEvalSummaries } from '../reporters/braintrust-dataset.js';
 
@@ -77,6 +78,7 @@ async function initRunners(): Promise<void> {
   registerRunner('copilot', new CopilotCliRunner());
   registerRunner('gemini-cli', new GeminiCliRunner());
   registerRunner('codex', new CodexRunner());
+  registerRunner('deepseek', new DeepSeekRunner());
 }
 
 // ── Per-job execution ─────────────────────────────────────────────────────────

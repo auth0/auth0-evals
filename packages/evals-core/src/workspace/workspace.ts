@@ -58,6 +58,7 @@ export const AGENT_CONTEXT_FILENAMES: Record<AgentType, string> = {
   'gemini-cli': 'GEMINI.md',
   codex: 'AGENTS.md',
   copilot: '.github/copilot-instructions.md',
+  deepseek: 'AGENTS.md',
 };
 
 /**
