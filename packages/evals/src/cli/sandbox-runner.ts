@@ -132,7 +132,7 @@ async function main(): Promise<void> {
 
     const scored = score(record, graderResults);
 
-    // Generate recommendations when skills or MCP are enabled
+    // Generate recommendations for every agent job, including the no-tools control run.
     const recommendations = await generateRunRecommendations(
       evalDef,
       resolvedModel,
