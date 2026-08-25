@@ -1,20 +1,29 @@
 """Cookie-backed session and transaction stores."""
 
+from auth0_server_python.auth_types import TransactionData
 from auth0_server_python.store import StateStore, TransactionStore
 
 
 class _CookieStore:
     async def set(self, identifier, state, remove_if_expires=False, options=None):
+        # The SDK hands us Pydantic models (TransactionData/StateData); the
+        # encryption layer json.dumps() the payload, so serialise to a plain
+        # dict first — a raw model would raise "not JSON serializable".
+        data = state.model_dump(mode="json") if hasattr(state, "model_dump") else state
         _require(options, "response").set_cookie(
-            self.cookie_name, self.encrypt(identifier, state), max_age=self.max_age
+            self.cookie_name, self.encrypt(identifier, data), max_age=self.max_age
         )
 
     async def get(self, identifier, options=None):
         raw = _require(options, "request").cookies.get(self.cookie_name)
-        return self.decrypt(identifier, raw) if raw else None
+        return self._deserialize(self.decrypt(identifier, raw)) if raw else None
 
     async def delete(self, identifier, options=None):
         _require(options, "response").delete_cookie(self.cookie_name)
+
+    def _deserialize(self, data):
+        # Session/state data is consumed dict-first by the SDK, so leave it as-is.
+        return data
 
 
 class CookieTransactionStore(_CookieStore, TransactionStore):
@@ -23,6 +32,11 @@ class CookieTransactionStore(_CookieStore, TransactionStore):
     def __init__(self, secret, cookie_name="_a0_tx"):
         super().__init__({"secret": secret})
         self.cookie_name = cookie_name
+
+    def _deserialize(self, data):
+        # Callback processing reads transaction attributes (domain,
+        # redirect_uri, code_verifier), so rebuild the model from the dict.
+        return TransactionData.model_validate(data)
 
 
 class CookieStateStore(_CookieStore, StateStore):

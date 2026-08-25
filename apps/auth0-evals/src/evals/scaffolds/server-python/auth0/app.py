@@ -13,6 +13,11 @@ BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:8000")
 
 
 class AppHandler(BaseHTTPRequestHandler):
+    def log_request(self, code="-", size="-"):
+        # Log only the path and status — the default logs the full request line,
+        # which would leak the callback's ?code=…&state=… query params to stderr.
+        self.log_message('"%s %s" %s', self.command, urlparse(self.path).path, str(code))
+
     def do_GET(self):
         route = urlparse(self.path).path
         if route == "/auth/login":

@@ -60,7 +60,7 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
     matches(
-      String.raw`start_interactive_login\s*\([\s\S]*?acr_values`,
+      String.raw`start_interactive_login\s*\([\s\S]*?authorization_params[\s\S]*?acr_values`,
       'Step-up authorization params are passed into start_interactive_login',
       GraderLevel.L4,
     ),
