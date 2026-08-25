@@ -98,10 +98,10 @@ Graders define the acceptance criteria. Export a single `defineGraders()` functi
 | `contains(needle, description?, level?, options?)` | Any workspace file contains the substring (case-sensitive by default) |
 | `notContains(needle, description?, level?, options?)` | No workspace file contains the substring (case-sensitive by default) |
 | `notContainsInSource(needle, description?, level?, options?)` | No **source** file contains the substring (skips `.env`, `.json`, `.plist`, config files) |
-| `matches(pattern, description?, level?)` | Any workspace file matches the regex pattern |
-| `judge(question, level?, options?)` | An LLM judge answers "yes" given the full workspace contents. Pass `{ includeCommandTrace: true }` to also append the agent's successful shell commands (for CLI-only evals with no files to inspect) |
+| `matches(pattern, description?, level?, options?)` | The workspace text matches the regex pattern. The corpus is every workspace file joined with a `// FILE: <path>` header before each, so `'^// FILE: manifest\\.json$'` asserts a file exists no matter how it got there. Multiline; case-insensitive unless `caseSensitive: true` |
+| `judge(question, level?, options?)` | An LLM judge answers "yes" given the full workspace contents. Must be a yes/no **question** whose correct answer is "yes" — `judge()` throws when the prompt contains no `?` (see below). Pass `{ includeCommandTrace: true }` to also append the agent's successful shell commands (for CLI-only evals with no files to inspect) |
 | `ranCommand(command, args, description, level)` | Agent ran a successful shell command containing `command` and all `args` substrings |
-| `ranCommandOneOf(commands, description, level)` | Agent ran at least one successful command from the list (substring match) |
+| `ranCommandOneOf(commands, description, level, args?)` | Agent ran one successful command matching any entry in `commands` and containing every `args` substring. An entry may be a nested array, which requires **all** of its substrings in the same command (`['api post', 'organizations']`) |
 | `wroteFile(path, description, level, expected?)` | Agent wrote a file whose path contains the substring. With optional `expected` (string or string array), the combined content of all writes to that path must also contain every `expected` substring |
 | `compiles(description, level)` | Framework runs the eval's `compile_command` against the workspace after the agent finishes and passes/fails on its exit code — level required (L4 or L5). Decoupled from whether the agent ran the build itself, so output that compiles passes even if the agent never ran the build. Requires `compile_command` in frontmatter, or the grader fails. |
 | `calledTool(toolName, description, level)` | Agent invoked an MCP tool whose name contains the substring (trace-based; L4/L5 only) |
@@ -119,6 +119,17 @@ The event-based primitives (`ranCommand`, `ranCommandOneOf`, `wroteFile`) inspec
 `calledTool` / `calledToolOneOf` also inspect the tool-call trace, matching against MCP invocations recorded as `mcp__<server>__<tool>`. They match the tool name case-insensitively as a substring and exclude errored calls, so they only produce meaningful results in `--tools mcp` agent configs.
 
 The optional `expected` argument on `wroteFile` is useful when a file is excluded from the LLM judge's view (e.g. `.env` / `.env.local`) but you still need to verify the agent wrote the expected variables into it. Because it concatenates content across all writes to the path, it tolerates agents that build the file incrementally.
+
+**Phrase a `judge` as a question the correct answer to which is "yes."** The judge's final line is read as `yes` = pass, `no` = fail, so an assertion like `'No client secret must ever be exposed. Fail if a secret appears.'` is ambiguous: a judge that finds no secret may end on `no` meaning "no violation", which the runner records as a failure. This happened in the B2B org eval — all eight models reported no secret exposure, five ended `yes` and three ended `no`, zeroing the security dimension on three passing runs. `judge()` throws unless the prompt actually asks something: one sentence must end in `?` and open (in the sentence or a later clause) with is/are/was/were/does/do/did/has/have/had/can/could/should/would/will/shall/must/may/am. Both orders pass — `'Is X true? Answer no only if …'` and `'… long setup. Is X wired correctly?'` — while an assertion carrying a stray `?` in a parenthetical is rejected, which is the shape that silently inverts the verdict.
+
+**Grade the effect, not one spelling of the command.** When an action can be done through a dedicated subcommand *or* a raw `auth0 api` call, match the shared endpoint/resource substring in `ranCommand` (e.g. `'invitations'`, `'client-grants'`, `'enabled_connections'`) instead of the full subcommand. A grader keyed to `auth0 orgs invitations create` failed a run that correctly used `auth0 api post "organizations/<id>/invitations"`. Where the two routes share no useful substring (`apis` vs `resource-servers`, `apps` vs `clients`, `orgs` vs `organizations`), list both in `ranCommandOneOf` and pin the resource with `args`, so the grader accepts either route while still insisting the command names the thing the task asked for:
+
+```ts
+ranCommandOneOf(['auth0 orgs create', ['api post', 'organizations']], 'Created organization `acme`',
+                GraderLevel.L4, ['acme', 'Acme Inc']),
+```
+
+Both halves matter. Without `args`, a bare `'roles'` substring lets `auth0 roles list | grep "Org Admin"` satisfy a grader about *creating* the role. Without the AND group, `'api post'` and `'organizations'` are each far too common to mean anything on their own. For the same reason, don't tell a judge the work must use "only the CLI" when `auth0 api` is itself part of the CLI, and don't name a subcommand in a grader prompt that the judge might then expect to see.
 
 ---
 
