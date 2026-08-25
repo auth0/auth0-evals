@@ -75,14 +75,9 @@ export class GeminiCliTranslator extends BaseToolTranslator {
       case 'grep':
         return { path: args.path ?? '.', command: `grep "${String(args.pattern ?? '')}"` };
       case 'web_fetch': {
-        // Gemini CLI embeds the URL inside a `prompt` field, not a `url` field.
-        // Extract the first http(s) URL from the prompt; fall back to the raw
-        // prompt text if none is found, and to '' if neither field is present.
-        const explicit = String(args.url ?? '');
-        if (explicit) return { url: explicit };
+        if (args.url) return { url: String(args.url) };
         const prompt = String(args.prompt ?? '');
-        const match = prompt.match(/https?:\/\/[^\s"')\]>]+/);
-        return { url: match ? match[0] : prompt };
+        return { url: prompt.match(/https?:\/\/[^\s"')\]>]+/)?.[0] ?? prompt };
       }
       case 'web_search':
         return { url: args.query ?? '' };
