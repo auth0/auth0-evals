@@ -224,6 +224,12 @@ describe('judge', () => {
       'must ask a yes/no question',
     );
   });
+
+  it('rejects an assertion that ends in a question mark', () => {
+    // A trailing '?' alone used to be accepted, which let an assertion whose correct
+    // answer is "no" through — the verdict then maps correct output to a failure.
+    expect(() => judge('No client secret must ever be exposed?')).toThrow('must ask a yes/no question');
+  });
 });
 
 // ── compiles ──────────────────────────────────────────────────────────────────
