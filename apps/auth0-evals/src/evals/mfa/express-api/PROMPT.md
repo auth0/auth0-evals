@@ -19,4 +19,6 @@ Requirements:
 - Keep the existing `read:balance` scope check on `GET /api/balance` working.
 - Keep the existing `write:transfers` scope check on `POST /api/transfers` working (MFA check comes on top of it).
 
+Note: Auth0 requires a custom Action to add the `amr` claim to access tokens. Assume the tenant already has this Action configured.
+
 There is a `.env.example` in the project — create the real `.env` from it with the values above.

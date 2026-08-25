@@ -14,7 +14,6 @@ export function defineGraders() {
     // ── L1: Required MFA step-up symbols present ──────────────────────────
     contains('express-oauth2-jwt-bearer', 'Uses express-oauth2-jwt-bearer SDK', GraderLevel.L1),
     contains('amr', 'AMR claim referenced to detect MFA completion', GraderLevel.L1),
-    contains('mfa', 'Checks for "mfa" value in the amr claim', GraderLevel.L1),
     contains('mfa_required', 'Returns mfa_required error code on step-up failure', GraderLevel.L1),
 
     // ── L2: Hallucination / wrong approach ───────────────────────────────
@@ -62,6 +61,13 @@ export function defineGraders() {
     judge(
       'Is the MFA check applied specifically to POST /api/transfers (not globally or only to ' +
         'GET /api/balance), and does write:transfers scope enforcement still apply to that route?',
+      GraderLevel.L4,
+    ),
+    judge(
+      'Does the MFA middleware run AFTER checkJwt in the route middleware chain for POST /api/transfers? ' +
+        'The amr claim is only available on req.auth.payload after checkJwt has validated the token — ' +
+        'if the MFA check is registered before checkJwt, req.auth is undefined and every request is ' +
+        'rejected with a 403 regardless of whether the caller completed MFA.',
       GraderLevel.L4,
     ),
 
