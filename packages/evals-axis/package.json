@@ -20,7 +20,7 @@
   "dependencies": {
     "@a0/evals-core": "*",
     "@a0/evals-graders": "*",
-    "@netlify/axis": "^1.17.2"
+    "@netlify/axis": "^1.17.4"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
