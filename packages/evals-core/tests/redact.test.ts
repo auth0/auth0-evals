@@ -44,6 +44,16 @@ describe('redactSecrets — masks credential values', () => {
     expect(out).toContain('admin:');
   });
 
+  it.each([
+    ['attached -u', 'curl -uadmin:hunter2 https://example.com'],
+    ['long --user with space', 'curl --user admin:hunter2 https://example.com'],
+    ['long --user with =', 'curl --user=admin:hunter2 https://example.com'],
+  ])('masks the password half of curl %s', (_label, cmd) => {
+    const out = redactSecrets(cmd);
+    expect(out).not.toContain('hunter2');
+    expect(out).toContain('admin:');
+  });
+
   it('masks a JWT anywhere it appears', () => {
     const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1g';
     expect(redactSecrets(`export TOKEN=${jwt}`)).not.toContain(jwt);

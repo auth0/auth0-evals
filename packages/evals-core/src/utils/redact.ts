@@ -46,8 +46,9 @@ const PATTERNS: Array<[RegExp, string]> = [
   // that followed it. A bearer token with no header around it is still caught by the
   // JWT and long-opaque-token rules below.
   [/\b((?:proxy-)?authorization\s*:\s*)(Bearer|Basic)(\s+)(?!--)[\w\-._~+/]+=*/gi, `$1$2$3${REDACTION_MARKER}`],
-  // `curl -u user:VALUE`
-  [/(-u\s+["']?[^\s:"']+:)[^\s"']+/g, `$1${REDACTION_MARKER}`],
+  // `curl -u user:VALUE` in every form curl accepts: `-u user:v`, attached
+  // `-uuser:v`, `--user user:v`, and `--user=user:v`.
+  [/((?:-u(?=\S)|-u\s+|--user(?:=|\s+))["']?[^\s:"']+:)[^\s"']+/g, `$1${REDACTION_MARKER}`],
   // A JWT, wherever it appears.
   [/\beyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]+/g, REDACTION_MARKER],
   // A long opaque token with no name attached. Auth0 client secrets are 64 chars
