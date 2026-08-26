@@ -340,7 +340,11 @@ describe('serialiseTrace', () => {
   });
 
   it('includes all expected fields, truncates result, and rounds duration', () => {
-    const longResult = 'x'.repeat(500);
+    // Word-broken on purpose: an unbroken 500-character alphanumeric run is
+    // indistinguishable from an opaque token and is redacted to the marker, which
+    // would leave nothing here to truncate. The redaction interaction is asserted
+    // separately below.
+    const longResult = 'the quick brown fox '.repeat(25);
     const tc = makeToolCall({
       name: 'read_file',
       args: { path: 'test.txt' },
@@ -376,6 +380,33 @@ describe('serialiseTrace', () => {
     expect(step.resultSizeBytes).toBe(Buffer.byteLength(longResult, 'utf-8'));
     expect(step.resultLines).toBe(1);
     expect(step.duration).toBe(1.235);
+  });
+
+  it('redacts credentials in args and in the result preview', () => {
+    const tc = makeToolCall({
+      name: 'run_command',
+      args: { command: 'auth0 login --client-secret fixture_not_a_real_secret_9f8e7d6c5b4a' },
+      result: 'AUTH0_CLIENT_SECRET=fixture_not_a_real_secret_9f8e7d6c5b4a\nAUTH0_DOMAIN=dev-barkbook.us.auth0.com',
+    });
+    const [step] = serialiseTrace(makeRunRecord([tc]));
+
+    expect(JSON.stringify(step.args)).not.toContain('fixture_not_a_real_secret_9f8e7d6c5b4a');
+    expect(step.resultPreview).not.toContain('fixture_not_a_real_secret_9f8e7d6c5b4a');
+    // Public configuration survives — it is what makes the trace reviewable.
+    expect(step.resultPreview).toContain('AUTH0_DOMAIN=dev-barkbook.us.auth0.com');
+    // Metrics still describe what the tool actually returned, not the redacted rendering.
+    expect(step.resultSizeBytes).toBe(Buffer.byteLength(tc.result, 'utf-8'));
+  });
+
+  it('redacts a credential before truncating it in the narrative', () => {
+    // Order matters: truncating first would leave a 40-character prefix of the secret
+    // in the narrative, and a partial credential is still a leaked credential.
+    const secret = `fixture_not_a_real_secret_${'9f8e7d6c5b4a'.repeat(6)}`;
+    const tc = makeToolCall({ name: 'run_command', args: { command: `auth0 login --client-secret ${secret}` } });
+    const [step] = serialiseTrace(makeRunRecord([tc]));
+
+    expect(step.narrative).not.toContain(secret.slice(0, 20));
+    expect(step.narrative).toContain('--client-secret');
   });
 
   it('assigns sequential step numbers and correct tool names', () => {
