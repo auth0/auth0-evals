@@ -8,7 +8,7 @@ export const COST_TABLE: Record<string, [number, number]> = {
   'claude-opus-5': [5.0, 25.0],
   'claude-haiku-4-5': [1.0, 5.0],
   'gemini-3.1-pro-preview': [2.0, 12.0],
-  'gemini-3-7-flash': [0.75, 3.75],
+  'gemini-3.7-flash': [0.75, 3.75],
 };
 
 /** [input, output] USD per million tokens applied to models absent from COST_TABLE. */
