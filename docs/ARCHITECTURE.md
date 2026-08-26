@@ -212,10 +212,8 @@ sequenceDiagram
         Grade->>Grade: LLM-judge for judge graders
         Grade-->>Score: GraderResult[]
         Score->>Score: 8 dimensions → overall + grade
-        opt skills or MCP active
-            Score->>Recs: ask judge LLM for fixes
-            Note over Recs: see "Recommendations":<br/>grader / skill / mcp / efficiency
-        end
+        Score->>Recs: ask judge LLM for fixes
+        Note over Recs: runs for every agent job, control run included<br/>see "Recommendations": grader / skill / mcp / efficiency
         Recs-->>CLI: scores-*.json (+ recommendations)
     end
 
