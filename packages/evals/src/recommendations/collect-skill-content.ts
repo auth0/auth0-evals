@@ -19,7 +19,17 @@ export interface SkillFile {
  * level so the collected order is stable across machines.
  */
 function* walkMarkdown(dir: string, base: string): Generator<string> {
-  for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    // Skip a directory that was removed or is unreadable, the same way the file
+    // read below skips an unreadable file. Recommendations run for every job and
+    // must never throw, so an IO fault here has to degrade to less content, not a
+    // job error (see generateRunRecommendations).
+    return;
+  }
+  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
       yield* walkMarkdown(full, base);
@@ -48,7 +58,11 @@ export function collectSkillFiles(skillDirs: Record<string, string | null>): Ski
 
     const skillMd = join(dir, 'SKILL.md');
     if (existsSync(skillMd)) {
-      files.push({ skill, relPath: 'SKILL.md', content: readFileSync(skillMd, 'utf-8') });
+      try {
+        files.push({ skill, relPath: 'SKILL.md', content: readFileSync(skillMd, 'utf-8') });
+      } catch {
+        // skip unreadable
+      }
     }
 
     const refsDir = join(dir, 'references');

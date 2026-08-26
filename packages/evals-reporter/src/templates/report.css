@@ -508,7 +508,7 @@ a { color: var(--link); }
 .rec-badge--docs { background: var(--clr-dim-bg); color: var(--text-medium); }
 .rec-badge--mcp { background: var(--clr-amber-bg); color: var(--clr-amber); }
 .rec-badge--efficiency { background: var(--clr-orange-bg); color: var(--clr-orange); }
-.rec-where { font-family: monospace; font-size: 11px; color: var(--text-ter); word-break: break-word; }
+.rec-where { font-family: monospace; font-size: 11px; color: var(--text-ter); overflow-wrap: anywhere; }
 .rec-severity-high { border-left-color: var(--clr-red); }
 .rec-severity-medium { border-left-color: var(--clr-amber); }
 .rec-severity-low { border-left-color: var(--text-quat); }
@@ -521,7 +521,7 @@ a { color: var(--link); }
 .rec-detail-val { margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-sec); }
 .rec-evidence { margin: 8px 0 0; padding: 6px 8px; background: var(--surface-2); border-radius: 4px;
                 font-size: 11px; line-height: 1.45; color: var(--text-medium);
-                white-space: pre-wrap; word-break: break-word; overflow-x: auto; }
+                white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: auto; }
 .rec-suggestion { display: flex; gap: 8px; margin-top: 8px; padding-top: 8px;
                   border-top: 1px solid var(--border); font-size: 12px; line-height: 1.5; color: var(--text-medium); }
 .rec-suggestion-key { flex: none; font-size: 10px; font-weight: 600; text-transform: uppercase;
@@ -531,7 +531,7 @@ a { color: var(--link); }
    came back" and "the run was clean" mean opposite things. */
 .rec-panel--failed { padding: 10px 12px; border: 1px solid var(--clr-amber); border-radius: 6px; background: var(--clr-amber-bg); }
 .rec-failed-title { font-size: 13px; font-weight: 600; color: var(--clr-amber); margin-bottom: 4px; }
-.rec-failed-reason { font-size: 12px; color: var(--text-primary); font-family: monospace; word-break: break-word; }
+.rec-failed-reason { font-size: 12px; color: var(--text-primary); font-family: monospace; overflow-wrap: anywhere; }
 .rec-failed-note { font-size: 11px; color: var(--text-ter); margin-top: 6px; font-style: italic; }
 
 /* ── Metrics compact table (turn metrics / session trace) ────────────────── */

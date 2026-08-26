@@ -310,6 +310,22 @@ function buildPrompt(input: RecommendationInput): { system: string; user: string
     .map((c) => `"${c}"`)
     .join('|');
 
+  // The schema's `root_cause` enum has to track the same conditions the prompt
+  // teaches: `skill` only when a skill was in context (offering it on a control run
+  // invites a finding against documentation the agent never saw), and `cli` only
+  // when the run drove the CLI. A hardcoded list dropped `eval` and `cli` entirely,
+  // so a model following the schema literally could never name those faults.
+  const rootCauses = [
+    ...(skillsInContext ? ['skill'] : []),
+    'model',
+    'grader',
+    'eval',
+    ...(usedCli ? ['cli'] : []),
+    'environment',
+  ]
+    .map((c) => `"${c}"`)
+    .join('|');
+
   // Which surface owns the fix. Without this list an analyst routes every finding
   // to the skill, because the skill is the only surface it was shown — so an
   // ambiguous task prompt and a CLI with no subcommand for the job both came back
@@ -354,7 +370,7 @@ Respond with ONLY a JSON object:
     {
       "category": ${categories},
       "severity": "high"|"medium"|"low",
-      "root_cause": "skill"|"model"|"grader"|"environment",
+      "root_cause": ${rootCauses},
       "issue": "the defect, in one sentence",
       "what_happened": "what the agent actually did, with the command or code that did it",
       "what_should_have_happened": "the correct behaviour, concretely",

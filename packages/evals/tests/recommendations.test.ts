@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmpDir } from './tmp.js';
 import './setup-config.js';
-import { collectSkillContent } from '../src/recommendations/collect-skill-content.js';
+import { collectSkillContent, collectSkillFiles } from '../src/recommendations/collect-skill-content.js';
 import type { RecommendationInput } from '../src/recommendations/generator.js';
 import type { RunRecord, ScoredResult } from '@a0/evals-core';
 
@@ -90,6 +90,23 @@ describe('collectSkillContent', () => {
 
     const result = collectSkillContent({ 'empty-skill': dir });
     expect(result).toBe('');
+  });
+
+  it('does not throw when the references path is unreadable', () => {
+    // Recommendations run for every job and must never throw (generateRunRecommendations
+    // calls this outside generateRecommendations' try/catch), so an IO fault while
+    // walking references has to degrade to less content rather than an exception.
+    // A `references` file where a directory is expected makes readdirSync throw ENOTDIR.
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'SKILL.md'), '# Router');
+    writeFileSync(join(dir, 'references'), 'not a directory');
+
+    let files;
+    expect(() => {
+      files = collectSkillFiles({ auth0: dir });
+    }).not.toThrow();
+    // The readable SKILL.md still comes back; only the unreadable walk is skipped.
+    expect(files).toEqual([{ skill: 'auth0', relPath: 'SKILL.md', content: '# Router' }]);
   });
 });
 
