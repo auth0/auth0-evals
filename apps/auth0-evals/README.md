@@ -57,6 +57,7 @@ See [`@a0/evals` CLI docs](../../packages/evals/) for the full list of flags and
 | `swift_mfa` | mfa | Gate a sensitive action in a Swift iOS app behind MFA step-up |
 | `android_mfa` | mfa | Gate a sensitive action in an Android app behind MFA step-up |
 | `nextjs_mfa` | mfa | Add MFA step-up authentication to a Next.js App Router app using `@auth0/nextjs-auth0` v4 |
+| `express_oidc_mfa` | mfa | Add MFA step-up to an Express app using `express-openid-connect` |
 | `mfa_cli` | mfa | Enable and enforce a required MFA factor on a live tenant using the Auth0 CLI |
 | `spa_js_dpop` | dpop | Add DPoP token binding to a vanilla JS SPA using `@auth0/auth0-spa-js` |
 | `express_api_dpop` | dpop | Enforce DPoP-bound access tokens on an Express API via `auth({ dpop: … })` |

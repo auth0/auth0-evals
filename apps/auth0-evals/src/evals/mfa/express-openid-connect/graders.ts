@@ -1,4 +1,4 @@
-import { contains, notContains, notContainsInSource, judge, compiles, GraderLevel } from '@a0/evals-graders';
+import { contains, notContains, notContainsInSource, judge, compiles, wroteFile, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -7,7 +7,6 @@ export function defineGraders() {
     contains('amr', 'AMR claim checked to detect prior MFA completion', GraderLevel.L1),
     contains('idTokenClaims', 'Reads claims from req.oidc.idTokenClaims (server-side)', GraderLevel.L1),
     contains('oidc.login', 'Triggers step-up via res.oidc.login()', GraderLevel.L1),
-    contains('authorizationParams', 'Passes authorizationParams to res.oidc.login()', GraderLevel.L1),
 
     // ── L2: Hallucination / wrong approach ────────────────────────────────
     notContains('speakeasy', 'No server-side TOTP library (speakeasy) used', GraderLevel.L2),
@@ -44,6 +43,10 @@ export function defineGraders() {
     ),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
+    wroteFile('.env', 'Wrote Auth0 config to .env file', GraderLevel.L4, [
+      'dev-barkbook.us.auth0.com',
+      'barkbook_client_abc123xyz',
+    ]),
     compiles('Project passes syntax check (node --check)', GraderLevel.L4),
     judge(
       'Does the code check the amr claim on req.oidc.idTokenClaims to detect whether the ' +

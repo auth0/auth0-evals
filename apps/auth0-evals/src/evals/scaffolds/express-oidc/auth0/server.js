@@ -15,6 +15,7 @@ const config = {
   authorizationParams: {
     response_type: 'code',
   },
+  identityClaimFilter: ['aud', 'iss', 'iat', 'exp', 'nbf', 'nonce', 'azp', 'auth_time', 's_hash', 'at_hash', 'c_hash', 'amr', 'acr'],
 };
 
 app.use(auth(config));
@@ -27,7 +28,7 @@ app.get('/profile', requiresAuth(), (req, res) => {
   res.json(req.oidc.user);
 });
 
-// Transfer funds route — currently unprotected, needs MFA step-up added
+// Transfer funds route
 app.post('/transfer', requiresAuth(), (req, res) => {
   res.json({ message: 'Transfer initiated', amount: req.body.amount });
 });
