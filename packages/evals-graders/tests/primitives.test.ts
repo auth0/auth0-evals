@@ -193,6 +193,43 @@ describe('judge', () => {
     const def = judge('Did the CLI enforce MFA?', undefined, { includeCommandTrace: true });
     expect(def.includeCommandTrace).toBe(true);
   });
+
+  it('rejects an assertion-phrased prompt', () => {
+    // yes=pass / no=fail, so "no" in answer to an assertion is ambiguous and
+    // fails correct output — see the comment on judge().
+    expect(() => judge('No client secret must ever be exposed. Fail if a secret appears.')).toThrow(
+      'must ask a yes/no question',
+    );
+  });
+
+  it('accepts a question with trailing clarifying sentences', () => {
+    const def = judge('Is the trace free of any client secret? client_ids are not secrets.');
+    expect(def.kind).toBe('judge');
+  });
+
+  it('accepts a question that closes a long prompt', () => {
+    const def = judge('The workspace holds the app. Given all of it, does login redirect correctly?');
+    expect(def.kind).toBe('judge');
+  });
+
+  it('accepts an interrogative in a later clause', () => {
+    const def = judge('Read the manifest first. Then, is every id it lists backed by a real command?');
+    expect(def.kind).toBe('judge');
+  });
+
+  it('rejects an assertion carrying a stray question mark', () => {
+    // A '?' anywhere used to be enough, so a parenthetical question mark was letting
+    // assertion-phrased prompts through — the exact shape that inverts the verdict.
+    expect(() => judge('The app must not hardcode a client secret (why would it?). Fail the run if it does.')).toThrow(
+      'must ask a yes/no question',
+    );
+  });
+
+  it('rejects an assertion that ends in a question mark', () => {
+    // A trailing '?' alone used to be accepted, which let an assertion whose correct
+    // answer is "no" through — the verdict then maps correct output to a failure.
+    expect(() => judge('No client secret must ever be exposed?')).toThrow('must ask a yes/no question');
+  });
 });
 
 // ── compiles ──────────────────────────────────────────────────────────────────
@@ -273,6 +310,47 @@ describe('ranCommandOneOf predicate', () => {
   it('returns false when none of the alternatives are present', () => {
     const def = ranCommandOneOf(['npm install', 'yarn add'], undefined, GraderLevel.L4);
     expect(run(def, [evt({ name: 'run_command', args: { command: 'pip install requests' } })])).toBe(false);
+  });
+
+  it('requires every arg to appear in the matching command', () => {
+    // The route says how the agent got there; the args say it acted on the thing the
+    // task named. Accepting a route alone lets `orgs list` satisfy "created the org".
+    const def = ranCommandOneOf(['auth0 orgs create', 'organizations'], undefined, GraderLevel.L4, [
+      'acme',
+      'Acme Inc',
+    ]);
+    expect(
+      run(def, [evt({ name: 'run_command', args: { command: 'auth0 orgs create --name acme --display "Acme Inc"' } })]),
+    ).toBe(true);
+    expect(run(def, [evt({ name: 'run_command', args: { command: 'auth0 orgs create --name acme' } })])).toBe(false);
+  });
+
+  it('requires the route and the args in the same command', () => {
+    const def = ranCommandOneOf(['auth0 apps create'], undefined, GraderLevel.L4, 'Smoke Portal');
+    expect(
+      run(def, [
+        evt({ name: 'run_command', args: { command: 'auth0 apps create --name Other' } }),
+        evt({ name: 'run_command', args: { command: 'auth0 apps list | grep "Smoke Portal"' } }),
+      ]),
+    ).toBe(false);
+  });
+
+  it('treats a nested array as an AND group', () => {
+    // `api post` and `organizations` are each far too common alone; together they
+    // mean the agent created an organization through the Management API passthrough.
+    const def = ranCommandOneOf(['auth0 orgs create', ['api post', 'organizations']], undefined, GraderLevel.L4);
+    expect(
+      run(def, [evt({ name: 'run_command', args: { command: "auth0 api post organizations --data '{}'" } })]),
+    ).toBe(true);
+    expect(run(def, [evt({ name: 'run_command', args: { command: 'auth0 api get organizations' } })])).toBe(false);
+    expect(run(def, [evt({ name: 'run_command', args: { command: 'auth0 api post clients' } })])).toBe(false);
+  });
+
+  it('names the routes and args in the default description', () => {
+    const def = ranCommandOneOf(['auth0 orgs create', ['api post', 'organizations']], undefined, GraderLevel.L4, [
+      'acme',
+    ]);
+    expect(def.name).toBe('ran one of [auth0 orgs create | (api post + organizations) with [acme]]');
   });
 });
 
