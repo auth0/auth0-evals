@@ -145,11 +145,10 @@ function scoreSpeed(record: RunRecord, opts?: ScoringOptions): [number, string] 
 }
 
 function extractCliEndpoint(command: string): string {
-  const tokens = command
-    .trim()
-    .split(/\s+/)
-    .filter((t) => !t.startsWith('-'));
-  return tokens[tokens.length - 1] ?? command.trim();
+  const tokens = command.trim().split(/\s+/);
+  const firstFlag = tokens.findIndex((t) => t.startsWith('-'));
+  const positional = firstFlag === -1 ? tokens : tokens.slice(0, firstFlag);
+  return positional[positional.length - 1] ?? command.trim();
 }
 
 function isCliDiscoveryCall(command: string): boolean {

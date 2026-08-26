@@ -310,6 +310,26 @@ describe('score - Efficiency (CLI mode)', () => {
     expect(getDim(result, 'Efficiency').rawScore).toBe(100.0);
     expect(getDim(result, 'Efficiency').notes).toContain('no repeated endpoints');
   });
+
+  it('commands with --data body are grouped by path, not by JSON payload', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir, evalType: 'cli' });
+    record.toolCalls = [
+      makeToolCall('run_command', 1, {
+        args: { command: 'auth0 api put guardian/factors/otp --data \'{"enabled":true}\'' },
+      }),
+      makeToolCall('run_command', 1, {
+        args: { command: 'auth0 api put guardian/factors/otp --data \'{"enabled":false}\'' },
+      }),
+      makeToolCall('run_command', 1, {
+        args: { command: 'auth0 api put guardian/policies --data \'{"allFactors":true}\'' },
+      }),
+    ];
+    const result = score(record);
+    // guardian/factors/otp appears twice → 1 corrective attempt → 100 × (1 - 1/2) = 50
+    expect(getDim(result, 'Efficiency').rawScore).toBe(50.0);
+    expect(getDim(result, 'Efficiency').notes).toContain('guardian/factors/otp');
+  });
 });
 
 // ── analyzeWaste unit tests ───────────────────────────────────────────────────
