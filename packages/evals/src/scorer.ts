@@ -152,6 +152,12 @@ function extractCliEndpoint(command: string): string {
   return tokens[tokens.length - 1] ?? command.trim();
 }
 
+function isCliDiscoveryCall(command: string): boolean {
+  const lower = command.toLowerCase().trim();
+  const tokens = lower.split(/\s+/);
+  return tokens.some((t) => t === 'list' || t === 'show') || lower.includes('--help');
+}
+
 function scoreEfficiency(record: RunRecord, opts?: ScoringOptions): [number, string] {
   const displayNames = opts?.toolDisplayNames ?? DEFAULT_TOOL_DISPLAY_NAMES;
 
@@ -160,7 +166,9 @@ function scoreEfficiency(record: RunRecord, opts?: ScoringOptions): [number, str
     return [100.0, 'N/A (no tools in baseline/skills mode)'];
   }
 
-  const cliCalls = record.toolCalls.filter((tc) => tc.name === 'run_command');
+  const cliCalls = record.toolCalls.filter(
+    (tc) => tc.name === 'run_command' && !isCliDiscoveryCall(String((tc.args['command'] as string) ?? '')),
+  );
   if (record.evalType === 'cli' && cliCalls.length > 0) {
     const endpointCounts: Record<string, number> = {};
     for (const tc of cliCalls) {
@@ -171,8 +179,9 @@ function scoreEfficiency(record: RunRecord, opts?: ScoringOptions): [number, str
     const repeated = Object.entries(endpointCounts)
       .filter(([, count]) => count > 1)
       .map(([ep]) => ep);
-    const wasteCount = cliCalls.length - Object.keys(endpointCounts).length;
-    const s = Math.max(0, 100.0 * (1 - wasteCount / cliCalls.length));
+    const targetCount = Math.max(...Object.values(endpointCounts));
+    const correctiveAttempts = targetCount - 1;
+    const s = Math.max(0, 100.0 * (1 - correctiveAttempts / targetCount));
     const notes =
       repeated.length === 0
         ? `${cliCalls.length} api call(s); no repeated endpoints`
