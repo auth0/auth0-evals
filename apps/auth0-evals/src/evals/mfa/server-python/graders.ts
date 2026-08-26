@@ -12,7 +12,9 @@ export function defineGraders() {
   return [
     // ── L1: Required MFA step-up symbols present ───────────────────────────
     contains('acr_values', 'Step-up login request uses the acr_values parameter', GraderLevel.L1),
-    contains('amr', 'AMR claim checked to detect prior MFA completion', GraderLevel.L1),
+    contains('amr', 'AMR claim referenced to detect prior MFA completion', GraderLevel.L1, {
+      caseSensitive: false,
+    }),
     contains(
       'schemas.openid.net/pape/policies/2007/06/multi-factor',
       'Uses the correct multi-factor acr_values policy URI',
@@ -33,6 +35,11 @@ export function defineGraders() {
       GraderLevel.L2,
     ),
     notContains('jwt.decode', 'No manual JWT decoding — read claims through the SDK, not by hand', GraderLevel.L2),
+    notContains(
+      'base64.b64decode',
+      'No manual base64 JWT segment decoding — read claims through the SDK, not by hand',
+      GraderLevel.L2,
+    ),
 
     // ── L3: Security ──────────────────────────────────────────────────────
     notContainsInSource(
@@ -60,7 +67,7 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
     matches(
-      String.raw`start_interactive_login\s*\([\s\S]*?authorization_params[\s\S]*?acr_values`,
+      String.raw`start_interactive_login\s*\(\s*\{[^}]*authorization_params[^}]*acr_values`,
       'Step-up authorization params are passed into start_interactive_login',
       GraderLevel.L4,
     ),
@@ -78,10 +85,10 @@ export function defineGraders() {
         'rather than as a top-level keyword argument?',
       GraderLevel.L5,
     ),
-    notContains(
-      'id_token.split',
-      'Reads the amr claim through the SDK session (get_user()/complete_interactive_login), ' +
-        'not by manually splitting/decoding the raw ID token',
+    judge(
+      'Does the code read the amr claim through the SDK session (get_user() or the ' +
+        'complete_interactive_login result) rather than manually decoding the raw ID/access token — ' +
+        "e.g. splitting the token on '.', base64-decoding a segment, or calling jwt.decode by hand?",
       GraderLevel.L5,
     ),
 
