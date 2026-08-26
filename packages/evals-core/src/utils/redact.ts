@@ -45,7 +45,10 @@ const PATTERNS: Array<[RegExp, string]> = [
   // (`token_endpoint_auth_method`), and matching the scheme alone masked the flag
   // that followed it. A bearer token with no header around it is still caught by the
   // JWT and long-opaque-token rules below.
-  [/\b((?:proxy-)?authorization\s*:\s*)(Bearer|Basic)(\s+)(?!--)[\w\-._~+/]+=*/gi, `$1$2$3${REDACTION_MARKER}`],
+  // The value runs to the next whitespace or quote, so a token with an unusual
+  // character (`%`, `!`, `#`) is masked whole rather than leaking its suffix, while
+  // the closing quote of `-H "Authorization: Bearer …"` is left in place.
+  [/\b((?:proxy-)?authorization\s*:\s*)(Bearer|Basic)(\s+)(?!--)[^\s"']+/gi, `$1$2$3${REDACTION_MARKER}`],
   // `curl -u user:VALUE` in every form curl accepts: `-u user:v`, attached
   // `-uuser:v`, `--user user:v`, and `--user=user:v`.
   [/((?:-u(?=\S)|-u\s+|--user(?:=|\s+))["']?[^\s:"']+:)[^\s"']+/g, `$1${REDACTION_MARKER}`],

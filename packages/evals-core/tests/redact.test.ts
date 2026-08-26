@@ -38,6 +38,19 @@ describe('redactSecrets — masks credential values', () => {
     expect(redactSecrets('proxy-authorization: Bearer abc.def.ghi')).toContain(REDACTION_MARKER);
   });
 
+  it('masks an authorization value in full when it holds an unusual character', () => {
+    // Regression: the value match used to stop at characters like `%`, `!`, `#`, so a
+    // token containing one leaked its suffix.
+    expect(redactSecrets('Authorization: Bearer abc%secret!part#tail')).not.toContain('secret');
+    expect(redactSecrets('Authorization: Bearer abc%secret!part#tail')).toContain(REDACTION_MARKER);
+  });
+
+  it('leaves the closing quote of a quoted authorization header intact', () => {
+    const out = redactSecrets('curl -H "Authorization: Bearer abc%def"');
+    expect(out).not.toContain('abc%def');
+    expect(out).toBe(`curl -H "Authorization: Bearer ${REDACTION_MARKER}"`);
+  });
+
   it('masks the password half of curl -u user:pass', () => {
     const out = redactSecrets('curl -u admin:hunter2 https://example.com');
     expect(out).not.toContain('hunter2');
