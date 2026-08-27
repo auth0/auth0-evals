@@ -41,7 +41,7 @@
  */
 
 /** Stand-in for a removed secret value. Conspicuous on purpose — see the module note. */
-export const REDACTION_MARKER = '[REDACTED SECRET]';
+export const REDACTION_MARKER = '[REDACTED]';
 
 /** Name fragments that mark a flag, env var, or JSON key as holding a credential. */
 const SECRET_NAME = 'secret|token|password|passwd|api[_-]?key|apikey|private[_-]?key|credential|signing[_-]?key';
@@ -54,7 +54,7 @@ const SECRET_NAME = 'secret|token|password|passwd|api[_-]?key|apikey|private[_-]
  * The numeric guard is what keeps prose readable. A credential is never a bare
  * number, but `token` and `secret` appear constantly in sentences that end in one
  * — `No token = 401`, `"expires_in": 86400`, `access_token_lifetime: 3600`. Without
- * the guard the first of those renders as `No token = [REDACTED SECRET] Valid…`,
+ * the guard the first of those renders as `No token = [REDACTED] Valid…`,
  * losing the status code and the sentence break, and a reader is told a secret was
  * exposed where none was.
  */

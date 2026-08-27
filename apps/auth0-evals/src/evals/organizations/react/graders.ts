@@ -26,10 +26,10 @@ export function defineGraders() {
     ),
     judge(
       'Does the code read the "invitation" and "organization" parameters from the URL query string ' +
-        'and forward them to loginWithRedirect when present? To pass, the invitation\'s own ' +
+        "and forward them to loginWithRedirect when present? To pass, the invitation's own " +
         '"organization" must be forwarded (overriding any default/configured org), and the code ' +
         'must NOT reject or block a valid invitation solely because its organization differs from ' +
-        'the app\'s configured default org.',
+        "the app's configured default org.",
       GraderLevel.L4,
     ),
     judge(

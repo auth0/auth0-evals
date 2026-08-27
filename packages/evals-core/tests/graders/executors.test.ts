@@ -449,7 +449,7 @@ describe('formatCommandTrace', () => {
       cmd('auth0 api post clients --client-secret fixture_not_a_real_secret_abcdef0123456789'),
     ]);
     expect(out).not.toContain('fixture_not_a_real_secret_abcdef0123456789');
-    expect(out).toContain('[REDACTED SECRET]');
+    expect(out).toContain('[REDACTED]');
     expect(out).toContain('auth0 api post clients');
   });
 });

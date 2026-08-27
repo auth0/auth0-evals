@@ -339,11 +339,10 @@ describe('serialiseTrace', () => {
     expect(serialiseTrace(makeRunRecord([]))).toEqual([]);
   });
 
-  it('includes all expected fields, truncates result, and rounds duration', () => {
+  it('includes all expected fields, keeps the full result, and rounds duration', () => {
     // Word-broken on purpose: an unbroken 500-character alphanumeric run is
-    // indistinguishable from an opaque token and is redacted to the marker, which
-    // would leave nothing here to truncate. The redaction interaction is asserted
-    // separately below.
+    // indistinguishable from an opaque token and is redacted to the marker. The
+    // redaction interaction is asserted separately below.
     const longResult = 'the quick brown fox '.repeat(25);
     const tc = makeToolCall({
       name: 'read_file',
@@ -362,7 +361,7 @@ describe('serialiseTrace', () => {
       'tool',
       'narrative',
       'args',
-      'resultPreview',
+      'result',
       'resultSizeBytes',
       'resultLines',
       'duration',
@@ -376,13 +375,14 @@ describe('serialiseTrace', () => {
     expect(new Set(Object.keys(step))).toEqual(expectedKeys);
     expect(step.step).toBe(1);
     expect(step.tool).toBe('read_file');
-    expect(step.resultPreview.length).toBe(300);
+    // The full result is preserved — no longer clipped to a preview length.
+    expect(step.result).toBe(longResult);
     expect(step.resultSizeBytes).toBe(Buffer.byteLength(longResult, 'utf-8'));
     expect(step.resultLines).toBe(1);
     expect(step.duration).toBe(1.235);
   });
 
-  it('redacts credentials in args and in the result preview', () => {
+  it('redacts credentials in args and in the result', () => {
     const tc = makeToolCall({
       name: 'run_command',
       args: { command: 'auth0 login --client-secret fixture_not_a_real_secret_9f8e7d6c5b4a' },
@@ -391,9 +391,9 @@ describe('serialiseTrace', () => {
     const [step] = serialiseTrace(makeRunRecord([tc]));
 
     expect(JSON.stringify(step.args)).not.toContain('fixture_not_a_real_secret_9f8e7d6c5b4a');
-    expect(step.resultPreview).not.toContain('fixture_not_a_real_secret_9f8e7d6c5b4a');
+    expect(step.result).not.toContain('fixture_not_a_real_secret_9f8e7d6c5b4a');
     // Public configuration survives — it is what makes the trace reviewable.
-    expect(step.resultPreview).toContain('AUTH0_DOMAIN=dev-barkbook.us.auth0.com');
+    expect(step.result).toContain('AUTH0_DOMAIN=dev-barkbook.us.auth0.com');
     // Metrics still describe what the tool actually returned, not the redacted rendering.
     expect(step.resultSizeBytes).toBe(Buffer.byteLength(tc.result, 'utf-8'));
   });

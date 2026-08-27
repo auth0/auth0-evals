@@ -24,10 +24,8 @@ import { redactArgs, redactSecrets } from './utils/redact.js';
 /**
  * Format a tool call into a human-readable narrative string.
  *
- * Arguments are redacted *before* truncation. Order matters: truncating first would
- * leave a 40-character prefix of a secret in the narrative, and a partial credential
- * is still a leaked credential. Truncation is a display concern and must not be
- * relied on as a security control.
+ * Arguments are redacted before they are rendered: a partial credential is still a
+ * leaked credential, so the value is masked whole rather than sliced.
  */
 export function formatStep(tc: ToolCallRecord): string {
   const action = tc.actionType;
@@ -42,8 +40,9 @@ export function formatStep(tc: ToolCallRecord): string {
 /**
  * Convert a RunRecord's tool calls into serialisable TraceStep objects.
  *
- * Sizes and line counts are computed from the *original* result, so the metrics
- * still describe what the tool actually returned rather than the redacted rendering.
+ * `result` carries the full tool output with secrets redacted. Sizes and line counts
+ * are computed from the *original* result, so the metrics still describe what the tool
+ * actually returned rather than the redacted rendering.
  */
 export function serialiseTrace(record: RunRecord): TraceStep[] {
   return record.toolCalls.map((tc, i) => ({
@@ -52,7 +51,7 @@ export function serialiseTrace(record: RunRecord): TraceStep[] {
     tool: tc.name,
     narrative: formatStep(tc),
     args: redactArgs(tc.args),
-    resultPreview: redactSecrets(tc.result),
+    result: redactSecrets(tc.result),
     resultSizeBytes: Buffer.byteLength(tc.result, 'utf-8'),
     resultLines: tc.result ? tc.result.split('\n').length : 0,
     duration: Math.round((tc.endTime - tc.startTime) * 1000) / 1000,

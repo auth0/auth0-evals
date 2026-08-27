@@ -79,8 +79,8 @@ describe('redactSecrets — masks credential values', () => {
 
   it('never nests markers when several patterns match the same text', () => {
     const out = redactSecrets('--client-secret fixture_not_a_real_secret_0123456789abcdefghijklmnopqrstuvwxyz01234567');
-    expect(out.match(/REDACTED SECRET/g)).toHaveLength(1);
-    expect(out).not.toContain('SECRET] SECRET]');
+    expect(out.match(/REDACTED/g)).toHaveLength(1);
+    expect(out).not.toContain('[REDACTED][REDACTED]');
   });
 
   it('leaves text with no secrets untouched', () => {
@@ -137,7 +137,7 @@ describe('redactSecrets — keeps what a diagnosis needs', () => {
   ])('keeps a numeric value that follows a credential word — %s', (_label, line) => {
     // Regression: a credential is never a bare number, but `token` and `secret` turn
     // up constantly in sentences that end in one. `No token = 401.` used to render as
-    // `No token = [REDACTED SECRET] Valid…`, losing the status code and the sentence
+    // `No token = [REDACTED] Valid…`, losing the status code and the sentence
     // break, and telling a reader a secret was exposed where none was.
     expect(redactSecrets(line)).toBe(line);
   });

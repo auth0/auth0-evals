@@ -18,7 +18,7 @@ export interface TraceStep {
   tool: string;
   narrative: string;
   args: Record<string, unknown>;
-  resultPreview: string;
+  result: string;
   resultSizeBytes: number;
   resultLines: number;
   duration: number;

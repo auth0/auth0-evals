@@ -1,12 +1,4 @@
-import {
-  contains,
-  notContains,
-  notContainsInSource,
-  matches,
-  judge,
-  compiles,
-  GraderLevel,
-} from '@a0/evals-graders';
+import { contains, notContains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -20,11 +12,7 @@ export function defineGraders() {
       'Uses the correct multi-factor acr_values policy URI',
       GraderLevel.L1,
     ),
-    contains(
-      'start_interactive_login',
-      'Triggers step-up via the SDK start_interactive_login method',
-      GraderLevel.L1,
-    ),
+    contains('start_interactive_login', 'Triggers step-up via the SDK start_interactive_login method', GraderLevel.L1),
 
     // ── L2: Hallucination / wrong approach ────────────────────────────────
     notContains('pyotp', 'No server-side TOTP library (pyotp) — Auth0 performs the MFA', GraderLevel.L2),

@@ -47,11 +47,7 @@ export function defineGraders() {
     contains('requiredScopes', 'Existing requiredScopes() scope checks retained', GraderLevel.L4),
     // The MFA check must respond with HTTP 403, not 401. claimIncludes returns 401
     // (invalid_token), so the correct approach is custom middleware with res.status(403).
-    matches(
-      String.raw`res\.status\s*\(\s*403\s*\)`,
-      'MFA step-up failure responds with HTTP 403',
-      GraderLevel.L4,
-    ),
+    matches(String.raw`res\.status\s*\(\s*403\s*\)`, 'MFA step-up failure responds with HTTP 403', GraderLevel.L4),
     judge(
       'Does the code read the amr claim from req.auth.payload.amr (not req.auth.amr, which is the ' +
         'express-jwt path), check whether it includes "mfa", and return a 403 with code: "mfa_required" ' +

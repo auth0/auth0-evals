@@ -120,7 +120,7 @@ The event-based primitives (`ranCommand`, `ranCommandOneOf`, `wroteFile`) inspec
 
 The optional `expected` argument on `wroteFile` is useful when a file is excluded from the LLM judge's view (e.g. `.env` / `.env.local`) but you still need to verify the agent wrote the expected variables into it. Because it concatenates content across all writes to the path, it tolerates agents that build the file incrementally.
 
-**A security judge that reads the command trace must know about the redaction marker.** The harness masks credential values as `[REDACTED SECRET]` before the trace reaches any model, so a judge asked "does an actual secret appear?" would answer no on a run that leaked one. Say in the prompt that the marker means a secret was on that command line, as the B2B org eval does.
+**A security judge that reads the command trace must know about the redaction marker.** The harness masks credential values as `[REDACTED]` before the trace reaches any model, so a judge asked "does an actual secret appear?" would answer no on a run that leaked one. Say in the prompt that the marker means a secret was on that command line, as the B2B org eval does.
 
 ---
 
