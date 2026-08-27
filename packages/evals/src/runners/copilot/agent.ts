@@ -101,7 +101,7 @@ function eventTimeSeconds(timestamp: string | undefined): number {
  * Runs a Copilot SDK agent against an eval definition and returns a RunRecord.
  */
 export async function runCopilotAgent(
-  evalDef: Pick<EvalDefinition, 'id' | 'userPrompt'>,
+  evalDef: Pick<EvalDefinition, 'id' | 'userPrompt' | 'provision'>,
   workspace: string,
   opts: CopilotRunOptions = {},
 ): Promise<RunRecord> {
@@ -109,6 +109,7 @@ export async function runCopilotAgent(
 
   const record: RunRecord = {
     taskName: evalDef.id,
+    evalType: evalDef.provision === 'auth0-tenant' ? 'cli' : 'sdk',
     model: COPILOT_MODEL_ID,
     sessionId: makeSessionId(),
     startTime: Date.now() / 1000,

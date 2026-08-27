@@ -144,12 +144,48 @@ function scoreSpeed(record: RunRecord, opts?: ScoringOptions): [number, string] 
   return [Math.round(s * 10) / 10, notes];
 }
 
+function extractCliEndpoint(command: string): string {
+  const tokens = command.trim().split(/\s+/);
+  const firstFlag = tokens.findIndex((t) => t.startsWith('-'));
+  const positional = firstFlag === -1 ? tokens : tokens.slice(0, firstFlag);
+  return positional[positional.length - 1] ?? command.trim();
+}
+
+function isCliDiscoveryCall(command: string): boolean {
+  const lower = command.toLowerCase().trim();
+  const tokens = lower.split(/\s+/);
+  return tokens.some((t) => t === 'list' || t === 'show') || lower.includes('--help');
+}
+
 function scoreEfficiency(record: RunRecord, opts?: ScoringOptions): [number, string] {
   const displayNames = opts?.toolDisplayNames ?? DEFAULT_TOOL_DISPLAY_NAMES;
 
   const total = record.toolCalls.length;
   if (total === 0) {
     return [100.0, 'N/A (no tools in baseline/skills mode)'];
+  }
+
+  const cliCalls = record.toolCalls.filter(
+    (tc) => tc.name === 'run_command' && !isCliDiscoveryCall(String((tc.args['command'] as string) ?? '')),
+  );
+  if (record.evalType === 'cli' && cliCalls.length > 0) {
+    const endpointCounts: Record<string, number> = {};
+    for (const tc of cliCalls) {
+      const cmd = String((tc.args['command'] as string) ?? '');
+      const endpoint = extractCliEndpoint(cmd);
+      endpointCounts[endpoint] = (endpointCounts[endpoint] ?? 0) + 1;
+    }
+    const repeated = Object.entries(endpointCounts)
+      .filter(([, count]) => count > 1)
+      .map(([ep]) => ep);
+    const targetCount = Math.max(...Object.values(endpointCounts));
+    const correctiveAttempts = targetCount - 1;
+    const s = Math.max(0, 100.0 * (1 - correctiveAttempts / targetCount));
+    const notes =
+      repeated.length === 0
+        ? `${cliCalls.length} api call(s); no repeated endpoints`
+        : `${cliCalls.length} api call(s); ${repeated.length} repeated endpoint(s): ${repeated.join(', ')}`;
+    return [Math.round(s * 10) / 10, notes];
   }
 
   const waste = analyzeWaste(record.toolCalls);
@@ -288,7 +324,20 @@ function scoreDocsQuality(
 
 export function score(record: RunRecord, graderResults?: GraderResult[], opts?: ScoringOptions): ScoredResult {
   const gr = graderResults ?? [];
-  const weights = { ...DEFAULT_WEIGHTS, ...opts?.weights };
+  const baseWeights = { ...DEFAULT_WEIGHTS, ...opts?.weights };
+
+  // CLI evals write no files — Security auto-scores 100 (no L3 graders fire),
+  // inflating every run. Redistribute its weight to Correctness so scores
+  // reflect actual agent behavior. Hallucination (L2) is kept — CLI agents can
+  // still hallucinate commands or flags in their responses.
+  const weights =
+    record.evalType === 'cli'
+      ? {
+          ...baseWeights,
+          Correctness: baseWeights['Correctness'] + baseWeights['Security'],
+          Security: 0,
+        }
+      : baseWeights;
 
   const [frictionScore, frictionNotes] = scoreFriction(record, opts);
   const [speedScore, speedNotes] = scoreSpeed(record, opts);

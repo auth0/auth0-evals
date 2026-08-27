@@ -430,7 +430,7 @@ const MAX_RESUME_NUDGES = 3;
  * prompt to continue the session so the agent loop proceeds to tools.
  */
 export async function runCodexAgent(
-  evalDef: Pick<EvalDefinition, 'id' | 'userPrompt'>,
+  evalDef: Pick<EvalDefinition, 'id' | 'userPrompt' | 'provision'>,
   workspace: string,
   opts: CodexRunOptions = {},
 ): Promise<RunRecord> {
@@ -438,6 +438,7 @@ export async function runCodexAgent(
 
   const record: RunRecord = {
     taskName: evalDef.id,
+    evalType: evalDef.provision === 'auth0-tenant' ? 'cli' : 'sdk',
     model,
     sessionId: makeSessionId(),
     startTime: Date.now() / 1000,

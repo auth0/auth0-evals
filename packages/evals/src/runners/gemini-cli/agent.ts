@@ -180,7 +180,7 @@ export interface GeminiCliRunOptions {
  * with the scorer and serialisers used by the standard agent pipeline.
  */
 export async function runGeminiCliAgent(
-  evalDef: Pick<EvalDefinition, 'id' | 'userPrompt'>,
+  evalDef: Pick<EvalDefinition, 'id' | 'userPrompt' | 'provision'>,
   workspace: string,
   opts: GeminiCliRunOptions = {},
 ): Promise<RunRecord> {
@@ -188,6 +188,7 @@ export async function runGeminiCliAgent(
 
   const record: RunRecord = {
     taskName: evalDef.id,
+    evalType: evalDef.provision === 'auth0-tenant' ? 'cli' : 'sdk',
     model,
     sessionId: makeSessionId(),
     startTime: Date.now() / 1000,
