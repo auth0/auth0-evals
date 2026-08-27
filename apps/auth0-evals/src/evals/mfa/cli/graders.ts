@@ -1,4 +1,4 @@
-import { ranCommand, ranCommandOneOf, ranCommandsInOrder, notRanCommand, judge, GraderLevel } from '@a0/evals-graders';
+import { ranCommand, ranCommandsInOrder, notRanCommand, judge, GraderLevel } from '@a0/evals-graders';
 
 // A goal-only CLI eval run against a live, throwaway tenant the `auth0` CLI is
 // already logged into. The agent writes nothing to disk — grading leans entirely
@@ -13,13 +13,6 @@ export function defineGraders() {
       'guardian/factors/otp',
       'Did not enable OTP factor instead of SMS',
       GraderLevel.L2,
-    ),
-
-    // ── L4: Enable the SMS factor ─────────────────────────────────────────
-    ranCommandOneOf(
-      ['guardian/factors/otp', 'guardian/factors/push', 'guardian/factors/sms'],
-      'Enabled MFA factor via Auth0 CLI',
-      GraderLevel.L4,
     ),
 
     // ── L4: Set phone message type to SMS (not voice) ────────────────────
