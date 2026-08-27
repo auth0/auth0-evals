@@ -8,6 +8,17 @@ provision: auth0-tenant
 
 ## Task
 
-Our Auth0 tenant needs multi-factor authentication required for step-up flows — a factor merely being available is not enough; MFA must actually be enforced.
+Our Auth0 tenant needs two MFA channels configured and enforced using the Auth0 CLI:
 
-Using the Auth0 CLI, enable the required MFA factor on the tenant and then enforce MFA so it is required for users.
+**1. Phone (SMS) factor**
+- Enable the SMS factor on the tenant.
+- Set the message type to SMS (not voice).
+- Configure the phone provider. Use Auth0's built-in provider (suitable for testing).
+
+**2. Email factor**
+- Enable the email factor on the tenant.
+- Note: Auth0 requires at least one other factor to be enabled before email can be enabled.
+
+Finally, enforce MFA across all applications so it is required for every user — a factor merely being available is not enough.
+
+Do not use the Auth0 dashboard or Terraform. Use only the Auth0 CLI (`auth0 api` commands).
