@@ -332,6 +332,36 @@ describe('score - Efficiency (CLI mode)', () => {
   });
 });
 
+// ── CLI weight redistribution ─────────────────────────────────────────────────
+
+describe('score - CLI weight redistribution', () => {
+  it('CLI eval: Security weight is 0, Hallucination kept, Correctness gets Security weight', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir, evalType: 'cli' });
+    record.toolCalls = [
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api put guardian/factors/otp' } }),
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api put guardian/policies' } }),
+    ];
+    const result = score(record);
+    expect(getDim(result, 'Security').weight).toBe(0);
+    expect(getDim(result, 'Hallucination').weight).toBeCloseTo(0.15, 5);
+    expect(getDim(result, 'Correctness').weight).toBeCloseTo(0.35, 5);
+  });
+
+  it('SDK eval: default weights unchanged', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir, evalType: 'sdk' });
+    record.toolCalls = [
+      makeToolCall('write_file', 1, { args: { path: 'app.ts' } }),
+      makeToolCall('run_command', 1, { args: { command: 'npm install' } }),
+    ];
+    const result = score(record);
+    expect(getDim(result, 'Hallucination').weight).toBeCloseTo(0.15, 5);
+    expect(getDim(result, 'Security').weight).toBeCloseTo(0.1, 5);
+    expect(getDim(result, 'Correctness').weight).toBeCloseTo(0.25, 5);
+  });
+});
+
 // ── analyzeWaste unit tests ───────────────────────────────────────────────────
 
 describe('analyzeWaste', () => {

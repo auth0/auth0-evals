@@ -324,7 +324,20 @@ function scoreDocsQuality(
 
 export function score(record: RunRecord, graderResults?: GraderResult[], opts?: ScoringOptions): ScoredResult {
   const gr = graderResults ?? [];
-  const weights = { ...DEFAULT_WEIGHTS, ...opts?.weights };
+  const baseWeights = { ...DEFAULT_WEIGHTS, ...opts?.weights };
+
+  // CLI evals write no files — Security auto-scores 100 (no L3 graders fire),
+  // inflating every run. Redistribute its weight to Correctness so scores
+  // reflect actual agent behavior. Hallucination (L2) is kept — CLI agents can
+  // still hallucinate commands or flags in their responses.
+  const weights =
+    record.evalType === 'cli'
+      ? {
+          ...baseWeights,
+          Correctness: baseWeights['Correctness'] + baseWeights['Security'],
+          Security: 0,
+        }
+      : baseWeights;
 
   const [frictionScore, frictionNotes] = scoreFriction(record, opts);
   const [speedScore, speedNotes] = scoreSpeed(record, opts);
