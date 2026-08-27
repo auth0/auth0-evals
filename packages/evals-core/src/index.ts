@@ -52,7 +52,7 @@ export { withRetry, isTransientLlmError } from './utils/retry.js';
 export type { RetryOptions } from './utils/retry.js';
 
 // Redaction
-export { redactSecrets, REDACTION_MARKER } from './utils/redact.js';
+export { redactSecrets, redactArgs, REDACTION_MARKER } from './utils/redact.js';
 
 // Costs
 export { estimateCost } from './config/costs.js';
