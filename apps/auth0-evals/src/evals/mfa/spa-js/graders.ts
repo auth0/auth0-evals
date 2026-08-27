@@ -1,12 +1,16 @@
-import { contains, notContains, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
+import { contains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
     // ── L1: Required MFA step-up symbols present ───────────────────────────
-    contains('@auth0/auth0-spa-js', 'Uses @auth0/auth0-spa-js SDK', GraderLevel.L1),
-    contains('createAuth0Client', 'Auth0 client created via createAuth0Client', GraderLevel.L1),
-    contains('amr', 'AMR claim checked to detect prior MFA completion', GraderLevel.L1),
     contains('getIdTokenClaims', 'ID token claims inspected via getIdTokenClaims', GraderLevel.L1),
+    // Anchored to a property access or destructure — bare 'amr' also matches prose
+    // in a README or a comment, which says nothing about the claim being read.
+    matches(
+      String.raw`\.\s*amr\b|\bamr\s*[,}=)]|\[\s*['"]amr['"]\s*\]`,
+      'AMR claim read from the ID token claims',
+      GraderLevel.L1,
+    ),
     matches(
       String.raw`acr_values|interactiveErrorHandler`,
       'Requests step-up via acr_values or the interactive popup error handler',
@@ -14,12 +18,18 @@ export function defineGraders() {
     ),
 
     // ── L2: Hallucination / wrong approach ────────────────────────────────
-    notContains('speakeasy', 'No server-side TOTP library (speakeasy) used in client', GraderLevel.L2),
-    notContains('otplib', 'No server-side TOTP library (otplib) used in client', GraderLevel.L2),
-    notContains('@auth0/guardian', 'No fake Guardian client SDK referenced', GraderLevel.L2),
-    notContains('mfa/challenge', 'Does not call raw MFA challenge endpoint (wrong approach for SPAs)', GraderLevel.L2),
-    notContains('@auth0/auth0-react', 'No React SDK in vanilla JS app', GraderLevel.L2),
-    notContains('client_secret', 'No client_secret in SPA (public client)', GraderLevel.L2),
+    // In-source rather than whole-workspace: agents write design notes, and a note
+    // saying "we deliberately avoid @auth0/auth0-react here" is not a hallucination.
+    notContainsInSource('speakeasy', 'No server-side TOTP library (speakeasy) used in client', GraderLevel.L2),
+    notContainsInSource('otplib', 'No server-side TOTP library (otplib) used in client', GraderLevel.L2),
+    notContainsInSource('@auth0/guardian', 'No fake Guardian client SDK referenced', GraderLevel.L2),
+    notContainsInSource(
+      'mfa/challenge',
+      'Does not call raw MFA challenge endpoint (wrong approach for SPAs)',
+      GraderLevel.L2,
+    ),
+    notContainsInSource('@auth0/auth0-react', 'No React SDK in vanilla JS app', GraderLevel.L2),
+    notContainsInSource('client_secret', 'No client_secret in SPA (public client)', GraderLevel.L2),
 
     // ── L3: Security ──────────────────────────────────────────────────────
     judge(
@@ -31,16 +41,26 @@ export function defineGraders() {
 
     // ── L4: Structural correctness ────────────────────────────────────────
     compiles('Project compiles (build succeeds)', GraderLevel.L4),
-    // The SDK cache key omits acr_values and max_age (src/cache/shared.ts:32), so a silent
-    // step-up request without cacheMode: 'off' returns the stale pre-MFA token.
-    matches(
-      String.raw`cacheMode\s*:\s*['"]off['"]`,
-      "Step-up token request sets cacheMode: 'off' so the stale pre-MFA token is not reused",
+    // The cache key is clientId+audience+scope only, so acr_values and max_age do not
+    // bust it. A judge rather than a cacheMode regex because the redirect and popup
+    // paths never call getTokenSilently, and both are valid solutions here.
+    judge(
+      'When requesting the stepped-up token, does the solution avoid getting back the stale ' +
+        "pre-MFA cached token — via cacheMode: 'off', a distinct step-up scope or audience, or a " +
+        'redirect/popup login? The SDK cache key is clientId+audience+scope only, so acr_values ' +
+        'or max_age on their own do not bust the cache.',
       GraderLevel.L4,
     ),
     judge(
       'Does the code check the amr claim before executing the transfer action, and only ' +
         'proceed when "mfa" is present in the amr array?',
+      GraderLevel.L4,
+    ),
+    judge(
+      'After triggering step-up, does the code confirm MFA actually happened before running the ' +
+        'transfer — re-reading the ID token claims and checking amr again, and aborting if the ' +
+        'popup was cancelled or the redirect never completed? Proceeding unconditionally once ' +
+        'step-up has been triggered does not satisfy this.',
       GraderLevel.L4,
     ),
 
