@@ -80,9 +80,8 @@ export default {
   },
 
   judge: {
-    // Opus 4.5 while Opus 5 is unavailable.
-    model: 'claude-sonnet-5',
-    // Headroom so a verbose judge still reaches its final yes/no line. Opus
+    model: 'claude-opus-5',
+    // Headroom so a verbose judge still reaches its final yes/no line. Opus 5
     // counts thinking against max_tokens; the judge disables thinking, but this
     // also covers proxies that ignore that flag.
     maxTokens: 4096,

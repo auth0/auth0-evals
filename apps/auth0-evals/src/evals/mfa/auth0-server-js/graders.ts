@@ -17,6 +17,8 @@ export function defineGraders() {
     contains('recoveryCode', 'Surfaces the recovery code returned by enrollment', GraderLevel.L1),
 
     // ── L2: Hallucination / wrong approach ────────────────────────────────
+    // ServerMfaClient has only listAuthenticators, enrollAuthenticator, challengeAuthenticator
+    // and verify. Deletion lives on auth-js's MfaClient, which is why the sibling requires it.
     notContains(
       'deleteAuthenticator',
       'No deleteAuthenticator — @auth0/auth0-server-js does not expose one',
@@ -35,7 +37,9 @@ export function defineGraders() {
     notContains('auth0-js', 'Does not use the deprecated auth0-js library', GraderLevel.L2),
     notContains('speakeasy', 'No server-side TOTP library (speakeasy)', GraderLevel.L2),
     notContains('otplib', 'No server-side TOTP library (otplib)', GraderLevel.L2),
-    notContains('@auth0/auth0-auth-js', 'Does not swap in the lower-level auth SDK', GraderLevel.L2),
+    // Bans the client, not the package: server-js doesn't re-export the MfaRequiredError type,
+    // so correct code may still import it from auth-js.
+    notContains('new AuthClient(', 'Does not swap in the lower-level auth SDK client', GraderLevel.L2),
 
     // ── L3: Security ──────────────────────────────────────────────────────
     notContainsInSource(
