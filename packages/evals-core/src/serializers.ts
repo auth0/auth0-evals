@@ -33,7 +33,7 @@ export function formatStep(tc: ToolCallRecord): string {
   const action = tc.actionType;
   const duration = tc.endTime - tc.startTime;
   const args = Object.entries(redactArgs(tc.args))
-    .map(([k, v]) => `${k}=${String(v).slice(0, 40)}`)
+    .map(([k, v]) => `${k}=${String(v)}`)
     .join(', ');
   const outcome = tc.causedError ? ' \u2192 failed' : '';
   return `${tc.name}(${args})${outcome} [${action}, ${duration.toFixed(1)}s]`;
@@ -52,7 +52,7 @@ export function serialiseTrace(record: RunRecord): TraceStep[] {
     tool: tc.name,
     narrative: formatStep(tc),
     args: redactArgs(tc.args),
-    resultPreview: redactSecrets(tc.result).slice(0, 300),
+    resultPreview: redactSecrets(tc.result),
     resultSizeBytes: Buffer.byteLength(tc.result, 'utf-8'),
     resultLines: tc.result ? tc.result.split('\n').length : 0,
     duration: Math.round((tc.endTime - tc.startTime) * 1000) / 1000,
