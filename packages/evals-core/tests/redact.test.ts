@@ -153,10 +153,20 @@ describe('redactSecrets — value-shaped secrets with no name attached', () => {
     expect(out).toContain(REDACTION_MARKER);
   });
 
+  it.each([
+    ['a single-segment name', "'barkbook_secret_def456uvw' in src/app.js"],
+    ['a multi-segment name', 'I set it to fixture_not_a_real_secret_9f8e7d6c5b4a'],
+    ['a screaming-snake name', 'AUTH0_CLIENT_SECRET_abc123def'],
+  ])('masks a credential whose name is part of the value — %s', (_label, line) => {
+    expect(redactSecrets(line)).toContain(REDACTION_MARKER);
+    expect(redactSecrets(line)).not.toMatch(/def456uvw|9f8e7d6c5b4a|abc123def/);
+  });
+
   it('masks a bare quoted secret in a grader detail', () => {
-    // Real leak found in a shipped report: a `notContainsInSource` grader quotes the
-    // needle it searched for, so the value arrives with no key beside it and is too
-    // short for the length rule. The verdict has to stay readable.
+    // Seen in shipped reports: a `notContainsInSource` grader echoes the needle it
+    // searched for, so the value arrives with no key beside it and is too short for the
+    // length rule. Today every needle is a checked-in fixture, so nothing sensitive
+    // flows — but the route is unconditional. The verdict has to stay readable.
     const out = redactSecrets("'barkbook_secret_def456uvw' NOT found in source files (good)");
     expect(out).not.toContain('barkbook_secret_def456uvw');
     expect(out).toContain('NOT found in source files (good)');
@@ -167,6 +177,8 @@ describe('redactSecrets — value-shaped secrets with no name attached', () => {
     ['a version suffix', 'change_password_v2 template'],
     ['a settings name', 'reset_password_url setting'],
     ['a name with no value attached', 'AUTH0_SECRET is required by the SDK'],
+    ['a multi-segment settings name', 'access_token_secret_v1'],
+    ['a flow name', 'password_reset_flow_enabled'],
   ])('keeps an identifier that merely embeds a credential word — %s', (_label, line) => {
     // The embedded-word rule needs a separator-flanked word, a 6+ character suffix,
     // and a digit before it fires — otherwise it would blank ordinary identifiers.
@@ -227,6 +239,23 @@ describe('redactArgs', () => {
     // In a structured record the credential's name is the object key, which the text
     // rules cannot see, and the value is often too short for the opaque-token floor.
     expect(redactArgs({ [key]: value })).toEqual({ [key]: REDACTION_MARKER });
+  });
+
+  it.each([
+    ['an array', { password: ['hunter2'] }],
+    ['an object', { password: { value: 'hunter2' } }],
+    ['a nested Authorization array', { Authorization: ['Bearer hunter2'] }],
+    ['a deeply nested object', { client_secret: { inner: { v: 'hunter2' } } }],
+  ])('masks a compound value under a credential-named key — %s', (_label, args) => {
+    // Recursing into the container would re-scrub each leaf with no knowledge of the
+    // key that named it, so a short shapeless value like `hunter2` would survive. The
+    // key is the only evidence available, so it covers everything beneath it.
+    expect(JSON.stringify(redactArgs(args))).not.toContain('hunter2');
+  });
+
+  it('keeps a numeric or null value even under a credential-named key', () => {
+    // Neither can carry a credential, and coercing them would change their JSON type.
+    expect(redactArgs({ token: 42, secret: null })).toEqual({ token: 42, secret: null });
   });
 
   it('keeps a value whose key merely contains a credential word', () => {

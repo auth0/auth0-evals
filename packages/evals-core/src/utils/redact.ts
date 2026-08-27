@@ -108,8 +108,11 @@ const PATTERNS: Array<[RegExp, string]> = [
   // separators, the suffix must be at least 6 characters, and it must contain a digit.
   // That is what separates a value like `_def456uvw` from a meaningful suffix such as
   // `reset_password_2fa` or `change_password_v2`.
+  // The prefix admits several segments, so multi-word fixture names are covered too
+  // (`fixture_not_a_real_secret_9f8e…`, `AUTH0_CLIENT_SECRET_abc123`), not just the
+  // single-segment `barkbook_secret_…` shape.
   [
-    /\b[A-Za-z0-9]+[_-](?:secret|password|passwd)[_-](?=[A-Za-z0-9_-]{6,})[A-Za-z0-9_-]*[0-9][A-Za-z0-9_-]*/gi,
+    /\b[A-Za-z0-9][A-Za-z0-9_-]*[_-](?:secret|password|passwd)[_-](?=[A-Za-z0-9_-]{6,})[A-Za-z0-9_-]*[0-9][A-Za-z0-9_-]*/gi,
     REDACTION_MARKER,
   ],
   // A long opaque token with no name attached. Auth0 client secrets are 64 chars
@@ -145,16 +148,27 @@ export function redactSecrets(text: string): string {
  * which the text rules cannot see, and such a value is often too short for the
  * opaque-token floor to catch on shape alone.
  *
- * Non-string primitives are returned as-is: a number, boolean, or null cannot carry
- * a credential, and coercing them to strings would change the JSON types consumers
- * read back.
+ * A matching key masks the value *whole*, including an array or an object. Recursing
+ * into it instead would re-scrub each leaf with no knowledge of the key that named it,
+ * so `{ password: ['hunter2'] }` would publish `hunter2` — short, shapeless, and no
+ * longer beside its own name. The key is the only evidence available, so it has to
+ * cover everything beneath it.
+ *
+ * Non-string primitives are returned as-is, even under a credential-named key: a
+ * number, boolean, or null cannot carry a credential, and coercing them to strings
+ * would change the JSON types consumers read back.
  */
 export function redactArgs(args: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(args)) {
-    out[key] = SECRET_KEY.test(key) && typeof value === 'string' ? REDACTION_MARKER : redactValue(value);
+    out[key] = SECRET_KEY.test(key) && isCompoundOrString(value) ? REDACTION_MARKER : redactValue(value);
   }
   return out;
+}
+
+/** A value that can carry a credential: a string, or a container that may hold one. */
+function isCompoundOrString(value: unknown): boolean {
+  return typeof value === 'string' || (value !== null && typeof value === 'object');
 }
 
 function redactValue(value: unknown): unknown {

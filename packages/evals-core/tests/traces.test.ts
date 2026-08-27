@@ -641,3 +641,101 @@ describe('serialiseAgent — judge cost fields', () => {
     expect(result.total_cost_usd).toBe(record.costUsd + result.judge_cost_usd);
   });
 });
+
+// ── Redaction at each publish boundary ──────────────────────────────────────
+
+describe('redaction at the publish boundaries', () => {
+  const SECRET = 'fixture_not_a_real_secret_9f8e7d6c5b4a';
+  /** A prompt shaped like a real PROMPT.md: public config beside one credential. */
+  const promptWithSecret = [
+    'Wire up the SDK.',
+    '',
+    'Domain: dev-barkbook.us.auth0.com',
+    'Client ID: barkbook_client_abc123xyz',
+    `Client Secret: ${SECRET}`,
+    'Audience: https://api.barkbook.com',
+  ].join('\n');
+
+  it('serialiseBaseline redacts prompt, response and error without touching scores', () => {
+    const graders: GraderResult[] = [{ name: 'check', kind: 'contains', passed: true, detail: 'found' }];
+    const result = serialiseBaseline(
+      { ...stubEvalDef, userPrompt: promptWithSecret },
+      { ...stubBaselineResult, error: `Request failed: --client-secret ${SECRET}` },
+      graders,
+      `I set the secret to ${SECRET}`,
+    );
+
+    expect(result.prompt).not.toContain(SECRET);
+    expect(result.response_text).not.toContain(SECRET);
+    expect(result.error).not.toContain(SECRET);
+    // Public configuration survives — it is what makes the report reviewable.
+    expect(result.prompt).toContain('dev-barkbook.us.auth0.com');
+    expect(result.prompt).toContain('barkbook_client_abc123xyz');
+    expect(result.prompt).toContain('https://api.barkbook.com');
+    // Redaction runs after scoring, so no numeric field may move.
+    expect(result.grader_pass_rate).toBe(1);
+    expect(result.graders_passed).toBe(1);
+    expect(result.status).toBe('success');
+    expect(result.session_id).toBe(stubBaselineResult.sessionId);
+  });
+
+  it('mapGraders redacts a grader detail while keeping the verdict', () => {
+    // A failing `contains` grader quotes the workspace text it searched, and a judge
+    // rationale quotes the code it read — either can carry a credential.
+    const graders: GraderResult[] = [
+      {
+        name: 'no hardcoded secret',
+        kind: 'not_contains',
+        passed: false,
+        detail: `'${SECRET}' FOUND in src/app.js (bad)`,
+      },
+    ];
+    const [summary] = serialiseBaseline(stubEvalDef, stubBaselineResult, graders, 'ok').graders;
+
+    expect(summary.detail).not.toContain(SECRET);
+    expect(summary.detail).toContain('FOUND in src/app.js (bad)');
+    expect(summary.passed).toBe(false);
+    expect(summary.name).toBe('no hardcoded secret');
+  });
+
+  it('serialiseAgent redacts prompt and final summary without touching scores', () => {
+    const tc = makeToolCall({
+      name: 'write_file',
+      args: { path: '.env', content: `AUTH0_CLIENT_SECRET=${SECRET}` },
+      result: 'wrote 1 file',
+    });
+    const record: RunRecord = {
+      ...makeRunRecord([tc]),
+      finalSummary: `Configured the app with client secret ${SECRET}`,
+      status: 'success',
+      costUsd: 0.05,
+      startTime: 0,
+      endTime: 10,
+    };
+    const scored: ScoredResult = {
+      runRecord: record,
+      dimensions: [],
+      overallScore: 90,
+      overallGrade: 'A',
+      graderResults: [],
+      graderPassRate: 1.0,
+    };
+    const result = serialiseAgent(
+      { ...stubEvalDef, userPrompt: promptWithSecret },
+      record,
+      scored,
+      [],
+      'gpt-4o',
+      'agent',
+      [],
+    );
+
+    expect(result.prompt).not.toContain(SECRET);
+    expect(result.response_text).not.toContain(SECRET);
+    expect(JSON.stringify(result.session_trace)).not.toContain(SECRET);
+    expect(result.prompt).toContain('barkbook_client_abc123xyz');
+    expect(result.overall_score).toBe(90);
+    expect(result.overall_grade).toBe('A');
+    expect(result.grader_pass_rate).toBe(1.0);
+  });
+});
