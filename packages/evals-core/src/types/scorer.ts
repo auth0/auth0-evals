@@ -73,6 +73,8 @@ export interface ToolCallRecord {
 export interface RunRecord {
   taskName: string;
   model: string;
+  /** Eval type derived from the eval definition's `provision` field. `'cli'` means the eval drives a live tenant via shell commands and writes no files. */
+  evalType?: 'cli' | 'sdk';
   sessionId: string;
   startTime: number;
   endTime: number;

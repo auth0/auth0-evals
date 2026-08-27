@@ -88,7 +88,7 @@ export interface ClaudeCodeRunOptions {
  * @param opts  Optional runner configuration.
  */
 export async function runClaudeCodeAgent(
-  evalDef: Pick<EvalDefinition, 'id' | 'userPrompt'>,
+  evalDef: Pick<EvalDefinition, 'id' | 'userPrompt' | 'provision'>,
   workspace: string,
   opts: ClaudeCodeRunOptions = {},
 ): Promise<RunRecord> {
@@ -96,6 +96,7 @@ export async function runClaudeCodeAgent(
 
   const record: RunRecord = {
     taskName: evalDef.id,
+    evalType: evalDef.provision === 'auth0-tenant' ? 'cli' : 'sdk',
     model: CLAUDE_CODE_MODEL_ID,
     sessionId: makeSessionId(),
     startTime: Date.now() / 1000,

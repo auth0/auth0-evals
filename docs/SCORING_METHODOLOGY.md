@@ -50,6 +50,8 @@ General rule — covers any dimension, any future eval shape (Terraform-only, MC
 
 **Efficiency — 12%.** Waste-detection, not call-counting — the old count-based formula punished complexity (a legitimate 40-call integration scored the same as a flailing one). Waste = duplicate read, errored/retried call, overwritten write, or interruption (double-counted with Friction on purpose: one penalizes disruption, one the wasted slot).
 
+Zero tool calls → 100 (applies to both SDK and CLI modes; a run with no tools is scored separately by the zero-guard in `scoreEfficiency`).
+
 ```
 efficiency % = max(0, 100 × (1 − waste_count / total_calls))
 ```
