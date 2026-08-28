@@ -18,6 +18,7 @@ export const KNOWN_WORKING_MODELS = [
   'claude-haiku-4-5',
   'gemini-3.1-pro-preview',
   'gemini-3.5-flash',
+  'llama-4-maverick-17b',
 ];
 
 /** Model used when no `--model` flag is provided. */

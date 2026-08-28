@@ -143,7 +143,7 @@ export { makeSessionId } from './utils/session.js';
 export { filteredEnv } from './utils/env.js';
 
 // Model detection
-export { isBedrockModel, isClaudeModel, isGeminiModel, isGptModel } from './config/model-detect.js';
+export { isBedrockModel, isClaudeModel, isGeminiModel, isGptModel, isLlamaModel } from './config/model-detect.js';
 
 // Grader engine
 export {

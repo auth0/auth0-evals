@@ -9,6 +9,8 @@ export const COST_TABLE: Record<string, [number, number]> = {
   'claude-haiku-4-5': [1.0, 5.0],
   'gemini-3.1-pro-preview': [2.0, 12.0],
   'gemini-3.5-flash': [1.5, 9.0],
+  // Placeholder prices — correct these later with real Llama-4-Maverick rates.
+  'llama-4-maverick-17b': [0.2, 0.6],
 };
 
 /** [input, output] USD per million tokens applied to models absent from COST_TABLE. */
