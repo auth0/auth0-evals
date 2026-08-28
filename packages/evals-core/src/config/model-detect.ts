@@ -37,7 +37,7 @@ export function isGptModel(model: string): boolean {
 
 /**
  * Checks if the given model name corresponds to a Llama model.
- * Llama models are baseline-only — there is no agent runner for them.
+ * Llama models route to the opencode agent runner in agent mode.
  */
 export function isLlamaModel(model: string): boolean {
   return LLAMA_MODELS.some((prefix) => model.startsWith(prefix));

@@ -134,6 +134,7 @@ export {
   COPILOT_TASK_TIMEOUT_MS,
   BASELINE_TASK_TIMEOUT_MS,
   CODEX_TASK_TIMEOUT_MS,
+  OPENCODE_TASK_TIMEOUT_MS,
 } from './config/settings.js';
 
 // Session

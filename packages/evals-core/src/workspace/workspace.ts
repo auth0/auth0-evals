@@ -52,12 +52,14 @@ export function compileGuidance(compileCommand: string): string {
  *   - Codex reads AGENTS.md (official agents.md standard supporter).
  *   - Copilot reads .github/copilot-instructions.md reliably; AGENTS.md is
  *     "not supported by all Copilot features" per GitHub's docs.
+ *   - opencode auto-loads AGENTS.md from the project root.
  */
 export const AGENT_CONTEXT_FILENAMES: Record<AgentType, string> = {
   'claude-code': 'CLAUDE.md',
   'gemini-cli': 'GEMINI.md',
   codex: 'AGENTS.md',
   copilot: '.github/copilot-instructions.md',
+  opencode: 'AGENTS.md',
 };
 
 /**

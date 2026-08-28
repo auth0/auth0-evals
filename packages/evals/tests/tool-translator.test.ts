@@ -8,6 +8,7 @@ import { ClaudeCodeTranslator } from '../src/runners/claude-code/translator.js';
 import { CopilotCliTranslator } from '../src/runners/copilot/translator.js';
 import { GeminiCliTranslator } from '../src/runners/gemini-cli/translator.js';
 import { CodexTranslator, detectReadOnlyFileRead } from '../src/runners/codex/translator.js';
+import { OpencodeCliTranslator } from '../src/runners/opencode/translator.js';
 
 describe('ClaudeCodeTranslator — isDocLookup / isInterruption', () => {
   const translator = new ClaudeCodeTranslator();
@@ -427,5 +428,153 @@ describe('CodexTranslator — classifications', () => {
   it('never classifies any tool as internal', () => {
     expect(translator.isInternalTool('command_execution')).toBe(false);
     expect(translator.isInternalTool('anything')).toBe(false);
+  });
+});
+
+describe('OpencodeCliTranslator — mapName', () => {
+  const translator = new OpencodeCliTranslator();
+
+  it.each([
+    ['bash', 'run_command'],
+    ['read', 'read_file'],
+    ['write', 'write_file'],
+    ['edit', 'write_file'],
+    ['list', 'list_files'],
+    ['glob', 'list_files'],
+    ['grep', 'list_files'],
+    ['webfetch', 'fetch_url'],
+    ['todowrite', 'plan'],
+    ['todoread', 'plan'],
+  ])('maps "%s" → "%s"', (opencodeName, expected) => {
+    expect(translator.mapName(opencodeName)).toBe(expected);
+  });
+
+  it('passes through unknown tool names', () => {
+    expect(translator.mapName('some_unknown_tool')).toBe('some_unknown_tool');
+  });
+});
+
+describe('OpencodeCliTranslator — isInternalTool', () => {
+  const translator = new OpencodeCliTranslator();
+
+  it('classifies todowrite, todoread, and task as internal', () => {
+    expect(translator.isInternalTool('todowrite')).toBe(true);
+    expect(translator.isInternalTool('todoread')).toBe(true);
+    expect(translator.isInternalTool('task')).toBe(true);
+  });
+
+  it('does not classify regular tools as internal', () => {
+    expect(translator.isInternalTool('bash')).toBe(false);
+    expect(translator.isInternalTool('read')).toBe(false);
+    expect(translator.isInternalTool('write')).toBe(false);
+  });
+});
+
+describe('OpencodeCliTranslator — isDocLookup', () => {
+  const translator = new OpencodeCliTranslator();
+
+  it('classifies webfetch as doc lookup', () => {
+    expect(translator.isDocLookup('webfetch')).toBe(true);
+  });
+
+  it('classifies tool names containing "fetch" as doc lookup', () => {
+    expect(translator.isDocLookup('web_fetch')).toBe(true);
+  });
+
+  it('classifies tool names containing "doc" as doc lookup', () => {
+    expect(translator.isDocLookup('fetch_doc')).toBe(true);
+    expect(translator.isDocLookup('search_docs')).toBe(true);
+  });
+
+  it('classifies mcp__ prefixed tools as doc lookups', () => {
+    expect(translator.isDocLookup('mcp__auth0-docs__search_auth0_docs')).toBe(true);
+  });
+
+  it('does not classify file tools as doc lookups', () => {
+    expect(translator.isDocLookup('read')).toBe(false);
+    expect(translator.isDocLookup('bash')).toBe(false);
+    expect(translator.isDocLookup('write')).toBe(false);
+  });
+});
+
+describe('OpencodeCliTranslator — normalizeArgs', () => {
+  const translator = new OpencodeCliTranslator();
+
+  it('normalizes bash args to command', () => {
+    expect(translator.normalizeArgs('bash', { command: 'npm install' })).toEqual({ command: 'npm install' });
+  });
+
+  it('normalizes bash falls back to cmd', () => {
+    expect(translator.normalizeArgs('bash', { cmd: 'ls' })).toEqual({ command: 'ls' });
+  });
+
+  it('normalizes read filePath to path', () => {
+    expect(translator.normalizeArgs('read', { filePath: 'src/app.ts' })).toEqual({ path: 'src/app.ts' });
+  });
+
+  it('normalizes read path passthrough', () => {
+    expect(translator.normalizeArgs('read', { path: 'src/app.ts' })).toEqual({ path: 'src/app.ts' });
+  });
+
+  it('normalizes write to path and content', () => {
+    expect(translator.normalizeArgs('write', { filePath: 'out.ts', content: 'hello' })).toEqual({
+      path: 'out.ts',
+      content: 'hello',
+    });
+  });
+
+  it('normalizes edit to path and content (content field)', () => {
+    expect(translator.normalizeArgs('edit', { path: 'a.ts', content: 'updated' })).toEqual({
+      path: 'a.ts',
+      content: 'updated',
+    });
+  });
+
+  it('normalizes edit to path and content (new_content fallback)', () => {
+    expect(translator.normalizeArgs('edit', { path: 'a.ts', new_content: 'new' })).toEqual({
+      path: 'a.ts',
+      content: 'new',
+    });
+  });
+
+  it('normalizes webfetch url', () => {
+    expect(translator.normalizeArgs('webfetch', { url: 'https://auth0.com' })).toEqual({ url: 'https://auth0.com' });
+  });
+
+  it('passes through args for unknown tools', () => {
+    const args = { foo: 'bar' };
+    expect(translator.normalizeArgs('unknown_tool', args)).toEqual(args);
+  });
+});
+
+describe('OpencodeCliTranslator — MCP name normalization (via mapName)', () => {
+  const translator = new OpencodeCliTranslator();
+
+  it('already-normalized mcp__ names pass through unchanged', () => {
+    expect(translator.mapName('mcp__auth0-docs__search_auth0_docs')).toBe('mcp__auth0-docs__search_auth0_docs');
+  });
+
+  it('dot-separated server.tool is normalized to mcp__server__tool', () => {
+    expect(translator.mapName('auth0-docs.search_auth0_docs')).toBe('mcp__auth0-docs__search_auth0_docs');
+  });
+
+  it('double-underscore names are treated as MCP and passed through with mcp__ prefix if needed', () => {
+    // server__tool already contains __ → isMcpTool returns true → mapMcpName prefixes since no mcp__ prefix
+    expect(translator.mapName('server__tool')).toBe('mcp__server__tool');
+  });
+
+  it('hyphen+underscore combo (non-native) is normalized with mcp__ prefix', () => {
+    // auth0-docs_search_auth0_docs: not in native toolMap, has hyphen+underscore → MCP
+    expect(translator.mapName('auth0-docs_search_auth0_docs')).toBe('mcp__auth0-docs_search_auth0_docs');
+  });
+
+  it('native tools (bash, read) are NOT treated as MCP', () => {
+    expect(translator.mapName('bash')).toBe('run_command');
+    expect(translator.mapName('read')).toBe('read_file');
+  });
+
+  it('MCP tools are classified as Discovery after mapping', () => {
+    expect(classifyActionType(translator.mapName('mcp__auth0-docs__search_auth0_docs'), false)).toBe('Discovery');
+    expect(classifyActionType(translator.mapName('auth0-docs.search_auth0_docs'), false)).toBe('Discovery');
   });
 });

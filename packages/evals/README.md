@@ -187,8 +187,9 @@ The framework auto-selects a runner based on model prefix, or you can override w
 | Claude Code | `claude-code` | `claude-*` models |
 | GitHub Copilot | `copilot` | `gpt-*` models (and default fallback) |
 | Gemini CLI | `gemini-cli` | `gemini-*` models |
+| opencode | `opencode` | `llama-*` models |
 
-`llama-4-maverick-17b` (and `llama-*` models generally) are baseline-only — they have no agent runner and run only baseline mode (L1–L3 graders).
+`llama-*` models auto-route to the `opencode` agent runner in agent mode (and still run baseline).
 
 ### Claude Code runner
 

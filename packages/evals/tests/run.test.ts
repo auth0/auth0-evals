@@ -122,11 +122,30 @@ describe('buildJobList — mixed modes', () => {
     expect(jobs).toHaveLength(8);
   });
 
-  it('Llama model with baseline+agent modes → only baseline job produced', () => {
+  it('Llama model with baseline+agent modes → two jobs: baseline and agent (opencode)', () => {
     const jobs = buildJobList([EVAL], ['llama-4-maverick-17b'], ['baseline', 'agent'], [], undefined);
-    expect(jobs).toHaveLength(1);
+    expect(jobs).toHaveLength(2);
     const modes = jobs.map((j) => j[2]);
-    expect(modes).toEqual(['baseline']);
+    expect(modes).toContain('baseline');
+    expect(modes).toContain('agent');
+    const agentJob = jobs.find((j) => j[2] === 'agent')!;
+    expect(agentJob[4]).toBe('opencode');
+    expect(agentJob[1]).toBe('llama-4-maverick-17b');
+  });
+
+  it('Llama model with only baseline mode → one baseline job', () => {
+    const jobs = buildJobList([EVAL], ['llama-4-maverick-17b'], ['baseline'], [], undefined);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0][2]).toBe('baseline');
+  });
+
+  it('Llama model with agent mode and mcp+skills tools → agent job carries tools and agentType opencode', () => {
+    const jobs = buildJobList([EVAL], ['llama-4-maverick-17b'], ['agent'], ['mcp', 'skills'], undefined);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0][2]).toBe('agent');
+    expect(jobs[0][4]).toBe('opencode');
+    expect(jobs[0][3]).toEqual(['mcp', 'skills']);
+    expect(jobs[0][1]).toBe('llama-4-maverick-17b');
   });
 
   it('non-Llama model with baseline+agent modes → both jobs produced', () => {

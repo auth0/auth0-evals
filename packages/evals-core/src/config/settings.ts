@@ -17,8 +17,8 @@ export const GEMINI_MODELS = ['gemini-'];
 // Model name prefixes for GPT models routed through the Codex runner.
 export const GPT_MODELS = ['gpt-'];
 
-// Llama models are baseline-only — no agent runner. Present here purely so
-// model-detect can flag them and buildJobList can skip agent-mode jobs.
+// Llama models route to the opencode agent runner in agent mode. Present here
+// so model-detect can flag them and route them correctly.
 export const LLAMA_MODELS = ['llama-'];
 
 /**
@@ -52,3 +52,8 @@ export const CODEX_TASK_TIMEOUT_MS = 30 * 60_000;
 
 /** Maximum wall-clock time for a single baseline LLM call (2 minutes). */
 export const BASELINE_TASK_TIMEOUT_MS = 2 * 60_000;
+
+/** Maximum wall-clock time for a single opencode CLI task (30 minutes).
+ * This fires first as a graceful abort. The host-side 35-min Docker deadline
+ * is a hard-kill backstop for unresponsive containers. */
+export const OPENCODE_TASK_TIMEOUT_MS = 30 * 60_000;

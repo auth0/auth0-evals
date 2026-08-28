@@ -10,9 +10,9 @@
  *   --model       Model(s) to run (default: gpt-5.6-sol). Can be repeated.
  *                 Use 'all' to run all known working models.
  *   --mode        Execution mode: baseline | agent | all (default: baseline)
- *   --agent-type  Agent runner: claude-code | copilot | gemini-cli | codex
+ *   --agent-type  Agent runner: claude-code | copilot | gemini-cli | codex | opencode
  *                 Auto-routed by model prefix when omitted (claude-* → claude-code,
- *                 gemini-* → gemini-cli, gpt-* → codex, else copilot).
+ *                 gemini-* → gemini-cli, gpt-* → codex, llama-* → opencode, else copilot).
  *   --tools       Tools to inject for agent mode: skills, mcp (default: none). Case-insensitive.
  *   --workers     Parallel workers (default: 4)
  *   --output      JSON output path (default: scores-<mode>.json)
@@ -60,6 +60,7 @@ import { ClaudeCodeRunner } from '../runners/claude-code/runner.js';
 import { CopilotCliRunner } from '../runners/copilot/runner.js';
 import { GeminiCliRunner } from '../runners/gemini-cli/runner.js';
 import { CodexRunner } from '../runners/codex/runner.js';
+import { OpencodeRunner } from '../runners/opencode/runner.js';
 import { createBraintrustReporter } from '../reporters/braintrust.js';
 import { syncDataset, toEvalSummaries } from '../reporters/braintrust-dataset.js';
 
@@ -78,6 +79,7 @@ async function initRunners(): Promise<void> {
   registerRunner('copilot', new CopilotCliRunner());
   registerRunner('gemini-cli', new GeminiCliRunner());
   registerRunner('codex', new CodexRunner());
+  registerRunner('opencode', new OpencodeRunner());
 }
 
 // ── Per-job execution ─────────────────────────────────────────────────────────
@@ -308,13 +310,6 @@ export function buildJobList(
           jobs.push([evalCfg, model, mode, [], agentType ?? DEFAULT_AGENT_TYPE]);
           continue;
         }
-        // Llama models are baseline-only: no agent runner exists, and the
-        // default copilot runner would silently coerce them to a GPT model
-        // (see copilot/runner.ts), producing misleading scores. Skip agent jobs.
-        if (isLlamaModel(model)) {
-          logger.info(`${model} is baseline-only; skipping agent mode`);
-          continue;
-        }
         const effectiveAgentType: AgentType =
           !agentType && isClaudeModel(model)
             ? 'claude-code'
@@ -322,7 +317,9 @@ export function buildJobList(
               ? 'gemini-cli'
               : !agentType && isGptModel(model)
                 ? 'codex'
-                : (agentType ?? DEFAULT_AGENT_TYPE);
+                : !agentType && isLlamaModel(model)
+                  ? 'opencode'
+                  : (agentType ?? DEFAULT_AGENT_TYPE);
         for (const jobTools of agentToolSets) {
           if (effectiveAgentType === 'claude-code') {
             if (isClaudeModel(model)) {
