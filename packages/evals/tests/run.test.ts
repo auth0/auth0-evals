@@ -121,6 +121,21 @@ describe('buildJobList — mixed modes', () => {
     // 2 evals × 2 models × 2 modes = 8 jobs
     expect(jobs).toHaveLength(8);
   });
+
+  it('Llama model with baseline+agent modes → only baseline job produced', () => {
+    const jobs = buildJobList([EVAL], ['llama-4-maverick-17b'], ['baseline', 'agent'], [], undefined);
+    expect(jobs).toHaveLength(1);
+    const modes = jobs.map((j) => j[2]);
+    expect(modes).toEqual(['baseline']);
+  });
+
+  it('non-Llama model with baseline+agent modes → both jobs produced', () => {
+    const jobs = buildJobList([EVAL], ['gpt-5.2'], ['baseline', 'agent'], [], undefined);
+    expect(jobs).toHaveLength(2);
+    const modes = jobs.map((j) => j[2]);
+    expect(modes).toContain('baseline');
+    expect(modes).toContain('agent');
+  });
 });
 
 // ── buildSubprocessArgs ───────────────────────────────────────────────────────

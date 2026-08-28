@@ -43,6 +43,7 @@ import {
   isClaudeModel,
   isGeminiModel,
   isGptModel,
+  isLlamaModel,
   registerRunner,
   getRunner,
   logger,
@@ -305,6 +306,13 @@ export function buildJobList(
       for (const mode of modes) {
         if (mode !== 'agent') {
           jobs.push([evalCfg, model, mode, [], agentType ?? DEFAULT_AGENT_TYPE]);
+          continue;
+        }
+        // Llama models are baseline-only: no agent runner exists, and the
+        // default copilot runner would silently coerce them to a GPT model
+        // (see copilot/runner.ts), producing misleading scores. Skip agent jobs.
+        if (isLlamaModel(model)) {
+          logger.info(`${model} is baseline-only; skipping agent mode`);
           continue;
         }
         const effectiveAgentType: AgentType =

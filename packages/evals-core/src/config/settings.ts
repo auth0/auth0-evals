@@ -17,6 +17,10 @@ export const GEMINI_MODELS = ['gemini-'];
 // Model name prefixes for GPT models routed through the Codex runner.
 export const GPT_MODELS = ['gpt-'];
 
+// Llama models are baseline-only — no agent runner. Present here purely so
+// model-detect can flag them and buildJobList can skip agent-mode jobs.
+export const LLAMA_MODELS = ['llama-'];
+
 /**
  * Maps friendly model aliases to the model IDs the active proxy expects.
  *

@@ -139,7 +139,7 @@ export default {
     // `known` is the set `--model all` expands to. Opus 4.5 is intentionally excluded
     // here so `--model all` runs only Opus 5 among the Opus variants; the framework
     // and `modelIds` map below still support it for explicit `--model` runs.
-    known: ['gpt-5.6-sol', 'gpt-5.6-luna', 'gpt-5.6-terra', 'claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5', 'gemini-3.1-pro-preview', 'gemini-3.5-flash'],
+    known: ['gpt-5.6-sol', 'gpt-5.6-luna', 'gpt-5.6-terra', 'claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5', 'gemini-3.1-pro-preview', 'gemini-3.5-flash', 'llama-4-maverick-17b'],
     default: 'gpt-5.6-sol',
     // Maps short model aliases to the IDs the active proxy expects.
     // Bedrock proxy needs full `global.anthropic.*` IDs; LiteLLM proxy serves

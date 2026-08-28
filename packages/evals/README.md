@@ -188,6 +188,8 @@ The framework auto-selects a runner based on model prefix, or you can override w
 | GitHub Copilot | `copilot` | `gpt-*` models (and default fallback) |
 | Gemini CLI | `gemini-cli` | `gemini-*` models |
 
+`llama-4-maverick-17b` (and `llama-*` models generally) are baseline-only — they have no agent runner and run only baseline mode (L1–L3 graders).
+
 ### Claude Code runner
 
 The Claude Code runner uses `@anthropic-ai/claude-agent-sdk` and routes through the configured LLM proxy like all other runners. Set `CLAUDE_CODE_USE_BEDROCK=1` to opt in to the Bedrock pass-through endpoint instead.
