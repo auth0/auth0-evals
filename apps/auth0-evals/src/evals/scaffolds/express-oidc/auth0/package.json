@@ -1,0 +1,13 @@
+{
+  "name": "barkbook-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "node --env-file=.env server.js",
+    "check": "node --check server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "express-openid-connect": "^2.17.0"
+  }
+}

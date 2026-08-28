@@ -57,6 +57,7 @@ See [`@a0/evals` CLI docs](../../packages/evals/) for the full list of flags and
 | `swift_mfa` | mfa | Gate a sensitive action in a Swift iOS app behind MFA step-up |
 | `android_mfa` | mfa | Gate a sensitive action in an Android app behind MFA step-up |
 | `nextjs_mfa` | mfa | Add MFA step-up authentication to a Next.js App Router app using `@auth0/nextjs-auth0` v4 |
+| `express_oidc_mfa` | mfa | Add MFA step-up to an Express app using `express-openid-connect` |
 | `express_api_mfa` | mfa | Gate a sensitive Express API route behind MFA step-up using `express-oauth2-jwt-bearer` |
 | `mfa_cli` | mfa | Enable and enforce a required MFA factor on a live tenant using the Auth0 CLI |
 | `server_python_mfa` | mfa | Gate a sensitive action in a Python web app behind MFA step-up using `auth0-server-python` |

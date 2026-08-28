@@ -1,20 +1,28 @@
 import 'dotenv/config';
 import cookieParser from 'cookie-parser';
 import express from 'express';
+import { rateLimit } from 'express-rate-limit';
 import type { Request, Response } from 'express';
 import { appBaseUrl, serverClient } from './auth0.js';
 
 const app = express();
+const authRateLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+});
+
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-app.get('/auth/login', async (request: Request, response: Response) => {
+app.get('/auth/login', authRateLimiter, async (request: Request, response: Response) => {
   const authorizationUrl = await serverClient.startInteractiveLogin({}, { request, response });
   response.redirect(authorizationUrl.href);
 });
 
-app.get('/auth/callback', async (request: Request, response: Response) => {
+app.get('/auth/callback', authRateLimiter, async (request: Request, response: Response) => {
   await serverClient.completeInteractiveLogin(new URL(request.url, appBaseUrl), {
     request,
     response,
