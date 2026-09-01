@@ -1,4 +1,4 @@
-import { ranCommand, ranCommandsInOrder, notRanCommand, judge, GraderLevel } from '@a0/evals-graders';
+import { ranCommand, ranCommandOneOf, ranCommandsInOrder, notRanCommand, judge, GraderLevel } from '@a0/evals-graders';
 
 // A goal-only CLI eval run against a live, throwaway tenant the `auth0` CLI is
 // already logged into. The agent writes nothing to disk - grading leans entirely
@@ -16,10 +16,13 @@ export function defineGraders() {
     ),
 
     // ── L4: Organization created ──────────────────────────────────────────
-    ranCommand(
-      'organizations',
-      ['acme-corp'],
-      'Created the acme-corp organization',
+    // Accept either CLI form: the `auth0 orgs create` subcommand or the
+    // `auth0 api post organizations` passthrough. Key the subcommand form on
+    // `orgs create --name`/`-n` (an actual create), not bare `orgs create` —
+    // that would also match an `orgs create --help` probe, which creates nothing.
+    ranCommandOneOf(
+      ['orgs create --name', 'orgs create -n', 'api post organizations'],
+      'Created an organization via `auth0 orgs create` or `auth0 api post organizations`',
       GraderLevel.L4,
     ),
 
