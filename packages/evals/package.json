@@ -27,7 +27,7 @@
     "@openai/codex": "^0.149.0",
     "@openai/codex-sdk": "^0.149.0",
     "ai": "^7.0.66",
-    "braintrust": "^3.28.0",
+    "braintrust": "^3.29.0",
     "commander": "^15.0.0",
     "dotenv": "^17.4.2",
     "p-limit": "^7.3.1"
