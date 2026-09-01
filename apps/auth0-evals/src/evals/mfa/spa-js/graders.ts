@@ -1,19 +1,20 @@
-import { contains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
+import { notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
-    // ── L1: Required MFA step-up symbols present ───────────────────────────
-    contains('getIdTokenClaims', 'ID token claims inspected via getIdTokenClaims', GraderLevel.L1),
-    // Anchored to a property access or destructure — bare 'amr' also matches prose
-    // in a README or a comment, which says nothing about the claim being read.
+    // ── L1: Required step-up symbols present ───────────────────────────
+    // Reactive approach: MfaRequiredError caught and mfa_token passed to loginWithPopup.
+    // Proactive approach: acr_values or interactiveErrorHandler trigger step-up upfront.
     matches(
-      String.raw`\.\s*amr\b|\bamr\s*[,}=)]|\[\s*['"]amr['"]\s*\]`,
-      'AMR claim read from the ID token claims',
+      String.raw`MfaRequiredError|acr_values|interactiveErrorHandler`,
+      'Step-up triggered via MfaRequiredError (reactive) or acr_values / interactiveErrorHandler (proactive)',
       GraderLevel.L1,
     ),
+    // Reactive: mfa_token forwarded to loginWithPopup.
+    // Proactive: AMR claim read from ID token to verify MFA completed.
     matches(
-      String.raw`acr_values|interactiveErrorHandler`,
-      'Requests step-up via acr_values or the interactive popup error handler',
+      String.raw`mfa_token|\.\s*amr\b|\bamr\s*[,}=)]|\[\s*['"]amr['"]\s*\]`,
+      'mfa_token used with loginWithPopup (reactive) or AMR claim verified after step-up (proactive)',
       GraderLevel.L1,
     ),
 
@@ -25,7 +26,7 @@ export function defineGraders() {
     notContainsInSource('@auth0/guardian', 'No fake Guardian client SDK referenced', GraderLevel.L2),
     notContainsInSource(
       'mfa/challenge',
-      'Does not call raw MFA challenge endpoint (wrong approach for SPAs)',
+      'Does not call raw MFA challenge endpoint directly (wrong approach for SPAs)',
       GraderLevel.L2,
     ),
     notContainsInSource('@auth0/auth0-react', 'No React SDK in vanilla JS app', GraderLevel.L2),
@@ -41,53 +42,43 @@ export function defineGraders() {
 
     // ── L4: Structural correctness ────────────────────────────────────────
     compiles('Project compiles (build succeeds)', GraderLevel.L4),
-    // The cache key is clientId+audience+scope only, so acr_values and max_age do not
-    // bust it. A judge rather than a cacheMode regex because the redirect and popup
-    // paths never call getTokenSilently, and both are valid solutions here.
     judge(
-      'When requesting the stepped-up token, does the solution avoid getting back the stale ' +
-        "pre-MFA cached token — via cacheMode: 'off', a distinct step-up scope or audience, or a " +
-        'redirect/popup login? The SDK cache key is clientId+audience+scope only, so acr_values ' +
-        'or max_age on their own do not bust the cache.',
+      'Does the code gate the transfer action behind MFA completion — either by catching ' +
+        'MfaRequiredError and calling loginWithPopup with the mfa_token before proceeding ' +
+        '(reactive), or by checking the amr claim upfront and requesting step-up when "mfa" ' +
+        'is absent (proactive)?',
       GraderLevel.L4,
     ),
     judge(
-      'Does the code check the amr claim before executing the transfer action, and only ' +
-        'proceed when "mfa" is present in the amr array?',
-      GraderLevel.L4,
-    ),
-    judge(
-      'After triggering step-up, does the code confirm MFA actually happened before running the ' +
-        'transfer — re-reading the ID token claims and checking amr again, and aborting if the ' +
-        'popup was cancelled or the redirect never completed? Proceeding unconditionally once ' +
-        'step-up has been triggered does not satisfy this.',
+      'After triggering step-up, does the code confirm MFA actually completed before running ' +
+        'the transfer — for the reactive approach, verifying loginWithPopup resolved without ' +
+        'error; for the proactive approach, re-reading the token claims to check amr again? ' +
+        'Proceeding unconditionally after triggering step-up does not satisfy this.',
       GraderLevel.L4,
     ),
 
     // ── L5: Current API patterns ──────────────────────────────────────────
     judge(
-      'If the code passes acr_values, is its value the multi-factor policy URI ' +
-        'http://schemas.openid.net/pape/policies/2007/06/multi-factor rather than an invented or ' +
-        'misspelled value? A solution that triggers step-up via interactiveErrorHandler and passes ' +
-        'no acr_values at all satisfies this — it is the approach the SDK documents.',
+      'If the code uses the proactive approach (acr_values), is the value the multi-factor ' +
+        'policy URI http://schemas.openid.net/pape/policies/2007/06/multi-factor rather than an ' +
+        'invented or misspelled value? (Not applicable when using the reactive MfaRequiredError approach.)',
       GraderLevel.L5,
     ),
     judge(
       'If the code passes acr_values or max_age, are they inside an authorizationParams object ' +
-        'rather than as top-level properties on getTokenSilently or loginWithRedirect? ' +
-        'A solution that instead triggers step-up via interactiveErrorHandler and passes no ' +
-        'acr_values at all satisfies this — it is the approach the SDK documents.',
+        'rather than as top-level properties? ' +
+        '(Not applicable when using the reactive MfaRequiredError approach.)',
       GraderLevel.L5,
     ),
     judge(
-      'Does the solution force a fresh MFA challenge rather than reusing a cached session — ' +
-        "via max_age: 0 inside authorizationParams, or cacheMode: 'off' on the silent token " +
-        'request, or a redirect-based login? Any of these is acceptable.',
+      'Does the solution force a fresh MFA challenge — via max_age: 0 inside authorizationParams ' +
+        "or cacheMode: 'off' on the silent token request (proactive), or by passing the mfa_token " +
+        'directly to loginWithPopup (reactive)?',
       GraderLevel.L5,
     ),
     judge(
       'Does the solution use the auth0-spa-js v2 API — authorizationParams for auth parameters, ' +
-        'camelCase clientId, and an argument-less getIdTokenClaims() — rather than the v1 patterns ' +
+        'camelCase clientId, and argument-less getIdTokenClaims() — rather than the v1 patterns ' +
         'of top-level audience/scope/redirect_uri, snake_case client_id, or ' +
         'getIdTokenClaims({ audience, scope })?',
       GraderLevel.L5,
@@ -96,10 +87,10 @@ export function defineGraders() {
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
       'Does the solution correctly implement MFA step-up authentication in a vanilla JavaScript SPA ' +
-        'using @auth0/auth0-spa-js — checking the amr claim via auth0.getIdTokenClaims() on the ' +
-        'Auth0Client instance, requesting step-up when MFA is not present (either via acr_values in ' +
-        "authorizationParams or via interactiveErrorHandler: 'popup'), and gating the Transfer Funds " +
-        'action behind MFA verification?',
+        'using @auth0/auth0-spa-js — either reactively (catching MfaRequiredError from getTokenSilently ' +
+        'and calling loginWithPopup with the mfa_token) or proactively (requesting step-up via ' +
+        'acr_values in authorizationParams and verifying the amr claim) — and gating the Transfer ' +
+        'Funds action behind confirmed MFA completion?',
     ),
   ];
 }
