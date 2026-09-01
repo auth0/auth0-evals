@@ -67,6 +67,7 @@ See [`@a0/evals` CLI docs](../../packages/evals/) for the full list of flags and
 | `express_api_mcd` | multi-tenant | Accept tokens from several Auth0 custom domains via `auth({ mcd: { issuers } })` |
 | `react_organizations` | organizations | Add Auth0 Organizations to a React SPA — org login, invitation acceptance, and org read-back from the `org_id` claim |
 | `spa_js_organizations`    | organizations | Add Auth0 Organizations (org-scoped login, invitation acceptance, org_id read-back) to a vanilla JS SPA using `@auth0/auth0-spa-js` |
+| `organizations_cli` | organizations | Set up B2B organization login on a live tenant using the Auth0 CLI - create an org, enable a connection with auto-membership, and require org login on the SPA |
 
 ## Configuration
 
