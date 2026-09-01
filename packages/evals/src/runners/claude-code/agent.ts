@@ -259,7 +259,7 @@ export async function runClaudeCodeAgent(
         isDocLookup: translator.isDocLookup(pend.name),
         isInterruption: translator.isInterruption(pend.name),
         causedError: true,
-        actionType: classifyActionType(mappedName, true),
+        actionType: classifyActionType(mappedName, normArgs, true),
         isRetry: detectRetry(record.toolCalls, mappedName, normArgs),
         recoveredFromError: false,
         errorCategory: 'unknown',
@@ -424,7 +424,7 @@ export function handleMessage(
         isDocLookup: isDoc,
         isInterruption: isInterrupt,
         causedError: isError,
-        actionType: classifyActionType(mappedName, isError),
+        actionType: classifyActionType(mappedName, toolArgs, isError),
         isRetry,
         recoveredFromError: recovered,
       };

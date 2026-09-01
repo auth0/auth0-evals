@@ -184,7 +184,7 @@ function pushToolCall(
     isDocLookup: translator.isDocLookup(rawName),
     isInterruption: translator.isInterruption(rawName),
     causedError: isError,
-    actionType: classifyActionType(mappedName, isError),
+    actionType: classifyActionType(mappedName, toolArgs, isError),
     isRetry,
     recoveredFromError: isRetry && !isError,
   };
