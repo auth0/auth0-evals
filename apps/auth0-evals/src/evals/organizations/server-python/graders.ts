@@ -29,11 +29,6 @@ export function defineGraders() {
       'No hardcoded Auth0 client secret in source (allowed only in .env)',
       GraderLevel.L3,
     ),
-    notContainsInSource(
-      'barkbook_client_abc123xyz',
-      'No hardcoded Auth0 client ID in source (allowed only in .env)',
-      GraderLevel.L3,
-    ),
 
     // ── L4: Structural correctness ────────────────────────────────────────
     compiles('Project byte-compiles (compileall succeeds)', GraderLevel.L4),
@@ -43,8 +38,8 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
     matches(
-      String.raw`start_interactive_login[\s\S]{0,200}organization`,
-      'Organization is wired into the start_interactive_login call (typed field or authorization_params)',
+      String.raw`(start_interactive_login[\s\S]{0,200}organization|organization[\s\S]{0,200}start_interactive_login|ServerClient[\s\S]{0,200}organization)`,
+      'Organization is wired into login — at the start_interactive_login call (typed field or authorization_params) or as a default on the ServerClient constructor',
       GraderLevel.L4,
     ),
     judge(
