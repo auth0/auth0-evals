@@ -66,11 +66,6 @@ export function defineGraders() {
       GraderLevel.L5,
     ),
     judge(
-      'Does the solution force a fresh MFA challenge — via max_age: 0 inside authorizationParams ' +
-        "or cacheMode: 'off' on the getTokenSilently call?",
-      GraderLevel.L5,
-    ),
-    judge(
       'Does the solution use the auth0-spa-js v2 API — authorizationParams for auth parameters, ' +
         'camelCase clientId, and argument-less getIdTokenClaims() — rather than the v1 patterns ' +
         'of top-level audience/scope/redirect_uri, snake_case client_id, or ' +
