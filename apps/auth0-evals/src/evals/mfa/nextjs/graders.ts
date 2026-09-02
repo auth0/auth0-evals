@@ -3,21 +3,14 @@ import { contains, notContains, notContainsInSource, judge, compiles, GraderLeve
 export function defineGraders() {
   return [
     // ── L1: Required MFA step-up symbols present ───────────────────────────
-    contains('acr_values', 'Step-up request uses acr_values parameter', GraderLevel.L1),
-    contains('amr', 'AMR claim checked to detect prior MFA completion', GraderLevel.L1),
-    contains('beforeSessionSaved', 'Uses beforeSessionSaved hook to preserve amr in session', GraderLevel.L1),
-    contains('session.user.amr', 'AMR claim read from server-side session', GraderLevel.L1),
-    contains(
-      'schemas.openid.net/pape/policies/2007/06/multi-factor',
-      'Uses correct multi-factor acr_values policy URI',
-      GraderLevel.L1,
-    ),
+    contains('MfaRequiredError', 'MfaRequiredError imported from SDK', GraderLevel.L1),
+    contains('getAccessToken', 'getAccessToken called to trigger mfa_required check', GraderLevel.L1),
+    contains('instanceof MfaRequiredError', 'MfaRequiredError caught and identified', GraderLevel.L1),
 
     // ── L2: Hallucination / wrong approach ────────────────────────────────
     notContains('speakeasy', 'No server-side TOTP library (speakeasy) used', GraderLevel.L2),
     notContains('otplib', 'No server-side TOTP library (otplib) used', GraderLevel.L2),
     notContains('@auth0/guardian', 'No fake Guardian client SDK referenced', GraderLevel.L2),
-    notContains('mfa/challenge', 'Does not call raw MFA challenge endpoint', GraderLevel.L2),
     notContains(
       'loginWithRedirect',
       'Does not use React SPA loginWithRedirect in a server-side Next.js app',
@@ -25,7 +18,7 @@ export function defineGraders() {
     ),
     notContains(
       'getIdTokenClaims',
-      'Does not use React SPA getIdTokenClaims — reads amr via server session',
+      'Does not use React SPA getIdTokenClaims — reads session server-side',
       GraderLevel.L2,
     ),
 
@@ -55,13 +48,14 @@ export function defineGraders() {
     // ── L4: Structural / behavioral correctness ───────────────────────────────
     compiles('Project compiles (build succeeds)', GraderLevel.L4),
     judge(
-      'Does the code read the amr claim from the server-side session (e.g. session.user.amr) ' +
-        'and check whether "mfa" is present in that array before allowing the transfer to proceed?',
+      'Does the code call auth0.getAccessToken() with the API audience (https://api.barkbook.com) ' +
+        'and wrap it in a try/catch that handles MfaRequiredError to trigger step-up authentication?',
       GraderLevel.L4,
     ),
     judge(
-      'When the amr claim is missing or does not contain "mfa", does the code redirect the user ' +
-        'to /auth/login with acr_values set to the multi-factor policy URI and max_age set to 0?',
+      'When MfaRequiredError is caught, does the code redirect the user to an MFA challenge — ' +
+        'either via a redirect to a challenge page, using mfa.challengeWithPopup(), or an equivalent ' +
+        'SDK-supported mechanism — rather than silently failing or exposing the mfa_token to the client?',
       GraderLevel.L4,
     ),
 
@@ -70,18 +64,17 @@ export function defineGraders() {
     notContains('/api/auth/', 'Does not use v3 route prefix /api/auth/ (v4 uses /auth/)', GraderLevel.L5),
     notContains('AUTH0_ISSUER_BASE_URL', 'Does not use v3 env var AUTH0_ISSUER_BASE_URL', GraderLevel.L5),
     judge(
-      'Does the Auth0Client instantiation use the beforeSessionSaved hook to copy the amr claim ' +
-        'from the incoming session user object into the persisted session, so that amr is available ' +
-        'on subsequent calls to auth0.getSession()?',
+      'Is MfaRequiredError imported from "@auth0/nextjs-auth0/server" (the correct v4 server import path) ' +
+        'rather than from the root "@auth0/nextjs-auth0" package or a non-existent path?',
       GraderLevel.L5,
     ),
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
       'Does the solution correctly implement MFA step-up authentication in a Next.js App Router app ' +
-        'using @auth0/nextjs-auth0 v4 — preserving the amr claim via beforeSessionSaved, reading it ' +
-        'server-side via auth0.getSession(), redirecting to /auth/login with acr_values and max_age=0 ' +
-        'when MFA is absent, and gating the Transfer Funds action behind that verification?',
+        'using @auth0/nextjs-auth0 v4 — calling getAccessToken() with the API audience, catching ' +
+        'MfaRequiredError when Auth0 requires MFA, directing the user through an MFA challenge, ' +
+        'and gating the Transfer Funds action so it only proceeds after MFA is satisfied?',
     ),
   ];
 }
