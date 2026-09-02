@@ -66,6 +66,9 @@ const READ_ONLY_LEADERS = [
   'env',
   'which',
   'echo',
+  'jq', // JSON filter — reads/reshapes stdin, never writes the workspace
+  'set', // shell option toggle (`set -e`) — a no-op prefix, not a mutation
+  'export', // sets an env var — orientation, not a workspace write
   'sed', // only when NOT in-place (`sed -i` is caught as a mutation below)
 ];
 
@@ -105,6 +108,19 @@ function tokens(segment: string): string[] {
   return segment.trim().split(/\s+/).filter(Boolean);
 }
 
+/**
+ * True when a segment redirects to a real file (a workspace write). Ignores
+ * redirects that don't touch the workspace: file-descriptor duplication
+ * (`2>&1`, `>&2`) and the discard sink (`2>/dev/null`, `>/dev/null`). Quoted
+ * spans are stripped first so a literal `>` inside an argument (e.g.
+ * `grep ">" file`) never counts as a redirect.
+ */
+function hasFileRedirect(segment: string): boolean {
+  const unquoted = segment.replace(/'[^']*'/g, ' ').replace(/"[^"]*"/g, ' ');
+  const stripped = unquoted.replace(/\d*>&\d*/g, ' ').replace(/\d*>>?\s*\/dev\/null\b/g, ' ');
+  return />>?/.test(stripped);
+}
+
 /** Classify a single (already-split) command segment. */
 function classifySegment(segment: string): SegmentIntent {
   const trimmed = segment.trim();
@@ -112,27 +128,46 @@ function classifySegment(segment: string): SegmentIntent {
     return 'discovery';
   }
 
-  // A redirect writes to the filesystem regardless of the leading verb.
-  if (/>>?/.test(trimmed)) {
+  // A redirect to a real file writes the workspace regardless of the leading
+  // verb. fd-redirects (`2>&1`) and the discard sink (`2>/dev/null`) do not.
+  if (hasFileRedirect(trimmed)) {
     return 'mutation';
   }
 
   const parts = tokens(trimmed);
   const leader = parts[0];
 
-  // auth0 api <verb> …  — reads are Discovery, writes are TenantConfig.
-  // Match on the verb position (token after `api`) so a quoted path such as
-  // `auth0 api get "clients/create-x"` classifies on `get`, not on `create`.
-  if (leader === 'auth0' && parts[1] === 'api') {
-    const verb = (parts[2] ?? '').toLowerCase();
-    if (['put', 'post', 'patch', 'delete'].includes(verb)) {
-      return 'tenant-write';
+  if (leader === 'auth0') {
+    // auth0 api <verb> …  — reads are Discovery, writes are TenantConfig.
+    // Match on the verb position (token after `api`) so a quoted path such as
+    // `auth0 api get "clients/create-x"` classifies on `get`, not on `create`.
+    if (parts[1] === 'api') {
+      const verb = (parts[2] ?? '').toLowerCase();
+      if (['put', 'post', 'patch', 'delete'].includes(verb)) {
+        return 'tenant-write';
+      }
+      if (['get', 'list', 'show'].includes(verb)) {
+        return 'discovery';
+      }
+      // Unknown api verb — treat conservatively as a mutation.
+      return 'mutation';
     }
-    if (['get', 'list', 'show'].includes(verb)) {
+
+    // auth0 <resource> <action> … — resource-command reads (`auth0 apps list`,
+    // `auth0 tenants list`, `... show`) are Discovery; writes (create/update/
+    // delete/use) reconfigure the tenant → TenantConfig.
+    const action = (parts[2] ?? parts[1] ?? '').toLowerCase();
+    if (['list', 'show', 'open', 'get'].includes(action)) {
       return 'discovery';
     }
-    // Unknown api verb — treat conservatively as a mutation.
-    return 'mutation';
+    if (['create', 'update', 'delete', 'use', 'rotate', 'enable', 'disable'].includes(action)) {
+      return 'tenant-write';
+    }
+    // Orientation probes (`auth0 --version`) fall through to the --help/--version
+    // guard below; any other auth0 command is treated conservatively as mutation.
+    if (!parts.some((t) => t === '--version' || t === '--help')) {
+      return 'mutation';
+    }
   }
 
   // `sed -i` edits in place; any other `sed` invocation is a read.
@@ -169,13 +204,67 @@ function classifySegment(segment: string): SegmentIntent {
 }
 
 /**
+ * Split a shell command into segments on the operators that separate commands
+ * (`&&`, `||`, `;`, `|`) and on newlines, **ignoring any operator that falls
+ * inside single or double quotes**. A naive `String.split` mis-splits real
+ * commands: `grep "a\|b" f` (alternation inside quotes), `sed -n '1,5p;9p'`
+ * (`;` inside a range), and multi-line heredoc/`&&` blocks would each be torn
+ * into meaningless fragments and misclassified.
+ */
+function splitSegments(command: string): string[] {
+  const segments: string[] = [];
+  let current = '';
+  let quote: "'" | '"' | null = null;
+
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i];
+    const next = command[i + 1];
+
+    if (quote) {
+      current += ch;
+      if (ch === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      current += ch;
+      continue;
+    }
+
+    // Two-char operators: && and ||
+    if ((ch === '&' && next === '&') || (ch === '|' && next === '|')) {
+      segments.push(current);
+      current = '';
+      i++; // consume the second operator char
+      continue;
+    }
+
+    // Single-char separators: ; | and newline
+    if (ch === ';' || ch === '|' || ch === '\n') {
+      segments.push(current);
+      current = '';
+      continue;
+    }
+
+    current += ch;
+  }
+  segments.push(current);
+
+  return segments.filter((s) => s.trim().length > 0);
+}
+
+/**
  * Classify a shell command by intent. Chained commands are split on `&&`, `||`,
- * `;`, and `|`, then combined by precedence: any tenant write wins, then any
- * mutation, otherwise Discovery. Unrecognised commands fall back to
- * `Implementation` so we never over-claim Discovery.
+ * `;`, `|`, and newlines (quote-aware — separators inside quotes are ignored),
+ * then combined by precedence: any tenant write wins, then any mutation,
+ * otherwise Discovery. Unrecognised commands fall back to `Implementation` so we
+ * never over-claim Discovery.
  */
 export function classifyCommandIntent(command: string): ActionType {
-  const segments = command.split(/&&|\|\||;|\|/).filter((s) => s.trim().length > 0);
+  const segments = splitSegments(command);
   if (segments.length === 0) {
     return 'Implementation';
   }

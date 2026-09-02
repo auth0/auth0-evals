@@ -59,6 +59,14 @@ describe('classifyCommandIntent', () => {
     ['auth0 api get "guardian/factors"', 'Discovery'],
     ['auth0 api list', 'Discovery'],
     ['auth0 api show clients', 'Discovery'],
+    // auth0 resource-command reads → Discovery
+    ['auth0 tenants list', 'Discovery'],
+    ['auth0 apps list', 'Discovery'],
+    ['auth0 apps show abc123', 'Discovery'],
+    // auth0 resource-command writes → TenantConfig
+    ['auth0 apps create', 'TenantConfig'],
+    ['auth0 apps update abc123', 'TenantConfig'],
+    ['auth0 tenants use dev-barkbook.us.auth0.com', 'TenantConfig'],
     // Verb-position guard: `create` inside a quoted path must not trip mutation
     ['auth0 api get "clients/create-x"', 'Discovery'],
     // Tenant writes → TenantConfig
@@ -93,5 +101,43 @@ describe('classifyCommandIntent', () => {
 
   it('empty command → Implementation', () => {
     expect(classifyCommandIntent('')).toBe('Implementation');
+  });
+
+  // ── Regression: quote-aware / newline-aware splitting (real rendered traces) ──
+
+  it('newline-separated blocks classify per line, tenant-write wins', () => {
+    // Bug 1 (worst): the splitter did not break on `\n`, so a multi-line block
+    // was classified by its first token only. Here `echo`/`set` led → the block
+    // rendered Discovery/Implementation and the trailing tenant WRITE was lost.
+    expect(classifyCommandIntent('echo "configuring email"\nauth0 api put "guardian/factors/email"')).toBe(
+      'TenantConfig',
+    );
+    expect(classifyCommandIntent('set -e\necho "step"\nauth0 api put sms/message-types/selected-provider')).toBe(
+      'TenantConfig',
+    );
+    // A pure multi-line read block stays Discovery.
+    expect(classifyCommandIntent('cat a.md\ngrep -rn "auth0" src\nls -la')).toBe('Discovery');
+  });
+
+  it('fd-redirects and /dev/null are not file writes', () => {
+    // Bug 2: `2>&1` / `2>/dev/null` tripped the `>` redirect check → Implementation.
+    expect(classifyCommandIntent('auth0 tenants list 2>&1 | head')).toBe('Discovery');
+    expect(classifyCommandIntent('ls dist/ 2>/dev/null; find . -name "*.js"')).toBe('Discovery');
+    expect(classifyCommandIntent('cat pkg.json 2>/dev/null | head')).toBe('Discovery');
+    // A real file redirect is still a mutation.
+    expect(classifyCommandIntent('echo "x" > out.txt')).toBe('Implementation');
+    expect(classifyCommandIntent('cat a.md > combined.md')).toBe('Implementation');
+  });
+
+  it('separators inside quotes do not split the segment', () => {
+    // Bug 3: `|` inside a grep alternation and `;` inside a sed range false-split
+    // the command into junk fragments → ambiguous → Implementation.
+    expect(classifyCommandIntent('grep -rn "issuerBaseURL\\|jwksUri\\|audience" src')).toBe('Discovery');
+    expect(classifyCommandIntent('grep -n "interface MCDOptions\\|IssuerConfig" src/index.ts | head')).toBe(
+      'Discovery',
+    );
+    expect(classifyCommandIntent("sed -n '313,360p;495,545p' dist/index.js")).toBe('Discovery');
+    // A `|` outside quotes still splits (all-read pipe stays Discovery).
+    expect(classifyCommandIntent('cat data.json | jq -c "[.[] | select(.active)]"')).toBe('Discovery');
   });
 });
