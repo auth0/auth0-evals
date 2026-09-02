@@ -9,8 +9,8 @@ setup_command: bash seed.sh
 
 ## Task
 
-Our Auth0 tenant needs organization-based login configured using the Auth0 CLI. Set up a B2B organization called "Acme Corp" and enable organization login for the tenant's Single Page Application.
+Our Auth0 tenant needs organization-based login configured using the Auth0 CLI.
 
-- Create an organization with the name `acme-corp` and display name "Acme Corp".
-- Enable the tenant's default database connection ("Username-Password-Authentication") for the Acme Corp organization and configure the connection to automatically assign membership when users login with it.
-- Configure tenant to require organization login and users should be asked which organization they belong to up front, before entering credentials.
+Setup a new B2B Organization with `acme-corp` as the identifier and "Acme Corp" as the display name. The team signs in with an email and password, so our standard database login needs to work for Acme, and anyone who signs in that way should be added to the Acme organization automatically rather than invited by hand.
+
+Our single-page app also shouldn't let anyone log in outside of an organization. Users should choose which organization they're signing in to up front, before they're asked for credentials.
