@@ -22,19 +22,25 @@ log "start: seeding tenant prerequisites"
 if auth0 api get "connections?name=Username-Password-Authentication" | jq -e '.[0]' >/dev/null 2>&1; then
   log "connection 'Username-Password-Authentication' already present — skipping"
 else
-  auth0 api post connections \
-    --data '{"name":"Username-Password-Authentication","strategy":"auth0"}' >/dev/null
+  if ! auth0 api post connections \
+    --data '{"name":"Username-Password-Authentication","strategy":"auth0"}' >/dev/null; then
+    log "error: failed to create connection 'Username-Password-Authentication'"
+    exit 1
+  fi
   log "created connection 'Username-Password-Authentication'"
 fi
 
 # A Single Page Application for the agent to configure org login on.
-if auth0 apps list | jq -e '.[] | select(.app_type=="spa")' >/dev/null 2>&1; then
+if auth0 apps list --json | jq -e '.[] | select(.app_type=="spa")' >/dev/null 2>&1; then
   log "a Single Page Application already exists — skipping"
 else
-  auth0 apps create --name "Acme SPA" --type spa --auth-method None \
+  if ! auth0 apps create --name "Acme SPA" --type spa --auth-method None \
     --callbacks "http://localhost:3000" \
     --logout-urls "http://localhost:3000" \
-    --origins "http://localhost:3000" >/dev/null
+    --origins "http://localhost:3000" >/dev/null; then
+    log "error: failed to create Single Page Application 'Acme SPA'"
+    exit 1
+  fi
   log "created Single Page Application 'Acme SPA'"
 fi
 
