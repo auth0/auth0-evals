@@ -31,13 +31,16 @@
   --clr-red:    #ef4444;
   --clr-blue:   #60a5fa;
   --clr-orange: #f97316;
+  --clr-violet: #a78bfa;
 
   /* ── tinted backgrounds ── */
   --clr-green-bg:  #22c55e22;
+  --clr-lime-bg:   #84cc1622;
   --clr-amber-bg:  #f59e0b22;
   --clr-red-bg:    #ef444422;
   --clr-blue-bg:   #60a5fa22;
   --clr-orange-bg: #f9731622;
+  --clr-violet-bg: #a78bfa22;
   --clr-dim-bg:    #94a3b822;
 }
 
@@ -483,21 +486,53 @@ a { color: var(--link); }
 .tab-panel-empty { padding: 8px; color: var(--text-quat); font-size: 12px; font-style: italic; }
 
 /* ── Recommendations ────────────────────────────────────────────────────── */
-.rec-summary { padding: 8px 0; color: var(--text-sec); font-size: 13px; line-height: 1.5; margin-bottom: 8px; }
+.rec-tally { display: flex; align-items: center; gap: 6px; padding: 8px 0 0; }
+.rec-tally-total { font-size: 12px; font-weight: 600; color: var(--text-medium); margin-right: 2px; }
+.rec-chip { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; }
+.rec-chip--high { background: var(--clr-red-bg); color: var(--clr-red); }
+.rec-chip--medium { background: var(--clr-amber-bg); color: var(--clr-amber); }
+.rec-chip--low { background: var(--clr-dim-bg); color: var(--text-sec); }
+.rec-summary { padding: 8px 0; color: var(--text-sec); font-size: 13px; line-height: 1.5; margin-bottom: 4px; }
 .rec-list { list-style: none; padding: 0; margin: 0; }
-.rec-item { padding: 10px 12px; border: 1px solid var(--border-2); border-radius: 6px; margin-bottom: 8px; }
-.rec-item-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-.rec-badge { font-size: 10px; font-weight: 600; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; }
+.rec-item { padding: 10px 12px; border: 1px solid var(--border-2); border-left-width: 3px;
+            border-radius: 6px; margin-bottom: 8px; background: var(--surface-1); }
+.rec-item-header { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.rec-num { font-size: 11px; font-weight: 700; color: var(--text-quat); font-variant-numeric: tabular-nums; }
+.rec-badge { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
+             padding: 2px 6px; border-radius: 3px; }
+.rec-badge--neutral { background: var(--clr-dim-bg); color: var(--text-sec); }
 .rec-badge--grader { background: var(--clr-blue-bg); color: var(--clr-blue); }
 .rec-badge--skill { background: var(--clr-green-bg); color: var(--clr-green); }
+.rec-badge--eval { background: var(--clr-violet-bg); color: var(--clr-violet); }
+.rec-badge--cli { background: var(--clr-lime-bg); color: var(--clr-lime); }
+.rec-badge--docs { background: var(--clr-dim-bg); color: var(--text-medium); }
 .rec-badge--mcp { background: var(--clr-amber-bg); color: var(--clr-amber); }
 .rec-badge--efficiency { background: var(--clr-orange-bg); color: var(--clr-orange); }
-.rec-severity-high { border-left: 3px solid var(--clr-red); }
-.rec-severity-medium { border-left: 3px solid var(--clr-amber); }
-.rec-severity-low { border-left: 3px solid var(--text-quat); }
-.rec-issue { font-size: 13px; color: var(--text-primary); margin-bottom: 4px; }
-.rec-suggestion { font-size: 12px; color: var(--text-sec); }
-.rec-context { font-size: 11px; color: var(--text-ter); margin-top: 4px; font-style: italic; }
+.rec-where { font-family: monospace; font-size: 11px; color: var(--text-ter); overflow-wrap: anywhere; }
+.rec-severity-high { border-left-color: var(--clr-red); }
+.rec-severity-medium { border-left-color: var(--clr-amber); }
+.rec-severity-low { border-left-color: var(--text-quat); }
+.rec-issue { font-size: 13px; line-height: 1.5; color: var(--text-primary); }
+/* `Did` / `Should` read as a pair, so they are laid out as one: a fixed label column
+   lines the two values up and lets the eye compare them without re-reading a prefix. */
+.rec-detail { display: grid; grid-template-columns: 52px 1fr; gap: 2px 10px; margin: 6px 0 0; }
+.rec-detail-key { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
+                  color: var(--text-quat); padding-top: 2px; }
+.rec-detail-val { margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-sec); }
+.rec-evidence { margin: 8px 0 0; padding: 6px 8px; background: var(--surface-2); border-radius: 4px;
+                font-size: 11px; line-height: 1.45; color: var(--text-medium);
+                white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: auto; }
+.rec-suggestion { display: flex; gap: 8px; margin-top: 8px; padding-top: 8px;
+                  border-top: 1px solid var(--border); font-size: 12px; line-height: 1.5; color: var(--text-medium); }
+.rec-suggestion-key { flex: none; font-size: 10px; font-weight: 600; text-transform: uppercase;
+                      letter-spacing: 0.03em; color: var(--clr-green); padding-top: 2px; }
+
+/* Failed analysis — deliberately not styled like an empty state, since "nothing
+   came back" and "the run was clean" mean opposite things. */
+.rec-panel--failed { padding: 10px 12px; border: 1px solid var(--clr-amber); border-radius: 6px; background: var(--clr-amber-bg); }
+.rec-failed-title { font-size: 13px; font-weight: 600; color: var(--clr-amber); margin-bottom: 4px; }
+.rec-failed-reason { font-size: 12px; color: var(--text-primary); font-family: monospace; overflow-wrap: anywhere; }
+.rec-failed-note { font-size: 11px; color: var(--text-ter); margin-top: 6px; font-style: italic; }
 
 /* ── Metrics compact table (turn metrics / session trace) ────────────────── */
 .metrics-table       { width: 100%; border-collapse: collapse; font-size: 12px; }
