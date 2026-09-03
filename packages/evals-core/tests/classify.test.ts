@@ -124,6 +124,10 @@ describe('classifyCommandIntent', () => {
     expect(classifyCommandIntent('auth0 tenants list 2>&1 | head')).toBe('Discovery');
     expect(classifyCommandIntent('ls dist/ 2>/dev/null; find . -name "*.js"')).toBe('Discovery');
     expect(classifyCommandIntent('cat pkg.json 2>/dev/null | head')).toBe('Discovery');
+    // Other device sinks (stderr/tty/fd) are not workspace writes either.
+    expect(classifyCommandIntent('auth0 tenants list 2>/dev/stderr')).toBe('Discovery');
+    expect(classifyCommandIntent('cat server.js 2>/dev/tty | head')).toBe('Discovery');
+    expect(classifyCommandIntent('auth0 api get factors 1>/dev/fd/2')).toBe('Discovery');
     // A real file redirect is still a mutation.
     expect(classifyCommandIntent('echo "x" > out.txt')).toBe('Implementation');
     expect(classifyCommandIntent('cat a.md > combined.md')).toBe('Implementation');
@@ -139,5 +143,15 @@ describe('classifyCommandIntent', () => {
     expect(classifyCommandIntent("sed -n '313,360p;495,545p' dist/index.js")).toBe('Discovery');
     // A `|` outside quotes still splits (all-read pipe stays Discovery).
     expect(classifyCommandIntent('cat data.json | jq -c "[.[] | select(.active)]"')).toBe('Discovery');
+  });
+
+  it('leading wrappers and env assignments do not mask the real verb', () => {
+    // A wrapper/assignment prefix used to shift the leader off the real command.
+    expect(classifyCommandIntent('env DOMAIN=x auth0 api put "guardian/policies"')).toBe('TenantConfig');
+    expect(classifyCommandIntent('sudo auth0 apps create')).toBe('TenantConfig');
+    expect(classifyCommandIntent('AUTH0_DOMAIN=dev-barkbook.us.auth0.com auth0 api get factors')).toBe('Discovery');
+    expect(classifyCommandIntent('env FOO=1 BAR=2 npm install')).toBe('Implementation');
+    // A bare wrapper with nothing after it is orientation → Discovery.
+    expect(classifyCommandIntent('env')).toBe('Discovery');
   });
 });

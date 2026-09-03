@@ -17,7 +17,7 @@ const TOOL_ACTION_TYPES: Record<string, ActionType> = {
   read_file: 'Discovery',
   list_files: 'Discovery',
   write_file: 'Implementation',
-  run_command: 'Implementation',
+  // run_command is intentionally absent: it is classified by command intent in classifyActionType (see classifyCommandIntent)
   finish_task: 'Implementation',
   search_auth0_docs: 'Discovery',
   skill: 'Skill',
@@ -109,15 +109,35 @@ function tokens(segment: string): string[] {
 }
 
 /**
+ * Drop leading command wrappers (`env`, `sudo`, `command`, `nohup`, `time`,
+ * `xargs`) and inline `KEY=VALUE` environment assignments so the *real* leading
+ * verb is selected. Without this, `env DOMAIN=x auth0 api put …` would classify
+ * on `env` (Discovery) and `sudo auth0 apps create` on `sudo` (ambiguous →
+ * Implementation), masking the tenant write underneath.
+ */
+const COMMAND_WRAPPERS = new Set(['env', 'sudo', 'command', 'nohup', 'time', 'xargs']);
+function stripWrappers(parts: string[]): string[] {
+  let i = 0;
+  while (i < parts.length) {
+    const part = parts[i];
+    if (part === undefined || !(COMMAND_WRAPPERS.has(part) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(part))) {
+      break;
+    }
+    i++;
+  }
+  return parts.slice(i);
+}
+
+/**
  * True when a segment redirects to a real file (a workspace write). Ignores
  * redirects that don't touch the workspace: file-descriptor duplication
- * (`2>&1`, `>&2`) and the discard sink (`2>/dev/null`, `>/dev/null`). Quoted
- * spans are stripped first so a literal `>` inside an argument (e.g.
- * `grep ">" file`) never counts as a redirect.
+ * (`2>&1`, `>&2`) and device sinks (`/dev/null`, `/dev/stderr`, `/dev/tty`,
+ * `/dev/fd/N`, …). Quoted spans are stripped first so a literal `>` inside an
+ * argument (e.g. `grep ">" file`) never counts as a redirect.
  */
 function hasFileRedirect(segment: string): boolean {
   const unquoted = segment.replace(/'[^']*'/g, ' ').replace(/"[^"]*"/g, ' ');
-  const stripped = unquoted.replace(/\d*>&\d*/g, ' ').replace(/\d*>>?\s*\/dev\/null\b/g, ' ');
+  const stripped = unquoted.replace(/\d*>&\d*/g, ' ').replace(/\d*>>?\s*\/dev\/\S+/g, ' ');
   return />>?/.test(stripped);
 }
 
@@ -134,7 +154,14 @@ function classifySegment(segment: string): SegmentIntent {
     return 'mutation';
   }
 
-  const parts = tokens(trimmed);
+  // Strip wrappers/env-assignments so `env FOO=x auth0 api put …` and
+  // `sudo auth0 apps create` classify on the real verb, not the wrapper. A bare
+  // wrapper with nothing after it (e.g. `env` alone prints the environment) is
+  // orientation → Discovery.
+  const parts = stripWrappers(tokens(trimmed));
+  if (parts.length === 0) {
+    return 'discovery';
+  }
   const leader = parts[0];
 
   if (leader === 'auth0') {
