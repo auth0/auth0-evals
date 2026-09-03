@@ -45,8 +45,8 @@ export function defineGraders() {
 
     // ── L5: Current API patterns ──────────────────────────────────────────
     judge(
-      'Is interactiveErrorHandler set to "popup" in the createAuth0 plugin configuration, alongside ' +
-        'useRefreshTokens: true? (If using the manual acr_values approach instead, are acr_values ' +
+      'Is interactiveErrorHandler set to "popup" in the createAuth0 plugin configuration? ' +
+        '(If using the manual acr_values approach instead, are acr_values ' +
         'and max_age: 0 passed inside authorizationParams on loginWithRedirect?)',
       GraderLevel.L5,
     ),
@@ -54,8 +54,8 @@ export function defineGraders() {
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
       'Does the solution correctly implement MFA step-up authentication in a Vue 3 app using ' +
-        '@auth0/auth0-vue — either by configuring interactiveErrorHandler: "popup" with ' +
-        'useRefreshTokens: true so that getAccessTokenSilently automatically triggers an MFA popup ' +
+        '@auth0/auth0-vue — either by configuring interactiveErrorHandler: "popup" ' +
+        'so that getAccessTokenSilently automatically triggers an MFA popup ' +
         'when the API requires it, or by explicitly requesting step-up via acr_values — and gating ' +
         'the Transfer Funds action behind successful MFA completion?',
     ),

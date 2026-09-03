@@ -48,8 +48,8 @@ export function defineGraders() {
 
     // ── L5: Current API patterns ──────────────────────────────────────────
     judge(
-      'Is interactiveErrorHandler set to "popup" in the createAuth0Client configuration, alongside ' +
-        'useRefreshTokens: true? (If using the manual acr_values approach instead, are acr_values ' +
+      'Is interactiveErrorHandler set to "popup" in the createAuth0Client configuration? ' +
+        '(If using the manual acr_values approach instead, are acr_values ' +
         'and max_age: 0 passed inside authorizationParams on loginWithPopup?)',
       GraderLevel.L5,
     ),
@@ -75,8 +75,8 @@ export function defineGraders() {
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
       'Does the solution correctly implement MFA step-up authentication in a vanilla JavaScript SPA ' +
-        'using @auth0/auth0-spa-js — either by configuring interactiveErrorHandler: "popup" with ' +
-        'useRefreshTokens: true so that getTokenSilently automatically triggers an MFA popup ' +
+        'using @auth0/auth0-spa-js — either by configuring interactiveErrorHandler: "popup" ' +
+        'so that getTokenSilently automatically triggers an MFA popup ' +
         'when the API requires it, or by explicitly requesting step-up via acr_values — and gating ' +
         'the Transfer Funds action behind successful MFA completion?',
     ),
