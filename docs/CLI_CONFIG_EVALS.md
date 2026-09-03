@@ -109,15 +109,26 @@ Seed it with two pieces that live in the eval directory:
 # Idempotent by design: never assume a pristine tenant, never abort on "already exists".
 set -uo pipefail   # NOT `set -e` — a create that already exists must not fail the run
 
-# Default database connection (seed defensively — it may not be auto-created)
-auth0 api get "connections?name=Username-Password-Authentication" | jq -e '.[0]' >/dev/null 2>&1 \
-  || auth0 api post connections --data '{"name":"Username-Password-Authentication","strategy":"auth0"}' >/dev/null
+log() { echo "[seed] $*" >&2; }
+
+# Default database connection (seed defensively — it may not be auto-created).
+# `get` absorbs already-exists; a create that still fails is a real error — exit non-zero.
+if auth0 api get "connections?name=Username-Password-Authentication" | jq -e '.[0]' >/dev/null 2>&1; then
+  log "connection already present — skipping"
+elif ! auth0 api post connections --data '{"name":"Username-Password-Authentication","strategy":"auth0"}' >/dev/null; then
+  log "error: failed to create default connection"
+  exit 1
+fi
 
 # A Single Page Application for the agent to configure
 # (`--json` is required — without it the CLI prints a human table that jq can't parse)
-auth0 apps list --json | jq -e '.[] | select(.app_type=="spa")' >/dev/null 2>&1 \
-  || auth0 apps create --name "Acme SPA" --type spa --auth-method None \
-       --callbacks "http://localhost:3000" --logout-urls "http://localhost:3000" --origins "http://localhost:3000" >/dev/null
+if auth0 apps list --json | jq -e '.[] | select(.app_type=="spa")' >/dev/null 2>&1; then
+  log "a Single Page Application already exists — skipping"
+elif ! auth0 apps create --name "Acme SPA" --type spa --auth-method None \
+       --callbacks "http://localhost:3000" --logout-urls "http://localhost:3000" --origins "http://localhost:3000" >/dev/null; then
+  log "error: failed to create Single Page Application"
+  exit 1
+fi
 
 rm -f -- "$0"   # remove self so the agent never sees the seed script
 exit 0
@@ -133,7 +144,7 @@ setup_command: bash seed.sh
 
 Three rules that keep this robust:
 
-- **Idempotent and self-tolerant.** Guard every create with check-or-create (`get … || create`) and avoid `set -e`, so a re-run — or a tenant that isn't quite blank — doesn't fail setup and abort the eval.
+- **Idempotent, but not failure-blind.** Guard every create with a check-or-create and avoid `set -e`, so a re-run — or a not-quite-blank tenant — doesn't abort setup. The `get` check absorbs "already exists"; a create that fails *after* that is a real error — `exit 1` on it so the non-zero status reaches the runner instead of falling through to `exit 0`.
 - **Seed infrastructure, not answers.** The script is copied into the workspace, so it's visible to the agent (and, for file-based `contains`/`notContains` graders, part of the grading corpus). Create resources only; never encode expected values or grader hints. The `rm -f -- "$0"` line deletes the script before the agent runs, which removes it from both the agent's view and the corpus — keep it.
 - **Do not hardcode IDs into `PROMPT.md`.** The tenant is per-run and its resource IDs don't exist until seeded/created. A hardcoded domain or `client_id` in the prompt is stale on every run and will make the agent target a resource that doesn't exist (e.g. a `PATCH clients/<fake-id>` that 404s). Let the agent discover IDs at runtime from the authenticated CLI — that's what `cliContext` already tells it to do.
 - **Log to stderr for observability.** `setup_command` runs with `stdio: 'inherit'`, so anything the script writes to stderr lands in the run / CI job log. Emit `[seed]` progress lines (`log() { echo "[seed] $*" >&2; }`) — they're already written by the time the script `rm`s itself, so the log stays your durable proof that the seed ran and what it created vs. skipped.
