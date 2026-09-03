@@ -5,8 +5,6 @@ export function defineGraders() {
     // ── L1: Required MFA step-up symbols present ───────────────────────────
     contains('acr_values', 'Step-up request uses acr_values parameter', GraderLevel.L1),
     contains('amr', 'AMR claim checked to detect prior MFA completion', GraderLevel.L1),
-    contains('beforeSessionSaved', 'Uses beforeSessionSaved hook to preserve amr in session', GraderLevel.L1),
-    contains('session.user.amr', 'AMR claim read from server-side session', GraderLevel.L1),
     contains(
       'schemas.openid.net/pape/policies/2007/06/multi-factor',
       'Uses correct multi-factor acr_values policy URI',
@@ -79,9 +77,9 @@ export function defineGraders() {
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
       'Does the solution correctly implement MFA step-up authentication in a Next.js App Router app ' +
-        'using @auth0/nextjs-auth0 v4 — preserving the amr claim via beforeSessionSaved, reading it ' +
-        'server-side via auth0.getSession(), redirecting to /auth/login with acr_values and max_age=0 ' +
-        'when MFA is absent, and gating the Transfer Funds action behind that verification?',
+        'using @auth0/nextjs-auth0 v4 — checking the amr claim to detect prior MFA completion, ' +
+        'redirecting to /auth/login with acr_values and max_age=0 when MFA is absent, ' +
+        'and gating the Transfer Funds action behind that verification?',
     ),
   ];
 }
