@@ -142,7 +142,7 @@ setup_command: bash seed.sh
 ---
 ```
 
-Three rules that keep this robust:
+Rules that keep this robust:
 
 - **Idempotent, but not failure-blind.** Guard every create with a check-or-create and avoid `set -e`, so a re-run — or a not-quite-blank tenant — doesn't abort setup. The `get` check absorbs "already exists"; a create that fails *after* that is a real error — `exit 1` on it so the non-zero status reaches the runner instead of falling through to `exit 0`.
 - **Seed infrastructure, not answers.** The script is copied into the workspace, so it's visible to the agent (and, for file-based `contains`/`notContains` graders, part of the grading corpus). Create resources only; never encode expected values or grader hints. The `rm -f -- "$0"` line deletes the script before the agent runs, which removes it from both the agent's view and the corpus — keep it.
