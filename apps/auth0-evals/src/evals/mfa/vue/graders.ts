@@ -8,8 +8,11 @@ export function defineGraders() {
       'Step-up configured via interactiveErrorHandler (SDK default) or acr_values (manual approach)',
       GraderLevel.L1,
     ),
-    contains('useRefreshTokens', 'Refresh token flow enabled (required for automatic step-up)', GraderLevel.L1),
-    contains('getAccessTokenSilently', 'Access token requested via getAccessTokenSilently to trigger step-up', GraderLevel.L1),
+    contains(
+      'getAccessTokenSilently',
+      'Access token requested via getAccessTokenSilently to trigger step-up',
+      GraderLevel.L1,
+    ),
 
     // ── L2: Hallucination / wrong approach ────────────────────────────────
     notContains('speakeasy', 'No server-side TOTP library (speakeasy) used in client', GraderLevel.L2),

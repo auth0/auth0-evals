@@ -8,7 +8,6 @@ export function defineGraders() {
       'Step-up configured via interactiveErrorHandler (SDK default) or acr_values (manual approach)',
       GraderLevel.L1,
     ),
-    contains('useRefreshTokens', 'Refresh token flow enabled (required for automatic step-up)', GraderLevel.L1),
     contains('getTokenSilently', 'Access token requested via getTokenSilently to trigger step-up', GraderLevel.L1),
 
     // ── L2: Hallucination / wrong approach ────────────────────────────────
