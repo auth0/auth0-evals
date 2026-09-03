@@ -9,7 +9,7 @@ This guide covers only what differs from a standard eval. For everything else (f
 | | Standard eval | CLI / tenant-config eval |
 | --- | --- | --- |
 | Artifact | files the agent wrote | the agent's **command trace** |
-| Scaffold | a starter app (`scaffold:`) | none — there's no app to build |
+| Scaffold | a starter app (`scaffold:`) | none for an app — but optionally a `seed.sh` that provisions tenant prerequisites (see [Seeding tenant prerequisites](#3-seeding-tenant-prerequisites-setup_command--scaffold)) |
 | Graders | `contains` / `matches` / `notContains` / `compiles` | event-based `ranCommand` / `ranCommandOneOf` / `ranCommandsInOrder` |
 | Judge | reads workspace files | reads the command trace (`includeCommandTrace: true`) |
 | Environment | local workspace | a live, throwaway tenant provisioned per run |
@@ -88,6 +88,70 @@ export function defineGraders() {
 }
 ```
 
+### 3. Seeding tenant prerequisites (`setup_command` + scaffold)
+
+A provisioned tenant comes up **bare**. Depending on the runner it may have no applications and no connections at all - not even the default `Username-Password-Authentication`. If your task assumes something already exists ("configure **the** Single Page Application", "enable **the** default database connection"), you must create it before the agent runs, or the eval measures "can the model recover from an empty tenant" instead of the thing you meant to test — and weaker models fail for the wrong reason.
+
+> Not every CLI eval needs this. Tenant-wide settings (the MFA eval's `guardian/factors` + `guardian/policies`) work on a bare tenant. You only need seeding when the task references a resource that must pre-exist (an app, a connection, an org).
+
+Seed it with two pieces that live in the eval directory:
+
+1. A **`scaffold/seed.sh`** script — copied into the agent's workspace before the run.
+2. **`setup_command: bash seed.sh`** in `PROMPT.md` frontmatter.
+
+`setup_command` runs after the scaffold is copied and **before the agent starts**, in the same container the `auth0` CLI is authenticated to, with the workspace as its working directory (5-minute default timeout). A non-zero exit **aborts the whole run**.
+
+**Why a script, not inline commands.** `setup_command` is executed without a shell — it's split on whitespace and run via `spawnSync` — so quoting, pipes, and spaces in arguments break (`auth0 apps create --name "Acme SPA" …` splits `"Acme` and `SPA"` into separate args). Invoking `bash seed.sh` is two whitespace-safe tokens, and the script then gets a real shell.
+
+```bash
+#!/usr/bin/env bash
+# scaffold/seed.sh — create the prerequisites the task assumes already exist.
+# Idempotent by design: never assume a pristine tenant, never abort on "already exists".
+set -uo pipefail   # NOT `set -e` — a create that already exists must not fail the run
+
+log() { echo "[seed] $*" >&2; }
+
+# Default database connection (seed defensively — it may not be auto-created).
+# `get` absorbs already-exists; a create that still fails is a real error — exit non-zero.
+if auth0 api get "connections?name=Username-Password-Authentication" | jq -e '.[0]' >/dev/null 2>&1; then
+  log "connection already present — skipping"
+elif ! auth0 api post connections --data '{"name":"Username-Password-Authentication","strategy":"auth0"}' >/dev/null; then
+  log "error: failed to create default connection"
+  exit 1
+fi
+
+# A Single Page Application for the agent to configure
+# (`--json` is required — without it the CLI prints a human table that jq can't parse)
+if auth0 apps list --json | jq -e '.[] | select(.app_type=="spa")' >/dev/null 2>&1; then
+  log "a Single Page Application already exists — skipping"
+elif ! auth0 apps create --name "Acme SPA" --type spa --auth-method None \
+       --callbacks "http://localhost:3000" --logout-urls "http://localhost:3000" --origins "http://localhost:3000" >/dev/null; then
+  log "error: failed to create Single Page Application"
+  exit 1
+fi
+
+rm -f -- "$0"   # remove self so the agent never sees the seed script
+exit 0
+```
+
+```yaml
+---
+id: organizations_cli
+provision: auth0-tenant
+setup_command: bash seed.sh
+---
+```
+
+Rules that keep this robust:
+
+- **Idempotent, but not failure-blind.** Guard every create with a check-or-create and avoid `set -e`, so a re-run — or a not-quite-blank tenant — doesn't abort setup. The `get` check absorbs "already exists"; a create that fails *after* that is a real error — `exit 1` on it so the non-zero status reaches the runner instead of falling through to `exit 0`.
+- **Seed infrastructure, not answers.** The script is copied into the workspace, so it's visible to the agent (and, for file-based `contains`/`notContains` graders, part of the grading corpus). Create resources only; never encode expected values or grader hints. The `rm -f -- "$0"` line deletes the script before the agent runs, which removes it from both the agent's view and the corpus — keep it.
+- **Do not hardcode IDs into `PROMPT.md`.** The tenant is per-run and its resource IDs don't exist until seeded/created. A hardcoded domain or `client_id` in the prompt is stale on every run and will make the agent target a resource that doesn't exist (e.g. a `PATCH clients/<fake-id>` that 404s). Let the agent discover IDs at runtime from the authenticated CLI — that's what `cliContext` already tells it to do.
+- **Log to stderr for observability.** `setup_command` runs with `stdio: 'inherit'`, so anything the script writes to stderr lands in the run / CI job log. Emit `[seed]` progress lines (`log() { echo "[seed] $*" >&2; }`) — they're already written by the time the script `rm`s itself, so the log stays your durable proof that the seed ran and what it created vs. skipped.
+
 ## Worked example
 
-The MFA CLI eval above lives at `apps/auth0-evals/src/evals/mfa/cli/` and is the reference implementation for this pattern.
+Two reference implementations live under `apps/auth0-evals/src/evals/`:
+
+- `mfa/cli/` — tenant-wide settings, **no seeding** needed.
+- `organizations/cli/` — configures a pre-existing app and connection, so it **seeds prerequisites** via `scaffold/seed.sh` + `setup_command`.
