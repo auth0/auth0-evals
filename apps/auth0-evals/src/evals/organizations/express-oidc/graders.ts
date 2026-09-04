@@ -45,12 +45,18 @@ export function defineGraders() {
 
     // ── L4: Structural correctness ─────────────────────────────────────────
     compiles('Project compiles (node --check succeeds)', GraderLevel.L4),
-    // Org-scoped login in express-openid-connect is only possible by passing
-    // `organization` inside an authorizationParams object — either on the auth()
-    // config or on res.oidc.login(). This is the same anchor the spa-js org eval uses.
+    // Org-scoped login in express-openid-connect is only possible by attaching
+    // `organization` to an authorizationParams object — on the auth() config or
+    // on res.oidc.login(). Bind `organization` to authorizationParams so a bare
+    // top-level `organization:` key (the anti-pattern L5 penalizes), a comment,
+    // or an unrelated identifier does NOT satisfy this grader. Two valid shapes:
+    //   • object literal:   authorizationParams: { organization: ... } (or `= {`)
+    //   • property assign:  authorizationParams.organization = req.query.organization
+    // The object form uses [^}]* so `organization` must appear before the object's
+    // closing brace (i.e. inside it), which the top-level-key placement never does.
     matches(
-      String.raw`authorizationParams[\s\S]{0,160}organization`,
-      'Passes organization inside an authorizationParams object (auth() config or res.oidc.login)',
+      String.raw`authorizationParams\s*\.\s*organization\b|authorizationParams\s*[:=]\s*\{[^}]*\borganization\b`,
+      'Attaches organization to an authorizationParams object (key inside the object, or authorizationParams.organization), not as a top-level config key',
       GraderLevel.L4,
     ),
     judge(
