@@ -45,9 +45,11 @@ export function defineGraders() {
       'api.barkbook.com',
     ]),
     compiles('Project compiles (node --check succeeds)', GraderLevel.L4),
+    // The org value may be a literal or read from an env var (ACME_ORG_ID) — good practice.
+    // Assert the SDK helper targets the org_id claim; L1 confirms org_barkbook_acme is present somewhere.
     matches(
-      String.raw`(claimEquals\s*\(\s*['"\`]org_id['"\`][\s\S]{0,100}org_barkbook_acme|claimCheck[\s\S]{0,200}org_barkbook_acme)`,
-      'Uses claimEquals("org_id", "org_barkbook_acme") or claimCheck with org_barkbook_acme to enforce org membership',
+      String.raw`(claimEquals\s*\(\s*['"\`]org_id['"\`]|claimCheck)`,
+      'Uses claimEquals("org_id", ...) or claimCheck to enforce org membership',
       GraderLevel.L4,
     ),
     judge(
@@ -92,12 +94,15 @@ export function defineGraders() {
     judge(
       'Does the solution correctly add Auth0 Organizations support to the Express API using ' +
         'express-oauth2-jwt-bearer? ' +
-        'GET /api/org/members must be protected by auth() and restricted to users whose org_id claim equals ' +
-        '"org_barkbook_acme" using the SDK middleware (claimEquals or claimCheck) — a missing or mismatched ' +
-        'org_id must yield a 4xx response. ' +
+        'GET /api/org/members must be protected by auth() and restricted to the Acme organization ' +
+        'using the SDK middleware (claimEquals or claimCheck) — a missing or mismatched org_id must yield a ' +
+        '4xx response. ' +
         "GET /api/org/profile must return the caller's org_id read from req.auth.payload. " +
-        'The issuer and audience may come from ISSUER_BASE_URL / AUDIENCE environment variables — ' +
-        'judge only from the source code and do not assume the contents of any .env file.',
+        'The issuer, audience, and the target organization ID may all be supplied via environment variables ' +
+        '(e.g. ISSUER_BASE_URL / AUDIENCE / ACME_ORG_ID) — this is good practice, not a defect. ' +
+        'Judge from the source code and do not assume the contents of any .env file: if the org ID is passed ' +
+        'to claimEquals/claimCheck via a variable sourced from process.env, treat the org restriction as ' +
+        'correctly wired.',
     ),
   ];
 }
