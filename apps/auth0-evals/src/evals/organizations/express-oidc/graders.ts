@@ -1,4 +1,4 @@
-import { contains, notContains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
+import { contains, notContains, notContainsInSource, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -46,17 +46,19 @@ export function defineGraders() {
     // ── L4: Structural correctness ─────────────────────────────────────────
     compiles('Project compiles (node --check succeeds)', GraderLevel.L4),
     // Org-scoped login in express-openid-connect is only possible by attaching
-    // `organization` to an authorizationParams object — on the auth() config or
-    // on res.oidc.login(). Bind `organization` to authorizationParams so a bare
-    // top-level `organization:` key (the anti-pattern L5 penalizes), a comment,
-    // or an unrelated identifier does NOT satisfy this grader. Two valid shapes:
-    //   • object literal:   authorizationParams: { organization: ... } (or `= {`)
-    //   • property assign:  authorizationParams.organization = req.query.organization
-    // The object form uses [^}]* so `organization` must appear before the object's
-    // closing brace (i.e. inside it), which the top-level-key placement never does.
-    matches(
-      String.raw`authorizationParams\s*\.\s*organization\b|authorizationParams\s*[:=]\s*\{[^}]*\borganization\b`,
-      'Attaches organization to an authorizationParams object (key inside the object, or authorizationParams.organization), not as a top-level config key',
+    // `organization` to an authorizationParams object. A textual regex can't tell
+    // real wiring from a property READ, a comment, a string literal, a wrong-cased
+    // identifier, or a value nested one object deeper — and the matches executor is
+    // case-insensitive by default. Use a source-aware judge that reads the code
+    // instead of pattern-matching raw text.
+    judge(
+      'Does the code perform org-scoped login by passing the organization VALUE into an ' +
+        'authorizationParams object — i.e. as a key inside `authorizationParams: { organization: ... }` ' +
+        '(on the auth() config or res.oidc.login), or by assigning `authorizationParams.organization = ...` ' +
+        'before calling res.oidc.login? To pass, `organization` must be an actual value SENT to Auth0 in the ' +
+        'authorize request. Answer NO if `organization` appears only as a top-level config key (a sibling of ' +
+        'authorizationParams, not inside it), only inside a comment or string literal, or is merely READ from ' +
+        'user/claims (e.g. logging req.oidc.user.org_id) without being passed into authorizationParams.',
       GraderLevel.L4,
     ),
     judge(
