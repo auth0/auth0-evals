@@ -25,6 +25,14 @@ export function defineGraders() {
       'Does not use the deprecated Google Play Services FIDO API instead of CredentialManager',
       GraderLevel.L2,
     ),
+    // The SDK exposes passkeyChallenge/signinWithPasskey (no slash); a literal
+    // /passkey/challenge path means the model hand-rolled the Auth0 exchange
+    // over raw HTTP instead of using the SDK — observed in baseline runs.
+    notContains(
+      '/passkey/challenge',
+      'Does not hand-roll the raw /passkey/challenge endpoint instead of the SDK',
+      GraderLevel.L2,
+    ),
 
     // ── L3: Security ──────────────────────────────────────────────────────
     notContainsInSource(

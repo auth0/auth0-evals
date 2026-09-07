@@ -1,4 +1,4 @@
-import { contains, notContains, notContainsInSource, judge, GraderLevel } from '@a0/evals-graders';
+import { contains, notContains, notContainsInSource, matches, judge, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -8,7 +8,14 @@ export function defineGraders() {
       'Requests a passkey login challenge from the Authentication client',
       GraderLevel.L1,
     ),
-    contains('PasskeyLoginChallenge', 'Uses the PasskeyLoginChallenge type returned by the SDK', GraderLevel.L1),
+    // Swift infers the challenge type, so correct code often never spells out
+    // PasskeyLoginChallenge — accept either the type name or the login(passkey:)
+    // exchange that consumes the challenge.
+    matches(
+      String.raw`PasskeyLoginChallenge|login\(\s*passkey:`,
+      'Uses the login challenge — as the PasskeyLoginChallenge type or via login(passkey:challenge:)',
+      GraderLevel.L1,
+    ),
     // The SDK does not wrap the OS credential API — the app must drive the
     // platform authenticator through Apple AuthenticationServices itself.
     contains(
@@ -23,9 +30,15 @@ export function defineGraders() {
     ),
 
     // ── L2: Hallucination / wrong approach ────────────────────────────────
-    // No passkey-specific wrong approach or third-party substitution could be
-    // sourced for Auth0.swift, so L2 is thin here — only the package-name guard.
     notContains('Auth0SDK', 'No hallucinated Auth0SDK package name (correct package is Auth0)', GraderLevel.L2),
+    // The SDK exposes passkeyLoginChallenge (no slash); a literal
+    // /passkey/challenge path means the model hand-rolled the exchange over raw
+    // HTTP instead of using the SDK — observed on Android baseline runs.
+    notContains(
+      '/passkey/challenge',
+      'Does not hand-roll the raw /passkey/challenge endpoint instead of the SDK',
+      GraderLevel.L2,
+    ),
 
     // ── L3: Security ──────────────────────────────────────────────────────
     notContainsInSource(
