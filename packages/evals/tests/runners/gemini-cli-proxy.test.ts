@@ -13,6 +13,8 @@ import { Readable } from 'node:stream';
 
 // ── Mock framework config ────────────────────────────────────────────────────
 
+const mockResolveProxyAuthHeader = vi.hoisted(() => vi.fn().mockReturnValue(undefined));
+
 vi.mock('@a0/evals-core', async () => ({
   ...(await vi.importActual('@a0/evals-core')),
   getFrameworkConfig: vi.fn().mockReturnValue({
@@ -27,6 +29,7 @@ vi.mock('@a0/evals-core', async () => ({
     },
   }),
   getAgentProxyBaseUrl: vi.fn().mockReturnValue('http://127.0.0.1:12345'),
+  resolveProxyAuthHeader: mockResolveProxyAuthHeader,
 }));
 
 vi.mock('node:child_process', () => ({
@@ -39,6 +42,7 @@ let spawnMock: ReturnType<typeof vi.fn>;
 
 beforeEach(async () => {
   vi.unstubAllEnvs();
+  mockResolveProxyAuthHeader.mockReturnValue(undefined);
   const cp = await import('node:child_process');
   spawnMock = cp.spawn as unknown as ReturnType<typeof vi.fn>;
   spawnMock.mockReset();
@@ -96,5 +100,62 @@ describe('runGeminiCliAgent proxy env injection', () => {
     vi.stubEnv('LLM_API_KEY', token);
     await triggerRun();
     expect(capturedEnv().GEMINI_API_KEY).toBe(token);
+  });
+});
+
+describe('runGeminiCliAgent proxy auth header', () => {
+  it('sets GEMINI_CLI_CUSTOM_HEADERS when configured', async () => {
+    vi.stubEnv('LLM_API_KEY', 'test-llm-token');
+    mockResolveProxyAuthHeader.mockReturnValue({
+      name: 'x-litellm-api-key',
+      value: 'Bearer jwt-xyz',
+      tokenEnv: 'PROXY_TOKEN',
+    });
+    await triggerRun();
+    expect(capturedEnv().GEMINI_CLI_CUSTOM_HEADERS).toBe('x-litellm-api-key: Bearer jwt-xyz');
+  });
+
+  it('sets GEMINI_API_KEY to the placeholder when configured', async () => {
+    vi.stubEnv('LLM_API_KEY', 'test-llm-token');
+    mockResolveProxyAuthHeader.mockReturnValue({
+      name: 'x-litellm-api-key',
+      value: 'Bearer jwt-xyz',
+      tokenEnv: 'PROXY_TOKEN',
+    });
+    await triggerRun();
+    // Non-empty is mandatory: validateAuthMethod rejects the run otherwise.
+    expect(capturedEnv().GEMINI_API_KEY).toBe('unused-see-proxy-auth-header');
+  });
+
+  it('still routes through the proxy base URL when configured', async () => {
+    vi.stubEnv('LLM_API_KEY', 'test-llm-token');
+    mockResolveProxyAuthHeader.mockReturnValue({
+      name: 'x-litellm-api-key',
+      value: 'Bearer jwt-xyz',
+      tokenEnv: 'PROXY_TOKEN',
+    });
+    await triggerRun();
+    expect(capturedEnv().GOOGLE_GEMINI_BASE_URL).toBe('http://127.0.0.1:12345');
+  });
+
+  it('sets the header even when LLM_API_KEY is absent', async () => {
+    // The auth header is the credential; LLM_API_KEY is irrelevant in this mode.
+    vi.stubEnv('LLM_API_KEY', '');
+    mockResolveProxyAuthHeader.mockReturnValue({
+      name: 'x-litellm-api-key',
+      value: 'Bearer jwt-xyz',
+      tokenEnv: 'PROXY_TOKEN',
+    });
+    await triggerRun();
+    expect(capturedEnv().GEMINI_CLI_CUSTOM_HEADERS).toBe('x-litellm-api-key: Bearer jwt-xyz');
+    expect(capturedEnv().GOOGLE_GEMINI_BASE_URL).toBe('http://127.0.0.1:12345');
+  });
+
+  it('does not set GEMINI_CLI_CUSTOM_HEADERS when not configured', async () => {
+    vi.stubEnv('LLM_API_KEY', 'test-llm-token');
+    mockResolveProxyAuthHeader.mockReturnValue(undefined);
+    await triggerRun();
+    expect(capturedEnv()).not.toHaveProperty('GEMINI_CLI_CUSTOM_HEADERS');
+    expect(capturedEnv().GEMINI_API_KEY).toBe('test-llm-token');
   });
 });

@@ -2,7 +2,7 @@
  * Tests for the grader executor registry.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmpDir } from '../tmp.js';
@@ -157,5 +157,40 @@ describe('executeGrader', () => {
     const result = await executeGrader(grader, ctx);
     expect(result.passed).toBe(false);
     expect(result.detail).toContain('requires apiKey and judge configuration');
+  });
+
+  it('judge executor treats an empty-string apiKey as provided, not missing', async () => {
+    // '' is the proxy-auth-header convention from validateApiKey() in
+    // packages/evals/src/cli/validators.ts — it must reach llmJudge(), not
+    // get short-circuited by the same guard that catches a truly absent key.
+    const grader: GraderDef = { kind: 'judge', name: 'needs judge', question: 'Is this correct?' };
+    const ctx: GraderContext = {
+      workspace: '/tmp',
+      files: {},
+      combinedText: '',
+      combinedLower: '',
+      apiKey: '',
+      judge: {
+        model: 'm',
+        baseUrl: 'https://llm.example.com/v1',
+        maxTokens: 1024,
+        maxCodeChars: 16_384,
+        enforceMaxChars: true,
+      },
+    };
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: 'yes' } }], usage: {} }),
+      text: async () => '',
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await executeGrader(grader, ctx);
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(result.detail).not.toContain('requires apiKey and judge configuration');
+    vi.unstubAllGlobals();
   });
 });

@@ -5,7 +5,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { collectFiles, logger } from '@a0/evals-core';
+import { collectFiles, logger, resolveProxyAuthHeader } from '@a0/evals-core';
 import type { RunRecord, ScoredResult, Recommendations, Recommendation } from '@a0/evals-core';
 
 /** Maximum characters of workspace code to include in the prompt. */
@@ -178,6 +178,14 @@ async function callLlm(system: string, user: string, apiKey: string, baseUrl: st
     max_tokens: 2048,
   };
 
+  // When a proxy auth header is configured the credential travels in that header
+  // alone. Unlike the CLI runners the generator has no validator demanding a
+  // credential field, so `Authorization` is dropped rather than given a placeholder.
+  const proxyAuth = resolveProxyAuthHeader();
+  const authHeaders: Record<string, string> = proxyAuth
+    ? { [proxyAuth.name]: proxyAuth.value }
+    : { Authorization: `Bearer ${apiKey}` };
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
@@ -185,8 +193,8 @@ async function callLlm(system: string, user: string, apiKey: string, baseUrl: st
     const res = await fetch(url, {
       method: 'POST',
       headers: {
+        ...authHeaders,
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
       signal: controller.signal,

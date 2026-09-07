@@ -5,7 +5,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { estimateCost, gradeText } from '@a0/evals-core';
 import { judge } from '@a0/evals-graders';
-import { runBaseline } from '../src/runners/baseline.js';
 import { TEST_CONFIG } from './setup-config.js';
 import type { EvalDefinition } from '@a0/evals-core';
 
@@ -15,13 +14,21 @@ const JUDGE_MAX_CODE_CHARS = TEST_CONFIG.judge.maxCodeChars!;
 
 const mockGenerateText = vi.hoisted(() => vi.fn());
 const mockCreateOpenAI = vi.hoisted(() => vi.fn());
+const mockResolveProxyAuthHeader = vi.hoisted(() => vi.fn().mockReturnValue(undefined));
 
 vi.mock('ai', () => ({ generateText: mockGenerateText }));
 vi.mock('@ai-sdk/openai', () => ({ createOpenAI: mockCreateOpenAI }));
+vi.mock('@a0/evals-core', async () => ({
+  ...(await vi.importActual('@a0/evals-core')),
+  resolveProxyAuthHeader: mockResolveProxyAuthHeader,
+}));
 
 // createOpenAI returns a model-factory; the factory's return value is passed
 // straight to generateText — stub both so the chain resolves cleanly.
 mockCreateOpenAI.mockReturnValue(() => 'stub-model');
+
+// Must import after vi.mock so the mocks are in place
+import { runBaseline } from '../src/runners/baseline.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -77,6 +84,7 @@ describe('runBaseline', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCreateOpenAI.mockReturnValue(() => 'stub-model');
+    mockResolveProxyAuthHeader.mockReturnValue(undefined);
   });
 
   it('returns a BaselineResult with eval_id and model', async () => {
@@ -164,6 +172,40 @@ describe('runBaseline', () => {
 
     await runBaseline('key', 'gpt-5.6-sol', { id: 'x', userPrompt: 'hello', baselineSystemPrompt: undefined });
     expect(mockGenerateText).toHaveBeenCalledWith(expect.objectContaining({ system: undefined, prompt: 'hello' }));
+  });
+});
+
+// ── Proxy auth header tests ────────────────────────────────────────────────────
+
+describe('llmCall proxy auth header', () => {
+  beforeEach(() => {
+    mockCreateOpenAI.mockClear();
+    mockCreateOpenAI.mockReturnValue(() => 'stub-model');
+    mockGenerateText.mockResolvedValue(makeAiResponse());
+    mockResolveProxyAuthHeader.mockReturnValue(undefined);
+  });
+
+  it('passes the configured header and the placeholder apiKey to createOpenAI', async () => {
+    mockResolveProxyAuthHeader.mockReturnValue({
+      name: 'x-litellm-api-key',
+      value: 'Bearer jwt-xyz',
+      tokenEnv: 'PROXY_TOKEN',
+    });
+    await runBaseline('plain-key', 'gpt-5.6-sol', makeEvalDef());
+    expect(mockCreateOpenAI).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKey: 'unused-see-proxy-auth-header',
+        headers: { 'x-litellm-api-key': 'Bearer jwt-xyz' },
+      }),
+    );
+  });
+
+  it('passes the plain apiKey and no headers when not configured', async () => {
+    mockResolveProxyAuthHeader.mockReturnValue(undefined);
+    await runBaseline('plain-key', 'gpt-5.6-sol', makeEvalDef());
+    const opts = mockCreateOpenAI.mock.calls[0]![0] as Record<string, unknown>;
+    expect(opts.apiKey).toBe('plain-key');
+    expect(opts).not.toHaveProperty('headers');
   });
 });
 

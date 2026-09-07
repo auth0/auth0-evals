@@ -9,11 +9,25 @@
 
 // ── Sub-configs ──────────────────────────────────────────────────────────────
 
+export interface ProxyAuthHeaderConfig {
+  /** Header name, e.g. 'x-litellm-api-key'. */
+  name: string;
+  /** Prefix prepended to the token, e.g. 'Bearer '. Defaults to ''. */
+  valuePrefix?: string;
+  /** Name of the env var holding the raw token. */
+  tokenEnv: string;
+}
+
 export interface ProxyConfig {
   /** LLM API base URL. */
   baseUrl: string;
   /** API key for the proxy. Callers must supply this explicitly (e.g. from `LLM_API_KEY` env var). */
   apiKey?: string;
+  /**
+   * When set, the framework sends this header on every proxy request instead of
+   * the provider-native API-key header. Absent → today's `LLM_API_KEY` behaviour.
+   */
+  authHeader?: ProxyAuthHeaderConfig;
 }
 
 export interface AgentProxyConfig {

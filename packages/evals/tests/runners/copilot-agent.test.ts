@@ -11,9 +11,11 @@ import { EventEmitter } from 'node:events';
 
 // Mock only mintMcpToken so authed-server tests don't perform a real OAuth fetch.
 const mintMcpTokenMock = vi.hoisted(() => vi.fn());
+const mockResolveProxyAuthHeader = vi.hoisted(() => vi.fn());
 vi.mock('@a0/evals-core', async () => ({
   ...(await vi.importActual('@a0/evals-core')),
   mintMcpToken: mintMcpTokenMock,
+  resolveProxyAuthHeader: mockResolveProxyAuthHeader,
 }));
 
 import { setFrameworkConfig } from '@a0/evals-core';
@@ -107,8 +109,10 @@ const workspace = '/tmp/test-workspace';
 
 beforeEach(() => {
   fakeSession = new FakeSession();
+  mockCreateSession.mockClear();
   mockCreateSession.mockResolvedValue(fakeSession);
   mockClientStop.mockResolvedValue([]);
+  mockResolveProxyAuthHeader.mockReturnValue(undefined);
   vi.spyOn(console, 'log').mockImplementation(() => {});
 });
 
@@ -909,6 +913,45 @@ describe('runCopilotAgent — proxy provider', () => {
     expect(mockCreateSession).toHaveBeenCalled();
     const config = mockCreateSession.mock.calls[0][0];
     expect(config.provider.apiKey).toBeUndefined();
+  });
+
+  it('passes the configured auth header in provider.headers', async () => {
+    process.env.LLM_API_KEY = 'test-key';
+    mockResolveProxyAuthHeader.mockReturnValueOnce({
+      name: 'x-litellm-api-key',
+      value: 'Bearer jwt-xyz',
+      tokenEnv: 'PROXY_TOKEN',
+    });
+    fakeSession.setScenario(async () => {});
+    await runCopilotAgent(evalDef, workspace, { model: 'gpt-5.4' });
+    expect(mockResolveProxyAuthHeader).toHaveBeenCalled();
+    const config = mockCreateSession.mock.calls[0][0];
+    expect(config.provider.headers).toEqual({ 'x-litellm-api-key': 'Bearer jwt-xyz' });
+  });
+
+  it('sets provider.apiKey to the placeholder when an auth header is configured', async () => {
+    process.env.LLM_API_KEY = 'test-key';
+    mockResolveProxyAuthHeader.mockReturnValueOnce({
+      name: 'x-litellm-api-key',
+      value: 'Bearer jwt-xyz',
+      tokenEnv: 'PROXY_TOKEN',
+    });
+    fakeSession.setScenario(async () => {});
+    await runCopilotAgent(evalDef, workspace, { model: 'gpt-5.4' });
+    const config = mockCreateSession.mock.calls[0][0];
+    expect(config.provider.apiKey).toBe('unused-see-proxy-auth-header');
+  });
+
+  it('omits provider.headers when no auth header is configured', async () => {
+    process.env.LLM_API_KEY = 'test-key';
+    fakeSession.setScenario(async () => {});
+    await runCopilotAgent(evalDef, workspace, { model: 'gpt-5.4' });
+    expect(mockCreateSession).toHaveBeenCalled();
+    const config = mockCreateSession.mock.calls[0][0];
+    expect(config).toBeDefined();
+    expect(config.provider).toBeDefined();
+    expect(config.provider.headers).toBeUndefined();
+    expect(config.provider.apiKey).toBe('test-key');
   });
 });
 

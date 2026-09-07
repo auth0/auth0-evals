@@ -5,7 +5,7 @@
  * or calls `process.exit(1)` on invalid input.
  */
 
-import { logger } from '@a0/evals-core';
+import { logger, getFrameworkConfig } from '@a0/evals-core';
 import {
   ALL_MODES,
   KNOWN_TOOLS,
@@ -21,14 +21,50 @@ import {
 /** Valid meta-values accepted by `--mode` in addition to the concrete Mode values. */
 const META_MODES = ['all'] as const;
 
-/** Reads and validates the LLM API key from the environment. Exits if missing. */
+/**
+ * The configured proxy auth header's token env var name, or `undefined` when no
+ * `proxy.authHeader` is configured. Tolerates an uninitialised config singleton —
+ * `validateApiKey` is called from unit tests that never load a framework config,
+ * and an absent config simply means "no auth header".
+ */
+function proxyAuthHeaderTokenEnv(): string | undefined {
+  try {
+    return getFrameworkConfig().proxy.authHeader?.tokenEnv;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Reads and validates the LLM API key from the environment.
+ *
+ * Exits if missing, unless `proxy.authHeader` is configured — that deployment
+ * authenticates via the custom header instead, so requiring the provider-native
+ * key would make the header path unreachable. In that case also exits if the
+ * header's own token env var is unset: an empty token is a misconfiguration
+ * (typo'd env var name), and failing here — before any job starts — surfaces it
+ * immediately instead of every job failing later on an opaque 401 from the proxy.
+ * Returns an empty string when the header path is validated; call sites route
+ * the credential through the header and write `PLACEHOLDER_API_KEY` into
+ * provider-native key fields.
+ */
 export function validateApiKey(): string {
   const apiKey = process.env[LLM_API_KEY_ENV];
-  if (!apiKey) {
+  if (apiKey) return apiKey;
+
+  const tokenEnv = proxyAuthHeaderTokenEnv();
+  if (tokenEnv === undefined) {
     logger.error(`Error: ${LLM_API_KEY_ENV} environment variable not set.`);
     process.exit(1);
   }
-  return apiKey;
+  if (!process.env[tokenEnv]) {
+    logger.error(
+      `Error: ${LLM_API_KEY_ENV} is not set and proxy.authHeader is configured but its token env var ` +
+        `${tokenEnv} is also not set. No credential is available for either path.`,
+    );
+    process.exit(1);
+  }
+  return '';
 }
 
 /**
