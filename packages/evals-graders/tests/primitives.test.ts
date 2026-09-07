@@ -7,6 +7,7 @@ import {
   judge,
   compiles,
   ranCommand,
+  notRanCommand,
   ranCommandOneOf,
   ranCommandsInOrder,
   wroteFile,
@@ -257,6 +258,44 @@ describe('ranCommand predicate', () => {
     expect(() => ranCommand('npm install', undefined, undefined, GraderLevel.L1)).toThrow(
       'event-based graders only support',
     );
+  });
+});
+
+// ── notRanCommand (predicate) ────────────────────────────────────────────────
+
+describe('notRanCommand predicate', () => {
+  const run = (def: ReturnType<typeof notRanCommand>, calls: EventToolCall[]) => def.predicate!(calls);
+
+  it('passes when the forbidden command was not run', () => {
+    const def = notRanCommand('guardian/factors/otp', undefined, GraderLevel.L2);
+    expect(run(def, [evt({ name: 'run_command', args: { command: 'auth0 api put guardian/factors/sms' } })])).toBe(true);
+  });
+
+  it('fails when the forbidden command was run', () => {
+    const def = notRanCommand('guardian/factors/otp', undefined, GraderLevel.L2);
+    expect(run(def, [evt({ name: 'run_command', args: { command: 'auth0 api put guardian/factors/otp' } })])).toBe(false);
+  });
+
+  it('passes when the forbidden command errored (errored calls are excluded)', () => {
+    const def = notRanCommand('guardian/factors/otp', undefined, GraderLevel.L2);
+    expect(
+      run(def, [evt({ name: 'run_command', args: { command: 'auth0 api put guardian/factors/otp' }, causedError: true })]),
+    ).toBe(true);
+  });
+
+  it('passes when no commands were run', () => {
+    const def = notRanCommand('guardian/factors/otp', undefined, GraderLevel.L2);
+    expect(run(def, [])).toBe(true);
+  });
+
+  it('uses the description as the grader name', () => {
+    const def = notRanCommand('guardian/factors/otp', 'Did not use OTP', GraderLevel.L2);
+    expect(def.name).toBe('Did not use OTP');
+  });
+
+  it('falls back to a generated name when description is undefined', () => {
+    const def = notRanCommand('guardian/factors/otp', undefined, GraderLevel.L2);
+    expect(def.name).toContain('guardian/factors/otp');
   });
 });
 

@@ -182,7 +182,7 @@ export interface GeminiCliRunOptions {
  * with the scorer and serialisers used by the standard agent pipeline.
  */
 export async function runGeminiCliAgent(
-  evalDef: Pick<EvalDefinition, 'id' | 'userPrompt'>,
+  evalDef: Pick<EvalDefinition, 'id' | 'userPrompt' | 'provision'>,
   workspace: string,
   opts: GeminiCliRunOptions = {},
 ): Promise<RunRecord> {
@@ -190,6 +190,7 @@ export async function runGeminiCliAgent(
 
   const record: RunRecord = {
     taskName: evalDef.id,
+    evalType: evalDef.provision === 'auth0-tenant' ? 'cli' : 'sdk',
     model,
     sessionId: makeSessionId(),
     startTime: Date.now() / 1000,
@@ -351,7 +352,7 @@ export async function runGeminiCliAgent(
               isDocLookup: translator.isDocLookup(rawName),
               isInterruption: translator.isInterruption(rawName),
               causedError: isError,
-              actionType: classifyActionType(mappedName, isError),
+              actionType: classifyActionType(mappedName, toolArgs, isError),
               isRetry,
               recoveredFromError: isRetry && !isError,
             };
@@ -465,16 +466,17 @@ export async function runGeminiCliAgent(
       // or unexpected exit) so we don't silently lose tool-call metrics.
       for (const [, pend] of pending) {
         const mappedName = translator.mapName(pend.name);
+        const normArgs = translator.normalizeArgs(pend.name, pend.args);
         const tc: ToolCallRecord = {
           name: mappedName,
-          args: translator.normalizeArgs(pend.name, pend.args),
+          args: normArgs,
           result: '',
           startTime: pend.startTime,
           endTime: Date.now() / 1000,
           isDocLookup: translator.isDocLookup(pend.name),
           isInterruption: translator.isInterruption(pend.name),
           causedError: true,
-          actionType: classifyActionType(mappedName, true),
+          actionType: classifyActionType(mappedName, normArgs, true),
           isRetry: false,
           recoveredFromError: false,
           errorCategory: 'unknown',

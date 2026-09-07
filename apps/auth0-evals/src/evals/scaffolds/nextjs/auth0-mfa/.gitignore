@@ -1,0 +1,2 @@
+# Allow .env.local to be tracked — this is a test scaffold with barkbook credentials
+!.env.local

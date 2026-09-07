@@ -1,0 +1,12 @@
+{
+  "name": "barkbook-api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "node --env-file=.env server.js"
+  },
+  "dependencies": {
+    "express": "^5.0.0",
+    "express-oauth2-jwt-bearer": "^1.10.0"
+  }
+}

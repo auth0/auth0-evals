@@ -5,7 +5,7 @@
  * logic lives in runner.ts (runGraders).
  */
 
-import type { GraderDef, GraderOptions, GraderSource, EventToolCall, EventGraderLevel } from './types.js';
+import type { GraderDef, GraderOptions, GraderSource, EventToolCall, EventGraderLevel, NotRanCommandLevel } from './types.js';
 import { GraderLevel } from './types.js';
 
 export function contains(
@@ -143,6 +143,26 @@ export function ranCommand(
     level,
     predicate: (toolCalls: EventToolCall[]) =>
       getRunCommands(toolCalls).some((cmd) => cmd.includes(command) && argList.every((arg) => cmd.includes(arg))),
+  };
+}
+
+/**
+ * Asserts that the agent did NOT run any shell command containing the given command substring.
+ * This is a hallucination (L2) grader — it checks the command trace for wrong/forbidden commands.
+ *
+ * @param command - Substring that must NOT appear in any executed command
+ */
+export function notRanCommand(
+  command: string,
+  description: string | undefined,
+  level: NotRanCommandLevel,
+): GraderDef {
+  return {
+    kind: 'event',
+    name: description ?? `did not run command '${command}'`,
+    level,
+    predicate: (toolCalls: EventToolCall[]) =>
+      !getRunCommands(toolCalls).some((cmd) => cmd.includes(command)),
   };
 }
 

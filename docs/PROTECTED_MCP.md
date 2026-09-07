@@ -138,4 +138,4 @@ Only the **names** are listed here; values are resolved from `process.env` at jo
 ## Related docs
 
 - [docs/ADDING_EVALS.md](ADDING_EVALS.md) — grader primitives and how evals are structured.
-- [AGENTS.md](../AGENTS.md) — framework overview, runner details, and the MCP auth summary.
+- [AGENTS.md](../AGENTS.md) — key commands, conventions, grader reference, and eval authoring checklist.

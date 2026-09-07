@@ -3,6 +3,12 @@
  *
  * Also includes trace serialisation helpers that convert RunRecord data into
  * the TraceStep[] and TurnMetricEntry[] shapes stored in results.
+ *
+ * This module is the single choke point for everything a run publishes — the JSON
+ * results file, the HTML report, the trace rendered in a dashboard — so every
+ * free-text field it emits passes through `redactSecrets` (see `utils/redact.ts`).
+ * Redaction here runs *after* graders and the scorer, so it cannot change a verdict
+ * or a score, and it keeps the report template free of redaction logic.
  */
 
 import type { GraderResult, RunRecord, ToolCallRecord, ScoredResult } from './types/scorer.js';
@@ -11,29 +17,42 @@ import type { AgentJobResult, BaselineJobResult, ErrorJobResult, GraderSummary }
 import type { EvalDefinition } from './types/eval.js';
 import type { Recommendations } from './recommendations/types.js';
 import { estimateCost } from './config/costs.js';
+import { redactArgs, redactSecrets } from './utils/redact.js';
 
 // ── Trace serialisation ───────────────────────────────────────────────────────
 
-/** Format a tool call into a human-readable narrative string. */
+/**
+ * Format a tool call into a human-readable narrative string.
+ *
+ * Arguments are redacted *before* truncation. Order matters: truncating first would
+ * leave a 40-character prefix of a secret in the narrative, and a partial credential
+ * is still a leaked credential. Truncation is a display concern and must not be
+ * relied on as a security control.
+ */
 export function formatStep(tc: ToolCallRecord): string {
   const action = tc.actionType;
   const duration = tc.endTime - tc.startTime;
-  const args = Object.entries(tc.args)
+  const args = Object.entries(redactArgs(tc.args))
     .map(([k, v]) => `${k}=${String(v).slice(0, 40)}`)
     .join(', ');
   const outcome = tc.causedError ? ' \u2192 failed' : '';
   return `${tc.name}(${args})${outcome} [${action}, ${duration.toFixed(1)}s]`;
 }
 
-/** Convert a RunRecord's tool calls into serialisable TraceStep objects. */
+/**
+ * Convert a RunRecord's tool calls into serialisable TraceStep objects.
+ *
+ * Sizes and line counts are computed from the *original* result, so the metrics
+ * still describe what the tool actually returned rather than the redacted rendering.
+ */
 export function serialiseTrace(record: RunRecord): TraceStep[] {
   return record.toolCalls.map((tc, i) => ({
     step: i + 1,
     actionType: tc.actionType,
     tool: tc.name,
     narrative: formatStep(tc),
-    args: tc.args,
-    resultPreview: tc.result.slice(0, 300),
+    args: redactArgs(tc.args),
+    resultPreview: redactSecrets(tc.result).slice(0, 300),
     resultSizeBytes: Buffer.byteLength(tc.result, 'utf-8'),
     resultLines: tc.result ? tc.result.split('\n').length : 0,
     duration: Math.round((tc.endTime - tc.startTime) * 1000) / 1000,
@@ -76,14 +95,20 @@ function computeJudgeCost(graderResults: GraderResult[]): number {
 
 // ── Result serialisation ──────────────────────────────────────────────────────
 
-/** Projects a `GraderResult` array to the leaner `GraderSummary` shape stored in results. */
+/**
+ * Projects a `GraderResult` array to the leaner `GraderSummary` shape stored in results.
+ *
+ * `detail` is redacted: a failing `contains` grader quotes the workspace text it
+ * searched, and a judge rationale quotes the code it read — either can surface a
+ * credential the agent wrote.
+ */
 function mapGraders(graderResults: GraderResult[]): GraderSummary[] {
   return graderResults.map((gr) => {
     const summary: GraderSummary = {
       name: gr.name,
       kind: gr.kind,
       passed: gr.passed,
-      detail: gr.detail,
+      detail: redactSecrets(gr.detail),
       level: gr.level,
     };
     if ((gr.inputTokens || gr.outputTokens) && gr.judgeModel) {
@@ -113,6 +138,15 @@ export type Mode = 'baseline' | 'agent';
 
 /**
  * Builds a `BaselineJobResult` from the raw output of a single-shot LLM call.
+ *
+ * `prompt` is redacted even though prompts are version-controlled and public in this
+ * repo. The published report reaches readers with none of that context: they see a
+ * rendered panel, not a `PROMPT.md`, and a credential in the clear there reads as a
+ * leak regardless of its provenance. Inconsistent redaction within one panel also
+ * undermines trust in the redaction elsewhere.
+ *
+ * `error` is redacted because it is free text from HTTP clients and provider SDKs —
+ * the usual place an `Authorization` header surfaces in an exception message.
  */
 export function serialiseBaseline(
   evalDef: EvalDefinition,
@@ -127,8 +161,8 @@ export function serialiseBaseline(
   return {
     eval_id: evalDef.id,
     category: evalDef.category,
-    prompt: evalDef.userPrompt,
-    response_text: responseText,
+    prompt: redactSecrets(evalDef.userPrompt),
+    response_text: redactSecrets(responseText),
     model: result.model,
     mode: 'baseline',
     session_id: result.sessionId,
@@ -141,7 +175,7 @@ export function serialiseBaseline(
     cost_usd: result.costUsd,
     judge_cost_usd: judgeCost,
     total_cost_usd: result.costUsd + judgeCost,
-    error: result.error ?? '',
+    error: redactSecrets(result.error ?? ''),
     graders: mapGraders(graderResults),
   };
 }
@@ -163,8 +197,9 @@ export function serialiseAgent(
   return {
     eval_id: evalDef.id,
     category: evalDef.category,
-    prompt: evalDef.userPrompt,
-    response_text: record.finalSummary ?? '',
+    // Redacted for the same reasons as in serialiseBaseline.
+    prompt: redactSecrets(evalDef.userPrompt),
+    response_text: redactSecrets(record.finalSummary ?? ''),
     model,
     mode,
     tools,
@@ -197,6 +232,9 @@ export function serialiseAgent(
 
 /**
  * Builds an `ErrorJobResult` for a job that threw before producing any output.
+ *
+ * The error text is redacted: an exception thrown mid-request is one of the few
+ * places a credential travels as prose rather than as a keyed value.
  */
 export function serialiseError(
   evalId: string,
@@ -213,7 +251,7 @@ export function serialiseError(
     tools,
     category,
     status: 'error',
-    error,
+    error: redactSecrets(error),
     wall_time: 0,
     tokens: 0,
     cost_usd: 0,
