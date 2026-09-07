@@ -1,19 +1,15 @@
-import {
-  contains,
-  notContains,
-  notContainsInSource,
-  matches,
-  judge,
-  wroteFile,
-  compiles,
-  GraderLevel,
-} from '@a0/evals-graders';
+import { contains, notContains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
     // ── L1: Positive presence ──────────────────────────────────────────────────
     contains('express-oauth2-jwt-bearer', 'Uses express-oauth2-jwt-bearer SDK', GraderLevel.L1),
     contains('org_id', 'References the org_id claim from the JWT', GraderLevel.L1),
+    // The Acme org id must appear SOMEWHERE in the workspace (source or .env). This is the
+    // guarantee that a solution reading `process.env.ACME_ORG_ID` cannot pass without actually
+    // introducing the literal `org_barkbook_acme` (either as a source literal or an env value).
+    // It is deliberately NOT tied to a specific file: the id may legitimately live in source
+    // (claimEquals('org_id', 'org_barkbook_acme')) or in .env (ACME_ORG_ID=org_barkbook_acme).
     contains('org_barkbook_acme', 'Wires the specific Acme org (org_barkbook_acme)', GraderLevel.L1),
 
     // ── L2: Hallucination / wrong approach ────────────────────────────────────
@@ -40,16 +36,23 @@ export function defineGraders() {
     notContainsInSource('api.barkbook.com', 'No hardcoded audience in source files (ok in .env)', GraderLevel.L3),
 
     // ── L4: Structural / behavioral correctness ───────────────────────────────
-    wroteFile('.env', 'Wrote Auth0 config to .env file', GraderLevel.L4, [
-      'dev-barkbook.us.auth0.com',
-      'api.barkbook.com',
-    ]),
+    // NOTE: there is intentionally no `.env`-creation grader here. The only way this
+    // framework can check .env is write-tool telemetry (wroteFile) — LLM judges exclude
+    // .env by design (see llm-judge.ts) and `contains`/`matches` cannot tell a real .env
+    // from the scaffold's `.env.example`, which already ships the correct issuer/audience.
+    // Telemetry-based wroteFile false-negatives a .env created via shell (`cp .env.example
+    // .env`, heredoc), so it penalizes correct solutions. The eval's real signal lives
+    // elsewhere: L3 proves the secrets are not hardcoded in source, the judges below prove
+    // org enforcement, and `compiles` proves the project builds. The .env step itself is a
+    // trivial copy (values are pre-seeded) and carries no additional graded correctness.
     compiles('Project compiles (node --check succeeds)', GraderLevel.L4),
     // The org value may be a literal or read from an env var (ACME_ORG_ID) — good practice.
-    // Assert the SDK helper targets the org_id claim; L1 confirms org_barkbook_acme is present somewhere.
+    // Assert an SDK helper targets the org_id claim; L1 confirms org_barkbook_acme is present
+    // somewhere. `claimCheck` is bound to `org_id` (org_id must appear inside its argument) so
+    // an unrelated claimCheck (e.g. an email_verified check) does not satisfy this grader.
     matches(
-      String.raw`(claimEquals\s*\(\s*['"\`]org_id['"\`]|claimCheck)`,
-      'Uses claimEquals("org_id", ...) or claimCheck to enforce org membership',
+      String.raw`claimEquals\s*\(\s*['"\`]org_id['"\`]|claimCheck\s*\([\s\S]{0,160}?\borg_id\b`,
+      'Uses claimEquals("org_id", ...) or a claimCheck bound to org_id to enforce org membership',
       GraderLevel.L4,
     ),
     judge(
