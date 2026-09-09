@@ -1,13 +1,4 @@
-import {
-  contains,
-  notContains,
-  notContainsInSource,
-  matches,
-  judge,
-  wroteFile,
-  compiles,
-  GraderLevel,
-} from '@a0/evals-graders';
+import { contains, notContains, notContainsInSource, judge, wroteFile, compiles, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -45,11 +36,12 @@ export function defineGraders() {
     ]),
     compiles('Project compiles (node --check succeeds)', GraderLevel.L4),
     contains('requiredScopes', 'Existing requiredScopes() scope checks retained', GraderLevel.L4),
-    // The MFA check must respond with HTTP 403, not 401. claimIncludes returns 401
-    // (invalid_token), so the correct approach is custom middleware with res.status(403).
-    matches(
-      String.raw`res\.status\s*\(\s*403\s*\)`,
-      'MFA step-up failure responds with HTTP 403',
+    // Grade the outcome (a 403 on the gated route), not the exact call shape — a solution may
+    // send the 403 through res.status(403), next(err) into an error handler, or a helper.
+    judge(
+      'When a token whose amr does not include "mfa" calls POST /api/transfers, does the API respond ' +
+        'with HTTP 403 and code: "mfa_required" — regardless of whether that response is produced by ' +
+        'res.status(403), next(err) into an error handler, or a helper?',
       GraderLevel.L4,
     ),
     judge(
@@ -77,13 +69,13 @@ export function defineGraders() {
       'No req.user (express-oauth2-jwt-bearer exposes claims on req.auth.payload)',
       GraderLevel.L5,
     ),
-    // Using claimIncludes for the amr check is wrong here because it returns 401
-    // invalid_token instead of the required 403 mfa_required. Flag it.
+    // The required outcome is a 403 mfa_required; claimIncludes("amr","mfa") returns 401
+    // invalid_token, so it fails the outcome — but any path that yields the 403 is acceptable.
     judge(
-      'Does the solution use custom middleware (rather than claimIncludes) for the MFA check, so ' +
-        'that the response is a 403 with code: "mfa_required" rather than a 401 invalid_token? ' +
-        'claimIncludes("amr", "mfa") would silently return 401 — the correct pattern reads ' +
-        'req.auth.payload.amr in its own middleware and responds with 403.',
+      'Does the MFA check ultimately return a 403 with code: "mfa_required" (not a 401 invalid_token) ' +
+        'when amr lacks "mfa"? Any implementation that yields that 403 is acceptable — custom ' +
+        'middleware reading req.auth.payload.amr is the natural fit, but the grade is on the 403 ' +
+        'mfa_required outcome, not on avoiding a specific API.',
       GraderLevel.L5,
     ),
 
