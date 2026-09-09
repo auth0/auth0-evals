@@ -1,37 +1,19 @@
-import {
-  contains,
-  notContains,
-  notContainsInSource,
-  matches,
-  judge,
-  compiles,
-  GraderLevel,
-} from '@a0/evals-graders';
+import { contains, notContains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
     // ── L1: Required MFA step-up symbols present ───────────────────────────
-    contains('acr_values', 'Step-up login request uses the acr_values parameter', GraderLevel.L1),
-    contains('amr', 'AMR claim referenced to detect prior MFA completion', GraderLevel.L1, {
-      caseSensitive: false,
-    }),
-    contains(
-      'schemas.openid.net/pape/policies/2007/06/multi-factor',
-      'Uses the correct multi-factor acr_values policy URI',
-      GraderLevel.L1,
-    ),
-    contains(
-      'start_interactive_login',
-      'Triggers step-up via the SDK start_interactive_login method',
-      GraderLevel.L1,
-    ),
+    contains('MfaRequiredError', 'Detects the mfa_required signal via MfaRequiredError', GraderLevel.L1),
+    contains('mfa_token', 'Reads the MFA token off the error', GraderLevel.L1),
+    contains('list_authenticators', 'Lists enrolled authenticators', GraderLevel.L1),
+    contains('challenge_authenticator', 'Challenges an enrolled authenticator', GraderLevel.L1),
 
     // ── L2: Hallucination / wrong approach ────────────────────────────────
     notContains('pyotp', 'No server-side TOTP library (pyotp) — Auth0 performs the MFA', GraderLevel.L2),
     notContains('otplib', 'No JS TOTP library (otplib) — wrong ecosystem for this SDK', GraderLevel.L2),
     notContains(
       'mfa/challenge',
-      'Does not hand-roll the raw /mfa/challenge endpoint (wrong approach for a redirect web app)',
+      'Does not hand-roll the raw /mfa/challenge endpoint — use the SDK mfa client',
       GraderLevel.L2,
     ),
     notContains('jwt.decode', 'No manual JWT decoding — read claims through the SDK, not by hand', GraderLevel.L2),
@@ -67,37 +49,38 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
     matches(
-      String.raw`start_interactive_login\s*\(\s*\{[^}]*authorization_params[^}]*acr_values`,
-      'Step-up authorization params are passed into start_interactive_login',
+      String.raw`verify\s*\([^)]*mfa_token`,
+      'Completes MFA through mfa.verify with the mfa_token from the error',
       GraderLevel.L4,
     ),
     judge(
-      'Does the code check the amr claim from the authenticated user (via the SDK — e.g. ' +
-        'get_user()/get_session() or the complete_interactive_login result) and only run the funds ' +
-        'transfer when "mfa" is present in amr, otherwise sending the user into step-up login first?',
+      'Does the code catch MfaRequiredError from the token request, read the mfa_token off the error, ' +
+        'and drive the MFA API flow (list_authenticators, then challenge_authenticator and verify) ' +
+        'before allowing the funds transfer to proceed?',
       GraderLevel.L4,
     ),
 
     // ── L5: Current API patterns ──────────────────────────────────────────
     judge(
-      'Does the code pass acr_values inside the authorization_params dict given to ' +
-        'start_interactive_login (e.g. start_interactive_login({"authorization_params": {...}})) ' +
-        'rather than as a top-level keyword argument?',
+      'For a user with no enrolled factor, does the code branch on the result of list_authenticators ' +
+        '(or the mfa_requirements on the error) — enrolling an authenticator when there is none and ' +
+        'challenging an existing one when there is — before calling verify?',
       GraderLevel.L5,
     ),
     judge(
-      'Does the code read the amr claim through the SDK session (get_user() or the ' +
-        'complete_interactive_login result) rather than manually decoding the raw ID/access token — ' +
-        "e.g. splitting the token on '.', base64-decoding a segment, or calling jwt.decode by hand?",
+      'Does the code persist the session after a successful mfa.verify (e.g. verify(..., persist=True) ' +
+        'or the SDK equivalent) so subsequent requests stay authenticated without repeating the MFA ' +
+        'flow, rather than manually decoding the raw token — e.g. base64-decoding a segment or calling ' +
+        'jwt.decode by hand?',
       GraderLevel.L5,
     ),
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
-      'Does the solution correctly implement MFA step-up in a framework-agnostic Python web app using ' +
-        'auth0-server-python — inspecting the amr claim to detect prior MFA, requesting step-up via ' +
-        'start_interactive_login with acr_values set to the multi-factor policy URI when MFA is absent, ' +
-        'and gating the Transfer Funds action behind MFA verification?',
+      'Does the solution correctly implement MFA API sign-in in a framework-agnostic Python web app ' +
+        'using auth0-server-python — detecting mfa_required via MfaRequiredError and reading the ' +
+        'mfa_token off the error, listing then challenging or enrolling the right factor, and finishing ' +
+        'through mfa.verify (persisting the session) so the Transfer Funds action is gated behind MFA?',
     ),
   ];
 }
