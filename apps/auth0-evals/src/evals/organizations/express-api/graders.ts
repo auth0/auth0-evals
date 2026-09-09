@@ -3,13 +3,14 @@ import { contains, notContains, notContainsInSource, matches, judge, compiles, G
 export function defineGraders() {
   return [
     // ── L1: Positive presence ──────────────────────────────────────────────────
-    contains('express-oauth2-jwt-bearer', 'Uses express-oauth2-jwt-bearer SDK', GraderLevel.L1),
     contains('org_id', 'References the org_id claim from the JWT', GraderLevel.L1),
-    // The Acme org id must appear SOMEWHERE in the workspace (source or .env). This is the
-    // guarantee that a solution reading `process.env.ACME_ORG_ID` cannot pass without actually
-    // introducing the literal `org_barkbook_acme` (either as a source literal or an env value).
-    // It is deliberately NOT tied to a specific file: the id may legitimately live in source
-    // (claimEquals('org_id', 'org_barkbook_acme')) or in .env (ACME_ORG_ID=org_barkbook_acme).
+    // Scaffold ships auth()/requiredScopes but not the org helper — the agent must add it.
+    matches(
+      String.raw`\bclaim(?:Equals|Check)\s*\(`,
+      'Uses an org-enforcement helper (claimEquals/claimCheck)',
+      GraderLevel.L1,
+    ),
+    // Workspace-wide: the id may live in source (claimEquals) or in .env (ACME_ORG_ID).
     contains('org_barkbook_acme', 'Wires the specific Acme org (org_barkbook_acme)', GraderLevel.L1),
 
     // ── L2: Hallucination / wrong approach ────────────────────────────────────
