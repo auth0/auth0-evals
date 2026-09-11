@@ -88,6 +88,9 @@ export interface GraderOptions {
 /** Levels valid for event-based graders (agent-only — no tool calls exist in baseline). */
 export type EventGraderLevel = GraderLevel.L4 | GraderLevel.L5;
 
+/** Level valid for notRanCommand — a hallucination (L2) check on the command trace. */
+export type NotRanCommandLevel = GraderLevel.L2;
+
 /**
  * Where a text-search or judge grader looks for its content.
  * - `'files'` (default) — workspace files only.

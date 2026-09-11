@@ -71,6 +71,7 @@ describe('actionCssClass', () => {
   it.each([
     ['Implementation', 'action-implementation'],
     ['Discovery', 'action-discovery'],
+    ['TenantConfig', 'action-tenantconfig'],
     ['Error', 'action-error'],
     // Empty / falsy falls back to action-unknown
     ['', 'action-unknown'],

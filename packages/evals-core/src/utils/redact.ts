@@ -7,6 +7,27 @@
  * a failed `auth0 api` call prints back. Any trace we send to an LLM has to pass
  * through here first.
  *
+ * Two consumers, both of which take output off this machine:
+ *
+ * - `formatCommandTrace` (`graders/executors/llm-judge.ts`) — traces sent to an
+ *   LLM judge or the recommendation analyst.
+ * - `serializers.ts` — everything a run *publishes*: the JSON results file, the
+ *   HTML report, the trace rendered in a dashboard. Redaction happens there at
+ *   serialisation, which runs *after* graders and the scorer, so it cannot change
+ *   a verdict or a score; graders still read the real workspace. It is also why
+ *   the report template needs no redaction logic of its own — what it renders is
+ *   already safe.
+ *
+ * What is deliberately *not* redacted matters as much as what is. Client ids, user
+ * ids, `AUTH0_DOMAIN`, and audiences are identifiers and public configuration, not
+ * credentials — a SPA client id is served in the JS bundle of every app that uses
+ * it, and the domain appears in every token's `iss` claim and in the unauthenticated
+ * `openid-configuration` document. Obscuring them would imply a secrecy they do not
+ * have while destroying exactly what a reviewer needs to judge whether the agent
+ * wired the SDK to the right application. The same reasoning is why `.env` contents
+ * are not swept wholesale: a blanket sweep buys no security and trains readers to
+ * skim past the marker, so the one marker that does matter stops registering.
+ *
  * The value is replaced, not the surrounding text: a reader still sees *that* a
  * secret was passed, in which flag, on which command. That matters because the
  * security graders judge exposure from the same trace — dropping the line entirely
@@ -27,10 +48,25 @@ const SECRET_NAME = 'secret|token|password|passwd|api[_-]?key|apikey|private[_-]
 
 /**
  * A quoted or bare value. Skips a value that is already the marker (so a second
- * pattern cannot redact the first pattern's output) and one that is the next flag
- * (`--token --json` passes no secret).
+ * pattern cannot redact the first pattern's output), one that is the next flag
+ * (`--token --json` passes no secret), and one that is purely numeric.
+ *
+ * The numeric guard is what keeps prose readable. A credential is never a bare
+ * number, but `token` and `secret` appear constantly in sentences that end in one
+ * — `No token = 401`, `"expires_in": 86400`, `access_token_lifetime: 3600`. Without
+ * the guard the first of those renders as `No token = [REDACTED SECRET] Valid…`,
+ * losing the status code and the sentence break, and a reader is told a secret was
+ * exposed where none was.
  */
-const VALUE = `(?!\\[REDACTED|--)(?:"[^"]*"|'[^']*'|[^\\s,;&|)}\\]]+)`;
+const VALUE = `(?!\\[REDACTED|--|\\d+\\b)(?:"[^"]*"|'[^']*'|[^\\s,;&|)}\\]]+)`;
+
+/**
+ * An argument key that names a credential outright, for the structured case where
+ * the name is an object key rather than text beside the value (`{ Authorization:
+ * 'Bearer …' }`). Same end-anchoring as the text rules, so `token_endpoint_auth_method`
+ * is not caught.
+ */
+const SECRET_KEY = new RegExp(`^(?:(?:proxy-)?authorization|[\\w.-]*(?:${SECRET_NAME}))$`, 'i');
 
 const PATTERNS: Array<[RegExp, string]> = [
   // `--client-secret VALUE`, `--client-secret=VALUE`, `--token VALUE`
@@ -52,8 +88,33 @@ const PATTERNS: Array<[RegExp, string]> = [
   // `curl -u user:VALUE` in every form curl accepts: `-u user:v`, attached
   // `-uuser:v`, `--user user:v`, and `--user=user:v`.
   [/((?:-u(?=\S)|-u\s+|--user(?:=|\s+))["']?[^\s:"']+:)[^\s"']+/g, `$1${REDACTION_MARKER}`],
+  // A PEM private key block, wherever it appears. Listed before the shape rules
+  // below because it spans lines and its base64 body would otherwise be chewed
+  // into by the long-opaque-token rule, leaving the BEGIN/END lines behind.
+  [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, REDACTION_MARKER],
   // A JWT, wherever it appears.
   [/\beyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]+/g, REDACTION_MARKER],
+  // Vendor-prefixed API keys (OpenAI, GitHub, Slack). These carry their own
+  // recognisable prefix and sit below the 40-character floor of the opaque-token
+  // rule, so neither the name rules nor the length rule catches them.
+  [/\b(?:sk|pk|rk)-[A-Za-z0-9_-]{12,}/g, REDACTION_MARKER],
+  [/\b(?:ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_]{16,}/g, REDACTION_MARKER],
+  [/\bxox[baprs]-[A-Za-z0-9-]{10,}/g, REDACTION_MARKER],
+  // A credential value that carries the credential word *inside itself*, with no key
+  // beside it — `'barkbook_secret_def456uvw' NOT found in source files (good)`. A
+  // grader detail quotes the needle it searched for, so the value arrives bare: the
+  // name rules have no key to match and the value is too short for the length rule.
+  // Three constraints keep this off ordinary identifiers: the word must be flanked by
+  // separators, the suffix must be at least 6 characters, and it must contain a digit.
+  // That is what separates a value like `_def456uvw` from a meaningful suffix such as
+  // `reset_password_2fa` or `change_password_v2`.
+  // The prefix admits several segments, so multi-word fixture names are covered too
+  // (`fixture_not_a_real_secret_9f8e…`, `AUTH0_CLIENT_SECRET_abc123`), not just the
+  // single-segment `barkbook_secret_…` shape.
+  [
+    /\b[A-Za-z0-9][A-Za-z0-9_-]*[_-](?:secret|password|passwd)[_-](?=[A-Za-z0-9_-]{6,})[A-Za-z0-9_-]*[0-9][A-Za-z0-9_-]*/gi,
+    REDACTION_MARKER,
+  ],
   // A long opaque token with no name attached. Auth0 client secrets are 64 chars
   // of URL-safe base64; the 40-char floor keeps client_ids (32 hex) and resource
   // ids (`org_`, `cgr_`, `rol_` + 16-24 chars) readable, because those are not
@@ -72,4 +133,47 @@ export function redactSecrets(text: string): string {
     out = out.replace(pattern, replacement);
   }
   return out;
+}
+
+/**
+ * Applies {@link redactSecrets} to every string in a tool call's argument record,
+ * recursing through nested objects and arrays.
+ *
+ * A `.env` write is the usual route by which a credential reaches a trace, and it
+ * arrives as one long string under a `content` key rather than as a keyed secret —
+ * so the value has to be swept, not just classified by its key.
+ *
+ * The key is also consulted. In a structured record the credential's *name* can be
+ * the object key rather than text beside the value (`{ Authorization: 'Bearer …' }`),
+ * which the text rules cannot see, and such a value is often too short for the
+ * opaque-token floor to catch on shape alone.
+ *
+ * A matching key masks the value *whole*, including an array or an object. Recursing
+ * into it instead would re-scrub each leaf with no knowledge of the key that named it,
+ * so `{ password: ['hunter2'] }` would publish `hunter2` — short, shapeless, and no
+ * longer beside its own name. The key is the only evidence available, so it has to
+ * cover everything beneath it.
+ *
+ * Non-string primitives are returned as-is, even under a credential-named key: a
+ * number, boolean, or null cannot carry a credential, and coercing them to strings
+ * would change the JSON types consumers read back.
+ */
+export function redactArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(args)) {
+    out[key] = SECRET_KEY.test(key) && isCompoundOrString(value) ? REDACTION_MARKER : redactValue(value);
+  }
+  return out;
+}
+
+/** A value that can carry a credential: a string, or a container that may hold one. */
+function isCompoundOrString(value: unknown): boolean {
+  return typeof value === 'string' || (value !== null && typeof value === 'object');
+}
+
+function redactValue(value: unknown): unknown {
+  if (typeof value === 'string') return redactSecrets(value);
+  if (Array.isArray(value)) return value.map(redactValue);
+  if (value !== null && typeof value === 'object') return redactArgs(value as Record<string, unknown>);
+  return value;
 }

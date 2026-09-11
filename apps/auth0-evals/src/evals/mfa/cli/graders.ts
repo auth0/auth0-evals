@@ -1,43 +1,61 @@
-import { ranCommand, ranCommandOneOf, ranCommandsInOrder, judge, GraderLevel } from '@a0/evals-graders';
+import { ranCommand, ranCommandsInOrder, notRanCommand, judge, GraderLevel } from '@a0/evals-graders';
 
 // A goal-only CLI eval run against a live, throwaway tenant the `auth0` CLI is
-// already logged into (requested via `provision: auth0-tenant` in PROMPT.md
-// frontmatter, which the eval runner reads to provision the tenant; the
-// framework loader ignores the field). It runs the MFA tenant-config scenario
-// against a real tenant rather than a mocked Guardian surface. The agent writes
-// nothing to disk, so grading leans entirely on event graders (which inspect the
-// agent's successful shell calls) plus a trace-aware judge
-// (`includeCommandTrace: true`). Baseline mode runs no tools, so every grader
-// fails there — this eval is meant for agent mode.
+// already logged into. The agent writes nothing to disk — grading leans entirely
+// on event graders (command trace) plus a trace-aware judge.
+// Tests SMS phone factor setup (enable + message-types) and email factor setup,
+// then enforcement via guardian/policies.
 export function defineGraders() {
   return [
-    // ── L4: Enable an MFA factor via the Auth0 CLI (event-based) ──────────
-    // Reads the tool-call trace, not file contents — the whole task is CLI
-    // invocations, so there is no artifact to inspect with contains/matches.
-    ranCommandOneOf(
-      ['guardian/factors/otp', 'guardian/factors/push', 'guardian/factors/sms'],
-      'Enabled MFA factor via Auth0 CLI',
+    // ── L2: Hallucination — agent must NOT substitute OTP for the requested ──
+    // SMS phone factor. notRanCommand checks the command trace.
+    notRanCommand(
+      'guardian/factors/otp',
+      'Did not enable OTP factor instead of SMS',
+      GraderLevel.L2,
+    ),
+
+    // ── L4: Set phone message type to SMS (not voice) ────────────────────
+    ranCommand(
+      'guardian/factors/phone/message-types',
+      ['sms'],
+      'Set phone message type to SMS',
       GraderLevel.L4,
     ),
-    // ── L4: Enforce MFA — the step agents skip, leaving an enabled-but- ────
-    // unenforced tenant. Arg-precise so a wrong payload (e.g. an empty policy
-    // list) fails.
+
+    // ── L4: Enable the email factor ───────────────────────────────────────
+    ranCommand(
+      'guardian/factors/email',
+      ['enabled'],
+      'Enabled email MFA factor',
+      GraderLevel.L4,
+    ),
+
+    // ── L4: Enforce MFA policy ────────────────────────────────────────────
     ranCommand('guardian/policies', ['all-applications'], 'Enforced MFA via guardian/policies', GraderLevel.L4),
-    // ── L4: Sequence — factor must be enabled BEFORE the enforcement policy ─
-    // that relies on it.
+
+    // ── L4: SMS factor must be enabled BEFORE the enforcement policy ──────
     ranCommandsInOrder(
-      [['guardian/factors/otp', 'guardian/factors/push', 'guardian/factors/sms'], 'guardian/policies'],
-      'Enabled factor before setting enforcement policy',
+      ['guardian/factors/sms', 'guardian/policies'],
+      'SMS factor enabled before enforcing MFA policy',
+      GraderLevel.L4,
+    ),
+
+    // ── L4: Email factor must be enabled BEFORE the enforcement policy ────
+    ranCommandsInOrder(
+      ['guardian/factors/email', 'guardian/policies'],
+      'Email factor enabled before enforcing MFA policy',
       GraderLevel.L4,
     ),
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
-    // includeCommandTrace: this eval writes no files — the artifact is the CLI
-    // trace, so the judge must see the commands the agent ran to evaluate it.
     judge(
-      'Based on the command trace, does the solution enable an MFA factor on the Auth0 tenant via ' +
-        'the Auth0 CLI (auth0 api put guardian/factors/...) AND enforce MFA via the guardian/policies ' +
-        'endpoint with the all-applications policy — WITHOUT configuring MFA through the dashboard or Terraform?',
+      'Based on the command trace, does the solution: ' +
+        '(1) enable the SMS phone factor (guardian/factors/sms), set message-types to SMS ' +
+        '(guardian/factors/phone/message-types), and configure the phone provider; ' +
+        '(2) enable the email factor (guardian/factors/email) — with another factor already enabled first; ' +
+        '(3) enforce MFA via guardian/policies with all-applications — ' +
+        'using only the Auth0 CLI, not the dashboard or Terraform?',
       undefined,
       { includeCommandTrace: true },
     ),
