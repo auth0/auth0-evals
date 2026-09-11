@@ -145,16 +145,25 @@ function scoreSpeed(record: RunRecord, opts?: ScoringOptions): [number, string] 
 }
 
 function extractCliEndpoint(command: string): string {
+  // For auth0 api commands (including bash-wrapped ones like `/bin/bash -lc '...'`),
+  // extract the path argument directly. Positional tokenization breaks when the
+  // command is wrapped in bash because `/bin/bash` becomes the last pre-flag token.
+  // Match the Guardian path whether it is unquoted, single-quoted, double-quoted,
+  // or backslash-escaped double-quoted (the form Codex emits inside bash -lc "...").
+  const auth0Match = command.match(/\bauth0\s+api\s+(?:put|post|patch|delete|get)\s+(?:\\?"?|'?)([a-zA-Z0-9_\-/]+)/i);
+  if (auth0Match) return auth0Match[1]!;
+
   const tokens = command.trim().split(/\s+/);
   const firstFlag = tokens.findIndex((t) => t.startsWith('-'));
   const positional = firstFlag === -1 ? tokens : tokens.slice(0, firstFlag);
   return positional[positional.length - 1] ?? command.trim();
 }
 
-function isCliDiscoveryCall(command: string): boolean {
-  const lower = command.toLowerCase().trim();
-  const tokens = lower.split(/\s+/);
-  return tokens.some((t) => t === 'list' || t === 'show') || lower.includes('--help');
+function isAuth0ApiWriteCall(command: string): boolean {
+  const lower = command.toLowerCase();
+  if (!lower.includes('auth0') || !lower.includes('api')) return false;
+  // Only count write verbs — GET reads state and should not count as an endpoint operation.
+  return /\bauth0\s+api\s+(put|post|patch|delete)\b/.test(lower);
 }
 
 function scoreEfficiency(record: RunRecord, opts?: ScoringOptions): [number, string] {
@@ -165,9 +174,13 @@ function scoreEfficiency(record: RunRecord, opts?: ScoringOptions): [number, str
     return [100.0, 'N/A (no tools in baseline/skills mode)'];
   }
 
-  const cliCalls = record.toolCalls.filter(
-    (tc) => tc.name === 'run_command' && !isCliDiscoveryCall(String((tc.args['command'] as string) ?? '')),
-  );
+  const cliCalls = record.toolCalls.filter((tc) => {
+    if (tc.name !== 'run_command') return false;
+    const cmd = String((tc.args['command'] as string) ?? '');
+    // Only count auth0 api write commands — shell utilities (sed, rg, bash, etc.)
+    // and auth0 api get calls are not API endpoint operations.
+    return isAuth0ApiWriteCall(cmd);
+  });
   if (record.evalType === 'cli' && cliCalls.length > 0) {
     const endpointCounts: Record<string, number> = {};
     for (const tc of cliCalls) {
