@@ -154,6 +154,9 @@ function extractCliEndpoint(command: string): string {
 function isCliDiscoveryCall(command: string): boolean {
   const lower = command.toLowerCase().trim();
   const tokens = lower.split(/\s+/);
+  // Treat read-only verbs as discovery — GET calls verify state and should not
+  // be counted as corrective attempts against write (PUT/POST/PATCH/DELETE) ops.
+  if (tokens.some((t) => t === 'get') && tokens.some((t) => t === 'api')) return true;
   return tokens.some((t) => t === 'list' || t === 'show') || lower.includes('--help');
 }
 
