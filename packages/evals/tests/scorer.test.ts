@@ -266,6 +266,173 @@ describe('score - Efficiency', () => {
   });
 });
 
+// ── CLI efficiency (command-precision mode) ───────────────────────────────────
+
+describe('score - Efficiency (CLI mode)', () => {
+  it('no repeated endpoints scores 100', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir, evalType: 'cli' });
+    record.toolCalls = [
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api put guardian/factors/otp' } }),
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api put guardian/policies' } }),
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api get guardian/factors' } }),
+    ];
+    const result = score(record);
+    expect(getDim(result, 'Efficiency').rawScore).toBe(100.0);
+    expect(getDim(result, 'Efficiency').notes).toContain('no repeated endpoints');
+  });
+
+  it('one repeated endpoint: precision uses target-operation denominator (50)', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir, evalType: 'cli' });
+    record.toolCalls = [
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api put guardian/factors/otp' } }),
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api put guardian/factors/otp' } }),
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api put guardian/policies' } }),
+    ];
+    const result = score(record);
+    // target = guardian/factors/otp (2 attempts, 1 corrective) → 100 × (1 - 1/2) = 50
+    expect(getDim(result, 'Efficiency').rawScore).toBe(50.0);
+    expect(getDim(result, 'Efficiency').notes).toContain('repeated endpoint');
+    expect(getDim(result, 'Efficiency').notes).toContain('guardian/factors/otp');
+  });
+
+  it('discovery calls (list/show/--help) are excluded from CLI precision', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir, evalType: 'cli' });
+    record.toolCalls = [
+      makeToolCall('run_command', 1, { args: { command: 'auth0 apis list' } }),
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api get guardian/factors --help' } }),
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api put guardian/factors/otp' } }),
+    ];
+    const result = score(record);
+    // only the put call counts; 1 unique endpoint, no repeats → 100
+    expect(getDim(result, 'Efficiency').rawScore).toBe(100.0);
+    expect(getDim(result, 'Efficiency').notes).toContain('no repeated endpoints');
+  });
+
+  it('auth0 api get and shell utility calls are excluded — only write commands count', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir, evalType: 'cli' });
+    record.toolCalls = [
+      // skill-loading shell commands (sed, rg) — must not count
+      makeToolCall('run_command', 1, { args: { command: "sed -n '1,240p' /tmp/workspace/SKILL.md" } }),
+      makeToolCall('run_command', 1, { args: { command: 'rg "feature-mfa" /tmp/workspace' } }),
+      // pre-check reads — must not count
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api get guardian/factors' } }),
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api get guardian/policies' } }),
+      // config writes — only these count
+      makeToolCall('run_command', 1, {
+        args: { command: 'auth0 api put guardian/factors/sms --data \'{"enabled":true}\'' },
+      }),
+      makeToolCall('run_command', 1, {
+        args: { command: 'auth0 api put guardian/factors/phone/message-types --data \'{"message_types":["sms"]}\'' },
+      }),
+      makeToolCall('run_command', 1, {
+        args: { command: 'auth0 api put guardian/factors/phone/selected-provider --data \'{"provider":"auth0"}\'' },
+      }),
+      makeToolCall('run_command', 1, {
+        args: { command: 'auth0 api put guardian/factors/email --data \'{"enabled":true}\'' },
+      }),
+      makeToolCall('run_command', 1, {
+        args: { command: 'auth0 api put guardian/policies --data \'["all-applications"]\'' },
+      }),
+      // post-verify read — must not count
+      makeToolCall('run_command', 1, {
+        args: { command: 'auth0 api get "guardian/factors" && auth0 api get "guardian/policies"' },
+      }),
+    ];
+    const result = score(record);
+    // only the 5 PUTs count, all unique → 100
+    expect(getDim(result, 'Efficiency').rawScore).toBe(100.0);
+    expect(getDim(result, 'Efficiency').notes).toContain('no repeated endpoints');
+  });
+
+  it('bash-wrapped auth0 api commands extract the correct endpoint path', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir, evalType: 'cli' });
+    record.toolCalls = [
+      makeToolCall('run_command', 1, {
+        args: { command: '/bin/bash -lc \'auth0 api put "guardian/factors/sms" --data \\\'{ "enabled": true }\\\'\' ' },
+      }),
+      makeToolCall('run_command', 1, {
+        args: {
+          command:
+            '/bin/bash -lc \'auth0 api put "guardian/factors/phone/message-types" --data \'{"message_types":["sms"]}\'\'',
+        },
+      }),
+      makeToolCall('run_command', 1, {
+        args: {
+          command:
+            '/bin/bash -lc \'auth0 api put "guardian/factors/phone/selected-provider" --data \\\'{ "provider": "auth0" }\\\'\' ',
+        },
+      }),
+      makeToolCall('run_command', 1, {
+        args: {
+          command: '/bin/bash -lc \'auth0 api put "guardian/factors/email" --data \\\'{ "enabled": true }\\\'\' ',
+        },
+      }),
+      makeToolCall('run_command', 1, {
+        args: { command: '/bin/bash -lc \'auth0 api put "guardian/policies" --data \\\'["all-applications"]\\\'\' ' },
+      }),
+    ];
+    const result = score(record);
+    // 5 bash-wrapped PUTs, all unique endpoints → 100
+    expect(getDim(result, 'Efficiency').rawScore).toBe(100.0);
+    expect(getDim(result, 'Efficiency').notes).toContain('no repeated endpoints');
+  });
+
+  it('commands with --data body are grouped by path, not by JSON payload', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir, evalType: 'cli' });
+    record.toolCalls = [
+      makeToolCall('run_command', 1, {
+        args: { command: 'auth0 api put guardian/factors/otp --data \'{"enabled":true}\'' },
+      }),
+      makeToolCall('run_command', 1, {
+        args: { command: 'auth0 api put guardian/factors/otp --data \'{"enabled":false}\'' },
+      }),
+      makeToolCall('run_command', 1, {
+        args: { command: 'auth0 api put guardian/policies --data \'{"allFactors":true}\'' },
+      }),
+    ];
+    const result = score(record);
+    // guardian/factors/otp appears twice → 1 corrective attempt → 100 × (1 - 1/2) = 50
+    expect(getDim(result, 'Efficiency').rawScore).toBe(50.0);
+    expect(getDim(result, 'Efficiency').notes).toContain('guardian/factors/otp');
+  });
+});
+
+// ── CLI weight redistribution ─────────────────────────────────────────────────
+
+describe('score - CLI weight redistribution', () => {
+  it('CLI eval: Security weight is 0, Hallucination kept, Correctness gets Security weight', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir, evalType: 'cli' });
+    record.toolCalls = [
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api put guardian/factors/otp' } }),
+      makeToolCall('run_command', 1, { args: { command: 'auth0 api put guardian/policies' } }),
+    ];
+    const result = score(record);
+    expect(getDim(result, 'Security').weight).toBe(0);
+    expect(getDim(result, 'Hallucination').weight).toBeCloseTo(0.15, 5);
+    expect(getDim(result, 'Correctness').weight).toBeCloseTo(0.35, 5);
+  });
+
+  it('SDK eval: default weights unchanged', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir, evalType: 'sdk' });
+    record.toolCalls = [
+      makeToolCall('write_file', 1, { args: { path: 'app.ts' } }),
+      makeToolCall('run_command', 1, { args: { command: 'npm install' } }),
+    ];
+    const result = score(record);
+    expect(getDim(result, 'Hallucination').weight).toBeCloseTo(0.15, 5);
+    expect(getDim(result, 'Security').weight).toBeCloseTo(0.1, 5);
+    expect(getDim(result, 'Correctness').weight).toBeCloseTo(0.25, 5);
+  });
+});
+
 // ── analyzeWaste unit tests ───────────────────────────────────────────────────
 
 describe('analyzeWaste', () => {

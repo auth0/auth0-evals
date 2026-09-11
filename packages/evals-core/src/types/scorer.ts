@@ -9,7 +9,8 @@ import type { GraderLevel } from './graders.js';
 
 export type FinishReason = 'tool_calls' | 'stop' | 'max_tokens' | 'length' | 'error' | 'unknown';
 
-export type ActionType = 'Implementation' | 'Discovery' | 'Error' | 'Interruption' | 'Skill' | 'unknown';
+export type ActionType =
+  'Implementation' | 'Discovery' | 'TenantConfig' | 'Error' | 'Interruption' | 'Skill' | 'unknown';
 
 // ── Per-turn metrics ─────────────────────────────────────────────────────────
 
@@ -73,6 +74,8 @@ export interface ToolCallRecord {
 export interface RunRecord {
   taskName: string;
   model: string;
+  /** Eval type derived from the eval definition's `provision` field. `'cli'` means the eval drives a live tenant via shell commands and writes no files. */
+  evalType?: 'cli' | 'sdk';
   sessionId: string;
   startTime: number;
   endTime: number;

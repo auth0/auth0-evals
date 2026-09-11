@@ -105,8 +105,8 @@ describe('CopilotCliTranslator — mapping and args', () => {
   });
 
   it('classifies MCP tool calls as Discovery after mapping (both formats)', () => {
-    expect(classifyActionType(translator.mapName('mcp__auth0-docs__search_auth0_docs'), false)).toBe('Discovery');
-    expect(classifyActionType(translator.mapName('auth0-docs-search_auth0_docs'), false)).toBe('Discovery');
+    expect(classifyActionType(translator.mapName('mcp__auth0-docs__search_auth0_docs'), {}, false)).toBe('Discovery');
+    expect(classifyActionType(translator.mapName('auth0-docs-search_auth0_docs'), {}, false)).toBe('Discovery');
   });
 });
 

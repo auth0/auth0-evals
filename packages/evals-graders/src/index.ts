@@ -9,6 +9,7 @@ export type {
   GraderSource,
   EventToolCall,
   EventGraderLevel,
+  NotRanCommandLevel,
   CompileResult,
 } from './types.js';
 
@@ -20,6 +21,7 @@ export {
   matches,
   judge,
   ranCommand,
+  notRanCommand,
   ranCommandOneOf,
   ranCommandsInOrder,
   wroteFile,

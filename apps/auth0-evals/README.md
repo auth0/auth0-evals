@@ -57,13 +57,17 @@ See [`@a0/evals` CLI docs](../../packages/evals/) for the full list of flags and
 | `swift_mfa` | mfa | Gate a sensitive action in a Swift iOS app behind MFA step-up |
 | `android_mfa` | mfa | Gate a sensitive action in an Android app behind MFA step-up |
 | `nextjs_mfa` | mfa | Add MFA step-up authentication to a Next.js App Router app using `@auth0/nextjs-auth0` v4 |
+| `express_oidc_mfa` | mfa | Add MFA step-up to an Express app using `express-openid-connect` |
+| `express_api_mfa` | mfa | Gate a sensitive Express API route behind MFA step-up using `express-oauth2-jwt-bearer` |
 | `mfa_cli` | mfa | Enable and enforce a required MFA factor on a live tenant using the Auth0 CLI |
+| `server_python_mfa` | mfa | Gate a sensitive action in a Python web app behind MFA step-up using `auth0-server-python` |
 | `spa_js_dpop` | dpop | Add DPoP token binding to a vanilla JS SPA using `@auth0/auth0-spa-js` |
 | `express_api_dpop` | dpop | Enforce DPoP-bound access tokens on an Express API via `auth({ dpop: … })` |
 | `express_api_rbac` | rbac | Fine-grained authorization with `requiredScopes` / `scopeIncludesAny` / `claimIncludes` / `claimEquals` |
 | `express_api_mcd` | multi-tenant | Accept tokens from several Auth0 custom domains via `auth({ mcd: { issuers } })` |
 | `react_organizations` | organizations | Add Auth0 Organizations to a React SPA — org login, invitation acceptance, and org read-back from the `org_id` claim |
 | `spa_js_organizations`    | organizations | Add Auth0 Organizations (org-scoped login, invitation acceptance, org_id read-back) to a vanilla JS SPA using `@auth0/auth0-spa-js` |
+| `organizations_cli` | organizations | Set up B2B organization login on a live tenant using the Auth0 CLI - create an org, enable a connection with auto-membership, and require org login on the SPA |
 
 ## Configuration
 

@@ -2,13 +2,15 @@ import { contains, notContains, judge, compiles, GraderLevel } from '@a0/evals-g
 
 export function defineGraders() {
   return [
-    // ── L1: Required MFA step-up symbols present ───────────────────────────
-    contains('acr_values', 'Step-up request uses acr_values parameter', GraderLevel.L1),
-    contains('amr', 'AMR claim checked to detect prior MFA completion', GraderLevel.L1),
-    contains('getIdTokenClaims', 'ID token claims inspected via getIdTokenClaims', GraderLevel.L1),
+    // ── L1: Required step-up symbols present ───────────────────────────
     contains(
-      'schemas.openid.net/pape/policies/2007/06/multi-factor',
-      'Uses correct multi-factor acr_values policy URI',
+      'interactiveErrorHandler',
+      'Step-up configured via interactiveErrorHandler ("popup") — the pattern the SDK examples teach',
+      GraderLevel.L1,
+    ),
+    contains(
+      'getAccessTokenSilently',
+      'Access token requested via getAccessTokenSilently to trigger step-up',
       GraderLevel.L1,
     ),
 
@@ -29,28 +31,18 @@ export function defineGraders() {
     // ── L4: Structural correctness ────────────────────────────────────────
     compiles('Project compiles (build succeeds)', GraderLevel.L4),
     judge(
-      'Does the code check the amr claim before executing the transfer action, and only ' +
-        'proceed when "mfa" is present in the amr array?',
+      'Does the code gate the Transfer Funds action behind MFA step-up so the transfer cannot run ' +
+        'without MFA — by calling getAccessTokenSilently for the sensitive scope so the SDK ' +
+        'triggers an interactiveErrorHandler popup when the API signals mfa_required?',
       GraderLevel.L4,
-    ),
-
-    // ── L5: Current API patterns ──────────────────────────────────────────
-    judge(
-      'Does the code pass acr_values inside an authorizationParams object rather than ' +
-        'as a top-level property on getAccessTokenSilently or loginWithRedirect?',
-      GraderLevel.L5,
-    ),
-    judge(
-      'Does the code include max_age: 0 inside authorizationParams when requesting MFA ' +
-        'step-up, to force re-authentication rather than reusing a cached session?',
-      GraderLevel.L5,
     ),
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
-      'Does the solution correctly implement MFA step-up authentication in a React app — ' +
-        'checking the amr claim via getIdTokenClaims, requesting step-up via acr_values when ' +
-        'MFA is not present, and gating the Transfer Funds action behind MFA verification?',
+      'Does the solution correctly implement MFA step-up authentication in a React app using ' +
+        '@auth0/auth0-react — by configuring interactiveErrorHandler: "popup" so that ' +
+        'getAccessTokenSilently automatically triggers an MFA popup when the API requires it — ' +
+        'and gating the Transfer Funds action behind successful MFA completion?',
     ),
   ];
 }

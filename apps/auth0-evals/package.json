@@ -17,9 +17,10 @@
     "@a0/evals-axis": "*",
     "@a0/evals-graders": "*",
     "@a0/evals-reporter": "*",
-    "commander": "^15.0.0"
+    "commander": "^15.0.0",
+    "express-rate-limit": "^8.7.0"
   },
   "devDependencies": {
-    "@types/node": "^26.2.0"
+    "@types/node": "^26.4.0"
   }
 }

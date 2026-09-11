@@ -88,7 +88,7 @@ export interface ClaudeCodeRunOptions {
  * @param opts  Optional runner configuration.
  */
 export async function runClaudeCodeAgent(
-  evalDef: Pick<EvalDefinition, 'id' | 'userPrompt'>,
+  evalDef: Pick<EvalDefinition, 'id' | 'userPrompt' | 'provision'>,
   workspace: string,
   opts: ClaudeCodeRunOptions = {},
 ): Promise<RunRecord> {
@@ -96,6 +96,7 @@ export async function runClaudeCodeAgent(
 
   const record: RunRecord = {
     taskName: evalDef.id,
+    evalType: evalDef.provision === 'auth0-tenant' ? 'cli' : 'sdk',
     model: CLAUDE_CODE_MODEL_ID,
     sessionId: makeSessionId(),
     startTime: Date.now() / 1000,
@@ -258,7 +259,7 @@ export async function runClaudeCodeAgent(
         isDocLookup: translator.isDocLookup(pend.name),
         isInterruption: translator.isInterruption(pend.name),
         causedError: true,
-        actionType: classifyActionType(mappedName, true),
+        actionType: classifyActionType(mappedName, normArgs, true),
         isRetry: detectRetry(record.toolCalls, mappedName, normArgs),
         recoveredFromError: false,
         errorCategory: 'unknown',
@@ -423,7 +424,7 @@ export function handleMessage(
         isDocLookup: isDoc,
         isInterruption: isInterrupt,
         causedError: isError,
-        actionType: classifyActionType(mappedName, isError),
+        actionType: classifyActionType(mappedName, toolArgs, isError),
         isRetry,
         recoveredFromError: recovered,
       };

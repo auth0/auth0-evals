@@ -436,6 +436,7 @@ a { color: var(--link); }
                          font-weight: 600; letter-spacing: .03em; display: inline-block; }
 .action-implementation { background: var(--clr-green-bg); color: var(--clr-green); }
 .action-discovery      { background: var(--clr-blue-bg);  color: var(--clr-blue); }
+.action-tenantconfig   { background: var(--clr-orange-bg); color: var(--clr-orange); }
 .action-error          { background: var(--clr-red-bg);   color: var(--clr-red); }
 .action-interruption   { background: var(--clr-amber-bg); color: var(--clr-amber); }
 .action-unknown        { background: var(--clr-dim-bg);   color: var(--text-sec); }
