@@ -311,14 +311,17 @@ describe('score - Efficiency (CLI mode)', () => {
     expect(getDim(result, 'Efficiency').notes).toContain('no repeated endpoints');
   });
 
-  it('auth0 api get calls are excluded from CLI precision (pre-check + post-verify pattern)', () => {
+  it('auth0 api get and shell utility calls are excluded — only write commands count', () => {
     const dir = tmpDir();
     const record = makeRecord({ workspace: dir, evalType: 'cli' });
     record.toolCalls = [
-      // pre-check reads
+      // skill-loading shell commands (sed, rg) — must not count
+      makeToolCall('run_command', 1, { args: { command: "sed -n '1,240p' /tmp/workspace/SKILL.md" } }),
+      makeToolCall('run_command', 1, { args: { command: 'rg "feature-mfa" /tmp/workspace' } }),
+      // pre-check reads — must not count
       makeToolCall('run_command', 1, { args: { command: 'auth0 api get guardian/factors' } }),
       makeToolCall('run_command', 1, { args: { command: 'auth0 api get guardian/policies' } }),
-      // config writes
+      // config writes — only these count
       makeToolCall('run_command', 1, {
         args: { command: 'auth0 api put guardian/factors/sms --data \'{"enabled":true}\'' },
       }),
@@ -334,11 +337,13 @@ describe('score - Efficiency (CLI mode)', () => {
       makeToolCall('run_command', 1, {
         args: { command: 'auth0 api put guardian/policies --data \'["all-applications"]\'' },
       }),
-      // post-verify read
-      makeToolCall('run_command', 1, { args: { command: 'auth0 api get guardian/factors' } }),
+      // post-verify read — must not count
+      makeToolCall('run_command', 1, {
+        args: { command: 'auth0 api get "guardian/factors" && auth0 api get "guardian/policies"' },
+      }),
     ];
     const result = score(record);
-    // GET calls are discovery — only the 5 PUTs count, all unique → 100
+    // only the 5 PUTs count, all unique → 100
     expect(getDim(result, 'Efficiency').rawScore).toBe(100.0);
     expect(getDim(result, 'Efficiency').notes).toContain('no repeated endpoints');
   });

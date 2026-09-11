@@ -151,13 +151,11 @@ function extractCliEndpoint(command: string): string {
   return positional[positional.length - 1] ?? command.trim();
 }
 
-function isCliDiscoveryCall(command: string): boolean {
-  const lower = command.toLowerCase().trim();
-  const tokens = lower.split(/\s+/);
-  // Treat read-only verbs as discovery — GET calls verify state and should not
-  // be counted as corrective attempts against write (PUT/POST/PATCH/DELETE) ops.
-  if (tokens.some((t) => t === 'get') && tokens.some((t) => t === 'api')) return true;
-  return tokens.some((t) => t === 'list' || t === 'show') || lower.includes('--help');
+function isAuth0ApiWriteCall(command: string): boolean {
+  const lower = command.toLowerCase();
+  if (!lower.includes('auth0') || !lower.includes('api')) return false;
+  // Only count write verbs — GET reads state and should not count as an endpoint operation.
+  return /\bauth0\s+api\s+(put|post|patch|delete)\b/.test(lower);
 }
 
 function scoreEfficiency(record: RunRecord, opts?: ScoringOptions): [number, string] {
@@ -168,9 +166,13 @@ function scoreEfficiency(record: RunRecord, opts?: ScoringOptions): [number, str
     return [100.0, 'N/A (no tools in baseline/skills mode)'];
   }
 
-  const cliCalls = record.toolCalls.filter(
-    (tc) => tc.name === 'run_command' && !isCliDiscoveryCall(String((tc.args['command'] as string) ?? '')),
-  );
+  const cliCalls = record.toolCalls.filter((tc) => {
+    if (tc.name !== 'run_command') return false;
+    const cmd = String((tc.args['command'] as string) ?? '');
+    // Only count auth0 api write commands — shell utilities (sed, rg, bash, etc.)
+    // and auth0 api get calls are not API endpoint operations.
+    return isAuth0ApiWriteCall(cmd);
+  });
   if (record.evalType === 'cli' && cliCalls.length > 0) {
     const endpointCounts: Record<string, number> = {};
     for (const tc of cliCalls) {
