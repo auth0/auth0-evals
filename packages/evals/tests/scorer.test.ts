@@ -348,6 +348,40 @@ describe('score - Efficiency (CLI mode)', () => {
     expect(getDim(result, 'Efficiency').notes).toContain('no repeated endpoints');
   });
 
+  it('bash-wrapped auth0 api commands extract the correct endpoint path', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir, evalType: 'cli' });
+    record.toolCalls = [
+      makeToolCall('run_command', 1, {
+        args: { command: '/bin/bash -lc \'auth0 api put "guardian/factors/sms" --data \\\'{ "enabled": true }\\\'\' ' },
+      }),
+      makeToolCall('run_command', 1, {
+        args: {
+          command:
+            '/bin/bash -lc \'auth0 api put "guardian/factors/phone/message-types" --data \'{"message_types":["sms"]}\'\'',
+        },
+      }),
+      makeToolCall('run_command', 1, {
+        args: {
+          command:
+            '/bin/bash -lc \'auth0 api put "guardian/factors/phone/selected-provider" --data \\\'{ "provider": "auth0" }\\\'\' ',
+        },
+      }),
+      makeToolCall('run_command', 1, {
+        args: {
+          command: '/bin/bash -lc \'auth0 api put "guardian/factors/email" --data \\\'{ "enabled": true }\\\'\' ',
+        },
+      }),
+      makeToolCall('run_command', 1, {
+        args: { command: '/bin/bash -lc \'auth0 api put "guardian/policies" --data \\\'["all-applications"]\\\'\' ' },
+      }),
+    ];
+    const result = score(record);
+    // 5 bash-wrapped PUTs, all unique endpoints → 100
+    expect(getDim(result, 'Efficiency').rawScore).toBe(100.0);
+    expect(getDim(result, 'Efficiency').notes).toContain('no repeated endpoints');
+  });
+
   it('commands with --data body are grouped by path, not by JSON payload', () => {
     const dir = tmpDir();
     const record = makeRecord({ workspace: dir, evalType: 'cli' });

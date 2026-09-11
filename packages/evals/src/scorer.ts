@@ -145,6 +145,14 @@ function scoreSpeed(record: RunRecord, opts?: ScoringOptions): [number, string] 
 }
 
 function extractCliEndpoint(command: string): string {
+  // For auth0 api commands (including bash-wrapped ones like `/bin/bash -lc '...'`),
+  // extract the path argument directly. Positional tokenization breaks when the
+  // command is wrapped in bash because `/bin/bash` becomes the last pre-flag token.
+  // Match the Guardian path whether it is unquoted, single-quoted, double-quoted,
+  // or backslash-escaped double-quoted (the form Codex emits inside bash -lc "...").
+  const auth0Match = command.match(/\bauth0\s+api\s+(?:put|post|patch|delete|get)\s+(?:\\?"?|'?)([a-zA-Z0-9_\-/]+)/i);
+  if (auth0Match) return auth0Match[1]!;
+
   const tokens = command.trim().split(/\s+/);
   const firstFlag = tokens.findIndex((t) => t.startsWith('-'));
   const positional = firstFlag === -1 ? tokens : tokens.slice(0, firstFlag);
