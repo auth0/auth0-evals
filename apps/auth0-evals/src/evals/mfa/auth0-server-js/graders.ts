@@ -14,7 +14,7 @@ export function defineGraders() {
     contains('barcodeUri', 'Surfaces the OTP barcodeUri for QR enrollment', GraderLevel.L1),
     contains('oobCode', 'Carries the oobCode returned by an SMS challenge', GraderLevel.L1),
     contains('bindingCode', 'Verifies the SMS factor with the bindingCode', GraderLevel.L1),
-    contains('recoveryCode', 'Surfaces the recovery code returned by enrollment', GraderLevel.L1),
+    contains('recoveryCode', 'Surfaces the recovery code returned by mfa.verify on first enrollment', GraderLevel.L1),
 
     // ── L2: Hallucination / wrong approach ────────────────────────────────
     // ServerMfaClient has only listAuthenticators, enrollAuthenticator, challengeAuthenticator

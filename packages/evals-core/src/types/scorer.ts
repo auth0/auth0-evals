@@ -9,7 +9,8 @@ import type { GraderLevel } from './graders.js';
 
 export type FinishReason = 'tool_calls' | 'stop' | 'max_tokens' | 'length' | 'error' | 'unknown';
 
-export type ActionType = 'Implementation' | 'Discovery' | 'Error' | 'Interruption' | 'Skill' | 'unknown';
+export type ActionType =
+  'Implementation' | 'Discovery' | 'TenantConfig' | 'Error' | 'Interruption' | 'Skill' | 'unknown';
 
 // ── Per-turn metrics ─────────────────────────────────────────────────────────
 

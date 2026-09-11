@@ -321,7 +321,7 @@ export async function runCopilotAgent(
         isDocLookup: translator.isDocLookup(pend.name),
         isInterruption: translator.isInterruption(pend.name),
         causedError: isError,
-        actionType: classifyActionType(mappedName, isError),
+        actionType: classifyActionType(mappedName, toolArgs, isError),
         isRetry,
         recoveredFromError: recovered,
       };
@@ -374,7 +374,7 @@ export async function runCopilotAgent(
         isDocLookup: translator.isDocLookup(pend.name),
         isInterruption: translator.isInterruption(pend.name),
         causedError: true,
-        actionType: classifyActionType(mappedName, true),
+        actionType: classifyActionType(mappedName, toolArgs, true),
         isRetry: detectRetry(record.toolCalls, mappedName, toolArgs),
         recoveredFromError: false,
         errorCategory: 'unknown',

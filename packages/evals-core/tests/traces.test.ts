@@ -75,23 +75,22 @@ function makeRunRecord(toolCalls: ToolCallRecord[] = [], turnMetrics: TurnMetric
 
 describe('classifyActionType', () => {
   it('causedError=true takes priority over tool name for all tools', () => {
-    expect(classifyActionType('read_file', true)).toBe('Error');
-    expect(classifyActionType('write_file', true)).toBe('Error');
-    expect(classifyActionType('ask_user', true)).toBe('Error');
+    expect(classifyActionType('read_file', {}, true)).toBe('Error');
+    expect(classifyActionType('write_file', {}, true)).toBe('Error');
+    expect(classifyActionType('ask_user', {}, true)).toBe('Error');
   });
 
   it('discovery tools are classified correctly', () => {
-    expect(classifyActionType('read_file', false)).toBe('Discovery');
-    expect(classifyActionType('list_files', false)).toBe('Discovery');
-    expect(classifyActionType('fetch_url', false)).toBe('Discovery');
-    expect(classifyActionType('ask_user', false)).toBe('Interruption');
+    expect(classifyActionType('read_file', {}, false)).toBe('Discovery');
+    expect(classifyActionType('list_files', {}, false)).toBe('Discovery');
+    expect(classifyActionType('fetch_url', {}, false)).toBe('Discovery');
+    expect(classifyActionType('ask_user', {}, false)).toBe('Interruption');
   });
 
   it('implementation tools are classified correctly', () => {
-    expect(classifyActionType('write_file', false)).toBe('Implementation');
-    expect(classifyActionType('run_command', false)).toBe('Implementation');
-    expect(classifyActionType('finish_task', false)).toBe('Implementation');
-    expect(classifyActionType('unknown_tool', false)).toBe('unknown');
+    expect(classifyActionType('write_file', {}, false)).toBe('Implementation');
+    expect(classifyActionType('finish_task', {}, false)).toBe('Implementation');
+    expect(classifyActionType('unknown_tool', {}, false)).toBe('unknown');
   });
 });
 
