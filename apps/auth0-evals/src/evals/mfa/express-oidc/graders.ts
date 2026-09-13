@@ -41,7 +41,7 @@ export function defineGraders() {
     compiles('Project passes syntax check (node --check)', GraderLevel.L4),
     judge(
       'Does the code check the amr (or acr) claim on req.oidc.idTokenClaims to detect whether the ' +
-        'current session reflects completed MFA (e.g. amr includes "mfa") before allowing ' +
+        'current session reflects completed MFA (for example amr includes "mfa") before allowing ' +
         'the transfer to proceed?',
       GraderLevel.L4,
     ),
