@@ -74,6 +74,14 @@ export interface GraderDef {
    * files and the answer lives entirely in its final text reply.
    */
   source?: GraderSource;
+  /**
+   * contains / not_contains / not_contains_in_source only. When true, comments
+   * are stripped from source files before searching (string literals kept), so
+   * the needle matches real code but not a mention in a line or block comment.
+   * Defaults to false (search raw file text, unchanged). Only affects the file
+   * corpus, not the agent reply.
+   */
+  ignoreComments?: boolean;
 }
 
 export interface GraderOptions {
@@ -83,6 +91,11 @@ export interface GraderOptions {
    * Defaults to `'files'` (workspace files only).
    */
   source?: GraderSource;
+  /**
+   * Strip comments from source files before searching (string literals kept).
+   * See `GraderDef.ignoreComments`. Defaults to false.
+   */
+  ignoreComments?: boolean;
 }
 
 /** Levels valid for event-based graders (agent-only — no tool calls exist in baseline). */

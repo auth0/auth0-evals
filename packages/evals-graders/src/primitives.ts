@@ -28,6 +28,7 @@ export function contains(
     level,
     caseSensitive: options.caseSensitive ?? true,
     source: options.source,
+    ignoreComments: options.ignoreComments,
   };
 }
 
@@ -44,6 +45,7 @@ export function notContains(
     level,
     caseSensitive: options.caseSensitive ?? true,
     source: options.source,
+    ignoreComments: options.ignoreComments,
   };
 }
 
@@ -69,7 +71,7 @@ export function notContainsInSource(
   needle: string,
   description?: string,
   level?: GraderLevel,
-  options: Pick<GraderOptions, 'caseSensitive'> = {},
+  options: Pick<GraderOptions, 'caseSensitive' | 'ignoreComments'> = {},
 ): GraderDef {
   return {
     kind: 'not_contains_in_source',
@@ -77,6 +79,7 @@ export function notContainsInSource(
     name: description ?? `not_contains_in_source '${needle}'`,
     level,
     caseSensitive: options.caseSensitive ?? true,
+    ignoreComments: options.ignoreComments,
   };
 }
 
