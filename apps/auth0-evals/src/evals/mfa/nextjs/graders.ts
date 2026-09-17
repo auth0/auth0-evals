@@ -71,7 +71,10 @@ export function defineGraders() {
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
-      'Does the solution correctly implement MFA step-up authentication in a Next.js App Router app ' +
+      'Context: @auth0/nextjs-auth0 v4 exports MfaRequiredError from "@auth0/nextjs-auth0/server" and ' +
+        'an auth0.mfa sub-client — these APIs exist in the installed package and the build compiling ' +
+        'successfully confirms it. ' +
+        'Does the solution correctly implement MFA step-up authentication in a Next.js App Router app ' +
         'using @auth0/nextjs-auth0 v4 — calling getAccessToken for the sensitive operation, catching ' +
         'MfaRequiredError to detect that MFA is required, driving the user through an MFA challenge ' +
         '(mfa.challengeWithPopup() or an /mfa-challenge redirect), and gating the Transfer Funds ' +
