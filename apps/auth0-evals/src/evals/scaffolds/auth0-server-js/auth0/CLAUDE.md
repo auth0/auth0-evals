@@ -13,8 +13,6 @@ import { serverClient, appBaseUrl } from './auth0.js';
 import { isMfaRequiredError } from '@auth0/auth0-server-js';
 ```
 
-This SDK is `@auth0/auth0-server-js` — it has no `loginWithCredentials` or `getTokenByPassword` method. Those belong to `@auth0/auth0-auth-js`. Do not look for them.
-
 ## The /transfers route already calls getAccessToken
 
 `src/index.ts` already has:
