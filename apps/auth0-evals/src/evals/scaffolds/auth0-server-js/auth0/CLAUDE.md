@@ -42,6 +42,27 @@ const mfaToken = request.cookies['_mfa_token'];
 response.clearCookie('_mfa_token');
 ```
 
+## Branch on listAuthenticators before calling verify
+
+Always call `listAuthenticators` first and branch:
+- No enrolled authenticators → call `enrollAuthenticator` first, then `verify`
+- Enrolled authenticators → call `challengeAuthenticator` (for SMS/OOB), then `verify`
+
+For SMS: challengeAuthenticator first, then verify with the bindingCode the user entered.
+
+## verify: store options go as the second argument
+
+```ts
+// Correct — storeOptions is the second argument
+await serverClient.mfa.verify(
+  { mfaToken, factorType: 'otp', otp },
+  { request, response }
+);
+
+// Wrong — do not put request/response inside the first options object
+await serverClient.mfa.verify({ mfaToken, factorType: 'otp', otp, request, response });
+```
+
 ## No spelunking
 
 Do not read `node_modules` to verify types. All method signatures are in the skill reference doc (`auth0-server-js.md`). The types you need:
