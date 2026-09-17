@@ -27,9 +27,39 @@ store_opts = _opts(req, res)   # {"request": req, "response": res}
 The `mfa_token` between requests is a plain httpOnly cookie — it does NOT use the SDK's transaction/state store:
 
 ```python
-res.set_cookie("_mfa_token", mfa_token, httponly=True, samesite="lax", max_age=300)
-mfa_token = req.cookies.get("_mfa_token")   # on the next request
-res.delete_cookie("_mfa_token")              # after successful verify
+res.set_cookie("_mfa_token", mfa_token, max_age=300)   # httponly/samesite are set automatically
+mfa_token = req.cookies.get("_mfa_token")               # on the next request
+res.delete_cookie("_mfa_token")                         # after successful verify
+```
+
+**Do not pass `httponly`, `samesite`, or `secure` to `set_cookie`.** The helper only accepts `(key, value, max_age)` — those flags are always set internally.
+
+## Write app.py completely
+
+When you write `app.py`, always write the **complete file** in a single operation — never write a partial snippet that replaces the existing content. Each Write tool call overwrites the entire file; a partial write destroys everything that came before it.
+
+## Call verify inline — not via a variable
+
+Always pass `mfa_token` directly inside the `verify(...)` call, not through an intermediate variable:
+
+```python
+# Correct
+result = await auth0.mfa.verify(
+    {"mfa_token": mfa_token, "otp": otp_code, "persist": True},
+    store_options=store_opts,
+)
+
+# Wrong — builds options dict first, then passes variable
+options = {"mfa_token": mfa_token, ...}
+result = await auth0.mfa.verify(options, ...)
+```
+
+## After verify — return success, not raw tokens
+
+After `verify()` succeeds, do **not** return `access_token`, `id_token`, `refresh_token`, or `mfa_token` in the HTTP response. Return a simple success body:
+
+```python
+return jsonify({"status": "transfer complete"}), 200
 ```
 
 ## No spelunking
