@@ -49,6 +49,28 @@ describe('stripComments', () => {
     const txt = `anything // /mfa/challenge`;
     expect(stripComments(txt, 'notes.unknownext')).toBe(txt);
   });
+
+  it('returns shell content unchanged (sh/bash/zsh not stripped due to $# ambiguity)', () => {
+    const sh = `echo $# # /mfa/challenge`;
+    expect(stripComments(sh, 'setup.sh')).toBe(sh);
+    expect(stripComments(sh, 'run.bash')).toBe(sh);
+    expect(stripComments(sh, 'run.zsh')).toBe(sh);
+  });
+
+  it('handles nested Kotlin block comments correctly', () => {
+    // outer comment contains inner comment plus the needle — all should be stripped
+    const kt = `/* outer /* inner */ /mfa/challenge */ val real = mfaClient(token)`;
+    const out = stripComments(kt, 'Api.kt');
+    expect(out).not.toContain('mfa/challenge');
+    expect(out).toContain('mfaClient');
+  });
+
+  it('handles nested Swift block comments correctly', () => {
+    const swift = `/* outer /* inner /mfa/challenge */ still-outer */ let x = 1`;
+    const out = stripComments(swift, 'Auth.swift');
+    expect(out).not.toContain('mfa/challenge');
+    expect(out).toContain('let x');
+  });
 });
 
 function ctxFrom(files: Record<string, string>): GraderContext {

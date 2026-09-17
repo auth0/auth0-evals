@@ -13,6 +13,8 @@ interface LangSyntax {
   line: string[];
   /** Block-comment open/close pair, if the language has one. */
   block?: [string, string];
+  /** Whether block comments can nest (e.g. Kotlin, Swift). */
+  nestedBlock?: boolean;
   /** Triple-quote string delimiters, matched before single-char ones (e.g. `"""`, `'''`). */
   triple?: string[];
   /** Single-char string delimiters whose contents are preserved. */
@@ -20,12 +22,14 @@ interface LangSyntax {
 }
 
 const C_FAMILY: LangSyntax = { line: ['//'], block: ['/*', '*/'], triple: ['"""'], strings: ['"', "'", '`'] };
+// Kotlin and Swift allow nested block comments: /* outer /* inner */ still-outer */
+const C_NESTED: LangSyntax = { ...C_FAMILY, nestedBlock: true };
 const PYTHON: LangSyntax = { line: ['#'], triple: ['"""', "'''"], strings: ['"', "'"] };
 const HASH: LangSyntax = { line: ['#'], strings: ['"', "'"] };
 
 const SYNTAX_BY_EXT: Record<string, LangSyntax> = {
-  kt: C_FAMILY,
-  kts: C_FAMILY,
+  kt: C_NESTED,
+  kts: C_NESTED,
   java: C_FAMILY,
   js: C_FAMILY,
   jsx: C_FAMILY,
@@ -33,7 +37,7 @@ const SYNTAX_BY_EXT: Record<string, LangSyntax> = {
   cjs: C_FAMILY,
   ts: C_FAMILY,
   tsx: C_FAMILY,
-  swift: C_FAMILY,
+  swift: C_NESTED,
   go: C_FAMILY,
   c: C_FAMILY,
   h: C_FAMILY,
@@ -49,9 +53,8 @@ const SYNTAX_BY_EXT: Record<string, LangSyntax> = {
   php: C_FAMILY,
   py: PYTHON,
   rb: HASH,
-  sh: HASH,
-  bash: HASH,
-  zsh: HASH,
+  // sh/bash/zsh omitted: `$#` and `${var#pattern}` make `#` ambiguous outside strings;
+  // returning content unchanged (the unknown-extension fallback) is safer.
   r: HASH,
   pl: HASH,
   pm: HASH,
@@ -78,8 +81,23 @@ export function stripComments(content: string, filePath: string): string {
 
   while (i < n) {
     if (s.block && content.startsWith(s.block[0], i)) {
-      const end = content.indexOf(s.block[1], i + s.block[0].length);
-      i = end === -1 ? n : end + s.block[1].length;
+      const [open, close] = s.block;
+      if (s.nestedBlock) {
+        let depth = 1;
+        i += open.length;
+        while (i < n && depth > 0) {
+          if (content.startsWith(open, i)) {
+            depth++;
+            i += open.length;
+          } else if (content.startsWith(close, i)) {
+            depth--;
+            i += close.length;
+          } else i++;
+        }
+      } else {
+        const end = content.indexOf(close, i + open.length);
+        i = end === -1 ? n : end + close.length;
+      }
       out += ' ';
       continue;
     }
