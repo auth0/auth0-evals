@@ -17,7 +17,7 @@ export const notContainsExecutor: GraderExecutor = {
     const caseSensitive = def.caseSensitive ?? true;
     const source = def.source ?? 'files';
 
-    const { inFiles, inAgent } = searchCorpus(ctx, needle, caseSensitive, source);
+    const { inFiles, inAgent } = searchCorpus(ctx, needle, caseSensitive, source, def.ignoreComments ?? false);
 
     const passed = !inFiles && !inAgent;
     const foundIn = inFiles && inAgent ? 'written files and agent reply' : inFiles ? 'written files' : 'agent reply';

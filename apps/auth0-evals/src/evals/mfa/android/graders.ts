@@ -21,6 +21,7 @@ export function defineGraders() {
       'mfa/challenge',
       'Does not hand-roll the raw /mfa/challenge endpoint — use the SDK MFA client',
       GraderLevel.L2,
+      { ignoreComments: true },
     ),
 
     // ── L3: Security ──────────────────────────────────────────────────────

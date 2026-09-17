@@ -9,6 +9,7 @@
 
 import type { GraderSource } from '@a0/evals-graders';
 import type { GraderContext } from './types.js';
+import { stripComments } from './text-search-utils.js';
 
 export interface SearchResult {
   inFiles: boolean;
@@ -20,14 +21,20 @@ export function searchCorpus(
   needle: string,
   caseSensitive: boolean,
   source: GraderSource,
+  ignoreComments = false,
 ): SearchResult {
   const checkFiles = source !== 'response';
   const checkResponse = source !== 'files';
 
   const inFiles = checkFiles
-    ? caseSensitive
-      ? ctx.combinedText.includes(needle)
-      : ctx.combinedLower.includes(needle.toLowerCase())
+    ? ignoreComments
+      ? Object.entries(ctx.files).some(([path, content]) => {
+          const code = stripComments(content, path);
+          return caseSensitive ? code.includes(needle) : code.toLowerCase().includes(needle.toLowerCase());
+        })
+      : caseSensitive
+        ? ctx.combinedText.includes(needle)
+        : ctx.combinedLower.includes(needle.toLowerCase())
     : false;
 
   const inAgent =
