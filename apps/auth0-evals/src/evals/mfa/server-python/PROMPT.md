@@ -11,7 +11,7 @@ compile_command: .venv/bin/python -m compileall -q -x .venv .
 
 My Python web app already has Auth0 login set up using the `auth0-server-python` SDK. I want to add a Transfer Funds feature where users must complete MFA before the transfer runs. If they haven't completed MFA in their current session, prompt them for it and only run the transfer once they have.
 
-Use the Auth0 MFA API directly through the SDK's MFA client.
+Use the Auth0 MFA API directly through the SDK's MFA client. Do not use a Universal Login redirect / `acr_values` step-up flow.
 
 Domain: dev-barkbook.us.auth0.com
 Client ID: barkbook_client_abc123xyz
