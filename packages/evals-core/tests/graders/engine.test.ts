@@ -477,6 +477,51 @@ describe('llmJudge', () => {
     expect(capturedBody?.max_tokens).toBe(512);
   });
 
+  it('prepends context as a Context: block before the question when provided', async () => {
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
+    await llmJudge({
+      question: 'Does the app use the current API?',
+      context: 'the scaffold pins SDK v3, whose foo() is current.',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
+    const messages = capturedBody?.messages as { role: string; content: string }[];
+    const userContent = messages.find((m) => m.role === 'user')!.content;
+    expect(userContent).toContain('Context: the scaffold pins SDK v3, whose foo() is current.');
+    // Context precedes the question in the prompt.
+    expect(userContent.indexOf('Context:')).toBeLessThan(userContent.indexOf('Does the app use the current API?'));
+  });
+
+  it('sends the question unchanged when no context is provided', async () => {
+    let capturedBody: Record<string, unknown> | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'yes' } }] }) };
+      }),
+    );
+    await llmJudge({
+      question: 'Does the app use the current API?',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
+    const messages = capturedBody?.messages as { role: string; content: string }[];
+    const userContent = messages.find((m) => m.role === 'user')!.content;
+    expect(userContent).not.toContain('Context:');
+  });
+
   it('sends the model as-is (no Bedrock ID mapping on the chat endpoint)', async () => {
     // Regression: the judge hits the /chat/completions endpoint, which serves
     // models under their plain alias. Mapping the alias to a Bedrock ID here

@@ -39,14 +39,18 @@ export function defineGraders() {
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
-      'Context: the scaffold uses @auth0/auth0-react ^2.2.4 (resolves to 2.25.0+), which depends on ' +
-        '@auth0/auth0-spa-js ^2.25.0. Auth0ProviderOptions extends Auth0ClientOptions from spa-js, so ' +
-        'interactiveErrorHandler (added in spa-js 2.16.0) IS a valid Auth0Provider prop in this version ' +
-        '-- it is not fabricated. Grade structural flow only. ' +
-        'Does the solution correctly implement MFA step-up authentication in a React app using ' +
+      'Does the solution correctly implement MFA step-up authentication in a React app using ' +
         '@auth0/auth0-react -- by configuring interactiveErrorHandler: "popup" so that ' +
         'getAccessTokenSilently automatically triggers an MFA popup when the API requires it -- ' +
         'and gating the Transfer Funds action behind successful MFA completion?',
+      undefined,
+      {
+        context:
+          'the scaffold uses @auth0/auth0-react ^2.2.4 (resolves to 2.25.0+), which depends on ' +
+          '@auth0/auth0-spa-js ^2.25.0. Auth0ProviderOptions extends Auth0ClientOptions from spa-js, so ' +
+          'interactiveErrorHandler (added in spa-js 2.16.0) IS a valid Auth0Provider prop in this version ' +
+          '-- it is not fabricated. Grade structural flow only.',
+      },
     ),
   ];
 }

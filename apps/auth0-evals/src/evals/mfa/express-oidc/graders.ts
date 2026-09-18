@@ -68,16 +68,20 @@ export function defineGraders() {
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
-      'Context: identityClaimFilter (the default express-openid-connect option that strips claims ' +
-        'from req.oidc.user) is irrelevant here -- graders require req.oidc.idTokenClaims which is ' +
-        'never filtered. Do NOT fail the solution because identityClaimFilter might strip amr from ' +
-        'req.oidc.user; that is a separate path. Grade only: (1) amr/acr read from idTokenClaims, ' +
-        '(2) res.oidc.login with acr_values when MFA absent, (3) /transfer gated, (4) afterCallback. ' +
-        'Does the solution correctly implement MFA step-up in an Express app using ' +
+      'Does the solution correctly implement MFA step-up in an Express app using ' +
         'express-openid-connect -- checking amr/acr claims from req.oidc.idTokenClaims, ' +
         'redirecting to Auth0 via res.oidc.login() with acr_values when MFA is absent, ' +
         'using afterCallback to verify the returned session contains MFA evidence, ' +
         'and gating the /transfer route behind that verification?',
+      undefined,
+      {
+        context:
+          'identityClaimFilter (the default express-openid-connect option that strips claims ' +
+          'from req.oidc.user) is irrelevant here -- graders require req.oidc.idTokenClaims which is ' +
+          'never filtered. Do NOT fail the solution because identityClaimFilter might strip amr from ' +
+          'req.oidc.user; that is a separate path. Grade only: (1) amr/acr read from idTokenClaims, ' +
+          '(2) res.oidc.login with acr_values when MFA absent, (3) /transfer gated, (4) afterCallback.',
+      },
     ),
   ];
 }

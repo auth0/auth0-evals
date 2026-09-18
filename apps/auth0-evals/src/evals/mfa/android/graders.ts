@@ -67,15 +67,19 @@ export function defineGraders() {
 
     // Holistic judge (no level -- always runs)
     judge(
-      'Context: the scaffold uses Auth0.Android 4.0.1, which introduced authentication.mfaClient(mfaToken) ' +
-        'returning MfaApiClient (with getAuthenticators, challenge, enroll, verify), MfaEnrollmentType / ' +
-        'MfaVerificationType sealed classes, and typed MfaException subclasses. ' +
-        'These ARE the current SDK APIs; multifactorChallenge/loginWithOTP were removed in 4.0.0. ' +
-        'Grade the structural flow only -- do not mark correct 4.0.x API usage as fabricated. ' +
-        "Does the solution correctly complete MFA at login in an Android app using Auth0.Android's MFA API -- " +
+      "Does the solution correctly complete MFA at login in an Android app using Auth0.Android's MFA API -- " +
         'detecting the MFA-required error, reading the mfaToken, challenging (or enrolling) a factor and ' +
         'verifying the code through authentication.mfaClient(...), and storing the resulting credentials so ' +
         'the user finishes signing in?',
+      undefined,
+      {
+        context:
+          'the scaffold uses Auth0.Android 4.0.1, which introduced authentication.mfaClient(mfaToken) ' +
+          'returning MfaApiClient (with getAuthenticators, challenge, enroll, verify), MfaEnrollmentType / ' +
+          'MfaVerificationType sealed classes, and typed MfaException subclasses. ' +
+          'These ARE the current SDK APIs; multifactorChallenge/loginWithOTP were removed in 4.0.0. ' +
+          'Grade the structural flow only -- do not mark correct 4.0.x API usage as fabricated.',
+      },
     ),
   ];
 }

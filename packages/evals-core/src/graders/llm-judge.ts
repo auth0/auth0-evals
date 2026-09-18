@@ -25,6 +25,12 @@ export const JUDGE_DEFAULT_MAX_TOKENS = 4096;
 
 export interface LlmJudgeOptions {
   question: string;
+  /**
+   * Optional grounding context prepended to the question as a `Context:` block.
+   * Kept separate from `question` so it can be excluded from the leaderboard UI
+   * (which renders the grader name/question), while the judge still sees it.
+   */
+  context?: string;
   code: string;
   apiKey: string;
   model: string;
@@ -42,7 +48,10 @@ export interface LlmJudgeResult {
 }
 
 export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
-  const { question, code, apiKey, model, baseUrl, enforceMaxChars = true } = opts;
+  const { question, context, code, apiKey, model, baseUrl, enforceMaxChars = true } = opts;
+  // Prepend grounding context (if any) before the question. The judge sees it;
+  // the leaderboard UI renders only the grader name, so it stays hidden there.
+  const promptQuestion = context ? `Context: ${context}\n\n${question}` : question;
   const judgeMaxCodeChars = opts.maxCodeChars ?? 32_768;
   const judgeMaxTokens = opts.maxTokens ?? JUDGE_DEFAULT_MAX_TOKENS;
 
@@ -82,7 +91,7 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
   // Use function replacers so `question`/`code` are inserted verbatim. A string
   // replacement would interpret `$&`, `` $` ``, `$'`, and `$1` specially, and
   // since `code` is untrusted agent output this would silently corrupt the prompt.
-  const user = USER_TEMPLATE.replace('{question}', () => question).replace('{code}', () => judgeCode);
+  const user = USER_TEMPLATE.replace('{question}', () => promptQuestion).replace('{code}', () => judgeCode);
 
   // The judge hits the /chat/completions endpoint, which serves models under
   // their plain alias, so the model is sent as-is (no Bedrock ID mapping).
