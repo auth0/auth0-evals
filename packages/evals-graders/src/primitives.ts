@@ -97,6 +97,15 @@ export interface JudgeOptions {
    * where the agent's answer is in its final reply, not written files.
    */
   source?: GraderSource;
+  /**
+   * Grounding context prepended to the judge's prompt but kept out of the
+   * grader's `name`, so it never appears on the leaderboard UI. Use it to pin
+   * the installed SDK version / API surface (e.g. "the scaffold uses
+   * Auth0.swift 3.0, which introduced Auth0.mfa()") so the judge doesn't flag
+   * real current APIs as hallucinated, without leaking that hint into the
+   * human-facing question. Not validated as a question — only `question` is.
+   */
+  context?: string;
 }
 
 /**
@@ -148,6 +157,7 @@ export function judge(question: string, level?: GraderLevel, options: JudgeOptio
     level,
     includeCommandTrace: options.includeCommandTrace ?? false,
     source: options.source,
+    context: options.context,
   };
 }
 

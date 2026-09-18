@@ -52,13 +52,13 @@ export function defineGraders() {
     // ── L4: Structural / behavioral correctness ───────────────────────────────
     compiles('Project compiles (build succeeds)', GraderLevel.L4),
     judge(
-      'Does the code call getAccessToken (e.g. with { refresh: true }) for the sensitive operation and ' +
+      'Does the code call getAccessToken (for example with { refresh: true }) for the sensitive operation and ' +
         'catch the resulting MfaRequiredError to detect that step-up is required before allowing the ' +
         'transfer to proceed?',
       GraderLevel.L4,
     ),
     judge(
-      'When MfaRequiredError is raised, does the code drive the user through an MFA challenge — e.g. ' +
+      'When MfaRequiredError is raised, does the code drive the user through an MFA challenge — for example ' +
         'mfa.challengeWithPopup() or a redirect to an /mfa-challenge route — rather than proceeding or ' +
         'simply returning an error?',
       GraderLevel.L4,
@@ -71,14 +71,18 @@ export function defineGraders() {
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
-      'Context: @auth0/nextjs-auth0 v4 exports MfaRequiredError from "@auth0/nextjs-auth0/server" and ' +
-        'an auth0.mfa sub-client — these APIs exist in the installed package and the build compiling ' +
-        'successfully confirms it. ' +
-        'Does the solution correctly implement MFA step-up authentication in a Next.js App Router app ' +
+      'Does the solution correctly implement MFA step-up authentication in a Next.js App Router app ' +
         'using @auth0/nextjs-auth0 v4 — calling getAccessToken for the sensitive operation, catching ' +
         'MfaRequiredError to detect that MFA is required, driving the user through an MFA challenge ' +
         '(mfa.challengeWithPopup() or an /mfa-challenge redirect), and gating the Transfer Funds ' +
         'action behind that verification?',
+      undefined,
+      {
+        context:
+          '@auth0/nextjs-auth0 v4 exports MfaRequiredError from "@auth0/nextjs-auth0/server" and ' +
+          'an auth0.mfa sub-client — these APIs exist in the installed package and the build compiling ' +
+          'successfully confirms it.',
+      },
     ),
   ];
 }
