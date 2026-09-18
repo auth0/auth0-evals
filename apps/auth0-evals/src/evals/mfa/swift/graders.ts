@@ -62,15 +62,19 @@ export function defineGraders() {
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
-      'Context: the scaffold uses Auth0.swift from: 3.0.0. Auth0.swift 3.0 introduced Auth0.mfa() returning ' +
-        'MfaClient (with getAuthenticators, enroll, challenge, verify); the pre-3.0 authentication() MFA methods ' +
-        '(multifactorChallenge, login(withOTP:), login(withOOBCode:)) were removed in 3.0. error.mfaRequiredErrorPayload ' +
-        'and payload.mfaToken ARE the real 3.0 API. Grade the structural flow only -- do not mark correct 3.0 API ' +
-        'usage as fabricated based on pre-3.0 knowledge. ' +
-        'Does the solution correctly complete MFA at login in a Swift iOS app using Auth0.swift’s MFA API -- ' +
+      'Does the solution correctly complete MFA at login in a Swift iOS app using Auth0.swift’s MFA API -- ' +
         'detecting the MFA-required error, reading the mfaToken, challenging (or enrolling) a factor and ' +
         'verifying the code through Auth0.mfa(), and storing the resulting credentials so the user finishes ' +
         'signing in?',
+      undefined,
+      {
+        context:
+          'the scaffold uses Auth0.swift from: 3.0.0. Auth0.swift 3.0 introduced Auth0.mfa() returning ' +
+          'MfaClient (with getAuthenticators, enroll, challenge, verify); the pre-3.0 authentication() MFA methods ' +
+          '(multifactorChallenge, login(withOTP:), login(withOOBCode:)) were removed in 3.0. error.mfaRequiredErrorPayload ' +
+          'and payload.mfaToken ARE the real 3.0 API. Grade the structural flow only -- do not mark correct 3.0 API ' +
+          'usage as fabricated based on pre-3.0 knowledge.',
+      },
     ),
   ];
 }

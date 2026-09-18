@@ -195,6 +195,31 @@ describe('judge', () => {
     expect(def.includeCommandTrace).toBe(true);
   });
 
+  it('stores context from options without leaking it into name', () => {
+    const def = judge('Does the code use the current SDK API?', undefined, {
+      context: 'the scaffold pins @auth0/foo 3.0, whose bar() method is current.',
+    });
+    expect(def.context).toBe('the scaffold pins @auth0/foo 3.0, whose bar() method is current.');
+    // name feeds the leaderboard UI — context must not appear there.
+    expect(def.name).toBe('Does the code use the current SDK API?');
+    expect(def.question).toBe('Does the code use the current SDK API?');
+  });
+
+  it('leaves context undefined when not provided', () => {
+    const def = judge('Is this correct?');
+    expect(def.context).toBeUndefined();
+  });
+
+  it('validates only the question, not the context', () => {
+    // Context is declarative grounding, not a question — it must not trip the
+    // yes/no-question validator that guards the question argument.
+    expect(() =>
+      judge('Is the flow correct?', undefined, {
+        context: 'The scaffold uses SDK v3. This is an assertion, not a question.',
+      }),
+    ).not.toThrow();
+  });
+
   it('rejects an assertion-phrased prompt', () => {
     // yes=pass / no=fail, so "no" in answer to an assertion is ambiguous and
     // fails correct output — see the comment on judge().
