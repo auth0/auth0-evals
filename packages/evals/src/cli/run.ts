@@ -193,7 +193,9 @@ async function runAgentJob(
 
     const scored = score(record, graderResults, getFrameworkConfig().scoring);
 
-    // Generate recommendations only when skills or MCP are enabled (must happen before workspace cleanup)
+    // Generate recommendations for every agent job — including the no-tools control
+    // run, whose clean-room result is the best evidence for a grader defect. Must
+    // happen before workspace cleanup.
     const recommendations = await generateRunRecommendations(
       evalDef,
       resolvedModel,
