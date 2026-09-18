@@ -52,13 +52,13 @@ export function defineGraders() {
     // ── L4: Structural / behavioral correctness ───────────────────────────────
     compiles('Project compiles (build succeeds)', GraderLevel.L4),
     judge(
-      'Does the code call getAccessToken (e.g. with { refresh: true }) for the sensitive operation and ' +
+      'Does the code call getAccessToken (for example with { refresh: true }) for the sensitive operation and ' +
         'catch the resulting MfaRequiredError to detect that step-up is required before allowing the ' +
         'transfer to proceed?',
       GraderLevel.L4,
     ),
     judge(
-      'When MfaRequiredError is raised, does the code drive the user through an MFA challenge — e.g. ' +
+      'When MfaRequiredError is raised, does the code drive the user through an MFA challenge — for example ' +
         'mfa.challengeWithPopup() or a redirect to an /mfa-challenge route — rather than proceeding or ' +
         'simply returning an error?',
       GraderLevel.L4,

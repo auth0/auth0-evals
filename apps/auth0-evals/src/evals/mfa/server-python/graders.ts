@@ -69,9 +69,9 @@ export function defineGraders() {
       GraderLevel.L5,
     ),
     judge(
-      'Does the code persist the session after a successful mfa.verify (e.g. verify(..., persist=True) ' +
+      'Does the code persist the session after a successful mfa.verify (for example via verify(..., persist=True) ' +
         'or the SDK equivalent) so subsequent requests stay authenticated without repeating the MFA ' +
-        'flow, rather than manually decoding the raw token — e.g. base64-decoding a segment or calling ' +
+        'flow, rather than manually decoding the raw token — for example base64-decoding a segment or calling ' +
         'jwt.decode by hand?',
       GraderLevel.L5,
     ),
