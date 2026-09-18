@@ -30,9 +30,10 @@ export function defineGraders() {
       GraderLevel.L3,
     ),
     judge(
-      'Does the code avoid exposing raw Auth0 tokens (access, ID, or refresh tokens) in HTTP ' +
-        'responses or logs, relying on the SDK-managed encrypted session rather than persisting ' +
-        'tokens itself?',
+      'Does the code avoid exposing access tokens, ID tokens, or refresh tokens in HTTP responses ' +
+        'or logs, relying on the SDK-managed encrypted session rather than persisting tokens itself? ' +
+        'Note: the mfa_token is a short-lived flow credential, not an access/ID/refresh token — ' +
+        'storing it in a short-lived httpOnly cookie is expected and correct.',
       GraderLevel.L3,
     ),
 

@@ -47,10 +47,14 @@ export function defineGraders() {
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
-      'Does the solution correctly implement MFA step-up authentication in an Angular app using ' +
-        '@auth0/auth0-angular — by configuring interactiveErrorHandler: "popup" ' +
+      'Context: the scaffold uses @auth0/auth0-angular ^2.9.0 (resolves to 2.11.0+), which has ' +
+        '@auth0/auth0-spa-js ^2.21.0 as a peer dep. AuthConfig extends Auth0ClientOptions from spa-js, ' +
+        'so interactiveErrorHandler (added in spa-js 2.16.0) IS a valid provideAuth0() config key ' +
+        'in this version -- it is not fabricated. Grade structural flow only. ' +
+        'Does the solution correctly implement MFA step-up authentication in an Angular app using ' +
+        '@auth0/auth0-angular -- by configuring interactiveErrorHandler: "popup" ' +
         'so that getAccessTokenSilently automatically triggers an MFA popup ' +
-        'when the API requires it — and gating ' +
+        'when the API requires it -- and gating ' +
         'the Transfer Funds action behind successful MFA completion?',
     ),
   ];
