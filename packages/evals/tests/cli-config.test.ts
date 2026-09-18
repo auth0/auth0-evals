@@ -11,7 +11,9 @@ import {
   DEFAULT_AGENT_TYPE,
   KNOWN_AGENT_TYPES,
   KNOWN_WORKING_MODELS,
+  setFrameworkConfig,
 } from '../src/index.js';
+import type { FrameworkConfig, ProxyAuthHeaderConfig } from '@a0/evals-core';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -70,6 +72,60 @@ describe('API key', () => {
     process.env.LLM_API_KEY = 'my-secret-key';
     const config = parse();
     expect(config.apiKey).toBe('my-secret-key');
+  });
+});
+
+// ── API key — proxy.authHeader interaction ──────────────────────────────────
+
+describe('API key with proxy.authHeader configured', () => {
+  /** Seeds the framework config singleton with (or without) an authHeader. */
+  function withAuthHeader(authHeader?: ProxyAuthHeaderConfig) {
+    setFrameworkConfig({
+      evalsDir: '/evals',
+      proxy: { baseUrl: 'https://llm.example.com/v1', ...(authHeader ? { authHeader } : {}) },
+      mcp: { servers: {} },
+      judge: { model: 'm', maxTokens: 1024, maxCodeChars: 16384 },
+      models: { known: [], default: '', modelIds: {} },
+      agents: {},
+    } as unknown as Required<FrameworkConfig>);
+  }
+
+  it('returns an empty apiKey instead of exiting when LLM_API_KEY is unset, authHeader is configured, and its token is set', () => {
+    delete process.env.LLM_API_KEY;
+    process.env.LLM_PROXY_TOKEN = 'jwt-abc';
+    withAuthHeader({ name: 'x-litellm-api-key', tokenEnv: 'LLM_PROXY_TOKEN' });
+    const config = parse();
+    expect(config.apiKey).toBe('');
+    expect(process.exit).not.toHaveBeenCalled();
+    delete process.env.LLM_PROXY_TOKEN;
+  });
+
+  it('still exits when LLM_API_KEY is unset and no authHeader is configured', () => {
+    delete process.env.LLM_API_KEY;
+    withAuthHeader(undefined);
+    expect(() => parse()).toThrow('process.exit(1)');
+  });
+
+  it('LLM_API_KEY still wins when both it and authHeader are set', () => {
+    process.env.LLM_API_KEY = 'my-secret-key';
+    withAuthHeader({ name: 'x-litellm-api-key', tokenEnv: 'LLM_PROXY_TOKEN' });
+    const config = parse();
+    expect(config.apiKey).toBe('my-secret-key');
+  });
+
+  it('exits when LLM_API_KEY is unset, authHeader is configured, but its token env var is also unset', () => {
+    delete process.env.LLM_API_KEY;
+    delete process.env.LLM_PROXY_TOKEN;
+    withAuthHeader({ name: 'x-litellm-api-key', tokenEnv: 'LLM_PROXY_TOKEN' });
+    expect(() => parse()).toThrow('process.exit(1)');
+  });
+
+  it('prints the token env var name in the error when it is unset', () => {
+    delete process.env.LLM_API_KEY;
+    delete process.env.LLM_PROXY_TOKEN;
+    withAuthHeader({ name: 'x-litellm-api-key', tokenEnv: 'LLM_PROXY_TOKEN' });
+    expect(() => parse()).toThrow();
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('LLM_PROXY_TOKEN'));
   });
 });
 
