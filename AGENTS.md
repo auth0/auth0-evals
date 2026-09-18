@@ -7,8 +7,8 @@
 | Configuration      | CLI flags                         | Grader levels |
 | ------------------ | --------------------------------- | ------------- |
 | `baseline`         | `--mode baseline`                 | L1-L3         |
-| `agent`            | `--mode agent`                    | L1-L4         |
-| `agent+skills`     | `--mode agent --tools skills`     | L1-L4         |
+| `agent`            | `--mode agent`                    | L1-L5         |
+| `agent+skills`     | `--mode agent --tools skills`     | L1-L5         |
 | `agent+mcp`        | `--mode agent --tools mcp`        | L1-L5         |
 | `agent+mcp+skills` | `--mode agent --tools mcp,skills` | L1-L5         |
 
@@ -90,7 +90,7 @@ Every grader must have a `GraderLevel`. End every eval with one holistic `judge`
 | L2    | `hallucination`       | Hallucinated packages / wrong SDK variants are absent  | All configs            |
 | L3    | `security`            | No hardcoded credentials or tokens in insecure storage | All configs            |
 | L4    | `structural`          | Code is correctly wired — right components, lifecycle  | Agent configs only     |
-| L5    | `version_correctness` | Uses current API, not deprecated patterns              | Agent+MCP configs only |
+| L5    | `version_correctness` | Uses current API, not deprecated patterns              | Agent configs (with or without MCP) |
 
 Use `notContainsInSource` (not `notContains`) when a value is allowed in config files but must not appear in source code.
 
