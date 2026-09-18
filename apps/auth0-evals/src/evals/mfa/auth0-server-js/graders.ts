@@ -73,7 +73,8 @@ export function defineGraders() {
 
     // ── L4: Structural correctness ────────────────────────────────────────
     compiles('Project compiles (build succeeds)', GraderLevel.L4),
-    matches(String.raw`\.mfa\.verify\(`, 'Completes sign-in through the MFA client verify method', GraderLevel.L4),
+    // `[!?]?` allows the TS non-null assertion (`mfa!.verify`) and optional chaining (`mfa?.verify`).
+    matches(String.raw`\.mfa[!?]?\.verify\(`, 'Completes sign-in through the MFA client verify method', GraderLevel.L4),
     judge(
       'Is the store options object — the one carrying the Express request and response — passed as the ' +
         'second argument to mfa.verify, the way the rest of the scaffold passes it to other ServerClient ' +
