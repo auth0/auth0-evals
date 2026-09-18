@@ -43,6 +43,11 @@ export function defineGraders() {
       'No hardcoded client ID in source files (ok in .env)',
       GraderLevel.L3,
     ),
+    notContainsInSource(
+      'barkbook_secret_def456uvw',
+      'No hardcoded client secret in source files (ok in .env)',
+      GraderLevel.L3,
+    ),
 
     // ── L4: Structural correctness ─────────────────────────────────────────
     compiles('Project compiles (tsc succeeds)', GraderLevel.L4),
