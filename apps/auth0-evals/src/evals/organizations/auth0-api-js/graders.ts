@@ -51,10 +51,11 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
     judge(
-      'Does the code enforce that the org_id claim on the verified token matches "org_barkbook_acme" ' +
-        'and respond with a 403 (or equivalent rejection) when the claim is absent or does not match? ' +
-        'Simply requiring org_id to be present via requiredClaims is necessary but not sufficient - ' +
-        'the code must also compare the claim value against the expected org.',
+      'Does the code compare the verified token org_id claim against the expected Acme organization ' +
+        'and respond with a 403 (or equivalent rejection) when the claim is absent or does not match, ' +
+        'going beyond merely requiring org_id via requiredClaims by checking the claim value, and ' +
+        'treating an expected org id sourced from an environment variable such as AUTH0_ORG_ID as ' +
+        'correctly wired while judging only from the source without assuming any .env file contents?',
       GraderLevel.L4,
     ),
     judge(
