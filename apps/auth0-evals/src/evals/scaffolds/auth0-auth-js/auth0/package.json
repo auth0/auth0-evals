@@ -9,9 +9,11 @@
   },
   "dependencies": {
     "@auth0/auth0-auth-js": "^1.12.1",
+    "cookie-parser": "^1.4.7",
     "express": "^5.1.0"
   },
   "devDependencies": {
+    "@types/cookie-parser": "^1.4.7",
     "@types/express": "^5.0.1",
     "@types/node": "^22.13.0",
     "typescript": "~5.8.3"

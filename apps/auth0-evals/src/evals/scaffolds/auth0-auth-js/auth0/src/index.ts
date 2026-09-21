@@ -1,47 +1,39 @@
 import express from 'express';
 import type { Request, Response } from 'express';
-import { audience, authClient } from './auth0.js';
+import cookieParser from 'cookie-parser';
+import { randomUUID } from 'node:crypto';
+import { authClient } from './auth0.js';
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
 
-app.post('/login', async (request: Request, response: Response) => {
-  const { username, password } = request.body ?? {};
+// Maps an opaque session id (browser cookie) to its PKCE code_verifier until the callback.
+const verifiers = new Map<string, string>();
 
-  if (!username || !password) {
-    response.status(400).json({ error: 'username and password are required' });
-    return;
-  }
+app.get('/login', async (_request: Request, response: Response) => {
+  const { authorizationUrl, codeVerifier } = await authClient.buildAuthorizationUrl();
 
-  try {
-    const tokens = await authClient.getTokenByPassword({
-      username,
-      password,
-      audience,
-      scope: 'openid profile email offline_access',
-    });
-
-    response.json({
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-      expiresAt: tokens.expiresAt,
-    });
-  } catch (error) {
-    response.status(401).json({ error: (error as Error).message });
-  }
+  const sid = randomUUID();
+  verifiers.set(sid, codeVerifier);
+  response.cookie('sid', sid, { httpOnly: true, sameSite: 'lax' });
+  response.redirect(authorizationUrl.toString());
 });
 
-app.post('/refresh', async (request: Request, response: Response) => {
-  const { refreshToken } = request.body ?? {};
-
-  if (!refreshToken) {
-    response.status(400).json({ error: 'refreshToken is required' });
+app.get('/auth/callback', async (request: Request, response: Response) => {
+  const sid = request.cookies?.sid as string | undefined;
+  const codeVerifier = sid ? verifiers.get(sid) : undefined;
+  if (!sid || !codeVerifier) {
+    response.status(400).json({ error: 'no login in progress' });
     return;
   }
+  verifiers.delete(sid);
+  response.clearCookie('sid');
 
   try {
-    const tokens = await authClient.getTokenByRefreshToken({ refreshToken });
-    response.json({ accessToken: tokens.accessToken, expiresAt: tokens.expiresAt });
+    const callbackUrl = new URL(request.url, `http://${request.headers.host ?? 'localhost:3000'}`);
+    const tokens = await authClient.getTokenByCode(callbackUrl, { codeVerifier });
+    response.json({ claims: tokens.claims, expiresAt: tokens.expiresAt });
   } catch (error) {
     response.status(401).json({ error: (error as Error).message });
   }
