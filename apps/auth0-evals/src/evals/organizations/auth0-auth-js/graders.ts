@@ -1,12 +1,4 @@
-import {
-  contains,
-  notContains,
-  notContainsInSource,
-  matches,
-  judge,
-  compiles,
-  GraderLevel,
-} from '@a0/evals-graders';
+import { contains, notContains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -68,10 +60,10 @@ export function defineGraders() {
 
     // ── L5: Current API patterns ───────────────────────────────────────────
     judge(
-      'Does the code pass the organization value inside an authorizationParams object when calling ' +
-        'buildAuthorizationUrl - i.e. as authorizationParams.organization - rather than as a top-level ' +
-        'option or a legacy format? Also confirm it uses the current @auth0/auth0-auth-js APIs ' +
-        '(AuthClient, buildAuthorizationUrl, getTokenByCode) and not any removed or deprecated patterns.',
+      'Does the code pass the organization value inside an authorizationParams object (as ' +
+        'authorizationParams.organization) when calling buildAuthorizationUrl rather than as a top-level ' +
+        'option or a legacy format, and does it use the current @auth0/auth0-auth-js APIs ' +
+        '(AuthClient, buildAuthorizationUrl, getTokenByCode) without any removed or deprecated patterns?',
       GraderLevel.L5,
     ),
 

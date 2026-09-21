@@ -1,12 +1,4 @@
-import {
-  contains,
-  notContains,
-  notContainsInSource,
-  matches,
-  judge,
-  compiles,
-  GraderLevel,
-} from '@a0/evals-graders';
+import { contains, notContains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -67,13 +59,13 @@ export function defineGraders() {
     ),
     judge(
       'Does the code handle OrganizationValidationError (imported from @auth0/auth0-server-js) in the ' +
-        'callback route - i.e. catch errors thrown by completeInteractiveLogin and check whether the error ' +
-        'is an instanceof OrganizationValidationError, then respond appropriately?',
+        'callback route by catching errors thrown by completeInteractiveLogin, checking whether the error ' +
+        'is an instanceof OrganizationValidationError, and responding appropriately?',
       GraderLevel.L4,
     ),
     judge(
       'Does the code surface the organization the user logged into by reading the org_id claim from the ' +
-        'session user (e.g. user.org_id obtained via serverClient.getUser), rather than hardcoding or guessing it?',
+        'session user (for example user.org_id obtained via serverClient.getUser) rather than hardcoding or guessing it?',
       GraderLevel.L4,
     ),
 

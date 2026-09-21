@@ -1,12 +1,4 @@
-import {
-  contains,
-  notContains,
-  notContainsInSource,
-  matches,
-  judge,
-  compiles,
-  GraderLevel,
-} from '@a0/evals-graders';
+import { contains, notContains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -30,11 +22,7 @@ export function defineGraders() {
       'No express-openid-connect (that is the web-app OIDC SDK, not the API SDK)',
       GraderLevel.L2,
     ),
-    notContains(
-      'jwks-rsa',
-      'No manual jwks-rsa (the SDK handles JWKS internally)',
-      GraderLevel.L2,
-    ),
+    notContains('jwks-rsa', 'No manual jwks-rsa (the SDK handles JWKS internally)', GraderLevel.L2),
     notContains(
       'jsonwebtoken',
       'No manual JWT verification with jsonwebtoken - verifyAccessToken must do the parsing',
@@ -52,16 +40,8 @@ export function defineGraders() {
       'No hardcoded domain in source files (ok in .env)',
       GraderLevel.L3,
     ),
-    notContainsInSource(
-      'api.barkbook.com',
-      'No hardcoded audience in source files (ok in .env)',
-      GraderLevel.L3,
-    ),
-    notContains(
-      'algorithm: "none"',
-      'No disabled JWT algorithm verification',
-      GraderLevel.L3,
-    ),
+    notContainsInSource('api.barkbook.com', 'No hardcoded audience in source files (ok in .env)', GraderLevel.L3),
+    notContains('algorithm: "none"', 'No disabled JWT algorithm verification', GraderLevel.L3),
 
     // ── L4: Structural correctness ─────────────────────────────────────────
     compiles('Project compiles (tsc succeeds)', GraderLevel.L4),
@@ -85,11 +65,11 @@ export function defineGraders() {
 
     // ── L5: Current API patterns ───────────────────────────────────────────
     judge(
-      'Does the code rely exclusively on apiClient.verifyAccessToken to parse and validate the JWT - ' +
-        'i.e. it does NOT manually decode the token by splitting on ".", calling Buffer.from with base64, ' +
-        'importing jose directly, or using any JWT library other than what @auth0/auth0-api-js exposes? ' +
-        'The org_id claim must be read from the claims object returned by verifyAccessToken, not extracted ' +
-        'by hand from the raw token string.',
+      'Does the code rely exclusively on apiClient.verifyAccessToken to parse and validate the JWT, ' +
+        'and does it avoid manually decoding the token — no splitting the raw string on dots, no ' +
+        'Buffer.from base64 decode, no importing jose directly, and no JWT library other than what ' +
+        '@auth0/auth0-api-js exposes? The org_id claim must be read from the claims object returned by ' +
+        'verifyAccessToken, not extracted by hand from the raw token string.',
       GraderLevel.L5,
     ),
 

@@ -53,7 +53,7 @@ export function defineGraders() {
     ),
     judge(
       'Does the code surface the organization the user logged into by reading the org_id claim ' +
-        'through the SDK (e.g. via get_user() or the complete_interactive_login result) rather than ' +
+        'through the SDK (for example via get_user() or the complete_interactive_login result) rather than ' +
         'hardcoding or guessing it?',
       GraderLevel.L4,
     ),
@@ -61,7 +61,7 @@ export function defineGraders() {
     // ── L5: Current API patterns ──────────────────────────────────────────
     judge(
       'Does the code pass options to start_interactive_login as a StartInteractiveLoginOptions instance ' +
-        '(e.g. start_interactive_login(StartInteractiveLoginOptions(organization=...)) or with ' +
+        '(for example start_interactive_login(StartInteractiveLoginOptions(organization=...)) or with ' +
         'authorization_params={"organization": ...}), OR configure the default organization on the ServerClient ' +
         'constructor? Passing a raw dict such as start_interactive_login({"authorization_params": {...}}) is a ' +
         'failure — a non-empty dict is not a StartInteractiveLoginOptions and raises AttributeError at runtime.',
@@ -70,7 +70,7 @@ export function defineGraders() {
     judge(
       'Does the code read the org_id claim through the SDK session (get_user() or the ' +
         'complete_interactive_login result) rather than manually decoding the raw ID/access token — ' +
-        "e.g. splitting the token on '.', base64-decoding a segment, or calling jwt.decode by hand?",
+        "for example splitting the token on '.', base64-decoding a segment, or calling jwt.decode by hand?",
       GraderLevel.L5,
     ),
 

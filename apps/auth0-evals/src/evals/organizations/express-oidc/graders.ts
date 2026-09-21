@@ -53,12 +53,12 @@ export function defineGraders() {
     // instead of pattern-matching raw text.
     judge(
       'Does the code perform org-scoped login by passing the organization VALUE into an ' +
-        'authorizationParams object — i.e. as a key inside `authorizationParams: { organization: ... }` ' +
-        '(on the auth() config or res.oidc.login), or by assigning `authorizationParams.organization = ...` ' +
-        'before calling res.oidc.login? To pass, `organization` must be an actual value SENT to Auth0 in the ' +
-        'authorize request. Answer NO if `organization` appears only as a top-level config key (a sibling of ' +
-        'authorizationParams, not inside it), only inside a comment or string literal, or is merely READ from ' +
-        'user/claims (e.g. logging req.oidc.user.org_id) without being passed into authorizationParams.',
+        'authorizationParams object (as an organization key inside authorizationParams on the auth() config ' +
+        'or res.oidc.login, or by assigning authorizationParams.organization before calling res.oidc.login)? ' +
+        'To pass, organization must be an actual value SENT to Auth0 in the authorize request. Answer NO if ' +
+        'organization appears only as a top-level config key (a sibling of authorizationParams, not inside ' +
+        'it), only inside a comment or string literal, or is merely READ from user/claims (for example ' +
+        'logging req.oidc.user.org_id) without being passed into authorizationParams.',
       GraderLevel.L4,
     ),
     judge(
@@ -72,7 +72,7 @@ export function defineGraders() {
     ),
     judge(
       'Does the code surface the organization the user logged into by reading the org_id claim from the ' +
-        'session/ID token (e.g. req.oidc.user.org_id or req.oidc.idTokenClaims.org_id), rather than ' +
+        'session/ID token (for example req.oidc.user.org_id or req.oidc.idTokenClaims.org_id) rather than ' +
         'hardcoding or guessing it? Validating org_id in an afterCallback hook (decoding session.id_token ' +
         'and checking claims.org_id) is an acceptable, good-practice way to satisfy this.',
       GraderLevel.L4,
