@@ -47,9 +47,11 @@ export function defineGraders() {
       GraderLevel.L3,
     ),
     judge(
-      'Does the code avoid exposing Auth0 tokens or the org_id claim to the browser — for example, ' +
-        'not returning them from Server Components as props passed to Client Components, not embedding ' +
-        'them in client state, and not sending them in a JSON response to the client?',
+      'Does the code keep Auth0 tokens (access, ID, refresh) out of the browser entirely and keep the ' +
+        'org_id claim out of client-side JavaScript — where passing tokens or claims from a Server ' +
+        'Component as props into a Client Component, storing them in client state, or returning them in ' +
+        'a JSON response to the client are failures, while rendering org_id as text in server-rendered ' +
+        'output for display is expected and must not be treated as exposure?',
       GraderLevel.L3,
     ),
 

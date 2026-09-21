@@ -57,9 +57,11 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
     judge(
-      'Does GET /api/org/members correctly restrict access to users in org_barkbook_acme? ' +
-        'The route must apply both the auth() JWT validation middleware and a claimEquals (or claimCheck) ' +
-        'middleware that enforces org_id === "org_barkbook_acme". A missing or wrong org_id should yield a 4xx error.',
+      'Does GET /api/org/members restrict access to the Acme organization by applying both the auth() JWT ' +
+        'validation middleware and a claimEquals (or claimCheck) middleware bound to the org_id claim so a ' +
+        'missing or mismatched org_id yields a 4xx error, treating an org id sourced from an environment ' +
+        'variable such as ACME_ORG_ID as correctly wired and judging only from the source without assuming ' +
+        'any .env file contents?',
       GraderLevel.L4,
     ),
     judge(
