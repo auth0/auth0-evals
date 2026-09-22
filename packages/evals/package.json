@@ -29,7 +29,7 @@
     "ai": "^7.0.66",
     "braintrust": "^3.32.0",
     "commander": "^15.0.0",
-    "dotenv": "^17.4.2",
+    "dotenv": "^18.0.1",
     "p-limit": "^7.3.2"
   },
   "scripts": {
