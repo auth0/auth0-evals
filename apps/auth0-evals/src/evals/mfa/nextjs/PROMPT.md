@@ -1,7 +1,7 @@
 ---
 id: nextjs_mfa
 name: Next.js App Router MFA Step-Up
-scaffold: src/evals/scaffolds/nextjs/auth0-mfa
+scaffold: src/evals/scaffolds/nextjs/base
 skills: auth0
 setup_command: npm install
 compile_command: npm run build
