@@ -1,7 +1,7 @@
 ---
 id: nextjs_organizations
 name: Next.js App Router Organizations Login
-scaffold: src/evals/scaffolds/nextjs/auth0-mfa
+scaffold: src/evals/scaffolds/nextjs/auth0
 skills: auth0
 setup_command: npm install
 compile_command: npm run build
