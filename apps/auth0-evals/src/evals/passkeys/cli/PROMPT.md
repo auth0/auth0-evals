@@ -8,7 +8,12 @@ provision: auth0-tenant
 
 ## Task
 
-We'd like our users to be able to sign up and log in with passkeys instead of passwords. Can you turn that on for our tenant's database login?
+We'd like our users to be able to sign up and log in with passkeys instead of passwords. Our tenant doesn't have a custom domain set up yet — passkeys require one so that enrolled credentials stay bound to a stable domain.
+
+Please do both steps using the Auth0 CLI only:
+
+1. Configure a custom domain for the tenant. Use `login.example.com` as the domain name.
+2. Enable passkeys on the tenant's database connection.
 
 A couple of things we care about:
 
