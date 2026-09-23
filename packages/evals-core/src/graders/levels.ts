@@ -10,14 +10,22 @@ import { GraderLevel } from '@a0/evals-graders';
 /** Baseline mode: L1-L3 — presence, hallucination, security. */
 export const BASELINE_LEVELS = new Set([GraderLevel.L1, GraderLevel.L2, GraderLevel.L3]);
 
-/** Agent without MCP: L1-L5. */
-export const AGENT_LEVELS = new Set([GraderLevel.L1, GraderLevel.L2, GraderLevel.L3, GraderLevel.L4, GraderLevel.L5]);
+/** Agent without MCP: L1-L5 + TraceQuality. */
+export const AGENT_LEVELS = new Set([
+  GraderLevel.L1,
+  GraderLevel.L2,
+  GraderLevel.L3,
+  GraderLevel.L4,
+  GraderLevel.L5,
+  GraderLevel.TraceQuality,
+]);
 
-/** Agent with MCP: L1-L5. Model has docs access, so version drift is a real failure. */
+/** Agent with MCP: L1-L5 + TraceQuality. Model has docs access, so version drift is a real failure. */
 export const AGENT_MCP_LEVELS = new Set([
   GraderLevel.L1,
   GraderLevel.L2,
   GraderLevel.L3,
   GraderLevel.L4,
   GraderLevel.L5,
+  GraderLevel.TraceQuality,
 ]);

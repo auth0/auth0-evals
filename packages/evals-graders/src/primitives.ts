@@ -162,15 +162,16 @@ export function judge(question: string, level?: GraderLevel, options: JudgeOptio
 }
 
 /**
- * A trajectory-aware judge: like {@link judge}, but the agent's full command trace —
+ * A trace-quality judge: like {@link judge}, but the agent's full command trace —
  * including commands that errored — is placed in the judge's input, and the judge is
  * prompted to evaluate the *path* the agent took, not just the final artifact. Use it
  * to catch a run that reached a correct end state via a wrong or wasteful route.
  *
- * Delegates to {@link judge}, so the same yes/no-question rule applies. Level is limited
- * to L4/L5 because a trajectory only exists in agent configs (baseline has no tool calls).
+ * Delegates to {@link judge}, so the same yes/no-question rule applies. Uses the
+ * dedicated `TraceQuality` level, which runs only in agent configs (baseline has no tool
+ * calls) and scores in the Process group.
  */
-export function judgeTrace(question: string, level?: GraderLevel.L4 | GraderLevel.L5): GraderDef {
+export function judgeTrace(question: string, level: GraderLevel.TraceQuality = GraderLevel.TraceQuality): GraderDef {
   return {
     ...judge(question, level, { includeCommandTrace: true }),
     includeFailedCommands: true,

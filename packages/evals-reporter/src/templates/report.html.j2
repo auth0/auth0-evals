@@ -132,10 +132,10 @@
 {% endmacro %}
 
 {% macro render_score_breakdown(dimensions, overall_score, overall_grade) %}
-{% set process_dims = dimensions | batch(5) | first %}
+{% set process_dims = dimensions | batch(6) | first %}
 {% set output_dims = [] %}
-{% if dimensions | length >= 8 %}
-  {% set output_dims = [dimensions[5], dimensions[6], dimensions[7]] %}
+{% if dimensions | length >= 9 %}
+  {% set output_dims = [dimensions[6], dimensions[7], dimensions[8]] %}
 {% endif %}
 <div class="score-breakdown">
   <div class="score-breakdown-title">Score Computation</div>
@@ -151,7 +151,7 @@
     </tr>
   </table>
   <div class="score-formula">
-    Process (50%): friction&times;15% + speed&times;10% + efficiency&times;10% + errors&times;5% + docs&times;10%<br>
+    Process (50%): friction&times;10% + speed&times;10% + efficiency&times;10% + errors&times;7% + docs&times;6% + trace quality&times;7%<br>
     Output (50%): correctness&times;25% + hallucination&times;15% + security&times;10%
   </div>
 </div>

@@ -84,13 +84,14 @@ Two authoring rules: **grade the artifact, not the explanation** (verify generat
 
 Every grader must have a `GraderLevel`. End every eval with one holistic `judge` with no level:
 
-| Level | Enum value            | What it tests                                          | Runs in                |
-| ----- | --------------------- | ------------------------------------------------------ | ---------------------- |
-| L1    | `positive_presence`   | Required SDK symbols, imports, config keys are present | All configs            |
-| L2    | `hallucination`       | Hallucinated packages / wrong SDK variants are absent  | All configs            |
-| L3    | `security`            | No hardcoded credentials or tokens in insecure storage | All configs            |
-| L4    | `structural`          | Code is correctly wired — right components, lifecycle  | Agent configs only     |
-| L5    | `version_correctness` | Uses current API, not deprecated patterns              | Agent configs (with or without MCP) |
+| Level      | Enum value            | What it tests                                          | Runs in                |
+| ---------- | --------------------- | ------------------------------------------------------ | ---------------------- |
+| L1         | `positive_presence`   | Required SDK symbols, imports, config keys are present | All configs            |
+| L2         | `hallucination`       | Hallucinated packages / wrong SDK variants are absent  | All configs            |
+| L3         | `security`            | No hardcoded credentials or tokens in insecure storage | All configs            |
+| L4         | `structural`          | Code is correctly wired — right components, lifecycle  | Agent configs only     |
+| L5         | `version_correctness` | Uses current API, not deprecated patterns              | Agent configs (with or without MCP) |
+| Trace Quality | `trace_quality`    | Path quality — agent reached goal without wasteful detours | Agent configs only |
 
 Use `notContainsInSource` (not `notContains`) when a value is allowed in config files but must not appear in source code.
 
@@ -103,7 +104,7 @@ Use `notContainsInSource` (not `notContains`) when a value is allowed in config 
 | `notContainsInSource(needle)`                    | Substring must NOT appear in source files (allowed in config). Supports `{ ignoreComments: true }` — see `notContains`.                         |
 | `matches(pattern)`                               | Regex match in any workspace file. Same `source` option as `contains`.                                                                         |
 | `judge(question, level?, options?)`              | LLM-as-judge yes/no — uses `claude-opus-5`. Must be phrased as a question whose correct answer is "yes"; throws unless a sentence ends in `?` and opens with a yes/no interrogative (is/are/does/did/can/should/must/…), because `yes` = pass and `no` = fail makes an assertion's "no" ambiguous. Options: `{ includeCommandTrace: true }` for CLI-only evals; `{ source: 'response' \| 'both' }` for MCP evals. |
-| `judgeTrace(question, level?)`                   | Trajectory-aware `judge`: the agent's full command trace — including failed commands (annotated `[FAILED]`) — is given to the judge, which evaluates the *path* taken, not just the final artifact. Inherits `judge`'s yes/no-question rule. Level limited to L4/L5. Use it to catch a correct end state reached via a wrong/wasteful route. |
+| `judgeTrace(question, level?)`                   | Trace-quality `judge`: the agent's full command trace — including failed commands (annotated `[FAILED]`) — is given to the judge, which evaluates the *path* taken, not just the final artifact. Inherits `judge`'s yes/no-question rule. Uses the dedicated `Trace Quality` level (`GraderLevel.TraceQuality`, default); runs only in agent configs and scores in the Process group. Use it to catch a correct end state reached via a wrong/wasteful route. |
 | `ranCommand(command, args, description, level)`  | Agent ran a shell command containing `command` and all `args` — L4 or L5 required.                                                            |
 | `ranCommandOneOf(commands, description, level, args?)` | Agent ran at least one command matching an entry in the list, and containing every `args` substring. An entry may itself be an array, requiring all its substrings in the same command — L4 or L5 required. |
 | `ranCommandsInOrder(steps, description, level)`  | Agent ran commands in sequence — L4 or L5 required.                                                                                           |

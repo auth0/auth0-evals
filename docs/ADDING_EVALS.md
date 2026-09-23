@@ -100,7 +100,7 @@ Graders define the acceptance criteria. Export a single `defineGraders()` functi
 | `notContainsInSource(needle, description?, level?, options?)` | No **source** file contains the substring (skips `.env`, `.json`, `.plist`, config files) |
 | `matches(pattern, description?, level?, options?)` | The workspace text matches the regex pattern. The corpus is every workspace file joined with a `// FILE: <path>` header before each, so `'^// FILE: manifest\\.json$'` asserts a file exists no matter how it got there. Multiline; case-insensitive unless `caseSensitive: true` |
 | `judge(question, level?, options?)` | An LLM judge answers "yes" given the full workspace contents. Must be a yes/no **question** whose correct answer is "yes" — `judge()` throws unless a sentence ends in `?` and opens with a yes/no interrogative, so a trailing `?` on an assertion is not enough (see below). Pass `{ includeCommandTrace: true }` to also append the agent's successful shell commands (for CLI-only evals with no files to inspect) |
-| `judgeTrace(question, level?)` | Trajectory-aware variant of `judge`: the agent's full command trace — including failed commands (annotated `[FAILED]`) — is surfaced to the judge so it can evaluate the *path* taken, not just the final artifact. Inherits `judge`'s yes/no-question rule. Level must be L4 or L5 (trajectory only exists in agent configs). Use it when the *how* matters — e.g. to catch a correct end state reached via a wrong or wasteful route. |
+| `judgeTrace(question, level?)` | Trace-quality variant of `judge`: the agent's full command trace — including failed commands (annotated `[FAILED]`) — is surfaced to the judge so it can evaluate the *path* taken, not just the final artifact. Inherits `judge`'s yes/no-question rule. Uses the dedicated `Trace Quality` level (`GraderLevel.TraceQuality`, default); runs only in agent configs and scores in the Process group. Use it when the *how* matters — e.g. to catch a correct end state reached via a wrong or wasteful route. |
 | `ranCommand(command, args, description, level)` | Agent ran a successful shell command containing `command` and all `args` substrings |
 | `ranCommandOneOf(commands, description, level, args?)` | Agent ran one successful command matching any entry in `commands` and containing every `args` substring. An entry may be a nested array, which requires **all** of its substrings in the same command (`['api post', 'organizations']`) |
 | `wroteFile(path, description, level, expected?)` | Agent wrote a file whose path contains the substring. With optional `expected` (string or string array), the combined content of all writes to that path must also contain every `expected` substring |
@@ -125,12 +125,12 @@ The optional `expected` argument on `wroteFile` is useful when a file is exclude
 
 **A security judge that reads the command trace must know about the redaction marker.** The harness masks credential values as `[REDACTED SECRET]` before the trace reaches any model, so a judge asked "does an actual secret appear?" would answer no on a run that leaked one. Say in the prompt that the marker means a secret was on that command line, as the B2B org eval does.
 
-**Use `judgeTrace` when the *how* matters, not just the final files.** Unlike `judge`, `judgeTrace` surfaces the agent's full command trace — including commands that failed (annotated `[FAILED]`) — to the judge, so it can evaluate the path the agent took. Use it to catch a correct end state reached via a wrong or wasteful route (e.g. repeated failures, a destructive reset before re-installing, or unnecessary commands unrelated to the task). Level must be L4 or L5; the same yes/no-question rule applies.
+**Use `judgeTrace` when the *how* matters, not just the final files.** Unlike `judge`, `judgeTrace` surfaces the agent's full command trace — including commands that failed (annotated `[FAILED]`) — to the judge, so it can evaluate the path the agent took. Use it to catch a correct end state reached via a wrong or wasteful route (e.g. repeated failures, a destructive reset before re-installing, or unnecessary commands unrelated to the task). Uses the dedicated `Trace Quality` level (`GraderLevel.TraceQuality`, default); the same yes/no-question rule applies.
 
 ```typescript
 judgeTrace(
   'Did the agent configure the SDK without running any destructive or unrelated commands?',
-  GraderLevel.L4,
+  GraderLevel.TraceQuality,
 )
 ```
 

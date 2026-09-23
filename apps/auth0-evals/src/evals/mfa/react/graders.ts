@@ -1,4 +1,4 @@
-import { contains, notContains, judge, compiles, GraderLevel } from '@a0/evals-graders';
+import { contains, notContains, judge, judgeTrace, compiles, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -35,6 +35,12 @@ export function defineGraders() {
         'without MFA — by calling getAccessTokenSilently for the sensitive scope so the SDK ' +
         'triggers an interactiveErrorHandler popup when the API signals mfa_required?',
       GraderLevel.L4,
+    ),
+
+    // ── Trace Quality: path quality ──
+    judgeTrace(
+      'Did the agent reach a working MFA step-up implementation on a direct path — without wasteful detours such as installing server-side TOTP libraries, calling raw MFA challenge endpoints, or repeatedly rewriting the same files after dead ends?',
+      GraderLevel.TraceQuality,
     ),
 
     // ── Holistic judge (no level — always runs) ───────────────────────────

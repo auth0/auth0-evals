@@ -284,19 +284,14 @@ describe('judgeTrace', () => {
     expect(def.name).toBe(q);
   });
 
-  it('sets the given level', () => {
-    const def = judgeTrace('Did the agent take an efficient path?', GraderLevel.L4);
-    expect(def.level).toBe(GraderLevel.L4);
-  });
-
-  it('accepts L5', () => {
-    const def = judgeTrace('Did the agent take an efficient path?', GraderLevel.L5);
-    expect(def.level).toBe(GraderLevel.L5);
-  });
-
-  it('leaves level undefined when not provided', () => {
+  it('defaults to GraderLevel.TraceQuality when no level is provided', () => {
     const def = judgeTrace('Did the agent take an efficient path?');
-    expect(def.level).toBeUndefined();
+    expect(def.level).toBe(GraderLevel.TraceQuality);
+  });
+
+  it('accepts an explicit GraderLevel.TraceQuality', () => {
+    const def = judgeTrace('Did the agent take an efficient path?', GraderLevel.TraceQuality);
+    expect(def.level).toBe(GraderLevel.TraceQuality);
   });
 
   it('throws when given an assertion-style prompt', () => {

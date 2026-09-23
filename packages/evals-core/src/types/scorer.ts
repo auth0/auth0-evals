@@ -150,6 +150,7 @@ export interface DimensionWeights {
   Efficiency: number;
   'Error Recovery': number;
   'Docs Quality': number;
+  'Trace Quality': number;
   Correctness: number;
   Hallucination: number;
   Security: number;
