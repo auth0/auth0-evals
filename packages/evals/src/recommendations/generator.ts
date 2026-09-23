@@ -102,7 +102,37 @@ export async function generateRecommendations(input: RecommendationInput): Promi
   try {
     const { system, user } = buildPrompt(input);
     const response = await callLlm(system, user, input.apiKey, input.baseUrl, input.judgeModel);
-    return parseResponse(response, input);
+
+    let outcome = tryParse(response);
+
+    // One corrective repair pass, but only for a genuine parse failure — a CLI eval
+    // quotes `auth0 api … --data '{"…":…}'` commands into evidence fields, and an
+    // interior double-quote the model forgot to escape closes the string early and
+    // breaks the whole object. That is ambiguous to a rule-based repairer (jsonrepair
+    // gives up), so the model that has the surrounding context is asked to fix its
+    // own syntax. A valid-but-wrong-shape response is not retried: a repair call
+    // cannot invent a `recommendations` array that was never emitted.
+    if ('error' in outcome && outcome.parseFailed) {
+      const repaired = await repairJson(response, outcome.error, input.apiKey, input.baseUrl, input.judgeModel).catch(
+        () => '',
+      );
+      const reparsed = repaired ? tryParse(repaired) : outcome;
+      if (!('error' in reparsed)) outcome = reparsed;
+    }
+
+    if ('error' in outcome) {
+      // Report the failure with a snippet near the fault, so the report and scores
+      // JSON are debuggable with no flag. `snippetSource` is the exact candidate the
+      // parser choked on; fall back to the whole response if the failure carried none.
+      return failed(input, withSnippet(outcome.error, outcome.snippetSource ?? response));
+    }
+    return {
+      eval_id: input.evalId,
+      model: input.model,
+      tools: input.tools,
+      recommendations: outcome.recommendations,
+      summary: outcome.summary,
+    };
   } catch (err) {
     return failed(input, `Failed to generate: ${err}`);
   }
@@ -482,7 +512,69 @@ async function callLlm(system: string, user: string, apiKey: string, baseUrl: st
   }
 }
 
+/**
+ * A single corrective pass over a reply that would not parse as JSON. The original
+ * analysis prompt and its whole context are not resent — only the broken text and
+ * the parser's complaint go back, so this is a cheap, focused "fix your syntax"
+ * call rather than a re-run of the diagnosis. The model that wrote the reply has
+ * the context a rule-based repairer lacks: the usual defect is an interior
+ * double-quote inside an evidence string (a quoted `auth0 api … --data '{"…":…}'`)
+ * that the model forgot to escape, which is ambiguous to fix without knowing where
+ * the string was meant to end.
+ */
+async function repairJson(
+  broken: string,
+  parseError: string,
+  apiKey: string,
+  baseUrl: string,
+  model: string,
+): Promise<string> {
+  const system =
+    'You repair malformed JSON. The input is a single JSON object that failed to parse. ' +
+    'Return ONLY the corrected JSON object — no prose, no code fence, no explanation. ' +
+    'Preserve every field and its content exactly; the usual defect is an unescaped double-quote ' +
+    'inside a string value (escape it as \\") or a raw newline in a string value. ' +
+    'Do not add, remove, or rename fields.';
+  const user = `Parse error: ${parseError}\n\nMalformed JSON:\n${broken}`;
+  return callLlm(system, user, apiKey, baseUrl, model);
+}
+
 // ── Response parsing ──────────────────────────────────────────────────────────
+
+/** Characters of the failing text kept on either side of a parse-failure offset. */
+const SNIPPET_RADIUS = 100;
+
+/**
+ * Append a redacted window of the failing reply around the parser's failure offset.
+ *
+ * There is no flag that captures the analysis model's raw output (the run's
+ * `--debug` only captures the agent adapter's stdout), so a bare "JSON parse failed
+ * at position N" is undiagnosable after the fact. Carrying the offending text into
+ * the error puts it in the report and the scores JSON with nothing extra to run.
+ *
+ * `source` is the exact string that failed to parse (the candidate `tryParse`
+ * choked on), so `position N` — an index into that string — lines up with the
+ * window even when the candidate was a fenced or brace-sliced substring of the
+ * whole reply.
+ */
+function withSnippet(reason: string, source: string): string {
+  const m = /position (\d+)/.exec(reason);
+  if (!m || !m[1]) return reason;
+  const pos = Number(m[1]);
+  // Redact the whole reply before slicing. A slice boundary can then only ever
+  // bisect the redaction marker, never a live credential — slicing to the window
+  // first and redacting after could hand `redactSecrets` a credential truncated
+  // below its 40-char match floor and leak the fragment into the report and
+  // scores JSON. Redaction collapses each secret to a shorter marker, so map the
+  // raw fault offset through the same redaction to keep the window on the fault.
+  const safe = redactSecrets(source);
+  const center = redactSecrets(source.slice(0, pos)).length;
+  const start = Math.max(0, center - SNIPPET_RADIUS);
+  const end = Math.min(safe.length, center + SNIPPET_RADIUS);
+  const prefix = start > 0 ? '…' : '';
+  const suffix = end < safe.length ? '…' : '';
+  return `${reason}\n  near: ${prefix}${safe.slice(start, end)}${suffix}`;
+}
 
 /**
  * Pull the analysis JSON out of a model reply. A reply may contain more than one
@@ -502,9 +594,34 @@ function extractJsonCandidates(raw: string): string[] {
   return candidates;
 }
 
-function parseResponse(raw: string, input: RecommendationInput): Recommendations {
-  let jsonStr = raw.trim();
+/** The validated body of an analysis reply, ready to fold into a `Recommendations`. */
+interface ParsedBody {
+  recommendations: Recommendation[];
+  summary: string;
+}
+
+/**
+ * A parse that did not yield a body. `parseFailed` distinguishes a syntax error the
+ * repair pass can act on from a valid reply of the wrong shape (a missing
+ * `recommendations` array), which resending the text cannot fix.
+ */
+interface ParseFailure {
+  error: string;
+  parseFailed: boolean;
+  /** The exact candidate string the parser failed on, so a `position N` offset in
+   * `error` lines up with it. Absent when the failure is not a syntax error. */
+  snippetSource?: string;
+}
+
+/**
+ * Parse and validate an analysis reply without side effects. Returns the validated
+ * body, or a failure carrying its reason. The caller decides whether to log it,
+ * retry it, or fold it into a `Recommendations`.
+ */
+function tryParse(raw: string): ParsedBody | ParseFailure {
+  let jsonStr: string | undefined;
   let lastErr: unknown;
+  let failedCandidate = '';
   for (const candidate of extractJsonCandidates(raw)) {
     try {
       const value: unknown = JSON.parse(candidate);
@@ -514,57 +631,54 @@ function parseResponse(raw: string, input: RecommendationInput): Recommendations
         break;
       }
     } catch (err) {
-      lastErr ??= err;
+      // Keep the first failing candidate alongside its error: `position N` in that
+      // error indexes this candidate, which withSnippet needs to locate the fault.
+      if (lastErr === undefined) {
+        lastErr = err;
+        failedCandidate = candidate;
+      }
     }
   }
-  if (lastErr !== undefined) return failed(input, `JSON parse failed: ${lastErr}`);
-
-  try {
-    const parsed = JSON.parse(jsonStr) as {
-      recommendations?: unknown[];
-      summary?: string;
-    };
-
-    if (!Array.isArray(parsed.recommendations)) {
-      return failed(input, 'Response was missing the recommendations array');
-    }
-
-    const VALID_CATEGORIES = new Set(['grader', 'skill', 'eval', 'cli', 'docs', 'mcp', 'efficiency']);
-    const VALID_SEVERITIES = new Set(['high', 'medium', 'low']);
-    const VALID_ROOT_CAUSES = new Set(['skill', 'model', 'grader', 'eval', 'cli', 'environment']);
-    const SEVERITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
-
-    const recommendations: Recommendation[] = parsed.recommendations
-      .filter(
-        (r): r is Record<string, unknown> =>
-          typeof r === 'object' && r !== null && 'category' in r && 'issue' in r && 'suggestion' in r,
-      )
-      .filter((r) => VALID_CATEGORIES.has(String(r.category)) && VALID_SEVERITIES.has(String(r.severity ?? 'medium')))
-      .map((r) => ({
-        category: r.category as Recommendation['category'],
-        severity: (r.severity as Recommendation['severity']) ?? 'medium',
-        issue: String(r.issue),
-        suggestion: String(r.suggestion),
-        ...(r.context ? { context: String(r.context) } : {}),
-        // Diagnosis fields are optional: an unrecognised root_cause is dropped
-        // rather than failing the whole finding, whose issue/suggestion still stand.
-        ...(VALID_ROOT_CAUSES.has(String(r.root_cause))
-          ? { root_cause: r.root_cause as Recommendation['root_cause'] }
-          : {}),
-        ...(r.what_happened ? { what_happened: String(r.what_happened) } : {}),
-        ...(r.what_should_have_happened ? { what_should_have_happened: String(r.what_should_have_happened) } : {}),
-        ...(r.evidence ? { evidence: String(r.evidence) } : {}),
-      }))
-      .sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 1) - (SEVERITY_ORDER[b.severity] ?? 1));
-
-    return {
-      eval_id: input.evalId,
-      model: input.model,
-      tools: input.tools,
-      recommendations,
-      summary: String(parsed.summary ?? ''),
-    };
-  } catch (err) {
-    return failed(input, `JSON parse failed: ${err}`);
+  if (jsonStr === undefined) {
+    return { error: `JSON parse failed: ${lastErr}`, parseFailed: true, snippetSource: failedCandidate };
   }
+
+  const parsed = JSON.parse(jsonStr) as {
+    recommendations?: unknown[];
+    summary?: string;
+  };
+
+  if (!Array.isArray(parsed.recommendations)) {
+    return { error: 'Response was missing the recommendations array', parseFailed: false };
+  }
+
+  const VALID_CATEGORIES = new Set(['grader', 'skill', 'eval', 'cli', 'docs', 'mcp', 'efficiency']);
+  const VALID_SEVERITIES = new Set(['high', 'medium', 'low']);
+  const VALID_ROOT_CAUSES = new Set(['skill', 'model', 'grader', 'eval', 'cli', 'environment']);
+  const SEVERITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+
+  const recommendations: Recommendation[] = parsed.recommendations
+    .filter(
+      (r): r is Record<string, unknown> =>
+        typeof r === 'object' && r !== null && 'category' in r && 'issue' in r && 'suggestion' in r,
+    )
+    .filter((r) => VALID_CATEGORIES.has(String(r.category)) && VALID_SEVERITIES.has(String(r.severity ?? 'medium')))
+    .map((r) => ({
+      category: r.category as Recommendation['category'],
+      severity: (r.severity as Recommendation['severity']) ?? 'medium',
+      issue: String(r.issue),
+      suggestion: String(r.suggestion),
+      ...(r.context ? { context: String(r.context) } : {}),
+      // Diagnosis fields are optional: an unrecognised root_cause is dropped
+      // rather than failing the whole finding, whose issue/suggestion still stand.
+      ...(VALID_ROOT_CAUSES.has(String(r.root_cause))
+        ? { root_cause: r.root_cause as Recommendation['root_cause'] }
+        : {}),
+      ...(r.what_happened ? { what_happened: String(r.what_happened) } : {}),
+      ...(r.what_should_have_happened ? { what_should_have_happened: String(r.what_should_have_happened) } : {}),
+      ...(r.evidence ? { evidence: String(r.evidence) } : {}),
+    }))
+    .sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 1) - (SEVERITY_ORDER[b.severity] ?? 1));
+
+  return { recommendations, summary: String(parsed.summary ?? '') };
 }
