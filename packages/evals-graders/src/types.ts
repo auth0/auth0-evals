@@ -64,6 +64,14 @@ export interface GraderDef {
    */
   includeCommandTrace?: boolean;
   /**
+   * Judge graders only. When true (only meaningful alongside includeCommandTrace),
+   * the command trace also includes commands that errored, each annotated as failed,
+   * so a trajectory judge can see the agent's wrong turns and dead ends — not just the
+   * commands that took effect. Defaults to false, preserving the success-only trace that
+   * end-state judges rely on.
+   */
+  includeFailedCommands?: boolean;
+  /**
    * Where to search for the needle / pattern / judge input.
    *
    * - `'files'` (default) — workspace files only (existing behavior, unchanged).

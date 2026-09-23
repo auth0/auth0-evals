@@ -38,6 +38,10 @@ export interface LlmJudgeOptions {
   maxTokens?: number;
   enforceMaxChars?: boolean;
   maxCodeChars?: number;
+  /** Overrides the default judge system prompt. Defaults to SYSTEM_PROMPT. */
+  systemPrompt?: string;
+  /** Overrides the default judge user template ({question}/{code} placeholders). Defaults to USER_TEMPLATE. */
+  userTemplate?: string;
 }
 
 export interface LlmJudgeResult {
@@ -68,7 +72,7 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
     );
   }
 
-  const system = SYSTEM_PROMPT;
+  const system = opts.systemPrompt ?? SYSTEM_PROMPT;
   // Truncate rather than throw. An oversized corpus is an infrastructure limit, not a defect in
   // the agent's output, so throwing scored correct solutions as grader failures — a large scaffold
   // could fail every judge in an eval without the model ever being asked.
@@ -91,7 +95,9 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
   // Use function replacers so `question`/`code` are inserted verbatim. A string
   // replacement would interpret `$&`, `` $` ``, `$'`, and `$1` specially, and
   // since `code` is untrusted agent output this would silently corrupt the prompt.
-  const user = USER_TEMPLATE.replace('{question}', () => promptQuestion).replace('{code}', () => judgeCode);
+  const user = (opts.userTemplate ?? USER_TEMPLATE)
+    .replace('{question}', () => promptQuestion)
+    .replace('{code}', () => judgeCode);
 
   // The judge hits the /chat/completions endpoint, which serves models under
   // their plain alias, so the model is sent as-is (no Bedrock ID mapping).

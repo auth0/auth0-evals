@@ -5,6 +5,7 @@ import {
   notContainsInSource,
   matches,
   judge,
+  judgeTrace,
   compiles,
   ranCommand,
   notRanCommand,
@@ -255,6 +256,57 @@ describe('judge', () => {
     // A trailing '?' alone used to be accepted, which let an assertion whose correct
     // answer is "no" through — the verdict then maps correct output to a failure.
     expect(() => judge('No client secret must ever be exposed?')).toThrow('must ask a yes/no question');
+  });
+});
+
+// ── judgeTrace ────────────────────────────────────────────────────────────────
+
+describe('judgeTrace', () => {
+  it('creates a GraderDef with kind "judge"', () => {
+    const def = judgeTrace('Did the agent take an efficient path?');
+    expect(def.kind).toBe('judge');
+  });
+
+  it('sets includeCommandTrace to true', () => {
+    const def = judgeTrace('Did the agent take an efficient path?');
+    expect(def.includeCommandTrace).toBe(true);
+  });
+
+  it('sets includeFailedCommands to true', () => {
+    const def = judgeTrace('Did the agent take an efficient path?');
+    expect(def.includeFailedCommands).toBe(true);
+  });
+
+  it('preserves question in both question and name fields', () => {
+    const q = 'Did the agent take an efficient path?';
+    const def = judgeTrace(q);
+    expect(def.question).toBe(q);
+    expect(def.name).toBe(q);
+  });
+
+  it('sets the given level', () => {
+    const def = judgeTrace('Did the agent take an efficient path?', GraderLevel.L4);
+    expect(def.level).toBe(GraderLevel.L4);
+  });
+
+  it('accepts L5', () => {
+    const def = judgeTrace('Did the agent take an efficient path?', GraderLevel.L5);
+    expect(def.level).toBe(GraderLevel.L5);
+  });
+
+  it('leaves level undefined when not provided', () => {
+    const def = judgeTrace('Did the agent take an efficient path?');
+    expect(def.level).toBeUndefined();
+  });
+
+  it('throws when given an assertion-style prompt', () => {
+    expect(() => judgeTrace('The agent must be efficient.')).toThrow('must ask a yes/no question');
+  });
+
+  it('accepts a question with trailing clarifying sentences', () => {
+    const def = judgeTrace('Did the agent avoid redundant commands? Extra retries are acceptable.');
+    expect(def.kind).toBe('judge');
+    expect(def.includeFailedCommands).toBe(true);
   });
 });
 
