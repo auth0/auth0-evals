@@ -16,6 +16,10 @@ export function defineGraders() {
       'Did not enable OTP factor instead of SMS (native command)',
       GraderLevel.L2,
     ),
+    // The phone factor delivers over SMS or voice; the PROMPT asks for SMS only.
+    // `voice` never legitimately appears in this eval's trace, so its presence
+    // means the agent enabled the wrong message type on either route.
+    notRanCommand('voice', 'Set the phone message type to SMS only, not voice', GraderLevel.L2),
 
     // Each grader accepts both routes the CLI now offers: the native guardian
     // subcommands (e.g. `auth0 guardian factors phone set-message-types`) and the
