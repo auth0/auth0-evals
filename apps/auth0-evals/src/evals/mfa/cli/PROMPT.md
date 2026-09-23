@@ -8,7 +8,7 @@ provision: auth0-tenant
 
 ## Task
 
-Our Auth0 tenant needs two MFA channels configured and enforced using the Auth0 CLI:
+Our Auth0 tenant needs two MFA channels configured and enforced:
 
 **1. Phone (SMS) factor**
 - Enable the SMS factor on the tenant.
@@ -21,4 +21,4 @@ Our Auth0 tenant needs two MFA channels configured and enforced using the Auth0 
 
 Finally, enforce MFA across all applications so it is required for every user — a factor merely being available is not enough.
 
-Do not use the Auth0 dashboard or Terraform. Use only the Auth0 CLI (`auth0 api` commands).
+Do not use the Auth0 dashboard or Terraform. Use only the Auth0 CLI.
