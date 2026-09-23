@@ -256,25 +256,65 @@
 
 {% macro render_recommendations(recs) %}
 {% if recs and recs.recommendations and recs.recommendations | length > 0 %}
+{% set all_recs = recs.recommendations %}
+{% set high     = all_recs | selectattr("severity", "equalto", "high")   | list | length %}
+{% set medium   = all_recs | selectattr("severity", "equalto", "medium") | list | length %}
+{% set low      = all_recs | selectattr("severity", "equalto", "low")    | list | length %}
 <div class="rec-panel">
+  {# Counts by severity before the prose: the first thing a reader wants from this
+     tab is how much is wrong and how badly, which a paragraph makes them read for. #}
+  <div class="rec-tally">
+    <span class="rec-tally-total">{{ all_recs | length }} finding{{ "s" if all_recs | length != 1 }}</span>
+    {%- if high %}<span class="rec-chip rec-chip--high">{{ high }} high</span>{% endif %}
+    {%- if medium %}<span class="rec-chip rec-chip--medium">{{ medium }} medium</span>{% endif %}
+    {%- if low %}<span class="rec-chip rec-chip--low">{{ low }} low</span>{% endif %}
+  </div>
   {% if recs.summary %}
   <div class="rec-summary">{{ recs.summary }}</div>
   {% endif %}
-  <ul class="rec-list">
-    {% for r in recs.recommendations %}
+  <ol class="rec-list">
+    {% for r in all_recs %}
     <li class="rec-item rec-severity-{{ r.severity }}">
       <div class="rec-item-header">
+        <span class="rec-num">{{ loop.index }}</span>
         <span class="rec-badge rec-badge--{{ r.category }}">{{ r.category }}</span>
-        <span class="rec-badge" style="background: var(--clr-dim-bg); color: var(--text-sec);">{{ r.severity }}</span>
+        <span class="rec-badge rec-badge--neutral">{{ r.severity }}</span>
+        {% if r.root_cause %}
+        <span class="rec-badge rec-badge--neutral">cause: {{ r.root_cause }}</span>
+        {% endif %}
+        {# Where the fix goes belongs beside the labels, not trailing the item: it is
+           what tells you whose problem this is. #}
+        {% if r.context %}<span class="rec-where">{{ r.context }}</span>{% endif %}
       </div>
       <div class="rec-issue">{{ r.issue }}</div>
-      <div class="rec-suggestion">💡 {{ r.suggestion }}</div>
-      {% if r.context %}
-      <div class="rec-context">{{ r.context }}</div>
+      {% if r.what_happened or r.what_should_have_happened %}
+      <dl class="rec-detail">
+        {% if r.what_happened %}
+        <dt class="rec-detail-key">Did</dt>
+        <dd class="rec-detail-val">{{ r.what_happened }}</dd>
+        {% endif %}
+        {% if r.what_should_have_happened %}
+        <dt class="rec-detail-key">Should</dt>
+        <dd class="rec-detail-val">{{ r.what_should_have_happened }}</dd>
+        {% endif %}
+      </dl>
       {% endif %}
+      {% if r.evidence %}
+      <pre class="rec-evidence">{{ r.evidence }}</pre>
+      {% endif %}
+      <div class="rec-suggestion"><span class="rec-suggestion-key">Fix</span><span>{{ r.suggestion }}</span></div>
     </li>
     {% endfor %}
-  </ul>
+  </ol>
+</div>
+{% elif recs and recs.error %}
+{# A failed analysis is not a clean run. Saying "no recommendations" for a proxy
+   500 or an unparseable response reads as "nothing to fix here", which is the
+   opposite of the truth, so the reason is shown instead. #}
+<div class="rec-panel rec-panel--failed">
+  <div class="rec-failed-title">The analysis did not run</div>
+  <div class="rec-failed-reason">{{ recs.error }}</div>
+  <div class="rec-failed-note">This run was not diagnosed, so nothing here says the run was clean. Re-run the report generation to try again.</div>
 </div>
 {% else %}
 <div class="tab-panel-empty">No recommendations generated for this run.</div>
@@ -298,7 +338,17 @@
 {% set overall_score = result.overall_score if result.overall_score is defined else none %}
 {% set overall_grade = result.overall_grade if result.overall_grade is defined else none %}
 
-{% if result.status != "success" %}
+{# A run that stopped early (turn limit, timeout, aborted) is still graded and
+   still has a trace, so it gets the full card with a banner across the top.
+   Only a job that produced nothing at all — status "error", thrown before the
+   agent wrote anything — falls back to the bare error card. Treating every
+   non-success the same way was hiding the graders, trace, and recommendations
+   of exactly the runs worth reading. #}
+{% set has_content = (graders_list | length > 0)
+                     or (result.session_trace and result.session_trace | length > 0)
+                     or (result.turn_metrics and result.turn_metrics | length > 0) %}
+{% set incomplete = result.status != "success" %}
+{% if incomplete and not has_content %}
 <div class="card card--error">
   <div class="card-header">
     <div>
@@ -307,23 +357,27 @@
     </div>
     <span class="error-label">{{ result.status | upper }}</span>
   </div>
-  <div class="error-message">{{ result.error | truncate_str(200) if result.error else "Agent reached the turn limit without completing the task." }}</div>
+  <div class="error-message">{{ result.error | truncate_str(200) if result.error else "The agent produced no output — no graders, trace, or turn metrics were recorded." }}</div>
 </div>
 {% else %}
 {% set filled      = (rate * 20) | round | int %}
 {% set bar_filled  = "█" | repeat_str(filled) %}
 {% set bar_empty   = "░" | repeat_str(20 - filled) %}
-<div class="card">
+<div class="card{% if incomplete %} card--incomplete{% endif %}">
   <div class="card-header">
     <div>
       <span class="mode-badge">{{ variant }}</span>
       <span class="card-model">{{ model }}</span>
+      {% if incomplete %}<span class="error-label">{{ result.status | upper }}</span>{% endif %}
     </div>
     <div class="card-score">
       <span class="{{ rate_cls }} card-score-value">{{ passed }}/{{ total }}</span>
       <span class="card-score-label">graders</span>
     </div>
   </div>
+  {% if incomplete %}
+  <div class="error-message">{{ result.error | truncate_str(200) if result.error else "The agent stopped before reporting completion (turn limit or timeout). Everything below was graded against the work it had done by then." }}</div>
+  {% endif %}
   <div class="progress-bar"><span class="{{ rate_cls }} mono">{{ bar_filled }}{{ bar_empty }}</span> {{ (rate * 100) | round | int }}%</div>
   {% if dimensions | length > 0 and overall_score is not none %}
   {{ render_score_breakdown(dimensions, overall_score, overall_grade) }}

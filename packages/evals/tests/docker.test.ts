@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { tmpdir } from 'node:os';
-import { mkdtempSync, writeFileSync, symlinkSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, symlinkSync, rmSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
 // ── Mock child_process so we never actually spawn Docker ─────────────────────
@@ -128,7 +128,10 @@ describe('runJobInDocker — workspace path validation', () => {
     const result = await runJobInDocker(makeOptions(symlinkDir));
     expect(result).toEqual({ ok: true });
 
-    rmSync(symlinkDir, { force: true });
+    // unlink, not rmSync: the link resolves to a directory, and a non-recursive
+    // rmSync on it throws EISDIR (rmSync follows the link before deciding). Only
+    // the link is removed here; the real dir goes next.
+    unlinkSync(symlinkDir);
     rmSync(realDir, { recursive: true, force: true });
   });
 
@@ -145,7 +148,13 @@ describe('runJobInDocker — workspace path validation', () => {
         'Workspace path must be under the system temp directory',
       );
     } finally {
-      rmSync(symlinkDir, { force: true });
+      // unlinkSync removes the link itself. rmSync would resolve it to /etc first
+      // and throw EISDIR — and with `recursive` it would try to delete /etc.
+      try {
+        unlinkSync(symlinkDir);
+      } catch {
+        // symlinkSync above may have failed, leaving nothing to clean up.
+      }
     }
   });
 });
