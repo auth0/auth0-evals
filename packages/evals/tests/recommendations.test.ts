@@ -437,18 +437,45 @@ describe('generateRecommendations', () => {
     expect(result.error).toContain('REDACTED');
   });
 
+  // A credential can straddle the snippet's left edge. Slicing the window out and
+  // redacting after would show the in-window portion unredacted when it falls below
+  // the 40-char match floor; the whole reply is redacted before slicing so no
+  // fragment survives regardless of where the token sits relative to the window.
+  it('does not leak a credential straddling the snippet window boundary', async () => {
+    const { generateRecommendations } = await import('../src/recommendations/generator.js');
+    const dir = tmpDir();
+
+    const secret = 'S9x2Y7q1'.repeat(8); // 64-char opaque token, over the 40-char redaction floor
+    // conn ends by closing the evidence string, so the parser faults at the 'x'
+    // that follows. Spaces isolate the token so redactSecrets sees it as one run.
+    const head = '{"recommendations":[{"category":"grader","severity":"high","issue":"';
+    const conn = '","suggestion":"y","evidence":"ran "';
+    // Place the token so it straddles the window's left edge (start = fault - 100)
+    // with only ~35 of its chars inside: a slice-then-redact-window approach would
+    // print that sub-floor fragment. rpad sets the gap between token and fault.
+    const rpad = 'b'.repeat(64 - conn.length); // token ends 65 chars before the fault
+    const malformed = `${head}aaaa ${secret} ${rpad}${conn}x" now"}],"summary":"s"}`;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: malformed } }] }) });
+
+    const result = await generateRecommendations(makeInput(dir));
+    expect(result.error).toContain('near:');
+    expect(result.error).not.toContain(secret);
+    expect(result.error).not.toContain(secret.slice(-24)); // no leaked tail fragment
+    expect(result.error).toContain('REDACTED');
+  });
+
   // A valid reply of the wrong shape is not a syntax error, so resending it cannot
   // help — the repair pass must be skipped.
   it('does not attempt repair for a valid reply of the wrong shape', async () => {
     const { generateRecommendations } = await import('../src/recommendations/generator.js');
     const dir = tmpDir();
 
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        json: async () => ({ choices: [{ message: { content: '{"summary": "no recs"}' } }] }),
-      });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: '{"summary": "no recs"}' } }] }),
+    });
     globalThis.fetch = fetchMock;
 
     const result = await generateRecommendations(makeInput(dir));

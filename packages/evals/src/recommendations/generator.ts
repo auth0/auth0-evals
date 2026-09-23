@@ -543,14 +543,6 @@ async function repairJson(
 
 /** Characters of the failing text kept on either side of a parse-failure offset. */
 const SNIPPET_RADIUS = 100;
-/**
- * Extra characters redacted beyond the display window. A credential straddling the
- * window edge would otherwise be sliced below the 40-char floor the opaque-token
- * rule matches on and leak as a fragment; padding past the window by more than the
- * longest credential (Auth0 client secrets are 64 chars) hands it to the redactor
- * whole. See `redactSecrets`.
- */
-const SNIPPET_SECRET_PAD = 128;
 
 /**
  * Append a redacted window of the failing reply around the parser's failure offset.
@@ -569,17 +561,19 @@ function withSnippet(reason: string, source: string): string {
   const m = /position (\d+)/.exec(reason);
   if (!m || !m[1]) return reason;
   const pos = Number(m[1]);
-  const start = Math.max(0, pos - SNIPPET_RADIUS);
-  const end = Math.min(source.length, pos + SNIPPET_RADIUS);
-  // Redact a region padded past the display window, then show it. Slicing to the
-  // window first and redacting after could hand `redactSecrets` a credential
-  // truncated at the boundary, leaking a fragment into the report and scores JSON.
-  const from = Math.max(0, start - SNIPPET_SECRET_PAD);
-  const to = Math.min(source.length, end + SNIPPET_SECRET_PAD);
-  const safe = redactSecrets(source.slice(from, to));
-  const prefix = from > 0 ? '…' : '';
-  const suffix = to < source.length ? '…' : '';
-  return `${reason}\n  near: ${prefix}${safe}${suffix}`;
+  // Redact the whole reply before slicing. A slice boundary can then only ever
+  // bisect the redaction marker, never a live credential — slicing to the window
+  // first and redacting after could hand `redactSecrets` a credential truncated
+  // below its 40-char match floor and leak the fragment into the report and
+  // scores JSON. Redaction collapses each secret to a shorter marker, so map the
+  // raw fault offset through the same redaction to keep the window on the fault.
+  const safe = redactSecrets(source);
+  const center = redactSecrets(source.slice(0, pos)).length;
+  const start = Math.max(0, center - SNIPPET_RADIUS);
+  const end = Math.min(safe.length, center + SNIPPET_RADIUS);
+  const prefix = start > 0 ? '…' : '';
+  const suffix = end < safe.length ? '…' : '';
+  return `${reason}\n  near: ${prefix}${safe.slice(start, end)}${suffix}`;
 }
 
 /**
