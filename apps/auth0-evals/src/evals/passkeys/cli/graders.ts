@@ -10,6 +10,13 @@ export function defineGraders() {
       GraderLevel.L2,
     ),
 
+    // ── L2: Hallucination — local_enrollment_enabled was not requested ────
+    notRanCommand(
+      'local_enrollment_enabled',
+      'Did not set local_enrollment_enabled (not requested)',
+      GraderLevel.L2,
+    ),
+
     // ── L4: Created a custom domain before enabling passkeys ──────────────
     ranCommand(
       'custom-domains',
@@ -20,8 +27,8 @@ export function defineGraders() {
 
     // ── L4: Custom domain setup happened before passkey enablement ────────
     ranCommandsInOrder(
-      ['custom-domains', 'connections'],
-      'Set up custom domain before enabling passkeys on the connection',
+      ['custom-domains create', 'connections'],
+      'Created custom domain before enabling passkeys on the connection',
       GraderLevel.L4,
     ),
 
@@ -43,7 +50,7 @@ export function defineGraders() {
 
     // ── L4: Read before write — GET the connection before PATCHing it ─────
     ranCommandsInOrder(
-      ['GET', 'PATCH'],
+      ['GET connections', 'PATCH connections'],
       'Read the connection before patching it (merge, not clobber)',
       GraderLevel.L4,
     ),

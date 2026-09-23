@@ -12,7 +12,13 @@ log "start: seeding tenant prerequisites"
 
 # Default database connection (normally auto-created with a tenant, but seed
 # defensively — some provisioned tenants come up bare).
-if auth0 api get "connections?name=Username-Password-Authentication" | jq -e '.[0]' >/dev/null 2>&1; then
+LOOKUP=$(auth0 api get "connections?name=Username-Password-Authentication" 2>/dev/null)
+LOOKUP_STATUS=$?
+if [ $LOOKUP_STATUS -ne 0 ]; then
+  log "error: failed to look up connections — aborting to avoid a spurious duplicate create"
+  exit 1
+fi
+if echo "$LOOKUP" | jq -e '.[0]' >/dev/null 2>&1; then
   log "connection 'Username-Password-Authentication' already present — skipping"
 else
   if ! auth0 api post connections \
