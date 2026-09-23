@@ -13,7 +13,7 @@ We'd like our users to be able to sign up and log in with passkeys instead of pa
 
 Please do both steps using the Auth0 CLI only:
 
-1. Configure a custom domain for the tenant. Use `login.example.com` as the domain name.
+1. Configure a custom domain for the tenant. Use `login.example.com` as the domain name. You don't need to run the verification step.
 2. Enable passkeys on the tenant's database connection.
 
 A couple of things we care about:
