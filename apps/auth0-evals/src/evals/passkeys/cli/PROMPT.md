@@ -4,6 +4,7 @@ name: Passkeys Config (CLI)
 category: passkeys
 skills: auth0
 provision: auth0-tenant
+setup_command: bash seed.sh
 ---
 
 ## Task
