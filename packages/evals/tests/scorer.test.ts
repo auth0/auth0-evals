@@ -663,8 +663,21 @@ describe('score - Correctness', () => {
       { name: 'l5-pass', kind: 'contains', passed: true, detail: '', level: GraderLevel.L5 },
     ];
     const result = score(makeRecord({ workspace: dir }), graderResults);
-    // 2 of 3 non-L2/L3 graders passed
+    // 2 of 3 non-L2/L3/Trace Quality graders passed
     expect(getDim(result, 'Correctness').rawScore).toBeCloseTo(66.7, 0);
+  });
+
+  it('excludes TraceQuality graders from correctness (scored in Trace Quality dimension)', () => {
+    const dir = tmpDir();
+    const graderResults: GraderResult[] = [
+      { name: 'l1-pass', kind: 'contains', passed: true, detail: '', level: GraderLevel.L1 },
+      { name: 'traj-fail', kind: 'judge', passed: false, detail: 'took wasteful detour', level: GraderLevel.TraceQuality },
+    ];
+    const result = score(makeRecord({ workspace: dir }), graderResults);
+    // Only the L1 grader should count toward Correctness
+    expect(getDim(result, 'Correctness').rawScore).toBe(100.0);
+    // The TraceQuality failure should only appear in Trace Quality dimension
+    expect(getDim(result, 'Trace Quality').rawScore).toBe(0.0);
   });
 });
 
@@ -787,6 +800,52 @@ describe('score - Security', () => {
     writeFileSync(join(dir, 'app.ts'), 'console.log("clean")');
     const result = score(makeRecord({ workspace: dir }));
     expect(getDim(result, 'Security').rawScore).toBe(100.0);
+  });
+});
+
+// ── Trace Quality tests ───────────────────────────────────────────────────────
+
+describe('score - Trace Quality', () => {
+  it('scores 100 when no trace-quality graders are defined', () => {
+    const dir = tmpDir();
+    const result = score(makeRecord({ workspace: dir }), []);
+    expect(getDim(result, 'Trace Quality').rawScore).toBe(100.0);
+    expect(getDim(result, 'Trace Quality').notes).toBe('No trace-quality graders defined');
+  });
+
+  it('scores 0 when trace-quality grader fails', () => {
+    const dir = tmpDir();
+    const graders: GraderResult[] = [
+      { name: 'path-check', kind: 'judge', passed: false, detail: 'took wasteful detour', level: GraderLevel.TraceQuality },
+    ];
+    const result = score(makeRecord({ workspace: dir }), graders);
+    expect(getDim(result, 'Trace Quality').rawScore).toBe(0.0);
+  });
+
+  it('scores 100 when trace-quality grader passes', () => {
+    const dir = tmpDir();
+    const graders: GraderResult[] = [
+      { name: 'path-check', kind: 'judge', passed: true, detail: 'direct path', level: GraderLevel.TraceQuality },
+    ];
+    const result = score(makeRecord({ workspace: dir }), graders);
+    expect(getDim(result, 'Trace Quality').rawScore).toBe(100.0);
+  });
+
+  it('zeroes trace quality when trace-quality grader present but agent had 0 tool calls', () => {
+    const dir = tmpDir();
+    const graders: GraderResult[] = [
+      { name: 'path-check', kind: 'judge', passed: true, detail: 'direct path', level: GraderLevel.TraceQuality },
+    ];
+    const result = score(makeRecord({ workspace: dir, toolCalls: [] }), graders);
+    expect(getDim(result, 'Trace Quality').rawScore).toBe(0);
+    expect(getDim(result, 'Trace Quality').notes).toContain('Agent did not execute');
+  });
+
+  it('does NOT zero trace quality when no trace-quality graders and agent had 0 tool calls', () => {
+    const dir = tmpDir();
+    const result = score(makeRecord({ workspace: dir, toolCalls: [] }), []);
+    // No trace-quality graders → scoreFromGraders returns 100 regardless of tool calls
+    expect(getDim(result, 'Trace Quality').rawScore).toBe(100.0);
   });
 });
 
@@ -1015,10 +1074,10 @@ describe('score - Docs Quality docUrlSources option', () => {
 // ── score() integration tests ─────────────────────────────────────────────────
 
 describe('score - process zero-out gate', () => {
-  it('zeroes all 4 process dimensions when toolCalls is empty', () => {
+  it('zeroes process dimensions (Friction/Speed/Efficiency/ErrorRecovery/DocsQuality) when toolCalls is empty', () => {
     const dir = tmpDir();
     const result = score(makeRecord({ workspace: dir, toolCalls: [] }), []);
-    const processNames = ['Setup Friction', 'Setup Speed', 'Efficiency', 'Error Recovery'];
+    const processNames = ['Setup Friction', 'Setup Speed', 'Efficiency', 'Error Recovery', 'Docs Quality'];
     for (const name of processNames) {
       expect(getDim(result, name).rawScore).toBe(0);
       expect(getDim(result, name).notes).toContain('Agent did not execute');
@@ -1044,10 +1103,10 @@ describe('score - process zero-out gate', () => {
 });
 
 describe('score() integration', () => {
-  it('returns 8 dimensions', () => {
+  it('returns 9 dimensions', () => {
     const dir = tmpDir();
     const result = score(makeRecord({ workspace: dir }), []);
-    expect(result.dimensions.length).toBe(8);
+    expect(result.dimensions.length).toBe(9);
   });
 
   it('overall grade is valid letter', () => {

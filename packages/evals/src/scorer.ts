@@ -1,13 +1,13 @@
 /**
- * 8-dimension scorer.
+ * 9-dimension scorer.
  *
- * Process dimensions (50%): Setup Friction (12%), Setup Speed (12%), Efficiency (12%),
- * Error Recovery (7%), Docs Quality (7%)
+ * Process dimensions (50%): Setup Friction (10%), Setup Speed (10%), Efficiency (10%),
+ * Error Recovery (7%), Docs Quality (6%), Trace Quality (7%)
  *
  * Output dimensions (50%): Correctness (25%), Hallucination (15%), Security (10%)
  *
  * Each dimension is scored 0–100 and maps to a letter grade.
- * Overall score = weighted sum across all 8 dimensions.
+ * Overall score = weighted sum across all 9 dimensions.
  */
 
 import type {
@@ -55,11 +55,12 @@ const DOCS_QUALITY_POINTS_NO_REWRITE = 17;
 const DOCS_QUALITY_POINTS_L4_CORRECTNESS = 16;
 
 const DEFAULT_WEIGHTS: DimensionWeights = {
-  'Setup Friction': 0.12,
-  'Setup Speed': 0.12,
-  Efficiency: 0.12,
+  'Setup Friction': 0.10,
+  'Setup Speed': 0.10,
+  Efficiency: 0.10,
   'Error Recovery': 0.07,
-  'Docs Quality': 0.07,
+  'Docs Quality': 0.06,
+  'Trace Quality': 0.07,
   Correctness: 0.25,
   Hallucination: 0.15,
   Security: 0.1,
@@ -231,10 +232,12 @@ function scoreErrors(record: RunRecord, opts?: ScoringOptions): [number, string]
 }
 
 function scoreCorrectness(graderResults: GraderResult[]): [number, string] {
-  // Exclude L2 (hallucination) and L3 (security) graders — they are scored
-  // in their own dedicated dimensions. Including them here would double-count
-  // their failures (once in Correctness and again in Hallucination/Security).
-  const relevant = graderResults.filter((g) => g.level !== GraderLevel.L2 && g.level !== GraderLevel.L3);
+  // Exclude L2 (hallucination), L3 (security), and TraceQuality graders — they are scored
+  // in their own dedicated dimensions. Including them here would double-count their
+  // failures (once in Correctness and again in Hallucination/Security/Trace Quality).
+  const relevant = graderResults.filter(
+    (g) => g.level !== GraderLevel.L2 && g.level !== GraderLevel.L3 && g.level !== GraderLevel.TraceQuality,
+  );
   if (!relevant.length) return [0.0, 'No graders run'];
   const passed = relevant.filter((g) => g.passed).length;
   const total = relevant.length;
@@ -357,6 +360,7 @@ export function score(record: RunRecord, graderResults?: GraderResult[], opts?: 
   const [effScore, effNotes] = scoreEfficiency(record, opts);
   const [errScore, errNotes] = scoreErrors(record, opts);
   const [docsScore, docsNotes] = scoreDocsQuality(record, gr, opts?.docUrlSources);
+  const [traceQualityRaw, traceQualityRawNotes] = scoreFromGraders(gr, GraderLevel.TraceQuality, 'No trace-quality graders defined');
   const [correctnessScore, correctnessNotes] = scoreCorrectness(gr);
   const [hallucinationScore, hallucinationNotes] = scoreFromGraders(
     gr,
@@ -369,6 +373,11 @@ export function score(record: RunRecord, graderResults?: GraderResult[], opts?: 
   // Without this gate, a broken run (0 tool calls) scores 48/50 on process
   // because "no interruptions, fast, efficient" — rewarding failure.
   const hasToolCalls = record.toolCalls.length > 0;
+
+  const hasTraceQualityGraders = gr.some((g) => g.level === GraderLevel.TraceQuality);
+  const traceQualityScore = hasTraceQualityGraders && !hasToolCalls ? 0 : traceQualityRaw;
+  const traceQualityNotes =
+    hasTraceQualityGraders && !hasToolCalls ? 'Agent did not execute (0 tool calls)' : traceQualityRawNotes;
 
   const dimensions: DimensionScore[] = [
     makeDim(
@@ -401,6 +410,7 @@ export function score(record: RunRecord, graderResults?: GraderResult[], opts?: 
       hasToolCalls ? docsScore : 0,
       hasToolCalls ? docsNotes : 'Agent did not execute (0 tool calls)',
     ),
+    makeDim('Trace Quality', weights['Trace Quality'], traceQualityScore, traceQualityNotes),
     makeDim('Correctness', weights['Correctness'], correctnessScore, correctnessNotes),
     makeDim('Hallucination', weights['Hallucination'], hallucinationScore, hallucinationNotes),
     makeDim('Security', weights['Security'], securityScore, securityNotes),

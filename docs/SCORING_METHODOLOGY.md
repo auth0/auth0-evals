@@ -12,12 +12,13 @@
 - **L1–L3: all configs, including baseline.** Training-data knowledge — correct imports, no invented packages, no hardcoded secrets.
 - **L4: agent configs only.** Structural correctness needs a file tree. Baseline has none.
 - **L5: agent+MCP only.** Penalizing a deprecated pattern is only fair if the model had current docs.
+- **Trace Quality: agent configs only.** Path quality — fed by `judgeTrace` graders. Scores 100 when no Trace Quality grader is defined (same absent-evidence behavior as Hallucination/Security).
 
 ## Process / Output — 50/50
 
 Process counts even when the output is correct. 10 interruptions and 50 retries to a correct result is still a bad experience.
 
-- Process (50%): Setup Friction 12 + Setup Speed 12 + Efficiency 12 + Error Recovery 7 + Docs Quality 7.
+- Process (50%): Setup Friction 10 + Setup Speed 10 + Efficiency 10 + Error Recovery 7 + Docs Quality 6 + Trace Quality 7.
 - Output (50%): Correctness 25 + Hallucination 15 + Security 10.
 
 ## Grade thresholds
@@ -44,11 +45,11 @@ General rule — covers any dimension, any future eval shape (Terraform-only, MC
 
 ## Dimension weights
 
-**Setup Friction — 12%.** Interruptions (`ask_user`) are the biggest friction point. Penalty 14/interruption (7 = zero). Provider errors: 10/error (not the agent's fault, still counts).
+**Setup Friction — 10%.** Interruptions (`ask_user`) are the biggest friction point. Penalty 14/interruption (7 = zero). Provider errors: 10/error (not the agent's fault, still counts).
 
-**Setup Speed — 12%.** Active tool time, not wall time (wall time carries network noise). Ideal 60s. Degrades 0.4/excess second, ceiling ~310s.
+**Setup Speed — 10%.** Active tool time, not wall time (wall time carries network noise). Ideal 60s. Degrades 0.4/excess second, ceiling ~310s.
 
-**Efficiency — 12%.** Waste-detection, not call-counting — the old count-based formula punished complexity (a legitimate 40-call integration scored the same as a flailing one). Waste = duplicate read, errored/retried call, overwritten write, or interruption (double-counted with Friction on purpose: one penalizes disruption, one the wasted slot).
+**Efficiency — 10%.** Waste-detection, not call-counting — the old count-based formula punished complexity (a legitimate 40-call integration scored the same as a flailing one). Waste = duplicate read, errored/retried call, overwritten write, or interruption (double-counted with Friction on purpose: one penalizes disruption, one the wasted slot).
 
 Zero tool calls → 100 (applies to both SDK and CLI modes; a run with no tools is scored separately by the zero-guard in `scoreEfficiency`).
 
@@ -68,7 +69,9 @@ Discovery calls (`list`, `show`, `--help`) excluded — Setup Speed/Friction alr
 
 **Error Recovery — 7%.** Provider errors are infrastructure, not agent quality. Penalty 20/error — steeper than Friction's 10 because this dimension's only job is separating 1 transient failure from 5 systemic ones.
 
-**Correctness — 25%.** Excludes L2/L3. Three guiding questions, in order:
+**Trace Quality — 7%.** Scores the *path* the agent took, not just the final artifact. Fed by `judgeTrace` graders — each surfaces the agent's full command trace (including failed commands) to an LLM judge that evaluates whether the agent reached its goal directly or via wasteful detours. No Trace Quality grader defined → 100 (same absent-evidence behavior as Hallucination/Security). Agent configs only; baseline has no tool calls.
+
+**Correctness — 25%.** Excludes L2/L3/Trace Quality. Three guiding questions, in order:
 1. Does it exist? (L1 — right import, component, hook, config key present.)
 2. Is it wired right? (L4 — provider wraps the right tree, loading state checked before render, handlers actually connected to UI.)
 3. Is it current? (L5, agent+MCP only — not a pattern the SDK has since replaced.)
@@ -87,7 +90,7 @@ Boundary vs. L5: if good training data alone should know better, it's here. If i
 
 Scope stops there by design. Insecure default config isn't covered yet — a known gap, not yet widened.
 
-**Docs Quality — 7%.** Measures whether a fetch helped, not just whether one happened. No fetch → 100 (training data was enough).
+**Docs Quality — 6%.** Measures whether a fetch helped, not just whether one happened. No fetch → 100 (training data was enough).
 
 ```
 score = 100                         if doc_lookups == 0

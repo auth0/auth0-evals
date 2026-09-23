@@ -8,6 +8,7 @@ export enum GraderLevel {
   L3 = 'security',
   L4 = 'structural',
   L5 = 'version_correctness',
+  TraceQuality = 'trace_quality',
 }
 
 /** Minimal tool call record for event-based graders (subset of the full ToolCallRecord from @a0/evals). */
@@ -63,6 +64,14 @@ export interface GraderDef {
    * file-based judges are unaffected.
    */
   includeCommandTrace?: boolean;
+  /**
+   * Judge graders only. When true (only meaningful alongside includeCommandTrace),
+   * the command trace also includes commands that errored, each annotated as failed,
+   * so a trace-quality judge can see the agent's wrong turns and dead ends — not just the
+   * commands that took effect. Defaults to false, preserving the success-only trace that
+   * end-state judges rely on.
+   */
+  includeFailedCommands?: boolean;
   /**
    * Where to search for the needle / pattern / judge input.
    *

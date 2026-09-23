@@ -16,6 +16,8 @@ const outFile = join(__dirname, '..', 'src', 'graders', 'prompts.generated.ts');
 
 const systemPrompt = readFileSync(join(promptsDir, 'default.md'), 'utf-8').trim();
 const userTemplate = readFileSync(join(promptsDir, 'user_template.md'), 'utf-8').trim();
+const traceSystemPrompt = readFileSync(join(promptsDir, 'trace_system.md'), 'utf-8').trim();
+const traceUserTemplate = readFileSync(join(promptsDir, 'trace_user_template.md'), 'utf-8').trim();
 
 const output = `/**
  * Auto-generated from src/graders/prompts/*.md — do not edit manually.
@@ -27,6 +29,12 @@ export const SYSTEM_PROMPT = ${JSON.stringify(systemPrompt)};
 
 /** User message template. Placeholders: \`{question}\`, \`{code}\`. */
 export const USER_TEMPLATE = ${JSON.stringify(userTemplate)};
+
+/** Trace judge system prompt. */
+export const TRACE_SYSTEM_PROMPT = ${JSON.stringify(traceSystemPrompt)};
+
+/** Trace judge user message template. Placeholders: \`{question}\`, \`{code}\`. */
+export const TRACE_USER_TEMPLATE = ${JSON.stringify(traceUserTemplate)};
 `;
 
 writeFileSync(outFile, output, 'utf-8');

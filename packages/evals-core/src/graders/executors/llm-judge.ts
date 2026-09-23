@@ -7,6 +7,7 @@
 import type { GraderDef, GraderResult, EventToolCall } from '@a0/evals-graders';
 import type { GraderContext, GraderExecutor } from './types.js';
 import { llmJudge } from '../llm-judge.js';
+import { TRACE_SYSTEM_PROMPT, TRACE_USER_TEMPLATE } from '../prompts.generated.js';
 import { logger } from '../../utils/logger.js';
 import { redactSecrets } from '../../utils/redact.js';
 
@@ -70,7 +71,35 @@ const RUN_COMMAND_NAMES = new Set(['run_command', 'bash']);
  * an id literal as evidence the agent had fabricated it, when it was the id the
  * previous command printed, carried across a shell boundary.
  */
-export function formatCommandTrace(toolCalls: EventToolCall[]): string {
+export function formatCommandTrace(
+  toolCalls: EventToolCall[],
+  opts: { includeFailed?: boolean } = {},
+): string {
+  if (opts.includeFailed) {
+    const entries = toolCalls
+      .filter((tc) => RUN_COMMAND_NAMES.has(tc.name))
+      .map((tc) => {
+        const cmd = redactSecrets(String(tc.args.command ?? '').trim());
+        if (!tc.causedError) return cmd;
+        const rawError = String(tc.result ?? '')
+          .trim()
+          .replace(/\s+/g, ' ');
+        const excerpt =
+          rawError.length > 200 ? rawError.slice(0, 200) + '…' : rawError;
+        return `[FAILED] ${cmd} — error: ${excerpt}`;
+      })
+      .filter((line) => line.length > 0);
+    if (entries.length === 0) return '';
+    const header =
+      '// COMMAND TRACE (shell commands the agent ran). Successful commands are listed\n' +
+      '// as-is; failed commands are prefixed with [FAILED] and include a truncated error\n' +
+      '// excerpt. Their output is NOT captured, so the absence of output is not evidence\n' +
+      '// a command did nothing. Each command runs in its own shell, so an id assigned as\n' +
+      "// a literal in a later command is a value read from an earlier command's output,\n" +
+      '// not a fabricated one.';
+    return `${header}\n${entries.join('\n')}`;
+  }
+
   const commands = toolCalls
     .filter((tc) => RUN_COMMAND_NAMES.has(tc.name) && !tc.causedError)
     .map((tc) => redactSecrets(String(tc.args.command ?? '').trim()))
@@ -111,7 +140,8 @@ export const llmJudgeExecutor: GraderExecutor = {
     // For CLI-only evals the artifact is the command trace, not files. When the
     // judge opts in, append it so there is content to evaluate; otherwise the
     // judge sees only files (unchanged behaviour for every existing judge).
-    const traceText = def.includeCommandTrace ? formatCommandTrace(ctx.toolCalls ?? []) : '';
+    const includeFailed = def.includeFailedCommands ?? false;
+    const traceText = def.includeCommandTrace ? formatCommandTrace(ctx.toolCalls ?? [], { includeFailed }) : '';
 
     // For MCP-only evals the agent never writes files — include the agent's final
     // reply only when the grader explicitly opts in via source: 'response' | 'both'.
@@ -127,6 +157,9 @@ export const llmJudgeExecutor: GraderExecutor = {
       logger.warn(`[judge] WARNING: content exceeds limit (${judgeText.length} > ${maxCodeChars} chars)`);
     }
 
+    const promptOverrides = def.includeFailedCommands
+      ? { systemPrompt: TRACE_SYSTEM_PROMPT, userTemplate: TRACE_USER_TEMPLATE }
+      : {};
     const { passed, detail, inputTokens, outputTokens } = await llmJudge({
       question: def.question!,
       context: def.context,
@@ -137,6 +170,7 @@ export const llmJudgeExecutor: GraderExecutor = {
       maxTokens,
       enforceMaxChars,
       maxCodeChars,
+      ...promptOverrides,
     });
 
     return {

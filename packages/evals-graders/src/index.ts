@@ -20,6 +20,7 @@ export {
   notContainsInSource,
   matches,
   judge,
+  judgeTrace,
   ranCommand,
   notRanCommand,
   ranCommandOneOf,
