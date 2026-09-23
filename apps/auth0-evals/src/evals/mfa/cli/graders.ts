@@ -90,7 +90,7 @@ export function defineGraders() {
     judge(
       'Based on the command trace, does the solution: ' +
         '(1) enable the SMS phone factor (guardian/factors/sms), set message-types to SMS ' +
-        '(guardian/factors/phone/message-types), and configure the phone provider; ' +
+        "(guardian/factors/phone/message-types), and configure the phone provider to use Auth0's built-in provider; " +
         '(2) enable the email factor (guardian/factors/email) — with another factor already enabled first; ' +
         '(3) enforce MFA via guardian/policies with all-applications — ' +
         'using only the Auth0 CLI, not the dashboard or Terraform?',
