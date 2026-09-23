@@ -355,6 +355,107 @@ describe('generateRecommendations', () => {
     expect(result.recommendations).toEqual([]);
   });
 
+  // A CLI eval quotes `auth0 api … --data '{"…":…}'` commands into evidence
+  // fields; an interior double-quote the model forgets to escape closes the string
+  // early and breaks the object. The reply is resent for a syntax-only fix.
+  it('repairs a reply with an unescaped quote in a string value', async () => {
+    const { generateRecommendations } = await import('../src/recommendations/generator.js');
+    const dir = tmpDir();
+
+    // `"guardian/factors/sms"` inside evidence is unescaped, so the value string
+    // closes early and JSON.parse fails.
+    const malformed =
+      '{"recommendations":[{"category":"grader","severity":"high","issue":"x",' +
+      '"suggestion":"y","evidence":"ran auth0 api "guardian/factors/sms" now"}],"summary":"s"}';
+    const repaired = JSON.stringify({
+      recommendations: [
+        {
+          category: 'grader',
+          severity: 'high',
+          issue: 'x',
+          suggestion: 'y',
+          evidence: 'ran auth0 api "guardian/factors/sms" now',
+        },
+      ],
+      summary: 's',
+    });
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ choices: [{ message: { content: malformed } }] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ choices: [{ message: { content: repaired } }] }) });
+    globalThis.fetch = fetchMock;
+
+    const result = await generateRecommendations(makeInput(dir));
+    expect(result.error).toBeUndefined();
+    expect(result.recommendations).toHaveLength(1);
+    expect(result!.recommendations[0].category).toBe('grader');
+    // One analysis call plus exactly one repair call.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  // No flag captures the analysis model's raw output, so a bare "parse failed at
+  // position N" is undiagnosable; the offending window is carried into the error.
+  it('carries a snippet of the raw reply into the error when repair also fails', async () => {
+    const { generateRecommendations } = await import('../src/recommendations/generator.js');
+    const dir = tmpDir();
+
+    const malformed =
+      '{"recommendations":[{"category":"grader","severity":"high","issue":"x",' +
+      '"suggestion":"y","evidence":"ran auth0 api "guardian/factors/sms" now"}],"summary":"s"}';
+    // Both the analysis call and the repair call return the same broken text.
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: malformed } }] }) });
+
+    const result = await generateRecommendations(makeInput(dir));
+    expect(result.error).toContain('position');
+    expect(result.error).toContain('near:');
+    expect(result.error).toContain('guardian/factors/sms');
+    expect(result.recommendations).toEqual([]);
+  });
+
+  // The snippet lands in the published scores JSON and HTML report, so a credential
+  // sitting near the syntax fault must be redacted, not leaked as a fragment.
+  it('redacts a secret near the fault in the error snippet', async () => {
+    const { generateRecommendations } = await import('../src/recommendations/generator.js');
+    const dir = tmpDir();
+
+    const secret = 'A1b2C3d4'.repeat(8); // 64-char opaque token, over the 40-char redaction floor
+    // The unescaped quote before the token closes the evidence string early, so the
+    // parser faults right where the token sits.
+    const malformed =
+      '{"recommendations":[{"category":"grader","severity":"high","issue":"x",' +
+      `"suggestion":"y","evidence":"ran "${secret}" now"}],"summary":"s"}`;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: malformed } }] }) });
+
+    const result = await generateRecommendations(makeInput(dir));
+    expect(result.error).toContain('near:');
+    expect(result.error).not.toContain(secret);
+    expect(result.error).toContain('REDACTED');
+  });
+
+  // A valid reply of the wrong shape is not a syntax error, so resending it cannot
+  // help — the repair pass must be skipped.
+  it('does not attempt repair for a valid reply of the wrong shape', async () => {
+    const { generateRecommendations } = await import('../src/recommendations/generator.js');
+    const dir = tmpDir();
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: '{"summary": "no recs"}' } }] }),
+      });
+    globalThis.fetch = fetchMock;
+
+    const result = await generateRecommendations(makeInput(dir));
+    expect(result.error).toContain('recommendations array');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('filters out malformed recommendation items', async () => {
     const { generateRecommendations } = await import('../src/recommendations/generator.js');
     const dir = tmpDir();
