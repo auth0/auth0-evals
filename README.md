@@ -115,6 +115,9 @@ Requires Node.js 24+ and Docker (for sandboxed agent runs).
 
 We appreciate feedback and contribution to this repo! Before you get started, please read [Auth0's general contribution guidelines](https://github.com/auth0/open-source-template/blob/master/GENERAL-CONTRIBUTING.md).
 
+<!-- setup verification probe - not for merge -->
+Contributions land through the standard fork → branch → pull request flow; write access to this repo is not required.
+
 ### Raise an issue
 
 To provide feedback or report a bug, please [raise an issue on our issue tracker](https://github.com/auth0/auth0-evals/issues).
