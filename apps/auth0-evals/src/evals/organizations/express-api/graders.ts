@@ -63,8 +63,9 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
     judge(
-      'Does GET /api/org/profile return the org_id from the verified token (e.g. req.auth.payload.org_id)? ' +
-        'The route must be protected by auth() and read org_id from the decoded token payload, not hardcode it.',
+      'Does GET /api/org/profile return the org_id from the verified token payload (for example ' +
+        'req.auth.payload.org_id), reading it from the decoded token while the route is protected by ' +
+        'auth(), rather than hardcoding it?',
       GraderLevel.L4,
     ),
 

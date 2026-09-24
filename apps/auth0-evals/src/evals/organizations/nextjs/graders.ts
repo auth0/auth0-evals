@@ -82,20 +82,36 @@ export function defineGraders() {
     notContains('/api/auth/', 'Does not use v3 route prefix /api/auth/ (v4 uses /auth/)', GraderLevel.L5),
     notContains('AUTH0_ISSUER_BASE_URL', 'Does not use removed v3 env var AUTH0_ISSUER_BASE_URL', GraderLevel.L5),
     judge(
-      'Does the solution use the v4 Auth0Client from @auth0/nextjs-auth0/server with ' +
-        'authorizationParameters.organization (the full key name, not the v3 shorthand authorizationParams), ' +
-        'and avoid the v3 patterns handleAuth, withPageAuthRequired, or /api/auth/ routes?',
+      'Does the solution use v4 @auth0/nextjs-auth0 patterns rather than v3 — specifically the ' +
+        'Auth0Client from @auth0/nextjs-auth0/server, the full authorizationParameters key name ' +
+        '(not the v3 shorthand authorizationParams) wherever authorization parameters are set, and ' +
+        'none of the v3 patterns handleAuth, withPageAuthRequired, or /api/auth/ routes?',
       GraderLevel.L5,
+      {
+        context:
+          'Passing the organization per-login via the /auth/login query string (rather than pinning ' +
+          'authorizationParameters.organization) is valid v4 usage and is the correct way to support ' +
+          'invitations to non-default orgs — do not fail solely because organization is not set inside ' +
+          'authorizationParameters.',
+      },
     ),
 
     // ── Holistic judge (no level — always runs) ────────────────────────────
     judge(
       'Does the solution correctly add Auth0 Organizations support to the Next.js App Router app using ' +
-        '@auth0/nextjs-auth0 v4 — configuring org-scoped login with authorizationParameters.organization, ' +
-        'accepting organization invitation links via the /auth/login route (middleware.ts or proxy.ts are ' +
-        'both valid in Next.js 16), and reading the logged-in organization from session.user.org_id ' +
-        'server-side? Rejecting or blocking a valid invitation because its organization differs from the ' +
-        'configured default org is a correctness defect, not a cosmetic one — treat it as a failure of invitation acceptance.',
+        '@auth0/nextjs-auth0 v4 — configuring org-scoped login, accepting organization invitation links ' +
+        'via the /auth/login route (middleware.ts or proxy.ts are both valid in Next.js 16), and reading ' +
+        'the logged-in organization from session.user.org_id server-side? Rejecting or blocking a valid ' +
+        'invitation because its organization differs from the configured default org is a correctness ' +
+        'defect, not a cosmetic one — treat it as a failure of invitation acceptance.',
+      undefined,
+      {
+        context:
+          'Org-scoped login may be configured either by setting organization in authorizationParameters ' +
+          'or by forwarding it per-login via the /auth/login query string; both are valid v4 approaches. ' +
+          'A post-login allow-list or org equality check that 403s a signed-in user whose org_id is not ' +
+          'the default org counts as blocking a valid invitation — treat it as a failure.',
+      },
     ),
   ];
 }
