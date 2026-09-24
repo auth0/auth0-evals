@@ -37,12 +37,12 @@ export function defineGraders() {
     ),
 
     // ── L4: Application configured to require organization login ──────────
-    // Quote the value: the bare substring `require` also appears inside
-    // `organization_require_behavior`, so it would pass even when
+    // Lead the value with a quote but do not require a trailing one. The bare
+    // substring `require` also appears inside `organization_require_behavior`, so it would pass even when
     // organization_usage is `allow`/`deny`. `"require"` only matches the value.
     ranCommand(
       'clients',
-      ['organization_usage', '"require"'],
+      ['organization_usage', '"require'],
       'Configured application with organization_usage set to require',
       GraderLevel.L4,
     ),
