@@ -14,18 +14,26 @@ export function defineGraders() {
     // ── L4: Create a Regular Web Application ──────────────────────────────
     ranCommand('apps create', ['regular'], 'Created a Regular Web Application via auth0 apps create', GraderLevel.L4),
 
-    // ── L4: Configure the callback URL ────────────────────────────────────
+    // ── L4: Configure the callback and logout URLs ────────────────────────
+    // Check each flag separately — the logout URL (localhost:3000) is a
+    // substring of the callback URL, so one shared check would pass on either.
     ranCommand(
       'apps create',
-      ['localhost:3000/callback'],
+      ['--callbacks', 'localhost:3000/callback'],
       'Configured the local dev callback URL',
+      GraderLevel.L4,
+    ),
+    ranCommand(
+      'apps create',
+      ['--logout-urls', 'localhost:3000'],
+      'Configured the local dev logout URL',
       GraderLevel.L4,
     ),
 
     // ── L5: Explicitly set best-practice grants (Auth Code + refresh) ─────
     ranCommand(
       'apps create',
-      ['authorization_code', 'refresh_token'],
+      ['--grants', 'code', 'refresh-token'],
       'Explicitly configured Authorization Code + refresh token grants',
       GraderLevel.L5,
     ),

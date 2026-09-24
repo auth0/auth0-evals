@@ -15,17 +15,25 @@ export function defineGraders() {
     ranCommand('apps create', ['native'], 'Created a Native application via auth0 apps create', GraderLevel.L4),
 
     // ── L4: Configure the custom-scheme callback / logout URLs ────────────
+    // Check the callback and logout flags separately — a single shared
+    // substring would pass even if only one flag were set.
     ranCommand(
       'apps create',
-      ['com.example.quickstart'],
-      'Registered the custom URL scheme for callback/logout',
+      ['--callbacks', 'com.example.quickstart'],
+      'Registered the custom-scheme callback URL',
+      GraderLevel.L4,
+    ),
+    ranCommand(
+      'apps create',
+      ['--logout-urls', 'com.example.quickstart'],
+      'Registered the custom-scheme logout URL',
       GraderLevel.L4,
     ),
 
     // ── L5: Explicitly set best-practice grants (Auth Code + refresh) ─────
     ranCommand(
       'apps create',
-      ['authorization_code', 'refresh_token'],
+      ['--grants', 'code', 'refresh-token'],
       'Explicitly configured Authorization Code + refresh token grants',
       GraderLevel.L5,
     ),

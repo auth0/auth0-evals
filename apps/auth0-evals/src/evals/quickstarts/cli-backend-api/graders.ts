@@ -24,7 +24,7 @@ export function defineGraders() {
     // ── L4: Define the requested permissions (scopes) ─────────────────────
     ranCommand(
       'apis create',
-      ['read:messages'],
+      ['read:messages', 'write:messages'],
       'Defined the requested API permissions (scopes)',
       GraderLevel.L4,
     ),

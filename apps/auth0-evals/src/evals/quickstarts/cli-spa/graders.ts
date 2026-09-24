@@ -15,10 +15,24 @@ export function defineGraders() {
     ranCommand('apps create', ['spa'], 'Created a SPA application via auth0 apps create', GraderLevel.L4),
 
     // ── L4: Configure the local dev callback / logout / origin URLs ───────
+    // All three point at http://localhost:3000, so check each flag separately —
+    // a single shared substring would pass even if only one flag were set.
     ranCommand(
       'apps create',
-      ['localhost:3000'],
-      'Configured local dev callback/logout/origin URLs',
+      ['--callbacks', 'localhost:3000'],
+      'Configured the local dev callback URL',
+      GraderLevel.L4,
+    ),
+    ranCommand(
+      'apps create',
+      ['--logout-urls', 'localhost:3000'],
+      'Configured the local dev logout URL',
+      GraderLevel.L4,
+    ),
+    ranCommand(
+      'apps create',
+      ['--web-origins', 'localhost:3000'],
+      'Configured the allowed web origin',
       GraderLevel.L4,
     ),
 
@@ -27,7 +41,7 @@ export function defineGraders() {
     // otherwise include the legacy `implicit` grant for a SPA.
     ranCommand(
       'apps create',
-      ['authorization_code', 'refresh_token'],
+      ['--grants', 'code', 'refresh-token'],
       'Explicitly configured Authorization Code + refresh token grants',
       GraderLevel.L5,
     ),
