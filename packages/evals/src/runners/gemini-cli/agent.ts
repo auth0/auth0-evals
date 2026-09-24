@@ -364,7 +364,15 @@ export async function runGeminiCliAgent(
           case 'message': {
             if ((event.role as string) === 'assistant') {
               const content = (event.content as string) ?? '';
-              if (content) {
+              // `pending.size > 0` means a tool call is still outstanding, so
+              // this text belongs to the turn that requested it — preamble, not
+              // the answer. The Gemini CLI drains the whole response stream
+              // before scheduling tool results, so text keeps arriving after
+              // tool_use; the reset there is not enough on its own. Only the
+              // accumulation is gated: turn metrics and the MAX_TURNS kill below
+              // must still run, or a session holding an unresolved tool call
+              // would never hit the turn limit.
+              if (content && pending.size === 0) {
                 // Chunks are token fragments, so they concatenate raw — any
                 // separator would corrupt mid-word splits. A non-delta message
                 // carries the turn's full text and so replaces the buffer.

@@ -572,6 +572,42 @@ describe('status and final state', () => {
     expect(record.finalSummary).toBe('Second turn.');
   });
 
+  // The Gemini CLI drains the whole response stream before scheduling tool
+  // results, so assistant text keeps arriving after tool_use. Clearing the
+  // buffer at tool_use alone would let that text through as the answer.
+  it('ignores assistant text streamed while a tool call is still outstanding', async () => {
+    mockSpawn.mockReturnValue(
+      makeChild([
+        { type: 'message', role: 'assistant', content: 'Preamble. ', delta: true },
+        { type: 'tool_use', tool_id: 't1', tool_name: 'write_file', parameters: {} },
+        { type: 'message', role: 'assistant', content: 'Mid-flight narration. ', delta: true },
+        { type: 'tool_result', tool_id: 't1', status: 'success', output: 'ok' },
+        { type: 'message', role: 'assistant', content: 'Final answer.', delta: true },
+        resultEvent({ tool_calls: 1 }),
+      ]),
+    );
+
+    const record = await runGeminiCliAgent(evalDef, workspace);
+    expect(record.finalSummary).toBe('Final answer.');
+  });
+
+  // Guards the shape of the gate above: it must suppress only the summary
+  // accumulation, never the turn bookkeeping. Skipping the whole assistant
+  // branch while `pending` is non-empty would stop turnNum from advancing, so a
+  // session holding an unresolved tool call would never hit the turn limit.
+  it('still enforces MAX_TURNS while a tool call remains unresolved', async () => {
+    const events: JsonlEvent[] = [{ type: 'tool_use', tool_id: 'held', tool_name: 'write_file', parameters: {} }];
+    for (let i = 0; i < MAX_TURNS + 3; i++) {
+      events.push({ type: 'message', role: 'assistant', content: `turn ${i}` });
+    }
+    const child = makeChild(events);
+    mockSpawn.mockReturnValue(child);
+
+    const record = await runGeminiCliAgent(evalDef, workspace);
+    expect(child.kill).toHaveBeenCalled();
+    expect(record.providerErrors.some((e) => e.includes('turn limit'))).toBe(true);
+  });
+
   // The close handler has to flush too: status falls back to
   // `toolCalls.length > 0 || finalSummary`, so losing the buffered reply on an
   // abrupt exit would turn this run into a failure.
