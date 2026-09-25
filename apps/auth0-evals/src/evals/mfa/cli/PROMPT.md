@@ -20,5 +20,3 @@ Our Auth0 tenant needs two MFA channels configured and enforced:
 - Note: Auth0 requires at least one other factor to be enabled before email can be enabled.
 
 Finally, enforce MFA across all applications so it is required for every user — a factor merely being available is not enough.
-
-Do not use the Auth0 dashboard or Terraform. Use only the Auth0 CLI.
