@@ -7,10 +7,8 @@ provision: auth0-tenant
 
 ## Task
 
-We're starting a Single-Page App quickstart (a React app) and need the Auth0 side set up first, using the Auth0 CLI.
+We're starting a Single-Page App quickstart (a React app) and need the Auth0 side set up first.
 
 Create a new Auth0 application for this SPA. It runs locally during development at `http://localhost:3000`, so make sure login can redirect back to it, logout can return to it, and the browser is allowed to call Auth0 from that origin.
 
 Configure the application so it is ready to use for the quickstart. Name it `Quickstart SPA`.
-
-Do not use the Auth0 dashboard or Terraform. Use only the Auth0 CLI. Run commands non-interactively and never print or store secrets.
