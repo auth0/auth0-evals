@@ -419,6 +419,85 @@ describe('mcp_tool_call events', () => {
     expect(tc.isDocLookup).toBe(true);
   });
 
+  // Regression: the runner used to JSON.stringify the whole `{ content: [...] }` envelope, so
+  // `tc.result` was one level deeper than on claude-code/gemini-cli. JSON.parse
+  // still succeeded, so every result-parsing grader silently read `undefined`.
+  it('records the unwrapped content[] text, not the MCP envelope', async () => {
+    const payload = '{"applications":[{"client_id":"abc","name":"My App"}]}';
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: {
+          type: 'mcp_tool_call',
+          id: 'mcp_3',
+          server: 'auth0-hosted',
+          tool: 'auth0_list_applications',
+          arguments: {},
+          result: { content: [{ type: 'text', text: payload }], structured_content: null },
+          error: null,
+          status: 'completed',
+        },
+      },
+      turnCompleted(),
+    ]);
+
+    const record = await runCodexAgent(evalDef, workspace);
+    const tc = record.toolCalls[0];
+    expect(tc.result).toBe(payload);
+    expect(tc.result).not.toContain('"content"');
+
+    // What a grader actually does with the field.
+    const parsed = JSON.parse(tc.result) as { applications?: Array<{ client_id: string }> };
+    expect(parsed.applications).toEqual([{ client_id: 'abc', name: 'My App' }]);
+  });
+
+  it('leaves a result that is already a plain string untouched', async () => {
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: {
+          type: 'mcp_tool_call',
+          id: 'mcp_5',
+          server: 'auth0-hosted',
+          tool: 'auth0_list_applications',
+          arguments: {},
+          result: '{"applications":[]}',
+          error: null,
+          status: 'completed',
+        },
+      },
+      turnCompleted(),
+    ]);
+
+    const record = await runCodexAgent(evalDef, workspace);
+    expect(record.toolCalls[0].result).toBe('{"applications":[]}');
+  });
+
+  it('keeps a domain payload whose own `content` key is not an envelope', async () => {
+    // An Action's source lives on a `content` field. Unwrapping it would corrupt
+    // the very field an end-state grader reads.
+    const action = { id: 'act_1', content: 'exports.onExecutePostLogin = async () => {};' };
+    queueTurns([
+      {
+        type: 'item.completed',
+        item: {
+          type: 'mcp_tool_call',
+          id: 'mcp_6',
+          server: 'auth0-hosted',
+          tool: 'auth0_get_action',
+          arguments: { id: 'act_1' },
+          result: action,
+          error: null,
+          status: 'completed',
+        },
+      },
+      turnCompleted(),
+    ]);
+
+    const record = await runCodexAgent(evalDef, workspace);
+    expect(JSON.parse(record.toolCalls[0].result)).toEqual(action);
+  });
+
   it('marks mcp_tool_call with error as causedError', async () => {
     queueTurns([
       {

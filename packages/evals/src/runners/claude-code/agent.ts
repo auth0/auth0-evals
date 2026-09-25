@@ -32,7 +32,7 @@ import {
   filteredEnv,
   mintMcpToken,
 } from '@a0/evals-core';
-import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/evals-core';
+import { classifyActionType, classifyErrorCategory, detectRetry, unwrapMcpContent } from '@a0/evals-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
 import { ClaudeCodeTranslator } from './translator.js';
 
@@ -388,16 +388,8 @@ export function handleMessage(
       pending.delete(block.tool_use_id);
 
       const mappedName = translator.mapName(pend.name);
-      const rawContent = block.content;
-      const resultStr =
-        typeof rawContent === 'string'
-          ? rawContent
-          : Array.isArray(rawContent)
-            ? rawContent
-                .map((c) => (typeof c === 'string' ? c : 'text' in c ? (c as { text: string }).text : ''))
-                .join('\n')
-                .trim()
-            : JSON.stringify(rawContent);
+      // Shared with the other runners so `tc.result` cannot drift by runner.
+      const resultStr = unwrapMcpContent(block.content);
 
       const elapsed = ((now - pend.startTime) * 1000).toFixed(0);
       const preview = resultStr.slice(0, 80).replace(/\n/g, ' ');

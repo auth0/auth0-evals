@@ -39,6 +39,7 @@ import {
   makeSessionId,
   mintMcpToken,
   mcpBearerTokenEnvVar,
+  unwrapMcpContent,
 } from '@a0/evals-core';
 import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/evals-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
@@ -256,7 +257,11 @@ function handleItem(item: ThreadItem, record: RunRecord, ctx: RunCtx, now: numbe
       if (item.error) {
         output = `Error: ${item.error.message}`;
       } else if (item.result !== null && item.result !== undefined) {
-        output = typeof item.result === 'string' ? item.result : JSON.stringify(item.result);
+        // `item.result` is the MCP envelope ({ content: [...], structured_content }).
+        // Unwrap it so `tc.result` carries the same flat text body every other
+        // runner records — graders JSON.parse this field and read a domain key,
+        // so an envelope here breaks them silently. See unwrapMcpContent.
+        output = unwrapMcpContent(item.result);
       }
       ctx.turnToolCount++;
       ctx.toolCallsInTurn++;
