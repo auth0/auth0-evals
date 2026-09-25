@@ -1,0 +1,8 @@
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Auth0 issuer URL (https://<your-domain>/) and API audience.
+          issuer-uri:
+          audiences:
