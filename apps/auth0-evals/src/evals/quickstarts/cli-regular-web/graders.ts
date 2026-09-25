@@ -1,4 +1,4 @@
-import { ranCommand, notRanCommand, judge, GraderLevel } from '@a0/evals-graders';
+import { ranCommand, ranCommandWithFlags, notRanCommand, judge, GraderLevel } from '@a0/evals-graders';
 
 // A goal-only CLI eval run against a live, throwaway tenant the `auth0` CLI is
 // already logged into. The agent writes nothing to disk — grading leans entirely
@@ -15,17 +15,17 @@ export function defineGraders() {
     ranCommand('apps create', ['regular'], 'Created a Regular Web Application via auth0 apps create', GraderLevel.L4),
 
     // ── L4: Configure the callback and logout URLs ────────────────────────
-    // Check each flag separately — the logout URL (localhost:3000) is a
-    // substring of the callback URL, so one shared check would pass on either.
-    ranCommand(
+    // Bind each value to its own flag — the logout URL (localhost:3000) is a
+    // substring of the callback URL, so a shared check would pass on either.
+    ranCommandWithFlags(
       'apps create',
-      ['--callbacks', 'localhost:3000/callback'],
+      [['--callbacks', 'localhost:3000/callback']],
       'Configured the local dev callback URL',
       GraderLevel.L4,
     ),
-    ranCommand(
+    ranCommandWithFlags(
       'apps create',
-      ['--logout-urls', 'localhost:3000'],
+      [['--logout-urls', 'localhost:3000']],
       'Configured the local dev logout URL',
       GraderLevel.L4,
     ),
@@ -46,8 +46,8 @@ export function defineGraders() {
       'Based on the command trace, does the solution create a Regular Web Application via ' +
         '`auth0 apps create --type regular`, set the callback URL to http://localhost:3000/callback ' +
         'and the logout URL to http://localhost:3000, and configure grant types per current best ' +
-        'practice (Authorization Code + refresh token, without the legacy implicit grant) — ' +
-        'using only the Auth0 CLI, not the dashboard or Terraform?',
+        'practice (Authorization Code + refresh token, without the legacy implicit grant), and name ' +
+        'the application `Quickstart Web App` — using only the Auth0 CLI, not the dashboard or Terraform?',
       undefined,
       { includeCommandTrace: true },
     ),

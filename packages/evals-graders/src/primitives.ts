@@ -197,6 +197,51 @@ export function ranCommand(
   };
 }
 
+function escapeRegExp(literal: string): string {
+  return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Asserts that the agent ran a shell command containing `command`, where each
+ * given flag carries the expected value **within its own argument**.
+ *
+ * Unlike `ranCommand`, which only checks that flag and value substrings appear
+ * *somewhere* in the command, this binds each value to its flag. That matters
+ * when one URL is a substring of another (e.g. a `--logout-urls localhost:3000`
+ * check would otherwise pass on a correct `--callbacks localhost:3000/callback`
+ * even if the logout URL were wrong or missing).
+ *
+ * Binding is tolerant of `=`/space separators, surrounding quotes, and
+ * comma-separated value lists (Auth0 CLI URL lists contain no spaces), so the
+ * value may sit anywhere inside the flag's single whitespace-delimited argument.
+ *
+ * @param command - Substring that must appear in the executed command
+ * @param flags - `[flag, value]` pairs; every value must appear inside its flag's argument
+ */
+export function ranCommandWithFlags(
+  command: string,
+  flags: Array<[string, string]>,
+  description: string | undefined,
+  level: EventGraderLevel,
+): GraderDef {
+  validateEventLevel(level, 'ranCommandWithFlags');
+  const bindings = flags.map(([flag, value]) => ({
+    flag,
+    value,
+    // <flag><sep><non-space run><value> — the [^\s]* keeps the match inside the
+    // flag's own argument so a value belonging to a later flag can't satisfy it.
+    re: new RegExp(`${escapeRegExp(flag)}[=\\s]+[^\\s]*${escapeRegExp(value)}`),
+  }));
+  const label = bindings.map((b) => `${b.flag}=${b.value}`).join(', ');
+  return {
+    kind: 'event',
+    name: description ?? `ran command '${command}' with [${label}]`,
+    level,
+    predicate: (toolCalls: EventToolCall[]) =>
+      getRunCommands(toolCalls).some((cmd) => cmd.includes(command) && bindings.every((b) => b.re.test(cmd))),
+  };
+}
+
 /**
  * Asserts that the agent did NOT run any shell command containing the given command substring.
  * This is a hallucination (L2) grader — it checks the command trace for wrong/forbidden commands.

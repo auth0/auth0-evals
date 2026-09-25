@@ -1,4 +1,4 @@
-import { ranCommand, notRanCommand, judge, GraderLevel } from '@a0/evals-graders';
+import { ranCommand, ranCommandWithFlags, notRanCommand, judge, GraderLevel } from '@a0/evals-graders';
 
 // A goal-only CLI eval run against a live, throwaway tenant the `auth0` CLI is
 // already logged into. The agent writes nothing to disk — grading leans entirely
@@ -15,17 +15,17 @@ export function defineGraders() {
     ranCommand('apps create', ['native'], 'Created a Native application via auth0 apps create', GraderLevel.L4),
 
     // ── L4: Configure the custom-scheme callback / logout URLs ────────────
-    // Check the callback and logout flags separately — a single shared
-    // substring would pass even if only one flag were set.
-    ranCommand(
+    // Bind each value to its own flag — both point at the com.example.quickstart
+    // scheme, so a shared substring would pass even if only one flag were set.
+    ranCommandWithFlags(
       'apps create',
-      ['--callbacks', 'com.example.quickstart'],
+      [['--callbacks', 'com.example.quickstart']],
       'Registered the custom-scheme callback URL',
       GraderLevel.L4,
     ),
-    ranCommand(
+    ranCommandWithFlags(
       'apps create',
-      ['--logout-urls', 'com.example.quickstart'],
+      [['--logout-urls', 'com.example.quickstart']],
       'Registered the custom-scheme logout URL',
       GraderLevel.L4,
     ),
@@ -46,8 +46,8 @@ export function defineGraders() {
       'Based on the command trace, does the solution create a Native application via ' +
         '`auth0 apps create --type native`, register callback and logout URLs using the ' +
         'com.example.quickstart custom URL scheme, and configure grant types per current best ' +
-        'practice (Authorization Code + refresh token, without the legacy implicit grant) — ' +
-        'using only the Auth0 CLI, not the dashboard or Terraform?',
+        'practice (Authorization Code + refresh token, without the legacy implicit grant), and name ' +
+        'the application `Quickstart Native` — using only the Auth0 CLI, not the dashboard or Terraform?',
       undefined,
       { includeCommandTrace: true },
     ),
