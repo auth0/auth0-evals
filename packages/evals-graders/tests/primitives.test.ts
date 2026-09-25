@@ -7,6 +7,7 @@ import {
   judge,
   compiles,
   ranCommand,
+  ranCommandWithFlags,
   notRanCommand,
   ranCommandOneOf,
   ranCommandsInOrder,
@@ -318,6 +319,100 @@ describe('ranCommand predicate', () => {
   it('throws on a non-event level', () => {
     // @ts-expect-error — L1 is not an EventGraderLevel
     expect(() => ranCommand('npm install', undefined, undefined, GraderLevel.L1)).toThrow(
+      'event-based graders only support',
+    );
+  });
+});
+
+// ── ranCommandWithFlags (predicate) ─────────────────────────────────────────
+
+describe('ranCommandWithFlags predicate', () => {
+  const run = (def: ReturnType<typeof ranCommandWithFlags>, calls: EventToolCall[]) => def.predicate!(calls);
+
+  it('binds each value to its own flag', () => {
+    const def = ranCommandWithFlags('apps create', [['--logout-urls', 'localhost:3000']], undefined, GraderLevel.L4);
+    expect(
+      run(def, [
+        evt({ name: 'run_command', args: { command: 'auth0 apps create --logout-urls http://localhost:3000' } }),
+      ]),
+    ).toBe(true);
+  });
+
+  it('does not accept a value that only appears under a different flag', () => {
+    // The logout value must live in --logout-urls, not be borrowed from --callbacks.
+    const def = ranCommandWithFlags('apps create', [['--logout-urls', 'localhost:3000']], undefined, GraderLevel.L4);
+    expect(
+      run(def, [
+        evt({
+          name: 'run_command',
+          args: {
+            command: 'auth0 apps create --callbacks http://localhost:3000/callback --logout-urls http://other.com',
+          },
+        }),
+      ]),
+    ).toBe(false);
+  });
+
+  it('tolerates = separators, quotes, and comma-separated value lists', () => {
+    const def = ranCommandWithFlags(
+      'apps create',
+      [['--callbacks', 'localhost:3000/callback']],
+      undefined,
+      GraderLevel.L4,
+    );
+    expect(
+      run(def, [
+        evt({
+          name: 'run_command',
+          args: { command: 'auth0 apps create --callbacks="http://localhost:5000,http://localhost:3000/callback"' },
+        }),
+      ]),
+    ).toBe(true);
+  });
+
+  it('requires all flag bindings to match in the same command', () => {
+    const def = ranCommandWithFlags(
+      'apps create',
+      [
+        ['--callbacks', 'localhost:3000/callback'],
+        ['--logout-urls', 'localhost:3000'],
+      ],
+      undefined,
+      GraderLevel.L4,
+    );
+    expect(
+      run(def, [
+        evt({
+          name: 'run_command',
+          args: {
+            command: 'auth0 apps create --callbacks http://localhost:3000/callback --logout-urls http://localhost:3000',
+          },
+        }),
+      ]),
+    ).toBe(true);
+    expect(
+      run(def, [
+        evt({ name: 'run_command', args: { command: 'auth0 apps create --callbacks http://localhost:3000/callback' } }),
+      ]),
+    ).toBe(false);
+  });
+
+  it('ignores commands that errored', () => {
+    const def = ranCommandWithFlags('apps create', [['--logout-urls', 'localhost:3000']], undefined, GraderLevel.L4);
+    expect(
+      run(def, [
+        evt({
+          name: 'run_command',
+          args: { command: 'auth0 apps create --logout-urls http://localhost:3000' },
+          causedError: true,
+        }),
+      ]),
+    ).toBe(false);
+  });
+
+  it('throws on a non-event level', () => {
+    // @ts-expect-error — L1 is not an EventGraderLevel
+    expect(() => ranCommandWithFlags('apps create', [['--logout-urls', 'x']], undefined, GraderLevel.L1)).toThrow(
       'event-based graders only support',
     );
   });
