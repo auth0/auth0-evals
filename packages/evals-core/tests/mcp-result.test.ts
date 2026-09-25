@@ -51,6 +51,15 @@ describe('unwrapMcpContent', () => {
       });
       expect(result).toBe('body');
     });
+
+    it('accepts the spec spellings structuredContent and isError', () => {
+      const result = unwrapMcpContent({
+        content: [{ type: 'text', text: 'body' }],
+        structuredContent: { body: true },
+        isError: false,
+      });
+      expect(result).toBe('body');
+    });
   });
 
   describe('claude-code shape — bare content block array', () => {
@@ -104,6 +113,23 @@ describe('unwrapMcpContent', () => {
     it('preserves a domain payload whose `content` is an array of non-block objects', () => {
       const page = { content: [{ id: 'a' }, { id: 'b' }] };
       expect(unwrapMcpContent(page)).toBe(JSON.stringify(page));
+    });
+
+    it('preserves a domain payload whose `content` blocks DO carry text', () => {
+      // Raised in review on #340. The earlier non-block test used elements with
+      // no `text` key, so it passed for the wrong reason: guessing from block
+      // contents alone unwrapped this to "hello" and dropped `id` entirely.
+      // Recognition is keyed on the CallToolResult key set instead, so the
+      // unexpected `id` disqualifies it.
+      const doc = { id: 'doc_1', content: [{ type: 'paragraph', text: 'hello' }] };
+      const result = unwrapMcpContent(doc);
+      expect(result).toBe(JSON.stringify(doc));
+      expect(JSON.parse(result)).toEqual(doc);
+    });
+
+    it('rejects an envelope-looking object carrying any non-CallToolResult key', () => {
+      const payload = { content: [{ type: 'text', text: 'body' }], total: 12 };
+      expect(unwrapMcpContent(payload)).toBe(JSON.stringify(payload));
     });
 
     it('preserves a domain payload whose `content` elements carry `type` but no text', () => {

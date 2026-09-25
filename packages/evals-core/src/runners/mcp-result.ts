@@ -10,9 +10,11 @@
  *   gemini-cli    event.output          string (already flattened by the CLI)
  *   copilot       result.content        string (already flattened by the SDK)
  *
- * Routing all of them through this helper is what keeps the contract true. The
- * alternative — each runner unwrapping for itself — is what produced the bug
- * this exists to prevent: `codex` stringified the whole envelope, so
+ * The first two need flattening and call this helper; the last two are already
+ * flat and record their string as-is. Having one implementation for the runners
+ * that do need it is what keeps the contract true. The alternative — each
+ * unwrapping for itself — is what produced the bug this exists to prevent:
+ * `codex` stringified the whole envelope, so
  * `tc.result` was `{"content":[{"type":"text","text":"{\"applications\":…"}]}`
  * where `claude-code` had `{"applications":…}`. `JSON.parse` *succeeded* on the
  * envelope, so a grader reading `.applications` got `undefined`, returned false
@@ -42,13 +44,15 @@ const isBlockShaped = (block: unknown): boolean =>
 /**
  * Whether `value` is an MCP `content[]` array we can extract text from.
  *
- * Recognition is deliberately narrow on both ends. Every element must look like
- * a content block — carrying text, or a string `type` for the media blocks that
- * sit alongside one — so a domain payload that merely happens to have a
- * `content` key (an Action's source, a paginated list) is not mistaken for an
- * envelope. And at least one element must actually carry text, so an image-only
- * result falls through to the JSON fallback rather than unwrapping to the empty
- * string and losing the only record of the call.
+ * Every element must look like a content block — carrying text, or a string
+ * `type` for the media blocks that sit alongside one — and at least one must
+ * actually carry text, so an image-only result falls through to the JSON
+ * fallback rather than unwrapping to the empty string and losing the only
+ * record of the call.
+ *
+ * This says nothing about whether the *enclosing object* is an MCP result;
+ * `isMcpResultEnvelope` decides that, because a text-bearing `content` array
+ * alone is not sufficient evidence.
  */
 function isContentBlockArray(value: unknown): value is unknown[] {
   return (
@@ -66,6 +70,30 @@ const joinText = (blocks: unknown[]): string =>
     .filter((text): text is string => text !== null)
     .join('\n')
     .trim();
+
+/**
+ * Top-level keys the MCP spec allows on a `CallToolResult`, plus the snake_case
+ * spelling codex's SDK uses for `structuredContent`.
+ */
+const MCP_RESULT_KEYS = new Set(['content', 'structuredContent', 'structured_content', 'isError', '_meta']);
+
+/**
+ * Whether `value` is an MCP tool-result envelope rather than a domain object
+ * that merely happens to have a `content` array.
+ *
+ * Checking the *key set* — not just the presence of a text-bearing `content` —
+ * is what makes this safe. A `CallToolResult` carries only `content`,
+ * `structuredContent`, `isError` and `_meta`, so a payload like
+ * `{ id: 'doc_1', content: [{ type: 'paragraph', text: 'hello' }] }` is rejected
+ * on its `id` and survives intact. Guessing from block contents alone would
+ * unwrap it to `"hello"` and silently drop every sibling field — the same class
+ * of loss this module exists to prevent, just pointed the other way.
+ */
+function isMcpResultEnvelope(value: unknown): value is { content: unknown[] } {
+  return (
+    isObject(value) && isContentBlockArray(value.content) && Object.keys(value).every((key) => MCP_RESULT_KEYS.has(key))
+  );
+}
 
 /**
  * Normalises an MCP tool result to the flat text body every grader expects.
@@ -89,7 +117,7 @@ export function unwrapMcpContent(result: unknown): string {
   if (isContentBlockArray(result)) return joinText(result);
 
   // codex: the blocks are nested under `content`, beside structured_content/_meta.
-  if (isObject(result) && isContentBlockArray(result.content)) return joinText(result.content);
+  if (isMcpResultEnvelope(result)) return joinText(result.content);
 
   return JSON.stringify(result);
 }

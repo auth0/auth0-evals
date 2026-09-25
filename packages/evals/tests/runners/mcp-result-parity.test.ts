@@ -9,11 +9,19 @@
  * and every result-parsing grader failed silently — indistinguishable from the
  * model not doing the work.
  *
- * This file takes ONE logical MCP payload, encodes it in each runner's native
- * SDK event shape, and asserts the recorded strings are byte-identical. It is
- * the regression guard: a new runner that stringifies its envelope, or an
- * "optimisation" that re-wraps one, fails here rather than three domains later
- * in someone's model-quality report.
+ * This file takes ONE logical MCP payload, encodes it in the native SDK event
+ * shape of each runner that receives *structured* content — codex and
+ * claude-code — and asserts the recorded strings are byte-identical. It is the
+ * regression guard: a runner that stringifies its envelope, or an
+ * "optimisation" that re-wraps one, fails here rather than three eval domains
+ * later in someone's model-quality report.
+ *
+ * Scope note: gemini-cli and copilot are deliberately NOT driven here. Their
+ * SDKs hand over an already-flattened string, so they share no code path with
+ * the unwrapping under test, and a constant standing in for them would assert
+ * nothing while reading as coverage. They are covered where their SDK mocks
+ * already live, by "records an MCP result as the flat payload a grader can parse
+ * directly" in gemini-cli-agent.test.ts and copilot-agent.test.ts.
  */
 
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
@@ -153,15 +161,7 @@ function claudeCodeResult(): string {
   return tc!.result;
 }
 
-/**
- * gemini-cli and copilot receive the payload already flattened to a string by
- * their SDKs (`event.output` and `ev.data.result.content` respectively), so
- * their contribution to parity is that they pass it through untouched. Asserted
- * as a constant here rather than by booting two more runners.
- */
-const flatRunnerResult = () => PAYLOAD;
-
-describe('tc.result is identical across runners for the same MCP payload', () => {
+describe('tc.result parity — codex vs claude-code', () => {
   it('codex records the unwrapped payload', async () => {
     await expect(codexResult()).resolves.toBe(PAYLOAD);
   });
@@ -170,12 +170,8 @@ describe('tc.result is identical across runners for the same MCP payload', () =>
     expect(claudeCodeResult()).toBe(PAYLOAD);
   });
 
-  it('codex and claude-code agree byte for byte', async () => {
-    expect(await codexResult()).toBe(claudeCodeResult());
-  });
-
-  it('all runners agree, so a grader can JSON.parse any of them the same way', async () => {
-    const results = [await codexResult(), claudeCodeResult(), flatRunnerResult()];
+  it('the two agree byte for byte, so a grader can JSON.parse either the same way', async () => {
+    const results = [await codexResult(), claudeCodeResult()];
     expect(new Set(results).size, `runners diverged: ${JSON.stringify(results, null, 2)}`).toBe(1);
 
     for (const result of results) {
