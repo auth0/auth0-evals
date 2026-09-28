@@ -23,11 +23,13 @@ export function defineGraders() {
     ),
 
     // ── L4: Define the requested permissions (scopes) ─────────────────────
+    // Scopes may be set at create time or via `auth0 apis update`; pin the
+    // identifier so scopes belonging to another API can't satisfy the check.
     ranCommandOneOf(
-      ['apis create', ['api post', 'resource-servers']],
+      ['apis create', 'apis update', ['api post', 'resource-servers']],
       'Defined the requested API permissions (scopes)',
       GraderLevel.L4,
-      ['read:messages', 'write:messages'],
+      ['https://quickstart-api.example.com', 'read:messages', 'write:messages'],
     ),
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
