@@ -246,6 +246,33 @@ describe('tool events', () => {
     expect(record.toolCalls[0].name.startsWith('mcp__')).toBe(true);
   });
 
+  // Counterpart to mcp-result-parity.test.ts, which exercises codex and
+  // claude-code. Gemini's CLI flattens the MCP result itself, so the guarantee
+  // here is that the runner records that string verbatim — no re-wrapping, no
+  // second unwrap — keeping `tc.result` parseable straight to the domain body.
+  it('records an MCP result as the flat payload a grader can parse directly', async () => {
+    const payload = '{"applications":[{"client_id":"abc123","name":"My SPA"}]}';
+    mockSpawn.mockReturnValue(
+      makeChild([
+        {
+          type: 'tool_use',
+          tool_id: 't1',
+          tool_name: 'mcp_auth0-hosted-mcp_auth0_list_applications',
+          parameters: {},
+        },
+        { type: 'tool_result', tool_id: 't1', status: 'success', output: payload },
+        resultEvent(),
+      ]),
+    );
+
+    const record = await runGeminiCliAgent(evalDef, workspace);
+    const tc = record.toolCalls[0];
+    expect(tc.result).toBe(payload);
+    expect(tc.result).not.toContain('"content"');
+    const parsed = JSON.parse(tc.result) as { applications?: Array<{ client_id: string }> };
+    expect(parsed.applications).toEqual([{ client_id: 'abc123', name: 'My SPA' }]);
+  });
+
   it('web_fetch tool is classified as a doc lookup', async () => {
     mockSpawn.mockReturnValue(
       makeChild([

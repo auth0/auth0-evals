@@ -452,6 +452,33 @@ describe('runCopilotAgent', () => {
     expect(record.finalSummary).toBe('From event.');
   });
 
+  // Counterpart to mcp-result-parity.test.ts, which exercises codex and
+  // claude-code. The Copilot SDK flattens the MCP result itself (`result.content`
+  // is typed `string`), so the guarantee here is that the runner records that
+  // string verbatim — keeping `tc.result` parseable straight to the domain body.
+  it('records an MCP result as the flat payload a grader can parse directly', async () => {
+    const payload = '{"applications":[{"client_id":"abc123","name":"My SPA"}]}';
+    fakeSession.setScenario(async (s) => {
+      s.fire('tool.execution_start', {
+        toolCallId: 'tc_1',
+        toolName: 'mcp__auth0-hosted-mcp__auth0_list_applications',
+        arguments: {},
+      });
+      s.fire('tool.execution_complete', {
+        toolCallId: 'tc_1',
+        success: true,
+        result: { content: payload },
+      });
+    });
+
+    const record = await runCopilotAgent(evalDef, workspace);
+    const tc = record.toolCalls[0];
+    expect(tc.result).toBe(payload);
+    expect(tc.result).not.toContain('"content"');
+    const parsed = JSON.parse(tc.result) as { applications?: Array<{ client_id: string }> };
+    expect(parsed.applications).toEqual([{ client_id: 'abc123', name: 'My SPA' }]);
+  });
+
   it('updates record.model from session.tools_updated event', async () => {
     fakeSession.setScenario(async (s) => {
       s.fire('session.tools_updated', { model: 'gpt-5.4-turbo' });
