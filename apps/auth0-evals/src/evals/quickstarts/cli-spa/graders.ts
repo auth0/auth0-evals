@@ -1,4 +1,4 @@
-import { ranCommand, ranCommandOneOf, ranCommandWithFlags, notRanCommand, judge, GraderLevel } from '@a0/evals-graders';
+import { ranCommandOneOf, ranCommandWithFlags, notRanCommand, judge, GraderLevel } from '@a0/evals-graders';
 
 // A goal-only CLI eval run against a live, throwaway tenant the `auth0` CLI is
 // already logged into. The agent writes nothing to disk — grading leans entirely
@@ -40,9 +40,14 @@ export function defineGraders() {
     // ── L5: Explicitly set best-practice grants (Auth Code + refresh) ─────
     // Passing these explicitly overrides the CLI defaults, which would
     // otherwise include the legacy `implicit` grant for a SPA.
-    ranCommand(
+    // Bind both grant values to the --grants argument so a value that merely
+    // appears under another flag (e.g. --description refresh-token) can't pass.
+    ranCommandWithFlags(
       'apps create',
-      ['--grants', 'code', 'refresh-token'],
+      [
+        ['--grants', 'code'],
+        ['--grants', 'refresh-token'],
+      ],
       'Explicitly configured Authorization Code + refresh token grants',
       GraderLevel.L5,
     ),
