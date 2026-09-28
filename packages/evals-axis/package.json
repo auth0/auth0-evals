@@ -1,6 +1,6 @@
 {
   "name": "@a0/evals-axis",
-  "version": "0.1.0",
+  "version": "2.1.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -20,10 +20,10 @@
   "dependencies": {
     "@a0/evals-core": "*",
     "@a0/evals-graders": "*",
-    "@netlify/axis": "^1.17.4"
+    "@netlify/axis": "^1.17.6"
   },
   "devDependencies": {
-    "@types/node": "^26.4.0",
+    "@types/node": "^26.6.2",
     "vitest": "^4.1.10"
   }
 }

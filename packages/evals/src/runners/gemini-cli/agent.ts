@@ -257,6 +257,12 @@ export async function runGeminiCliAgent(
   // haven't yet received a closing non-delta message.  Flushed at result time
   // when the Gemini CLI omits the final non-delta message (streaming-only mode).
   let pendingDeltaTurn = false;
+  // Assistant text for the turn in progress. The Gemini CLI streams a reply as
+  // many `delta:true` chunks, so the text has to be accumulated here and only
+  // committed to record.finalSummary when the turn closes — assigning each
+  // chunk directly would leave just the last fragment, which is what
+  // response_text (and every `source: 'response'` grader) reads.
+  let pendingSummary = '';
 
   return new Promise<RunRecord>((resolve) => {
     const child = spawn('gemini', args, { cwd: workspace, env: geminiEnv });
@@ -302,6 +308,13 @@ export async function runGeminiCliAgent(
             const params = (event.parameters ?? {}) as Record<string, unknown>;
             pending.set(toolId, { name: toolName, args: params, startTime: Date.now() / 1000 });
             turnToolCount++;
+            // Text streamed before a tool call is a preamble ("I'll check the
+            // tenant first…"), not the answer. claude-code drops the equivalent
+            // via its `stopReason !== 'tool_use'` guard; dropping it here too
+            // keeps finalSummary comparable across runners, so a
+            // `contains(…, { source: 'response' })` can't pass on planning
+            // chatter the model never repeated in its reply.
+            pendingSummary = '';
             break;
           }
 
@@ -351,7 +364,21 @@ export async function runGeminiCliAgent(
           case 'message': {
             if ((event.role as string) === 'assistant') {
               const content = (event.content as string) ?? '';
-              if (content) record.finalSummary = content;
+              // `pending.size > 0` means a tool call is still outstanding, so
+              // this text belongs to the turn that requested it — preamble, not
+              // the answer. The Gemini CLI drains the whole response stream
+              // before scheduling tool results, so text keeps arriving after
+              // tool_use; the reset there is not enough on its own. Only the
+              // accumulation is gated: turn metrics and the MAX_TURNS kill below
+              // must still run, or a session holding an unresolved tool call
+              // would never hit the turn limit.
+              if (content && pending.size === 0) {
+                // Chunks are token fragments, so they concatenate raw — any
+                // separator would corrupt mid-word splits. A non-delta message
+                // carries the turn's full text and so replaces the buffer.
+                if (event.delta === true) pendingSummary += content;
+                else pendingSummary = content;
+              }
 
               if (event.delta === true) {
                 // Streaming chunk — mark that a turn is in progress but don't
@@ -360,6 +387,10 @@ export async function runGeminiCliAgent(
               } else {
                 // Non-delta: the turn is complete.
                 pendingDeltaTurn = false;
+                // Commit the turn's text. Guarded on non-empty so a trailing
+                // contentless message can't blank out a good summary.
+                if (pendingSummary) record.finalSummary = pendingSummary;
+                pendingSummary = '';
                 turnNum++;
                 const turnEndTime = Date.now() / 1000;
                 const tm: TurnMetric = {
@@ -388,6 +419,12 @@ export async function runGeminiCliAgent(
           }
 
           case 'result': {
+            // Streaming-only mode never sends the closing non-delta message, so
+            // the last turn's text is still buffered here. Same non-empty guard
+            // as the turn-close path.
+            if (pendingSummary) record.finalSummary = pendingSummary;
+            pendingSummary = '';
+
             const stats = (event.stats ?? {}) as Record<string, unknown>;
             const inputTokens = (stats.input_tokens as number) ?? 0;
             const outputTokens = (stats.output_tokens as number) ?? 0;
@@ -448,6 +485,13 @@ export async function runGeminiCliAgent(
 
     child.on('close', (code) => {
       clearTimeout(taskTimeout);
+
+      // A timeout or hard exit can end the process with no result event at all,
+      // leaving the streamed reply buffered. Commit it before the status checks
+      // below, which treat a non-empty finalSummary as evidence the run produced
+      // something.
+      if (pendingSummary) record.finalSummary = pendingSummary;
+      pendingSummary = '';
 
       // Drain tool_use events that never received a tool_result (e.g. on timeout
       // or unexpected exit) so we don't silently lose tool-call metrics.

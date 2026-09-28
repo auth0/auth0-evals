@@ -1,11 +1,11 @@
-import { contains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
+import { contains, notContainsInSource, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
     // ── L1: Required step-up symbols present ───────────────────────────
-    matches(
-      String.raw`interactiveErrorHandler|acr_values`,
-      'Step-up configured via interactiveErrorHandler (SDK default) or acr_values (manual approach)',
+    contains(
+      'interactiveErrorHandler',
+      'Step-up configured via interactiveErrorHandler ("popup") — the pattern the SDK examples teach',
       GraderLevel.L1,
     ),
     contains('getTokenSilently', 'Access token requested via getTokenSilently to trigger step-up', GraderLevel.L1),
@@ -47,23 +47,7 @@ export function defineGraders() {
     ),
 
     // ── L5: Current API patterns ──────────────────────────────────────────
-    judge(
-      'Is interactiveErrorHandler set to "popup" in the createAuth0Client configuration? ' +
-        '(If using the manual acr_values approach instead, are acr_values ' +
-        'and max_age: 0 passed inside authorizationParams on loginWithPopup?)',
-      GraderLevel.L5,
-    ),
-    judge(
-      'If the code uses the proactive approach (acr_values), is the value the multi-factor ' +
-        'policy URI http://schemas.openid.net/pape/policies/2007/06/multi-factor rather than an ' +
-        'invented or misspelled value? (Not applicable when using interactiveErrorHandler.)',
-      GraderLevel.L5,
-    ),
-    judge(
-      'If the code passes acr_values or max_age, are they inside an authorizationParams object ' +
-        'rather than as top-level properties? (Not applicable when using interactiveErrorHandler.)',
-      GraderLevel.L5,
-    ),
+    judge('Is interactiveErrorHandler set to "popup" in the createAuth0Client configuration?', GraderLevel.L5),
     judge(
       'Does the solution use the auth0-spa-js v2 API — authorizationParams for auth parameters, ' +
         'camelCase clientId, and argument-less getIdTokenClaims() — rather than the v1 patterns ' +
@@ -75,9 +59,9 @@ export function defineGraders() {
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
       'Does the solution correctly implement MFA step-up authentication in a vanilla JavaScript SPA ' +
-        'using @auth0/auth0-spa-js — either by configuring interactiveErrorHandler: "popup" ' +
+        'using @auth0/auth0-spa-js — by configuring interactiveErrorHandler: "popup" ' +
         'so that getTokenSilently automatically triggers an MFA popup ' +
-        'when the API requires it, or by explicitly requesting step-up via acr_values — and gating ' +
+        'when the API requires it — and gating ' +
         'the Transfer Funds action behind successful MFA completion?',
     ),
   ];

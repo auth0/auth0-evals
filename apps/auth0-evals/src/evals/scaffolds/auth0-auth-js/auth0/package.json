@@ -9,7 +9,6 @@
   },
   "dependencies": {
     "@auth0/auth0-auth-js": "^1.12.1",
-    "dotenv": "^16.4.7",
     "express": "^5.1.0"
   },
   "devDependencies": {

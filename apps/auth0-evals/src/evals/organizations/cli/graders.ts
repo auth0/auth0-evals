@@ -9,11 +9,7 @@ export function defineGraders() {
   return [
     // ── L2: Hallucination - agent must NOT configure SAML ─────────────────
     // for a basic org setup that uses a database connection
-    notRanCommand(
-      'saml',
-      'Did not configure SAML connections for a basic username/password org setup',
-      GraderLevel.L2,
-    ),
+    notRanCommand('saml', 'Did not configure SAML connections for a basic username/password org setup', GraderLevel.L2),
 
     // ── L4: Organization created ──────────────────────────────────────────
     // Accept either CLI form: the `auth0 orgs create` subcommand or the
@@ -24,6 +20,18 @@ export function defineGraders() {
       ['orgs create --name', 'orgs create -n', 'api post organizations'],
       'Created an organization via `auth0 orgs create` or `auth0 api post organizations`',
       GraderLevel.L4,
+    ),
+
+    // ── L4: Organization carries the requested display name ───────────────
+    // PROMPT asks for "Acme Corp" as the display name, but nothing verified it,
+    // so an org created with only the identifier still passed. Match the display
+    // name on any org create/update route: native `orgs create --display "Acme
+    // Corp"` / `orgs update`, or the `organizations` passthrough body.
+    ranCommandOneOf(
+      ['orgs create', 'orgs update', 'organizations'],
+      'Set the organization display name to "Acme Corp"',
+      GraderLevel.L4,
+      ['Acme Corp'],
     ),
 
     // ── L4: Connection enabled for organization with auto-membership ───────
@@ -37,14 +45,18 @@ export function defineGraders() {
     ),
 
     // ── L4: Application configured to require organization login ──────────
+    // Accept either route: the native `auth0 apps update` (which has no
+    // dedicated org flags, so the field rides in its `--data` JSON body) or the
+    // `auth0 api patch clients` passthrough. Keying only on `clients` failed the
+    // correct native `apps update` form, since that command never contains it.
     // Quote the value: the bare substring `require` also appears inside
     // `organization_require_behavior`, so it would pass even when
     // organization_usage is `allow`/`deny`. `"require"` only matches the value.
-    ranCommand(
-      'clients',
-      ['organization_usage', '"require"'],
+    ranCommandOneOf(
+      ['apps update', 'clients'],
       'Configured application with organization_usage set to require',
       GraderLevel.L4,
+      ['organization_usage', '"require"'],
     ),
 
     // ── L4: The acme-corp organization created before connections enabled ──
@@ -58,11 +70,13 @@ export function defineGraders() {
     ),
 
     // ── L5: Correct pre-login prompt behavior set ─────────────────────────
-    ranCommand(
-      'clients',
-      ['organization_require_behavior', 'pre_login_prompt'],
+    // Same routes as organization_usage above: native `apps update --data` or
+    // the `clients` passthrough.
+    ranCommandOneOf(
+      ['apps update', 'clients'],
       'Set organization_require_behavior to pre_login_prompt',
       GraderLevel.L5,
+      ['organization_require_behavior', 'pre_login_prompt'],
     ),
 
     // ── Holistic judge (no level - always runs) ───────────────────────────

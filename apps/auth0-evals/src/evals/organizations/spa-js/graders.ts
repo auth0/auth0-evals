@@ -39,7 +39,7 @@ export function defineGraders() {
     ),
     judge(
       'Does the code surface the organization the user logged into by reading the org_id claim ' +
-        '(via the getUser() result, e.g. user.org_id, or getIdTokenClaims()), rather than hardcoding or guessing it?',
+        '(via the getUser() result, for example user.org_id, or getIdTokenClaims()) rather than hardcoding or guessing it?',
       GraderLevel.L4,
     ),
 

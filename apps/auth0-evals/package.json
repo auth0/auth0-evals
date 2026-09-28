@@ -1,6 +1,6 @@
 {
   "name": "auth0-evals",
-  "version": "1.0.1",
+  "version": "2.1.0",
   "type": "module",
   "scripts": {
     "build": "tsc",
@@ -21,6 +21,6 @@
     "express-rate-limit": "^8.7.0"
   },
   "devDependencies": {
-    "@types/node": "^26.4.0"
+    "@types/node": "^26.6.2"
   }
 }

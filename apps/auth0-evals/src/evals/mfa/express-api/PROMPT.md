@@ -9,16 +9,14 @@ compile_command: node --check server.js
 
 ## Task
 
-My Express API validates Auth0 JWT access tokens with `express-oauth2-jwt-bearer`. I need to gate the `POST /api/transfers` route behind MFA step-up: only callers whose access token contains `"mfa"` in the `amr` claim may execute a transfer.
+My Express API validates Auth0 JWT access tokens with `express-oauth2-jwt-bearer`. Transfers are a high-value action, so my tenant is configured to issue the `transfer:funds` scope only after the user completes MFA step-up. The API does not run MFA itself — its job is to enforce that only stepped-up callers can transfer, by requiring that scope.
 
 Domain: dev-barkbook.us.auth0.com
 Audience: https://api.barkbook.com
 
 Requirements:
-- Protect `POST /api/transfers` so that requests where `amr` does not include `"mfa"` are rejected with a `403` response and a JSON body containing `code: "mfa_required"`.
+- Gate `POST /api/transfers` on the `transfer:funds` scope so that a caller whose token lacks it is rejected (the SDK returns a `403` `insufficient_scope`). This is the step-up gate.
+- Keep the existing `write:transfers` scope check on `POST /api/transfers`.
 - Keep the existing `read:balance` scope check on `GET /api/balance` working.
-- Keep the existing `write:transfers` scope check on `POST /api/transfers` working (MFA check comes on top of it).
-
-Note: Auth0 requires a custom Action to add the `amr` claim to access tokens. Assume the tenant already has this Action configured.
 
 There is a `.env.example` in the project — create the real `.env` from it with the values above.

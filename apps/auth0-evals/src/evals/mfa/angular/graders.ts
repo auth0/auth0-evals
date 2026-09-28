@@ -1,11 +1,11 @@
-import { contains, notContains, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
+import { contains, notContains, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
     // ── L1: Required step-up symbols present ───────────────────────────
-    matches(
-      String.raw`interactiveErrorHandler|acr_values`,
-      'Step-up configured via interactiveErrorHandler (SDK default) or acr_values (manual approach)',
+    contains(
+      'interactiveErrorHandler',
+      'Step-up configured via interactiveErrorHandler ("popup") — the pattern the SDK examples teach',
       GraderLevel.L1,
     ),
     contains(
@@ -43,20 +43,23 @@ export function defineGraders() {
     ),
 
     // ── L5: Current API patterns ──────────────────────────────────────────
-    judge(
-      'Is interactiveErrorHandler set to "popup" in the provideAuth0 configuration? ' +
-        '(If using the manual acr_values approach instead, are acr_values ' +
-        'and max_age: 0 passed inside authorizationParams on loginWithRedirect?)',
-      GraderLevel.L5,
-    ),
+    judge('Is interactiveErrorHandler set to "popup" in the provideAuth0 configuration?', GraderLevel.L5),
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
       'Does the solution correctly implement MFA step-up authentication in an Angular app using ' +
-        '@auth0/auth0-angular — either by configuring interactiveErrorHandler: "popup" ' +
+        '@auth0/auth0-angular -- by configuring interactiveErrorHandler: "popup" ' +
         'so that getAccessTokenSilently automatically triggers an MFA popup ' +
-        'when the API requires it, or by explicitly requesting step-up via acr_values — and gating ' +
+        'when the API requires it -- and gating ' +
         'the Transfer Funds action behind successful MFA completion?',
+      undefined,
+      {
+        context:
+          'the scaffold uses @auth0/auth0-angular ^2.9.0 (resolves to 2.11.0+), which has ' +
+          '@auth0/auth0-spa-js ^2.21.0 as a peer dep. AuthConfig extends Auth0ClientOptions from spa-js, ' +
+          'so interactiveErrorHandler (added in spa-js 2.16.0) IS a valid provideAuth0() config key ' +
+          'in this version -- it is not fabricated. Grade structural flow only.',
+      },
     ),
   ];
 }

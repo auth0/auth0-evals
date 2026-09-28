@@ -48,8 +48,8 @@ export function defineGraders() {
     ),
     judge(
       'Does the code surface the organization the user logged into by reading the org_id claim from the ID token ' +
-        '(decoding credentials.idToken with JWTDecode, e.g. decode(jwt:).claim(name: "org_id"), or via ' +
-        'UserProfile customClaims), rather than hardcoding or guessing it?',
+        '(decoding credentials.idToken with JWTDecode, for example decode(jwt:).claim(name: "org_id"), or via ' +
+        'UserProfile customClaims) rather than hardcoding or guessing it?',
       GraderLevel.L4,
     ),
 

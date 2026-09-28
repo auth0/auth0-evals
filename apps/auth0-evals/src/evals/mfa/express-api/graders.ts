@@ -1,20 +1,11 @@
-import {
-  contains,
-  notContains,
-  notContainsInSource,
-  matches,
-  judge,
-  wroteFile,
-  compiles,
-  GraderLevel,
-} from '@a0/evals-graders';
+import { contains, notContains, notContainsInSource, judge, wroteFile, compiles, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
-    // ── L1: Required MFA step-up symbols present ──────────────────────────
+    // ── L1: Required step-up symbols present ──────────────────────────────
     contains('express-oauth2-jwt-bearer', 'Uses express-oauth2-jwt-bearer SDK', GraderLevel.L1),
-    contains('amr', 'AMR claim referenced to detect MFA completion', GraderLevel.L1),
-    contains('mfa_required', 'Returns mfa_required error code on step-up failure', GraderLevel.L1),
+    contains('requiredScopes', 'Enforces the scope with the SDK requiredScopes middleware', GraderLevel.L1),
+    contains('transfer:funds', 'Gates the transfer on the step-up scope transfer:funds', GraderLevel.L1),
 
     // ── L2: Hallucination / wrong approach ───────────────────────────────
     notContains('jsonwebtoken', 'No manual JWT decoding with jsonwebtoken', GraderLevel.L2),
@@ -22,13 +13,6 @@ export function defineGraders() {
     notContains('otplib', 'No server-side TOTP library (otplib)', GraderLevel.L2),
     notContains('@auth0/guardian', 'No fake Guardian server SDK', GraderLevel.L2),
     notContains('mfa/challenge', 'Does not call the raw MFA challenge endpoint', GraderLevel.L2),
-    // The amr check must be on payload — req.auth.amr is the express-jwt (not
-    // express-oauth2-jwt-bearer) path; the correct path is req.auth.payload.amr.
-    notContains(
-      'req.auth.amr',
-      'Does not read amr from req.auth.amr (express-jwt path) — correct path is req.auth.payload.amr',
-      GraderLevel.L2,
-    ),
 
     // ── L3: Security checks ──────────────────────────────────────────────
     notContainsInSource(
@@ -44,30 +28,26 @@ export function defineGraders() {
       'api.barkbook.com',
     ]),
     compiles('Project compiles (node --check succeeds)', GraderLevel.L4),
-    contains('requiredScopes', 'Existing requiredScopes() scope checks retained', GraderLevel.L4),
-    // The MFA check must respond with HTTP 403, not 401. claimIncludes returns 401
-    // (invalid_token), so the correct approach is custom middleware with res.status(403).
-    matches(
-      String.raw`res\.status\s*\(\s*403\s*\)`,
-      'MFA step-up failure responds with HTTP 403',
+    contains('read:balance', 'Existing read:balance scope check on GET /api/balance retained', GraderLevel.L4),
+    // Grade the outcome (the transfer is gated on the step-up scope), not the exact call shape — a solution
+    // may require the scope with a second requiredScopes call, a combined requiredScopes('write:transfers',
+    // 'transfer:funds'), or a claimCheck on the scope claim.
+    judge(
+      'Does POST /api/transfers require the transfer:funds scope so a token that lacks it is rejected — ' +
+        'while the existing write:transfers requirement is retained — using the SDK (requiredScopes, or a ' +
+        'claimCheck/claimIncludes on the scope claim) rather than proceeding with the transfer?',
       GraderLevel.L4,
     ),
     judge(
-      'Does the code read the amr claim from req.auth.payload.amr (not req.auth.amr, which is the ' +
-        'express-jwt path), check whether it includes "mfa", and return a 403 with code: "mfa_required" ' +
-        'when MFA has not been completed?',
+      'Is the transfer:funds gate applied specifically to POST /api/transfers (not globally or to ' +
+        'GET /api/balance), and does read:balance scope enforcement still apply to GET /api/balance?',
       GraderLevel.L4,
     ),
     judge(
-      'Is the MFA check applied specifically to POST /api/transfers (not globally or only to ' +
-        'GET /api/balance), and does write:transfers scope enforcement still apply to that route?',
-      GraderLevel.L4,
-    ),
-    judge(
-      'Does the MFA middleware run AFTER checkJwt in the route middleware chain for POST /api/transfers? ' +
-        'The amr claim is only available on req.auth.payload after checkJwt has validated the token — ' +
-        'if the MFA check is registered before checkJwt, req.auth is undefined and every request is ' +
-        'rejected with a 403 regardless of whether the caller completed MFA.',
+      'Does the scope-checking middleware run AFTER checkJwt in the route middleware chain for ' +
+        'POST /api/transfers? The scope claim is only available on req.auth.payload after checkJwt has ' +
+        'validated the token — if the scope check is registered before checkJwt, req.auth is undefined and ' +
+        'every request is rejected regardless of the scopes the caller actually holds.',
       GraderLevel.L4,
     ),
 
@@ -77,23 +57,23 @@ export function defineGraders() {
       'No req.user (express-oauth2-jwt-bearer exposes claims on req.auth.payload)',
       GraderLevel.L5,
     ),
-    // Using claimIncludes for the amr check is wrong here because it returns 401
-    // invalid_token instead of the required 403 mfa_required. Flag it.
+    // requiredScopes / claimCheck raise the SDK's own 403 insufficient_scope — the pattern the SDK
+    // examples teach. Manually parsing the space-delimited scope string or hand-decoding the JWT is the
+    // deprecated path this check rules out.
     judge(
-      'Does the solution use custom middleware (rather than claimIncludes) for the MFA check, so ' +
-        'that the response is a 403 with code: "mfa_required" rather than a 401 invalid_token? ' +
-        'claimIncludes("amr", "mfa") would silently return 401 — the correct pattern reads ' +
-        'req.auth.payload.amr in its own middleware and responds with 403.',
+      'Does the solution enforce the scope through the SDK — requiredScopes, or claimCheck/claimIncludes ' +
+        'reading the scope claim off req.auth.payload — rather than manually splitting the space-delimited ' +
+        'scope string or hand-decoding the access token?',
       GraderLevel.L5,
     ),
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
-      'Does the solution correctly add MFA step-up enforcement to the Express API using ' +
-        'express-oauth2-jwt-bearer? POST /api/transfers must be gated behind both the write:transfers ' +
-        'scope check and an amr check that returns 403 with code: "mfa_required" when the token does ' +
-        'not include "mfa" in the amr claim. GET /api/balance must still require read:balance. ' +
-        'The amr claim must be read from req.auth.payload.amr. The issuer and audience may come from ' +
+      'Does the solution correctly add step-up enforcement to the Express API using ' +
+        'express-oauth2-jwt-bearer? POST /api/transfers must be gated on the transfer:funds scope — the ' +
+        'scope the tenant issues only after MFA step-up — so a token without it is rejected with the SDK’s ' +
+        '403 insufficient_scope, while the existing write:transfers check is retained. GET /api/balance must ' +
+        'still require read:balance. Claims are read from req.auth.payload, and issuer/audience come from ' +
         'ISSUER_BASE_URL / AUDIENCE environment variables — judge only from source code.',
     ),
   ];

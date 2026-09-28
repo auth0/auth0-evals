@@ -4,7 +4,6 @@ export function defineGraders() {
   return [
     // ── L1: Required MFA step-up symbols present ───────────────────────────
     contains('acr_values', 'Step-up request uses acr_values parameter', GraderLevel.L1),
-    contains('amr', 'AMR claim checked to detect prior MFA completion', GraderLevel.L1),
     contains('idTokenClaims', 'Reads claims from req.oidc.idTokenClaims (server-side)', GraderLevel.L1),
     contains('oidc.login', 'Triggers step-up via res.oidc.login()', GraderLevel.L1),
 
@@ -13,11 +12,7 @@ export function defineGraders() {
     notContains('otplib', 'No server-side TOTP library (otplib) used', GraderLevel.L2),
     notContains('@auth0/guardian', 'No fake Guardian client SDK referenced', GraderLevel.L2),
     notContains('mfa/challenge', 'Does not call raw MFA challenge endpoint directly', GraderLevel.L2),
-    notContains(
-      'loginWithRedirect',
-      'Does not use SPA loginWithRedirect in a server-side Express app',
-      GraderLevel.L2,
-    ),
+    notContains('loginWithRedirect', 'Does not use SPA loginWithRedirect in a server-side Express app', GraderLevel.L2),
 
     // ── L3: Security checks ──────────────────────────────────────────────────
     notContainsInSource(
@@ -45,8 +40,8 @@ export function defineGraders() {
     // ── L4: Structural / behavioral correctness ───────────────────────────────
     compiles('Project passes syntax check (node --check)', GraderLevel.L4),
     judge(
-      'Does the code check the amr claim on req.oidc.idTokenClaims to detect whether the ' +
-        'current session reflects completed MFA (e.g. amr includes "mfa") before allowing ' +
+      'Does the code check the amr (or acr) claim on req.oidc.idTokenClaims to detect whether the ' +
+        'current session reflects completed MFA (for example amr includes "mfa") before allowing ' +
         'the transfer to proceed?',
       GraderLevel.L4,
     ),
@@ -74,9 +69,19 @@ export function defineGraders() {
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
       'Does the solution correctly implement MFA step-up in an Express app using ' +
-        'express-openid-connect — checking amr/acr claims from req.oidc.idTokenClaims, ' +
+        'express-openid-connect -- checking amr/acr claims from req.oidc.idTokenClaims, ' +
         'redirecting to Auth0 via res.oidc.login() with acr_values when MFA is absent, ' +
+        'using afterCallback to verify the returned session contains MFA evidence, ' +
         'and gating the /transfer route behind that verification?',
+      undefined,
+      {
+        context:
+          'identityClaimFilter (the default express-openid-connect option that strips claims ' +
+          'from req.oidc.user) is irrelevant here -- graders require req.oidc.idTokenClaims which is ' +
+          'never filtered. Do NOT fail the solution because identityClaimFilter might strip amr from ' +
+          'req.oidc.user; that is a separate path. Grade only: (1) amr/acr read from idTokenClaims, ' +
+          '(2) res.oidc.login with acr_values when MFA absent, (3) /transfer gated, (4) afterCallback.',
+      },
     ),
   ];
 }

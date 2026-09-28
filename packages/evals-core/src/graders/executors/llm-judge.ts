@@ -129,6 +129,7 @@ export const llmJudgeExecutor: GraderExecutor = {
 
     const { passed, detail, inputTokens, outputTokens } = await llmJudge({
       question: def.question!,
+      context: def.context,
       code: judgeText,
       apiKey: ctx.apiKey,
       model,

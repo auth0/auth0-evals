@@ -1,0 +1,19 @@
+{
+  "name": "barkbook-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@auth0/auth0-api-js": "^1.6.1",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.13.0",
+    "typescript": "~5.8.3"
+  }
+}

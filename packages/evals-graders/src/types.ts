@@ -74,6 +74,22 @@ export interface GraderDef {
    * files and the answer lives entirely in its final text reply.
    */
   source?: GraderSource;
+  /**
+   * Judge graders only. Grounding context prepended to the judge's prompt (as a
+   * `Context:` block before the question) but kept out of `name`, so it never
+   * surfaces on the leaderboard UI. Use it to pin the installed SDK version /
+   * API surface so the judge doesn't flag real current APIs as hallucinated,
+   * without leaking that hint into the human-facing question label.
+   */
+  context?: string;
+  /**
+   * contains / not_contains / not_contains_in_source only. When true, comments
+   * are stripped from source files before searching (string literals kept), so
+   * the needle matches real code but not a mention in a line or block comment.
+   * Defaults to false (search raw file text, unchanged). Only affects the file
+   * corpus, not the agent reply.
+   */
+  ignoreComments?: boolean;
 }
 
 export interface GraderOptions {
@@ -83,6 +99,11 @@ export interface GraderOptions {
    * Defaults to `'files'` (workspace files only).
    */
   source?: GraderSource;
+  /**
+   * Strip comments from source files before searching (string literals kept).
+   * See `GraderDef.ignoreComments`. Defaults to false.
+   */
+  ignoreComments?: boolean;
 }
 
 /** Levels valid for event-based graders (agent-only — no tool calls exist in baseline). */

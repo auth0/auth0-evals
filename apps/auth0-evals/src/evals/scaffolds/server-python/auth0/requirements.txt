@@ -1,3 +1,4 @@
-# auth0-server-python currently ships as a 1.0.0 pre-release; the beta specifier
-# lets pip select it (and will also allow the stable 1.0.0 once released).
-auth0-server-python>=1.0.0b14
+# auth0-server-python currently ships as a 1.0.0 pre-release. Floor at b17 (the
+# beta the MFA skill is validated against) and cap below 1.0.1 so a future release
+# can't silently shift the MFA API out from under the skill; allows stable 1.0.0.
+auth0-server-python>=1.0.0b17,<1.0.1

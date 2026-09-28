@@ -7,6 +7,7 @@ import {
   judge,
   compiles,
   ranCommand,
+  ranCommandWithFlags,
   notRanCommand,
   ranCommandOneOf,
   ranCommandsInOrder,
@@ -194,6 +195,68 @@ describe('judge', () => {
     const def = judge('Did the CLI enforce MFA?', undefined, { includeCommandTrace: true });
     expect(def.includeCommandTrace).toBe(true);
   });
+
+  it('stores context from options without leaking it into name', () => {
+    const def = judge('Does the code use the current SDK API?', undefined, {
+      context: 'the scaffold pins @auth0/foo 3.0, whose bar() method is current.',
+    });
+    expect(def.context).toBe('the scaffold pins @auth0/foo 3.0, whose bar() method is current.');
+    // name feeds the leaderboard UI — context must not appear there.
+    expect(def.name).toBe('Does the code use the current SDK API?');
+    expect(def.question).toBe('Does the code use the current SDK API?');
+  });
+
+  it('leaves context undefined when not provided', () => {
+    const def = judge('Is this correct?');
+    expect(def.context).toBeUndefined();
+  });
+
+  it('validates only the question, not the context', () => {
+    // Context is declarative grounding, not a question — it must not trip the
+    // yes/no-question validator that guards the question argument.
+    expect(() =>
+      judge('Is the flow correct?', undefined, {
+        context: 'The scaffold uses SDK v3. This is an assertion, not a question.',
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects an assertion-phrased prompt', () => {
+    // yes=pass / no=fail, so "no" in answer to an assertion is ambiguous and
+    // fails correct output — see the comment on judge().
+    expect(() => judge('No client secret must ever be exposed. Fail if a secret appears.')).toThrow(
+      'must ask a yes/no question',
+    );
+  });
+
+  it('accepts a question with trailing clarifying sentences', () => {
+    const def = judge('Is the trace free of any client secret? client_ids are not secrets.');
+    expect(def.kind).toBe('judge');
+  });
+
+  it('accepts a question that closes a long prompt', () => {
+    const def = judge('The workspace holds the app. Given all of it, does login redirect correctly?');
+    expect(def.kind).toBe('judge');
+  });
+
+  it('accepts an interrogative in a later clause', () => {
+    const def = judge('Read the manifest first. Then, is every id it lists backed by a real command?');
+    expect(def.kind).toBe('judge');
+  });
+
+  it('rejects an assertion carrying a stray question mark', () => {
+    // A '?' anywhere used to be enough, so a parenthetical question mark was letting
+    // assertion-phrased prompts through — the exact shape that inverts the verdict.
+    expect(() => judge('The app must not hardcode a client secret (why would it?). Fail the run if it does.')).toThrow(
+      'must ask a yes/no question',
+    );
+  });
+
+  it('rejects an assertion that ends in a question mark', () => {
+    // A trailing '?' alone used to be accepted, which let an assertion whose correct
+    // answer is "no" through — the verdict then maps correct output to a failure.
+    expect(() => judge('No client secret must ever be exposed?')).toThrow('must ask a yes/no question');
+  });
 });
 
 // ── compiles ──────────────────────────────────────────────────────────────────
@@ -261,6 +324,127 @@ describe('ranCommand predicate', () => {
   });
 });
 
+// ── ranCommandWithFlags (predicate) ─────────────────────────────────────────
+
+describe('ranCommandWithFlags predicate', () => {
+  const run = (def: ReturnType<typeof ranCommandWithFlags>, calls: EventToolCall[]) => def.predicate!(calls);
+
+  it('binds each value to its own flag', () => {
+    const def = ranCommandWithFlags('apps create', [['--logout-urls', 'localhost:3000']], undefined, GraderLevel.L4);
+    expect(
+      run(def, [
+        evt({ name: 'run_command', args: { command: 'auth0 apps create --logout-urls http://localhost:3000' } }),
+      ]),
+    ).toBe(true);
+  });
+
+  it('matches a value set via the flag short alias', () => {
+    const def = ranCommandWithFlags('apps create', [['--callbacks', 'localhost:3000']], undefined, GraderLevel.L4);
+    expect(
+      run(def, [evt({ name: 'run_command', args: { command: 'auth0 apps create -c http://localhost:3000' } })]),
+    ).toBe(true);
+  });
+
+  it('matches short aliases across multiple bindings in the same command', () => {
+    const def = ranCommandWithFlags(
+      'apps create',
+      [
+        ['--callbacks', 'localhost:3000'],
+        ['--web-origins', 'localhost:3000'],
+      ],
+      undefined,
+      GraderLevel.L4,
+    );
+    expect(
+      run(def, [
+        evt({
+          name: 'run_command',
+          args: { command: 'auth0 apps create -c http://localhost:3000 -w http://localhost:3000' },
+        }),
+      ]),
+    ).toBe(true);
+  });
+
+  it('does not accept a value that only appears under a different flag', () => {
+    // The logout value must live in --logout-urls, not be borrowed from --callbacks.
+    const def = ranCommandWithFlags('apps create', [['--logout-urls', 'localhost:3000']], undefined, GraderLevel.L4);
+    expect(
+      run(def, [
+        evt({
+          name: 'run_command',
+          args: {
+            command: 'auth0 apps create --callbacks http://localhost:3000/callback --logout-urls http://other.com',
+          },
+        }),
+      ]),
+    ).toBe(false);
+  });
+
+  it('tolerates = separators, quotes, and comma-separated value lists', () => {
+    const def = ranCommandWithFlags(
+      'apps create',
+      [['--callbacks', 'localhost:3000/callback']],
+      undefined,
+      GraderLevel.L4,
+    );
+    expect(
+      run(def, [
+        evt({
+          name: 'run_command',
+          args: { command: 'auth0 apps create --callbacks="http://localhost:5000,http://localhost:3000/callback"' },
+        }),
+      ]),
+    ).toBe(true);
+  });
+
+  it('requires all flag bindings to match in the same command', () => {
+    const def = ranCommandWithFlags(
+      'apps create',
+      [
+        ['--callbacks', 'localhost:3000/callback'],
+        ['--logout-urls', 'localhost:3000'],
+      ],
+      undefined,
+      GraderLevel.L4,
+    );
+    expect(
+      run(def, [
+        evt({
+          name: 'run_command',
+          args: {
+            command: 'auth0 apps create --callbacks http://localhost:3000/callback --logout-urls http://localhost:3000',
+          },
+        }),
+      ]),
+    ).toBe(true);
+    expect(
+      run(def, [
+        evt({ name: 'run_command', args: { command: 'auth0 apps create --callbacks http://localhost:3000/callback' } }),
+      ]),
+    ).toBe(false);
+  });
+
+  it('ignores commands that errored', () => {
+    const def = ranCommandWithFlags('apps create', [['--logout-urls', 'localhost:3000']], undefined, GraderLevel.L4);
+    expect(
+      run(def, [
+        evt({
+          name: 'run_command',
+          args: { command: 'auth0 apps create --logout-urls http://localhost:3000' },
+          causedError: true,
+        }),
+      ]),
+    ).toBe(false);
+  });
+
+  it('throws on a non-event level', () => {
+    // @ts-expect-error — L1 is not an EventGraderLevel
+    expect(() => ranCommandWithFlags('apps create', [['--logout-urls', 'x']], undefined, GraderLevel.L1)).toThrow(
+      'event-based graders only support',
+    );
+  });
+});
+
 // ── notRanCommand (predicate) ────────────────────────────────────────────────
 
 describe('notRanCommand predicate', () => {
@@ -268,18 +452,24 @@ describe('notRanCommand predicate', () => {
 
   it('passes when the forbidden command was not run', () => {
     const def = notRanCommand('guardian/factors/otp', undefined, GraderLevel.L2);
-    expect(run(def, [evt({ name: 'run_command', args: { command: 'auth0 api put guardian/factors/sms' } })])).toBe(true);
+    expect(run(def, [evt({ name: 'run_command', args: { command: 'auth0 api put guardian/factors/sms' } })])).toBe(
+      true,
+    );
   });
 
   it('fails when the forbidden command was run', () => {
     const def = notRanCommand('guardian/factors/otp', undefined, GraderLevel.L2);
-    expect(run(def, [evt({ name: 'run_command', args: { command: 'auth0 api put guardian/factors/otp' } })])).toBe(false);
+    expect(run(def, [evt({ name: 'run_command', args: { command: 'auth0 api put guardian/factors/otp' } })])).toBe(
+      false,
+    );
   });
 
   it('passes when the forbidden command errored (errored calls are excluded)', () => {
     const def = notRanCommand('guardian/factors/otp', undefined, GraderLevel.L2);
     expect(
-      run(def, [evt({ name: 'run_command', args: { command: 'auth0 api put guardian/factors/otp' }, causedError: true })]),
+      run(def, [
+        evt({ name: 'run_command', args: { command: 'auth0 api put guardian/factors/otp' }, causedError: true }),
+      ]),
     ).toBe(true);
   });
 
@@ -312,6 +502,47 @@ describe('ranCommandOneOf predicate', () => {
   it('returns false when none of the alternatives are present', () => {
     const def = ranCommandOneOf(['npm install', 'yarn add'], undefined, GraderLevel.L4);
     expect(run(def, [evt({ name: 'run_command', args: { command: 'pip install requests' } })])).toBe(false);
+  });
+
+  it('requires every arg to appear in the matching command', () => {
+    // The route says how the agent got there; the args say it acted on the thing the
+    // task named. Accepting a route alone lets `orgs list` satisfy "created the org".
+    const def = ranCommandOneOf(['auth0 orgs create', 'organizations'], undefined, GraderLevel.L4, [
+      'acme',
+      'Acme Inc',
+    ]);
+    expect(
+      run(def, [evt({ name: 'run_command', args: { command: 'auth0 orgs create --name acme --display "Acme Inc"' } })]),
+    ).toBe(true);
+    expect(run(def, [evt({ name: 'run_command', args: { command: 'auth0 orgs create --name acme' } })])).toBe(false);
+  });
+
+  it('requires the route and the args in the same command', () => {
+    const def = ranCommandOneOf(['auth0 apps create'], undefined, GraderLevel.L4, 'Smoke Portal');
+    expect(
+      run(def, [
+        evt({ name: 'run_command', args: { command: 'auth0 apps create --name Other' } }),
+        evt({ name: 'run_command', args: { command: 'auth0 apps list | grep "Smoke Portal"' } }),
+      ]),
+    ).toBe(false);
+  });
+
+  it('treats a nested array as an AND group', () => {
+    // `api post` and `organizations` are each far too common alone; together they
+    // mean the agent created an organization through the Management API passthrough.
+    const def = ranCommandOneOf(['auth0 orgs create', ['api post', 'organizations']], undefined, GraderLevel.L4);
+    expect(
+      run(def, [evt({ name: 'run_command', args: { command: "auth0 api post organizations --data '{}'" } })]),
+    ).toBe(true);
+    expect(run(def, [evt({ name: 'run_command', args: { command: 'auth0 api get organizations' } })])).toBe(false);
+    expect(run(def, [evt({ name: 'run_command', args: { command: 'auth0 api post clients' } })])).toBe(false);
+  });
+
+  it('names the routes and args in the default description', () => {
+    const def = ranCommandOneOf(['auth0 orgs create', ['api post', 'organizations']], undefined, GraderLevel.L4, [
+      'acme',
+    ]);
+    expect(def.name).toBe('ran one of [auth0 orgs create | (api post + organizations) with [acme]]');
   });
 });
 
