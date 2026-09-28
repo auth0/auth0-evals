@@ -21,7 +21,7 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.2",
     "@vitest/coverage-v8": "^4.1.11",
     "vitest": "^4.1.10"
   }
