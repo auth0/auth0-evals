@@ -214,10 +214,23 @@ function escapeRegExp(literal: string): string {
  * Binding is tolerant of `=`/space separators, surrounding quotes, and
  * comma-separated value lists (Auth0 CLI URL lists contain no spaces), so the
  * value may sit anywhere inside the flag's single whitespace-delimited argument.
+ * A known long flag also matches its short alias (e.g. `-c` for `--callbacks`),
+ * so a correct command using short forms is not scored as a structural failure.
  *
  * @param command - Substring that must appear in the executed command
  * @param flags - `[flag, value]` pairs; every value must appear inside its flag's argument
  */
+// Known short aliases for auth0 CLI long flags, so a value set via the short
+// form (e.g. `-c http://localhost:3000`) still matches its long-flag binding.
+const SHORT_FLAG_ALIASES: Record<string, string> = {
+  '--callbacks': '-c',
+  '--logout-urls': '-l',
+  '--web-origins': '-w',
+  '--origins': '-o',
+  '--grants': '-g',
+  '--type': '-t',
+};
+
 export function ranCommandWithFlags(
   command: string,
   flags: Array<[string, string]>,
@@ -225,13 +238,18 @@ export function ranCommandWithFlags(
   level: EventGraderLevel,
 ): GraderDef {
   validateEventLevel(level, 'ranCommandWithFlags');
-  const bindings = flags.map(([flag, value]) => ({
-    flag,
-    value,
-    // <flag><sep><non-space run><value> — the [^\s]* keeps the match inside the
-    // flag's own argument so a value belonging to a later flag can't satisfy it.
-    re: new RegExp(`${escapeRegExp(flag)}[=\\s]+[^\\s]*${escapeRegExp(value)}`),
-  }));
+  const bindings = flags.map(([flag, value]) => {
+    const alias = SHORT_FLAG_ALIASES[flag];
+    const flagPattern = alias ? `(?:${escapeRegExp(flag)}|${escapeRegExp(alias)})` : escapeRegExp(flag);
+    return {
+      flag,
+      value,
+      // <flag><sep><non-space run><value> — the [^\s]* keeps the match inside the
+      // flag's own argument so a value belonging to a later flag can't satisfy it.
+      // Long flag or its known short alias may carry the value.
+      re: new RegExp(`${flagPattern}[=\\s]+[^\\s]*${escapeRegExp(value)}`),
+    };
+  });
   const label = bindings.map((b) => `${b.flag}=${b.value}`).join(', ');
   return {
     kind: 'event',

@@ -1,4 +1,4 @@
-import { ranCommand, ranCommandWithFlags, notRanCommand, judge, GraderLevel } from '@a0/evals-graders';
+import { ranCommand, ranCommandOneOf, ranCommandWithFlags, notRanCommand, judge, GraderLevel } from '@a0/evals-graders';
 
 // A goal-only CLI eval run against a live, throwaway tenant the `auth0` CLI is
 // already logged into. The agent writes nothing to disk — grading leans entirely
@@ -12,7 +12,8 @@ import { ranCommand, ranCommandWithFlags, notRanCommand, judge, GraderLevel } fr
 export function defineGraders() {
   return [
     // ── L4: Create a Native application ───────────────────────────────────
-    ranCommand('apps create', ['native'], 'Created a Native application via auth0 apps create', GraderLevel.L4),
+    // Accept both the dedicated subcommand and the raw Management API route.
+    ranCommandOneOf(['apps create', ['api post', 'clients']], 'Created a Native application', GraderLevel.L4, 'native'),
 
     // ── L4: Configure the custom-scheme callback / logout URLs ────────────
     // Bind each value to its own flag — both point at the com.example.quickstart
@@ -43,8 +44,9 @@ export function defineGraders() {
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
-      'Based on the command trace, does the solution create a Native application via ' +
-        '`auth0 apps create --type native`, register callback and logout URLs using the ' +
+      'Based on the command trace, does the solution create a Native application with the ' +
+        'Auth0 CLI (either `auth0 apps create --type native` or a raw `auth0 api post clients` call), ' +
+        'register callback and logout URLs using the ' +
         'com.example.quickstart custom URL scheme, and configure grant types per current best ' +
         'practice (Authorization Code + refresh token, without the legacy implicit grant), and name ' +
         'the application `Quickstart Native` — using only the Auth0 CLI, not the dashboard or Terraform?',

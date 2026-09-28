@@ -313,6 +313,33 @@ describe('ranCommandWithFlags predicate', () => {
     ).toBe(true);
   });
 
+  it('matches a value set via the flag short alias', () => {
+    const def = ranCommandWithFlags('apps create', [['--callbacks', 'localhost:3000']], undefined, GraderLevel.L4);
+    expect(
+      run(def, [evt({ name: 'run_command', args: { command: 'auth0 apps create -c http://localhost:3000' } })]),
+    ).toBe(true);
+  });
+
+  it('matches short aliases across multiple bindings in the same command', () => {
+    const def = ranCommandWithFlags(
+      'apps create',
+      [
+        ['--callbacks', 'localhost:3000'],
+        ['--web-origins', 'localhost:3000'],
+      ],
+      undefined,
+      GraderLevel.L4,
+    );
+    expect(
+      run(def, [
+        evt({
+          name: 'run_command',
+          args: { command: 'auth0 apps create -c http://localhost:3000 -w http://localhost:3000' },
+        }),
+      ]),
+    ).toBe(true);
+  });
+
   it('does not accept a value that only appears under a different flag', () => {
     // The logout value must live in --logout-urls, not be borrowed from --callbacks.
     const def = ranCommandWithFlags('apps create', [['--logout-urls', 'localhost:3000']], undefined, GraderLevel.L4);

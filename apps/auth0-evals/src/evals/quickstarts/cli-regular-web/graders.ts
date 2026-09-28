@@ -1,4 +1,4 @@
-import { ranCommand, ranCommandWithFlags, notRanCommand, judge, GraderLevel } from '@a0/evals-graders';
+import { ranCommand, ranCommandOneOf, ranCommandWithFlags, notRanCommand, judge, GraderLevel } from '@a0/evals-graders';
 
 // A goal-only CLI eval run against a live, throwaway tenant the `auth0` CLI is
 // already logged into. The agent writes nothing to disk — grading leans entirely
@@ -12,7 +12,13 @@ import { ranCommand, ranCommandWithFlags, notRanCommand, judge, GraderLevel } fr
 export function defineGraders() {
   return [
     // ── L4: Create a Regular Web Application ──────────────────────────────
-    ranCommand('apps create', ['regular'], 'Created a Regular Web Application via auth0 apps create', GraderLevel.L4),
+    // Accept both the dedicated subcommand and the raw Management API route.
+    ranCommandOneOf(
+      ['apps create', ['api post', 'clients']],
+      'Created a Regular Web Application',
+      GraderLevel.L4,
+      'regular',
+    ),
 
     // ── L4: Configure the callback and logout URLs ────────────────────────
     // Bind each value to its own flag — the logout URL (localhost:3000) is a
@@ -43,8 +49,9 @@ export function defineGraders() {
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
-      'Based on the command trace, does the solution create a Regular Web Application via ' +
-        '`auth0 apps create --type regular`, set the callback URL to http://localhost:3000/callback ' +
+      'Based on the command trace, does the solution create a Regular Web Application with the ' +
+        'Auth0 CLI (either `auth0 apps create --type regular` or a raw `auth0 api post clients` call), ' +
+        'set the callback URL to http://localhost:3000/callback ' +
         'and the logout URL to http://localhost:3000, and configure grant types per current best ' +
         'practice (Authorization Code + refresh token, without the legacy implicit grant), and name ' +
         'the application `Quickstart Web App` — using only the Auth0 CLI, not the dashboard or Terraform?',
