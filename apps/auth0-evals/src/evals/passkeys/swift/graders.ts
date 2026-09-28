@@ -47,11 +47,16 @@ export function defineGraders() {
       'barkbook_client_abc123xyz',
       'No hardcoded client ID in Swift source files (ok in Auth0.plist)',
       GraderLevel.L3,
+      { ignoreComments: true },
     ),
+    // The domain legitimately appears in the Associated Domains webcredentials
+    // entitlement and is often mentioned in a comment explaining the RP-id — only
+    // a live hardcoded value in source is a violation.
     notContainsInSource(
       'dev-barkbook.us.auth0.com',
       'No hardcoded domain in Swift source files (ok in Auth0.plist)',
       GraderLevel.L3,
+      { ignoreComments: true },
     ),
     judge(
       'Are the relying-party identifier and challenge fed to the platform authenticator taken directly from ' +

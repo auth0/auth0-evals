@@ -38,11 +38,15 @@ export function defineGraders() {
       'barkbook_client_abc123xyz',
       'No hardcoded client ID in Kotlin source files (ok in strings.xml)',
       GraderLevel.L3,
+      { ignoreComments: true },
     ),
+    // A domain mentioned only in a comment explaining the RP-id is not a leak —
+    // only a live hardcoded value in Kotlin source is a violation.
     notContainsInSource(
       'dev-barkbook.us.auth0.com',
       'No hardcoded domain in Kotlin source files (ok in strings.xml)',
       GraderLevel.L3,
+      { ignoreComments: true },
     ),
     judge(
       'Is validateClaims() actually chained on the signinWithPasskey request for both the sign-in and the signup ' +
@@ -70,7 +74,8 @@ export function defineGraders() {
       'Does the sign-in follow the correct passkey ceremony in order: (1) obtain a PasskeyChallenge via ' +
         'passkeyChallenge; (2) build GetPublicKeyCredentialOption from the JSON of challenge.authParamsPublicKey ' +
         'wrapped in a GetCredentialRequest; (3) call credentialManager.getCredential and read the ' +
-        'authenticationResponseJson from the returned PublicKeyCredential; (4) pass it plus challenge.authSession ' +
+        'authenticationResponseJson from the returned PublicKeyCredential; (4) pass that authentication response — ' +
+        'either as the JSON string or as a PublicKeyCredentials parsed from it — plus challenge.authSession ' +
         'to signinWithPasskey(...).validateClaims() to obtain Credentials, which are then saved via the ' +
         'credentials manager?',
       GraderLevel.L4,
