@@ -21,6 +21,7 @@ export {
   matches,
   judge,
   ranCommand,
+  ranCommandWithFlags,
   notRanCommand,
   ranCommandOneOf,
   ranCommandsInOrder,
