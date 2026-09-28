@@ -1,13 +1,13 @@
 ---
 id: swift_passkeys
-name: Swift Passkey Sign-In
+name: Swift Passkey Sign-In & Signup
 scaffold: src/evals/scaffolds/swift/auth0
 skills: auth0
 ---
 
 ## Task
 
-My iOS app already has Auth0 login working through Universal Login. I want to let users sign in with a passkey — using Face ID or Touch ID on their device — as an alternative to the hosted login page, so they can log in without a password. Add that passkey sign-in option.
+My iOS app already has Auth0 login working through Universal Login. I want to add passkeys — using Face ID or Touch ID on the device — so users can authenticate without a password. Existing users should be able to sign in with a passkey, and new users should be able to create an account with a passkey. Add both flows.
 
 Domain: dev-barkbook.us.auth0.com
 Client ID: barkbook_client_abc123xyz

@@ -2,16 +2,14 @@ import { contains, notContains, notContainsInSource, judge, GraderLevel } from '
 
 export function defineGraders() {
   return [
-    // ── L1: Required passkey sign-in symbols present ──────────────────────
+    // ── L1: Required passkey symbols present (login + signup) ─────────────
     contains('passkeyChallenge', 'Requests a passkey sign-in challenge from AuthenticationAPIClient', GraderLevel.L1),
+    contains('signupWithPasskey', 'Requests a passkey registration challenge for a new user', GraderLevel.L1),
     contains('signinWithPasskey', 'Exchanges the platform credential for Auth0 credentials', GraderLevel.L1),
     // The SDK does not wrap the OS credential API — the app must drive the
     // platform authenticator through AndroidX CredentialManager itself.
-    contains(
-      'GetPublicKeyCredentialOption',
-      'Builds a get-credential option (sign-in), not a create-credential request',
-      GraderLevel.L1,
-    ),
+    contains('GetPublicKeyCredentialOption', 'Builds a get-credential option for sign-in', GraderLevel.L1),
+    contains('CreatePublicKeyCredentialRequest', 'Builds a create-credential request for signup', GraderLevel.L1),
     // Required on every signinWithPasskey call — without it ID token claim
     // validation is silently skipped (see L3).
     contains('validateClaims', 'Chains validateClaims on the sign-in request', GraderLevel.L1),
@@ -25,9 +23,10 @@ export function defineGraders() {
       'Does not use the deprecated Google Play Services FIDO API instead of CredentialManager',
       GraderLevel.L2,
     ),
-    // The SDK exposes passkeyChallenge/signinWithPasskey (no slash); a literal
-    // /passkey/challenge path means the model hand-rolled the Auth0 exchange
-    // over raw HTTP instead of using the SDK — observed in baseline runs.
+    // The SDK exposes passkeyChallenge/signupWithPasskey/signinWithPasskey (no
+    // slash); a literal /passkey/challenge path means the model hand-rolled the
+    // Auth0 exchange over raw HTTP instead of using the SDK — observed in
+    // baseline runs.
     notContains(
       '/passkey/challenge',
       'Does not hand-roll the raw /passkey/challenge endpoint instead of the SDK',
@@ -46,27 +45,27 @@ export function defineGraders() {
       GraderLevel.L3,
     ),
     judge(
-      'Is validateClaims() actually chained on the signinWithPasskey request before it is started/awaited, so ' +
-        'ID token claims (issuer, audience, nonce, expiry) are validated? Omitting it makes the SDK skip that ' +
-        'validation with only a warning, which is a security defect.',
+      'Is validateClaims() actually chained on the signinWithPasskey request for both the sign-in and the signup ' +
+        'exchange before it is started or awaited, so ID token claims (issuer, audience, nonce, expiry) are ' +
+        'validated? Omitting it makes the SDK skip that validation with only a warning, which is a security defect.',
       GraderLevel.L3,
     ),
     judge(
-      'Is the CredentialManager get-request built from the challenge object returned by Auth0 ' +
-        '(challenge.authParamsPublicKey and challenge.authSession) rather than a hardcoded relying-party id or a ' +
-        'fabricated/reused challenge, and is the PublicKeyCredentials obtained from the platform authenticator ' +
-        'rather than constructed by hand?',
+      'Are the CredentialManager requests built from the challenge objects returned by Auth0 ' +
+        '(the authParamsPublicKey and authSession from passkeyChallenge for sign-in and from signupWithPasskey for ' +
+        'signup) rather than a hardcoded relying-party id or a fabricated or reused challenge, and are the ' +
+        'PublicKeyCredentials obtained from the platform authenticator rather than constructed by hand?',
       GraderLevel.L3,
     ),
     judge(
       'Does the code let SecureCredentialsManager (or CredentialsManager) store the Credentials returned from the ' +
-        'passkey sign-in rather than persisting Auth0 tokens (access tokens, ID tokens, refresh tokens) by hand ' +
-        'in SharedPreferences? Storing only application/UI state is acceptable — only manual token storage is a ' +
-        'violation.',
+        'passkey sign-in and signup rather than persisting Auth0 tokens (access tokens, ID tokens, refresh tokens) ' +
+        'by hand in SharedPreferences? Storing only application or UI state is acceptable, and only manual token ' +
+        'storage is a violation.',
       GraderLevel.L3,
     ),
 
-    // ── L4: Structural correctness ────────────────────────────────────────
+    // ── L4: Structural correctness (both ceremonies) ──────────────────────
     judge(
       'Does the sign-in follow the correct passkey ceremony in order: (1) obtain a PasskeyChallenge via ' +
         'passkeyChallenge; (2) build GetPublicKeyCredentialOption from the JSON of challenge.authParamsPublicKey ' +
@@ -74,6 +73,15 @@ export function defineGraders() {
         'authenticationResponseJson from the returned PublicKeyCredential; (4) pass it plus challenge.authSession ' +
         'to signinWithPasskey(...).validateClaims() to obtain Credentials, which are then saved via the ' +
         'credentials manager?',
+      GraderLevel.L4,
+    ),
+    judge(
+      'Does the signup follow the correct passkey ceremony in order: (1) obtain a PasskeyRegistrationChallenge via ' +
+        'signupWithPasskey with the new user data; (2) build CreatePublicKeyCredentialRequest from the JSON of ' +
+        'challenge.authParamsPublicKey; (3) call credentialManager.createCredential and read the ' +
+        'registrationResponseJson from the returned CreatePublicKeyCredentialResponse; (4) pass it plus ' +
+        'challenge.authSession to signinWithPasskey(...).validateClaims() to obtain Credentials, which are then ' +
+        'saved via the credentials manager?',
       GraderLevel.L4,
     ),
 
@@ -85,18 +93,19 @@ export function defineGraders() {
     notContains('PasskeyProvider', 'Does not use the removed PasskeyProvider wrapper', GraderLevel.L5),
     notContains('PasskeyManager', 'Does not use the removed PasskeyManager wrapper', GraderLevel.L5),
     judge(
-      'Is the passkey sign-in built with the current API — AuthenticationAPIClient (passkeyChallenge / ' +
-        'signinWithPasskey) combined directly with AndroidX CredentialManager — rather than the removed ' +
-        'PasskeyAuthProvider/PasskeyProvider/PasskeyManager wrappers or the Google Play Services FIDO2 API?',
+      'Is the passkey sign-in and signup built with the current API — AuthenticationAPIClient (passkeyChallenge, ' +
+        'signupWithPasskey and signinWithPasskey) combined directly with AndroidX CredentialManager — rather than ' +
+        'the removed PasskeyAuthProvider, PasskeyProvider or PasskeyManager wrappers or the Google Play Services ' +
+        'FIDO2 API?',
       GraderLevel.L5,
     ),
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
-      'Does the solution correctly add passkey sign-in to an Android app — requesting a challenge via ' +
-        'passkeyChallenge, driving the platform authenticator through AndroidX CredentialManager with the ' +
-        "challenge's authParamsPublicKey, and exchanging the resulting PublicKeyCredential back via " +
-        'signinWithPasskey(...).validateClaims() to obtain and store Credentials?',
+      'Does the solution correctly add both passkey sign-in and passkey signup to an Android app — requesting ' +
+        'challenges via passkeyChallenge and signupWithPasskey, driving the platform authenticator through AndroidX ' +
+        'CredentialManager with the challenge authParamsPublicKey, and exchanging the resulting PublicKeyCredential ' +
+        'back via signinWithPasskey(...).validateClaims() to obtain and store Credentials?',
     ),
   ];
 }
