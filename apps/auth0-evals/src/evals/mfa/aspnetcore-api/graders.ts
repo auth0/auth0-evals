@@ -66,12 +66,14 @@ export function defineGraders() {
     // The current pattern is AddAuth0ApiAuthentication + a scope-based
     // authorization policy (HasScopeRequirement/HasScopeHandler reading the space-
     // delimited scope claim). Hand-decoding the token or manually splitting the
-    // scope string in the endpoint is the deprecated path.
+    // scope string in the endpoint is the deprecated path. RequireClaim is NOT
+    // acceptable: it matches the whole space-delimited scope claim value, so a
+    // token carrying "write:transfers transfer:funds" would be rejected.
     judge(
       'Does the solution enforce the scope through the ASP.NET Core authorization pipeline — an ' +
-        'authorization policy backed by HasScopeRequirement/HasScopeHandler (or RequireClaim on the scope ' +
-        'claim) — rather than manually splitting the space-delimited scope string or hand-decoding the ' +
-        'access token inside the endpoint?',
+        'authorization policy backed by HasScopeRequirement/HasScopeHandler that inspects individual ' +
+        'scopes within the claim — rather than RequireClaim on the whole scope claim, manually splitting ' +
+        'the space-delimited scope string, or hand-decoding the access token inside the endpoint?',
       GraderLevel.L5,
     ),
 

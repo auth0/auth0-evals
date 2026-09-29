@@ -60,10 +60,10 @@ func main() {
 	mux := http.NewServeMux()
 
 	// GET /api/balance — requires the read:balance scope.
-	mux.Handle("/api/balance", middleware.CheckJWT(requireScope("read:balance", http.HandlerFunc(balanceHandler))))
+	mux.Handle("GET /api/balance", middleware.CheckJWT(requireScope("read:balance", http.HandlerFunc(balanceHandler))))
 
 	// POST /api/transfers — requires the write:transfers scope.
-	mux.Handle("/api/transfers", middleware.CheckJWT(requireScope("write:transfers", http.HandlerFunc(transferHandler))))
+	mux.Handle("POST /api/transfers", middleware.CheckJWT(requireScope("write:transfers", http.HandlerFunc(transferHandler))))
 
 	log.Println("Listening on http://localhost:3001")
 	log.Fatal(http.ListenAndServe(":3001", mux))
