@@ -15,6 +15,6 @@ My iOS app already has Auth0 login working through Universal Login, and signed-i
 
 Add all three.
 
-Domain: dev-barkbook.us.auth0.com
+Domain: auth.barkbook.com
 Client ID: barkbook_client_abc123xyz
 Audience: https://api.barkbook.com

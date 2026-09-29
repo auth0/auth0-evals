@@ -49,16 +49,18 @@ export function defineGraders() {
     // ── L2: Hallucination / wrong approach ────────────────────────────────
     notContains('Auth0SDK', 'No hallucinated Auth0SDK package name (correct package is Auth0)', GraderLevel.L2),
     // The SDK exposes passkeyLoginChallenge/passkeySignupChallenge (no slash); a
-    // literal /passkey/challenge path means the model hand-rolled the exchange
-    // over raw HTTP instead of using the SDK.
-    notContains(
+    // literal /passkey/challenge path in source means the model hand-rolled the
+    // exchange over raw HTTP instead of using the SDK. Source-only +
+    // ignoreComments so the path mentioned in a code comment does not trip it.
+    notContainsInSource(
       '/passkey/challenge',
       'Does not hand-roll the raw /passkey/challenge endpoint instead of the SDK',
       GraderLevel.L2,
+      { ignoreComments: true },
     ),
     // The MyAccount client owns the /me/v1/authentication-methods path
     // internally; spelling it in source means the model hand-rolled enrollment.
-    notContains(
+    notContainsInSource(
       '/me/v1/authentication-methods',
       'Does not hand-roll the raw MyAccount authentication-methods endpoint instead of the MyAccount client',
       GraderLevel.L2,
@@ -66,16 +68,12 @@ export function defineGraders() {
     ),
 
     // ── L3: Security ──────────────────────────────────────────────────────
-    notContainsInSource(
-      'barkbook_client_abc123xyz',
-      'No hardcoded client ID in Swift source files (ok in Auth0.plist)',
-      GraderLevel.L3,
-      { ignoreComments: true },
-    ),
-    // The domain is not a secret (it is the public RP-id, ships in Auth0.plist
-    // and the webcredentials entitlement, and the MyAccount audience string
-    // legitimately embeds it) so it is not checked here — a hardcoded-domain
-    // check false-positives on correct enrollment code.
+    // The client ID and domain are public config, not secrets — they ship in
+    // the app bundle (Auth0.plist, the webcredentials entitlement) and
+    // Auth0.swift documents constructing the client with them directly — so a
+    // hardcoded-value L3 check false-positives on correct code. L3 here is about
+    // real credential handling: using SDK challenges, scoping the MyAccount
+    // token, and storing tokens through the credentials manager.
     judge(
       'Are the relying-party identifier and challenge fed to the platform authenticator taken directly from ' +
         'the SDK challenge objects (relyingPartyId and challengeData on the login, signup and enrollment challenges), ' +

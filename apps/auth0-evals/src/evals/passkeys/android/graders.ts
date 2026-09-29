@@ -43,17 +43,19 @@ export function defineGraders() {
       GraderLevel.L2,
     ),
     // The SDK exposes passkeyChallenge/signupWithPasskey/signinWithPasskey (no
-    // slash); a literal /passkey/challenge path means the model hand-rolled the
-    // Auth0 exchange over raw HTTP instead of using the SDK — observed in
-    // baseline runs.
-    notContains(
+    // slash); a literal /passkey/challenge path in source means the model
+    // hand-rolled the Auth0 exchange over raw HTTP instead of using the SDK —
+    // observed in baseline runs. Source-only + ignoreComments so the path
+    // mentioned in a code comment does not trip it.
+    notContainsInSource(
       '/passkey/challenge',
       'Does not hand-roll the raw /passkey/challenge endpoint instead of the SDK',
       GraderLevel.L2,
+      { ignoreComments: true },
     ),
     // MyAccountAPIClient owns the /me/v1/authentication-methods path internally;
     // spelling it in source means the model hand-rolled the enrollment exchange.
-    notContains(
+    notContainsInSource(
       '/me/v1/authentication-methods',
       'Does not hand-roll the raw MyAccount authentication-methods endpoint instead of MyAccountAPIClient',
       GraderLevel.L2,
@@ -61,15 +63,11 @@ export function defineGraders() {
     ),
 
     // ── L3: Security ──────────────────────────────────────────────────────
-    notContainsInSource(
-      'barkbook_client_abc123xyz',
-      'No hardcoded client ID in Kotlin source files (ok in strings.xml)',
-      GraderLevel.L3,
-      { ignoreComments: true },
-    ),
-    // The domain is not a secret (it is the public RP-id, lives in strings.xml,
-    // and the MyAccount audience legitimately embeds it) so it is not checked
-    // here — client ID is the real "wired through the SDK" signal.
+    // The client ID and domain are public config, not secrets — they ship in
+    // the app binary and Auth0.Android documents constructing the client with
+    // them directly — so a hardcoded-value L3 check false-positives on correct
+    // code. L3 here is about real credential handling: claim validation, using
+    // SDK challenges, and storing tokens through the credentials manager.
     judge(
       'Is validateClaims() actually chained on the signinWithPasskey request for both the sign-in and the signup ' +
         'exchange before it is started or awaited, so ID token claims (issuer, audience, nonce, expiry) are ' +
