@@ -3,8 +3,8 @@ import { contains, notContains, notContainsInSource, judge, wroteFile, GraderLev
 export function defineGraders() {
   return [
     // ── L1: Required step-up symbols present ──────────────────────────────
-    contains('LoginAsync', 'Triggers step-up through the SDK LoginAsync method', GraderLevel.L1),
-    // Auth0 step-up is requested by passing acr_values through the login parameters.
+    // The scaffold's Login button already calls LoginAsync, so its presence is not
+    // a step-up signal — acr_values is the discriminator.
     contains('acr_values', 'Requests MFA step-up via the acr_values authorization parameter', GraderLevel.L1),
 
     // ── L2: Hallucination / wrong approach ───────────────────────────────

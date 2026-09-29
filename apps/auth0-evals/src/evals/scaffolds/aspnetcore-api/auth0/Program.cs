@@ -1,6 +1,5 @@
 using Auth0.AspNetCore.Authentication.Api;
 using BarkbookApi.Authorization;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,10 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddAuth0ApiAuthentication(options =>
 {
     options.Domain = builder.Configuration["Auth0:Domain"];
-    options.JwtBearerOptions = new JwtBearerOptions
-    {
-        Audience = builder.Configuration["Auth0:Audience"],
-    };
+    options.Audience = builder.Configuration["Auth0:Audience"];
 });
 
 var issuer = $"https://{builder.Configuration["Auth0:Domain"]}/";

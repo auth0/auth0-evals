@@ -2,6 +2,7 @@ package com.barkbook.api;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -15,9 +16,9 @@ public class SecurityConfig {
         http
             .authorizeHttpRequests(authorize -> authorize
                 // GET /api/balance — requires the read:balance scope.
-                .requestMatchers("/api/balance").hasAuthority("SCOPE_read:balance")
+                .requestMatchers(HttpMethod.GET, "/api/balance").hasAuthority("SCOPE_read:balance")
                 // POST /api/transfers — requires the write:transfers scope.
-                .requestMatchers("/api/transfers").hasAuthority("SCOPE_write:transfers")
+                .requestMatchers(HttpMethod.POST, "/api/transfers").hasAuthority("SCOPE_write:transfers")
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2.jwt(withDefaults()));

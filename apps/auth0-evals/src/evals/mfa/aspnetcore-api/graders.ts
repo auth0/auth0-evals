@@ -21,11 +21,7 @@ export function defineGraders() {
       GraderLevel.L2,
     ),
     notContains('Auth0.AspNetCore.Api', 'No hallucinated Auth0.AspNetCore.Api package', GraderLevel.L2),
-    notContains(
-      'System.IdentityModel.Tokens.Jwt',
-      'No manual JWT decoding with JwtSecurityTokenHandler',
-      GraderLevel.L2,
-    ),
+    notContains('System.IdentityModel.Tokens.Jwt', 'No System.IdentityModel.Tokens.Jwt namespace', GraderLevel.L2),
     notContains('JwtSecurityTokenHandler', 'No manual JWT decoding with JwtSecurityTokenHandler', GraderLevel.L2),
 
     // ── L3: Security checks ──────────────────────────────────────────────
