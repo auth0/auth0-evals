@@ -86,9 +86,13 @@ export function defineGraders() {
         context:
           'the scaffold uses @auth0/auth0-react ^2.2.4, which resolves to 2.26.0+. That version exposes a ' +
           'passkey client on useAuth0 — const { passkey } = useAuth0(); passkey.signup({ email }) and ' +
-          'passkey.login() — re-exported from @auth0/auth0-spa-js, and PasskeyError / PasskeyRegisterError are ' +
-          'exported from @auth0/auth0-react. These APIs and the useRefreshTokens Auth0Provider prop are real, ' +
-          'not fabricated. Grade the integration, not whether the symbols exist.',
+          'passkey.login() — re-exported from @auth0/auth0-spa-js. The error classes PasskeyError, ' +
+          'PasskeyRegisterError, PasskeyChallengeError, PasskeyGetTokenError AND MfaRequiredError are all ' +
+          'exported from @auth0/auth0-react (MfaRequiredError is re-exported from src/index.tsx and the ' +
+          "SDK's own EXAMPLES.md imports it: import { useAuth0, MfaRequiredError } from '@auth0/auth0-react'). " +
+          'So catching MfaRequiredError alongside the passkey errors is correct and MUST NOT be flagged as an ' +
+          'unexported symbol. These APIs and the useRefreshTokens Auth0Provider prop are real, not fabricated. ' +
+          'Grade the integration, not whether the symbols exist.',
       },
     ),
   ];

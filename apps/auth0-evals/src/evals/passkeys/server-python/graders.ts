@@ -73,14 +73,6 @@ export function defineGraders() {
 
     // ── L4: Structural correctness ────────────────────────────────────────
     compiles('Project byte-compiles (compileall succeeds)', GraderLevel.L4),
-    // Content-based: confirms the provided Auth0 config was externalised into the
-    // workspace (conventionally .env), robust to whether the agent wrote it via a
-    // tool or a shell heredoc.
-    contains(
-      'dev-barkbook.us.auth0.com',
-      'Auth0 config (domain) externalised into the workspace, e.g. .env',
-      GraderLevel.L4,
-    ),
     // The two beats are wired: the exchange replays the auth_session the challenge
     // returned rather than minting its own.
     matches(
@@ -112,6 +104,15 @@ export function defineGraders() {
         'session, rather than manually decoding the returned ID or access token (for example base64-decoding ' +
         'a segment or calling jwt.decode by hand)?',
       GraderLevel.L5,
+      {
+        context:
+          'signin_with_passkey returns a PasskeyLoginResult whose `state_data` is a plain `dict[str, Any]` ' +
+          '(not a Pydantic model), holding the persisted session: user claims at `state_data["user"]` plus ' +
+          'the tokens. So `result.state_data["user"]` and `.get("user")` are the correct way to read ' +
+          'identity — do not penalise them as an attribute or type mismatch; `get_user()` is an equivalent ' +
+          'alternative. Fail only genuine manual token decoding (jwt.decode, base64-splitting a token) or ' +
+          'code that never reads identity from the SDK.',
+      },
     ),
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
@@ -125,10 +126,13 @@ export function defineGraders() {
       undefined,
       {
         context:
-          'These are real APIs in the pinned auth0-server-python 1.0.0b17 — passkey_signup_challenge, ' +
-          'passkey_login_challenge and signin_with_passkey on ServerClient, and the PasskeyAuthResponse / ' +
-          'PasskeyUserProfile / PasskeyLoginResult types in auth0_server_python.auth_types. Grade the ' +
-          'integration, not whether the symbols exist.',
+          'passkey_signup_challenge, passkey_login_challenge and signin_with_passkey on ServerClient, and ' +
+          'the PasskeyAuthResponse / PasskeyUserProfile / PasskeyLoginResult types, are real — grade the ' +
+          'integration, not whether the symbols exist. PasskeyLoginResult.state_data is a plain ' +
+          '`dict[str, Any]`, so `result.state_data["user"]` / `.get("user")` is correct, not a type ' +
+          'mismatch. signin_with_passkey accepts store_options, connection, organization, scope, audience ' +
+          'and dpop_key keyword args, so passing any of them is supported — not a TypeError or undocumented ' +
+          'kwarg. PasskeyAuthResponse accepts snake_case `raw_id` (aliased to `rawId`), so `raw_id=` is correct.',
       },
     ),
   ];

@@ -96,6 +96,19 @@ export function defineGraders() {
         '@auth0/auth0-spa-js — letting a new user sign up with a passkey (auth0.passkey.signup) and an existing ' +
         'user sign in with a passkey (auth0.passkey.login), with useRefreshTokens: true configured on the client ' +
         'so the passkey session can be silently renewed?',
+      undefined,
+      {
+        context:
+          'the scaffold pins @auth0/auth0-spa-js ^2.0.0, which resolves to the current 2.x where native ' +
+          'passkey login exists. Auth0Client exposes `public readonly passkey: PasskeyApiClient` (see ' +
+          'src/Auth0Client.ts), and PasskeyApiClient provides one-call `signup(options)` and `login(options?)` ' +
+          'methods that run the full challenge → navigator.credentials → token-exchange flow, plus the granular ' +
+          'getSignupChallenge / getLoginChallenge / getTokenWithPasskey (see src/passkey/PasskeyApiClient.ts, ' +
+          're-exported from @auth0/auth0-spa-js). So `auth0.passkey.signup()` and `auth0.passkey.login()` are ' +
+          'real, documented APIs — NOT an invented namespace, and native passkey login is NOT limited to ' +
+          'auth0-js/Universal Login or the my-account enrollment API. These APIs and useRefreshTokens are real, ' +
+          'not fabricated. Grade the integration, not whether the symbols exist.',
+      },
     ),
   ];
 }
