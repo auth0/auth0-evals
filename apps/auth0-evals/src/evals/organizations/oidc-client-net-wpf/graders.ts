@@ -103,9 +103,12 @@ export function defineGraders() {
         context:
           'It must log users into org_barkbook_acme by passing organization to LoginAsync, accept organization invitation ' +
           'links via the invitation parameter, and identify the logged-in organization from the org_id claim read off the ' +
-          'login result principal. Rejecting or blocking a valid invitation because its organization differs from the ' +
-          'configured default org is a correctness defect, not a cosmetic one — treat it as a failure of invitation ' +
-          'acceptance.',
+          'login result principal. The extra parameters may be an anonymous object (e.g. new { organization = "..." }) or ' +
+          "a Dictionary<string,string> — LoginAsync forwards both. Auth0ClientBase reflects over the object's properties " +
+          'into a Dictionary<string,string>, so an anonymous object is fully supported and does NOT cause a runtime ' +
+          'invalid-cast; do not treat the anonymous-object form as a defect. Rejecting or blocking a valid invitation ' +
+          'because its organization differs from the configured default org is a correctness defect, not a cosmetic one — ' +
+          'treat it as a failure of invitation acceptance.',
       },
     ),
   ];

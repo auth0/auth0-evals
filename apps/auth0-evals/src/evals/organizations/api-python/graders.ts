@@ -53,15 +53,19 @@ export function defineGraders() {
     // ── L4: Structural / behavioral correctness ───────────────────────────
     compiles('Project byte-compiles (compileall succeeds)', GraderLevel.L4),
     judge(
-      'Does `GET /api/org/members` reject a request whose validated token has a missing or non-matching `org_id`?',
+      'Does the org-members handler reject a request whose validated token has a missing or non-matching `org_id`?',
       GraderLevel.L4,
       {
         context:
-          'The route should validate the access token with verify_access_token and require org_id to equal ' +
-          'org_barkbook_acme — either by passing required_claims=["org_id"] and comparing claims["org_id"], or by ' +
-          'comparing the claim directly. A token whose org_id is missing or different should be rejected with a 4xx ' +
-          '(401/403) rather than served. The target org id may come from an environment variable — treat an env-sourced ' +
-          'org id as correctly wired.',
+          'The scaffold is framework-agnostic: handlers are plain async functions that take an access token and return a ' +
+          'dict (see the existing balance(access_token) handler), with no HTTP framework, route decorators, or server. ' +
+          'Expect the same shape here — do NOT require a web framework, route registration, or a literal 4xx/401/403 ' +
+          'status code. Enforcement is correct when the handler validates the access token with verify_access_token and ' +
+          'requires org_id to equal org_barkbook_acme — either by passing required_claims=["org_id"] and comparing ' +
+          'claims["org_id"], or by comparing the claim directly — and signals rejection for a missing or mismatched ' +
+          'org_id by raising an exception (e.g. VerifyAccessTokenError) or otherwise refusing to return the protected ' +
+          'data, which is the boundary a route layer would map to a 4xx. The target org id may come from an environment ' +
+          'variable — treat an env-sourced org id as correctly wired.',
       },
     ),
     judge(
@@ -93,11 +97,14 @@ export function defineGraders() {
       undefined,
       {
         context:
-          'GET /api/org/members must validate the access token with verify_access_token and be restricted to ' +
-          'org_barkbook_acme by checking the org_id claim (a missing or mismatched org_id must yield a 4xx or 401/403 ' +
-          'response), and GET /api/org/profile must return the caller org_id read from the validated claims. The target ' +
-          'organization id may be supplied via an environment variable — treat an env-sourced org id as correctly wired, ' +
-          'not a defect.',
+          'The scaffold is framework-agnostic: endpoints are plain async functions taking an access token and returning ' +
+          'a dict (like the existing balance(access_token) handler), with no web framework — do NOT require route ' +
+          'decorators, an HTTP server, or a literal 4xx/401/403 status code. The org-members handler must validate the ' +
+          'access token with verify_access_token and be restricted to org_barkbook_acme by checking the org_id claim, ' +
+          'signalling rejection for a missing or mismatched org_id by raising an exception (e.g. VerifyAccessTokenError) ' +
+          'or otherwise refusing to return the data — the boundary a route layer would translate to a 4xx. The ' +
+          'org-profile handler must return the caller org_id read from the validated claims. The target organization id ' +
+          'may be supplied via an environment variable — treat an env-sourced org id as correctly wired, not a defect.',
       },
     ),
   ];
