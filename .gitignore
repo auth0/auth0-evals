@@ -31,6 +31,15 @@ report-axis.html
 **/.cxx/
 local.properties
 
+# .NET build artifacts. Scaffolds ship sources only (.csproj, .cs, .xaml stay
+# tracked); obj/ and bin/ hold generated assembly info, caches, and binaries.
+**/obj/
+**/bin/
+
+# Python bytecode. Scaffolds ship sources only (app.py stays tracked).
+**/__pycache__/
+*.pyc
+
 # macOS
 .DS_Store
 
