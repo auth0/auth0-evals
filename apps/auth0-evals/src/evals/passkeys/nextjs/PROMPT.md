@@ -15,4 +15,6 @@ My Next.js App Router app already has Auth0 login working through `@auth0/nextjs
 - Let returning users sign in with a passkey instead of a password.
 - Let brand-new users create an account with a passkey.
 
-Add all three, including the browser-side step that talks to the device authenticator. The Auth0 config is already in the environment.
+Add all three, including the browser-side step that talks to the device authenticator.
+
+Drive the passkey ceremony from your own server code: request the challenges, run the token exchange, and enroll through the SDK's server-side passkey methods inside your own App Router route handlers or server actions, with only the WebAuthn call running in the browser. Keep the token exchange and the client secret on the server — don't hand the whole flow to a single client-side helper. The Auth0 config is already in the environment.

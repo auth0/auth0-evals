@@ -63,8 +63,9 @@ export function defineGraders() {
     ),
     judge(
       'Does the client secret and the token exchange stay entirely on the server — the secret read only from the ' +
-        'environment in server code, and getToken / getTokenByPasskey called only server-side — so that no token or ' +
-        'secret is ever shipped to browser JavaScript?',
+        'environment in server code, and getToken called only server-side — so that no token or secret is ever ' +
+        'shipped to browser JavaScript, judging only the application code the agent wrote and treating the ' +
+        "scaffold's pre-existing .env.local and .gitignore entry as test fixtures rather than findings?",
       GraderLevel.L3,
     ),
     judge(
