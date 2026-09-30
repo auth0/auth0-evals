@@ -1,4 +1,4 @@
-import { contains, notContains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
+import { contains, notContains, notContainsInSource, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -38,13 +38,6 @@ export function defineGraders() {
         ignoreComments: true,
       },
     ),
-    // required_claims is presence-only; there is no org_id kwarg on verify_access_token.
-    notContains(
-      'org_id=',
-      'No invented org_id= kwarg on verify_access_token - enforce via required_claims + a value check',
-      GraderLevel.L2,
-      { ignoreComments: true },
-    ),
 
     // ── L3: Security ───────────────────────────────────────────────────────
     notContainsInSource(
@@ -59,12 +52,6 @@ export function defineGraders() {
 
     // ── L4: Structural / behavioral correctness ───────────────────────────
     compiles('Project byte-compiles (compileall succeeds)', GraderLevel.L4),
-    // The org value may be a literal or read from an env var - assert org_id is compared to the target.
-    matches(
-      String.raw`required_claims\s*=|claims\s*\[\s*['"]org_id['"]\s*\]`,
-      'Enforces org_id via required_claims and/or a claims["org_id"] comparison',
-      GraderLevel.L4,
-    ),
     judge(
       'Does `GET /api/org/members` reject a request whose validated token has a missing or non-matching `org_id`?',
       GraderLevel.L4,

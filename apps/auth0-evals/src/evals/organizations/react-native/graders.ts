@@ -47,12 +47,12 @@ export function defineGraders() {
 
     // ── L4: Structural correctness ─────────────────────────────────────────
     judge(
-      'Is org-scoped login performed by passing `organization` to the react-native-auth0 `authorize` call from the `useAuth0` hook?',
+      'Is org-scoped login performed by passing `organization` to a react-native-auth0 `authorize` call?',
       GraderLevel.L4,
       {
         context:
-          'For example, authorize with an organization option set to org_barkbook_acme — not by hand-appending an ' +
-          'organization query parameter to a URL.',
+          'For example, authorize with an organization option set to org_barkbook_acme — via the useAuth0 hook authorize ' +
+          'call or the imperative webAuth.authorize — not by hand-appending an organization query parameter to a URL.',
       },
     ),
     judge(
@@ -66,11 +66,12 @@ export function defineGraders() {
       },
     ),
     judge(
-      'Does the code surface the organization the user logged into by reading the `org_id` claim from the authenticated user returned by `useAuth0`?',
+      'Does the code surface the organization the user logged into by reading the `org_id` claim from the authenticated user or the returned ID token claims?',
       GraderLevel.L4,
       {
         context:
-          'For example user.org_id, or by decoding the ID token with the SDK — rather than hardcoding or guessing it.',
+          'For example the useAuth0 user.org_id, or the org_id claim decoded from the credentials returned by ' +
+          'webAuth.authorize — rather than hardcoding or guessing it.',
       },
     ),
 

@@ -56,16 +56,17 @@ export function defineGraders() {
 
     // ── L4: Structural correctness ─────────────────────────────────────────
     judge(
-      'Is org-scoped login performed by passing `organization` to `LoginAsync` as a lowercase key on the anonymous extra-parameters object?',
+      'Is org-scoped login performed by passing `organization` as a lowercase extra-parameter key to `LoginAsync`?',
       GraderLevel.L4,
       {
         context:
-          'For example LoginAsync with a new object whose organization field is org_barkbook_acme — not by hand-appending ' +
-          'an organization query parameter to a URL or setting a non-existent property on Auth0ClientOptions.',
+          'The extra parameters may be an anonymous object (a new object whose organization field is org_barkbook_acme) or ' +
+          'a Dictionary<string,string> with an "organization" key — LoginAsync forwards both. It must NOT hand-append an ' +
+          'organization query parameter to a URL or set a non-existent property on Auth0ClientOptions.',
       },
     ),
     judge(
-      'Does the code accept an organization invitation by passing the `invitation` value alongside `organization` on the `LoginAsync` extra-parameters object?',
+      'Does the code accept an organization invitation by passing the `invitation` value alongside `organization` in the `LoginAsync` extra parameters?',
       GraderLevel.L4,
       {
         context:
@@ -84,10 +85,11 @@ export function defineGraders() {
 
     // ── L5: Current API patterns ───────────────────────────────────────────
     judge(
-      'Are `organization` and `invitation` passed as lowercase anonymous-object properties to `LoginAsync`, and is `org_id` read from the login result principal?',
+      'Are `organization` and `invitation` passed as lowercase extra-parameter keys to `LoginAsync`, and is `org_id` read from the login result principal?',
       GraderLevel.L5,
       {
         context:
+          'The extra parameters may be an anonymous object or a Dictionary<string,string> — LoginAsync forwards both. ' +
           'org_id should be read from the ClaimsPrincipal on the login result rather than by manually decoding the token ' +
           'or using the internal Auth0ClaimNames class.',
       },

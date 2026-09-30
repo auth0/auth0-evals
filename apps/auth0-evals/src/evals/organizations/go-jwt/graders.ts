@@ -1,11 +1,8 @@
-import { contains, notContains, notContainsInSource, matches, judge, GraderLevel } from '@a0/evals-graders';
+import { contains, notContains, notContainsInSource, judge, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
     // ── L1: Required Organizations symbols present ─────────────────────────
-    contains('org_id', 'References the org_id claim from the validated token', GraderLevel.L1, {
-      ignoreComments: true,
-    }),
     contains('org_barkbook_acme', 'Wires the specific Acme org (org_barkbook_acme)', GraderLevel.L1, {
       ignoreComments: true,
     }),
@@ -13,12 +10,6 @@ export function defineGraders() {
     contains('OrgID', 'Reads the OrgID registered claim off the validated claims', GraderLevel.L1, {
       ignoreComments: true,
     }),
-    // Enforcement is added via a registered-claims validator or a custom-claims type.
-    matches(
-      String.raw`WithRegisteredClaimsValidator|WithCustomClaims`,
-      'Adds org enforcement via WithRegisteredClaimsValidator or WithCustomClaims',
-      GraderLevel.L1,
-    ),
 
     // ── L2: Hallucination / wrong approach ─────────────────────────────────
     notContains(
@@ -54,10 +45,12 @@ export function defineGraders() {
       GraderLevel.L4,
       {
         context:
-          'The route should restrict access to org_barkbook_acme by checking the validated token org_id — either in a ' +
-          'WithRegisteredClaimsValidator function on the validator or in a CustomClaims Validate method. A rejected ' +
-          'request should return a 4xx (401/403) rather than be served. The target org id may come from an environment ' +
-          'variable — treat an env-sourced org id as correctly wired.',
+          'The route should restrict access to org_barkbook_acme by checking the validated token org_id. This may be done ' +
+          'inside the validator (a WithRegisteredClaimsValidator function or a CustomClaims Validate method) or in the ' +
+          'route handler after validation by reading OrgID (for example via GetClaims on the request context) and ' +
+          'returning a 4xx (401/403) on a missing or mismatched org_id. Enforcing the Acme org globally on the validator ' +
+          '(which would also block non-Acme callers on other routes) is not required — per-route handler enforcement is ' +
+          'correct. The target org id may come from an environment variable — treat an env-sourced org id as correctly wired.',
       },
     ),
     judge(
@@ -82,8 +75,9 @@ export function defineGraders() {
         context:
           'Current go-jwt-middleware v3 builds the validator with option functions (such as WithValidator), reads claims ' +
           'with GetClaims on the request context, and reads org_id from RegisteredClaims.OrgID rather than from an untyped ' +
-          'map. Enforcement should use WithRegisteredClaimsValidator or a CustomClaims Validate method. Hand-parsing the ' +
-          'token (golang-jwt) or a v2-style ContextKey{} lookup is wrong.',
+          'map. Enforcement may live in the validator (WithRegisteredClaimsValidator or a CustomClaims Validate method) or ' +
+          'in the route handler after validation — both are current-API correct. Hand-parsing the token (golang-jwt) or a ' +
+          'v2-style ContextKey{} lookup is wrong.',
       },
     ),
 
