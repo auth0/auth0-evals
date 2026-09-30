@@ -1,0 +1,10 @@
+<Window x:Class="BarkbookDesktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Barkbook" Height="240" Width="360">
+    <StackPanel Margin="24" VerticalAlignment="Center">
+        <TextBlock x:Name="StatusText" Text="Not signed in" Margin="0,0,0,16"/>
+        <Button x:Name="LoginButton" Content="Login" Click="LoginButton_Click" Margin="0,0,0,8"/>
+        <Button x:Name="TransferButton" Content="Transfer Funds" Click="TransferButton_Click"/>
+    </StackPanel>
+</Window>
