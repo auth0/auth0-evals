@@ -7,7 +7,7 @@ skills: auth0
 
 ## Task
 
-My Android app already has Auth0 login working through Universal Login, and signed-in users keep a stored session on the device. I want to add passkeys — using the device fingerprint or screen lock — in three places:
+My Android app already has Auth0 login working through Universal Login. The tenant and connection are already configured for passkeys — you only need to implement the app-side flows. I want to add passkeys — using the device fingerprint or screen lock — so users can authenticate without a password. Existing users should be able to sign in with a passkey, and new users should be able to create an account with a passkey. Add both flows.
 
 - Let a user who is already signed in add a passkey to their existing account from the account settings screen.
 - Let returning users sign in with a passkey instead of a password.
