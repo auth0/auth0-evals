@@ -1,17 +1,19 @@
 using Auth0.OidcClient;
 using Microsoft.Extensions.Configuration;
+using UIKit;
 
 namespace BarkbookApp;
 
 /// <summary>
-/// Wraps the Auth0 OIDC client. The desktop app already logs the user in through
-/// Universal Login and reads the signed-in user's name from the returned claims.
+/// Wraps the Auth0 OIDC client on iOS. The app already logs the user in through
+/// Universal Login (ASWebAuthenticationSession) and reads the signed-in user's
+/// name from the returned claims.
 /// </summary>
 public class LoginService
 {
     private readonly Auth0Client _client;
 
-    public LoginService()
+    public LoginService(UIViewController controller)
     {
         var config = new ConfigurationBuilder()
             .AddJsonFile("appsettings.json")
@@ -21,7 +23,7 @@ public class LoginService
         {
             Domain = config["Auth0:Domain"]!,
             ClientId = config["Auth0:ClientId"]!,
-        });
+        }, controller);
     }
 
     public async Task<string?> LoginAsync()

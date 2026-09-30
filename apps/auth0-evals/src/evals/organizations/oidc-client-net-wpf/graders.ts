@@ -32,6 +32,10 @@ export function defineGraders() {
       GraderLevel.L2,
       { ignoreComments: true },
     ),
+    // Platform correctness: this is a WPF app — do not swap in the iOS package.
+    notContains('Auth0.OidcClient.iOS', 'Stays on the WPF package — no iOS package in a WPF app', GraderLevel.L2, {
+      ignoreComments: true,
+    }),
 
     // ── L3: Security ───────────────────────────────────────────────────────
     notContainsInSource(
@@ -91,7 +95,7 @@ export function defineGraders() {
 
     // ── Holistic judge (no level — always runs) ────────────────────────────
     judge(
-      'Does the solution correctly add Auth0 Organizations support to the .NET desktop app using auth0-oidc-client-net?',
+      'Does the solution correctly add Auth0 Organizations support to the WPF desktop app using Auth0.OidcClient.WPF?',
       undefined,
       {
         context:
