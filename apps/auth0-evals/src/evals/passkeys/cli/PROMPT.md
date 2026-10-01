@@ -9,7 +9,7 @@ setup_command: bash seed.sh
 
 ## Task
 
-We'd like our users to be able to sign up and log in with passkeys instead of passwords. A custom domain (`login.dev-barkbook.com`) is already configured on the tenant — passkeys require one so that enrolled credentials stay bound to a stable domain, and that prerequisite is already in place.
+We'd like our users to be able to sign up and log in with passkeys instead of passwords. The custom domain that passkeys require is handled separately — **do not create, configure, or verify a custom domain as part of this task.**
 
 Please enable passkeys on the tenant's database connection using the Auth0 CLI only.
 
