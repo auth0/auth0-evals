@@ -24,9 +24,14 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
 
-    // ── L4: Read before write — GET the connection before PATCHing it ─────
+    // ── L4: Read before write — read the connection before updating it ────
+    // The read may be `auth0 api get connections/<id>` or `auth0 connections show`;
+    // the write may be `auth0 connections update` or `auth0 api patch connections`.
     ranCommandsInOrder(
-      ['get connections', 'patch connections'],
+      [
+        ['get connections', 'connections show'],
+        ['connections update', 'patch connections'],
+      ],
       'Read the connection before patching it (merge, not clobber)',
       GraderLevel.L4,
     ),
@@ -36,7 +41,7 @@ export function defineGraders() {
       'Does the solution, based on the command trace: ' +
         '(1) discover the tenant database connection (GET connections) rather than hardcoding an id; ' +
         '(2) enable passkeys on that connection via options.authentication_methods.passkey.enabled = true; ' +
-        '(3) configure options.passkey_options with progressive_enrollment_enabled = true and a valid challenge_ui; ' +
+        '(3) configure options.passkey_options with progressive_enrollment_enabled = true; ' +
         "(4) merge the passkey fields into the connection's existing options (reading it first with GET) " +
         'rather than PATCHing a bare options object that would wipe other settings — ' +
         'using only the Auth0 CLI, not the dashboard or Terraform?',
