@@ -770,3 +770,78 @@ describe('ranCommandsInOrder', () => {
     expect(() => ranCommandsInOrder(['a'], 'x', GraderLevel.L1 as never)).toThrow('event-based graders only support');
   });
 });
+
+// ── `--data @file` resolution (getRunCommands) ──────────────────────────────
+// Agents build a request body in one command (`cat > /tmp/body.json << EOF …`)
+// and send it in another (`auth0 ... --data @/tmp/body.json`). Graders that
+// require two substrings in the same command must see the referenced payload.
+
+describe('@file data reference resolution', () => {
+  const cmd = (command: string): EventToolCall => evt({ name: 'run_command', args: { command } });
+
+  // Mirrors the real passkeys_cli trace: heredoc writes the patch body, then
+  // `auth0 connections update ... --data @file` applies it.
+  const heredoc = cmd(
+    "cat > /tmp/connection_patch.json << 'EOF'\n" +
+      '{"options":{"authentication_methods":{"passkey":{"enabled":true}},' +
+      '"passkey_options":{"progressive_enrollment_enabled":true,"challenge_ui":"both"}}}\nEOF',
+  );
+  const apply = cmd('auth0 connections update con_abc --data @/tmp/connection_patch.json');
+
+  it('binds a needle from the referenced file into the command that uses it', () => {
+    // Without resolution, `connections` lives in the apply command and `passkey`
+    // only in the heredoc — split across commands, so the binding would fail.
+    const def = ranCommand('connections', ['passkey'], undefined, GraderLevel.L4);
+    expect(def.predicate!([heredoc, apply])).toBe(true);
+  });
+
+  it('resolves progressive_enrollment_enabled from the referenced file', () => {
+    const def = ranCommand('connections', ['progressive_enrollment_enabled'], undefined, GraderLevel.L4);
+    expect(def.predicate!([heredoc, apply])).toBe(true);
+  });
+
+  it('still fails when the referenced file lacks the needle (discrimination)', () => {
+    // A wrong solution whose payload never enables passkeys must not pass.
+    const wrongBody = cmd('cat > /tmp/connection_patch.json << \'EOF\'\n{"options":{"mfa":{"active":true}}}\nEOF');
+    const def = ranCommand('connections', ['passkey'], undefined, GraderLevel.L4);
+    expect(def.predicate!([wrongBody, apply])).toBe(false);
+  });
+
+  it('does not flatten unrelated commands — binding without an @ref is preserved', () => {
+    // `passkey` sits in an unrelated heredoc that is never referenced by the
+    // connections command, so the two substrings must stay unbound.
+    const strayBody = cmd('cat > /tmp/other.json << \'EOF\'\n{"passkey":true}\nEOF');
+    const def = ranCommand('connections', ['passkey'], undefined, GraderLevel.L4);
+    expect(def.predicate!([strayBody, apply])).toBe(false);
+  });
+
+  it('ignores fd-dup / /dev/null redirects as write targets', () => {
+    // `2>&1` and `>/dev/null` (no space) must not be treated as file writes, so
+    // an `@/dev/null` reference resolves to nothing.
+    const def = ranCommand('connections', ['passkey'], undefined, GraderLevel.L4);
+    expect(def.predicate!([cmd('auth0 connections list 2>&1 >/dev/null --data @/dev/null')])).toBe(false);
+  });
+
+  it('resolves relative @basename against an absolute write target', () => {
+    // Agent writes to /tmp/eval_abc/passkey_patch.json but references @passkey_patch.json.
+    const absWrite = cmd(
+      "cat > /tmp/eval_abc/passkey_patch.json << 'EOF'\n" +
+        '{"options":{"authentication_methods":{"passkey":{"enabled":true}},' +
+        '"passkey_options":{"progressive_enrollment_enabled":true}}}\nEOF',
+    );
+    const relRef = cmd('auth0 connections update con_abc --data @passkey_patch.json');
+    const def = ranCommand('connections', ['progressive_enrollment_enabled'], undefined, GraderLevel.L4);
+    expect(def.predicate!([absWrite, relRef])).toBe(true);
+  });
+
+  it('resolves relative @basename for any arbitrary filename', () => {
+    // The suffix fallback is not specific to passkey_patch.json — any basename works.
+    const absWrite = cmd(
+      "cat > /tmp/run_xyz/request_body.json << 'EOF'\n" +
+        '{"options":{"mfa":{"active":true},"some_setting":"value"}}\nEOF',
+    );
+    const relRef = cmd('auth0 api patch connections/con_abc --data @request_body.json');
+    const def = ranCommand('connections', ['some_setting'], undefined, GraderLevel.L4);
+    expect(def.predicate!([absWrite, relRef])).toBe(true);
+  });
+});
