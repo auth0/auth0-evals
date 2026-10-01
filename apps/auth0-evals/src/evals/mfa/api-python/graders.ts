@@ -1,11 +1,20 @@
-import { contains, notContains, notContainsInSource, judge, wroteFile, compiles, GraderLevel } from '@a0/evals-graders';
+import {
+  contains,
+  notContains,
+  notContainsInSource,
+  matches,
+  judge,
+  wroteFile,
+  compiles,
+  GraderLevel,
+} from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
     // ── L1: Required step-up symbols present ──────────────────────────────
     contains('auth0-api-python', 'Uses auth0-api-python SDK', GraderLevel.L1),
-    contains(
-      'verify_access_token',
+    matches(
+      String.raw`verify_access_token|verify_request`,
       'Validates tokens with the SDK (verify_access_token or verify_request)',
       GraderLevel.L1,
       { source: 'both' },

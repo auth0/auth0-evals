@@ -11,21 +11,21 @@ const AUTH0_CLIENT_ID = 'YOUR_CLIENT_ID';
 const AUDIENCE = 'YOUR_API_AUDIENCE';
 
 function LoginScreen() {
-  const { auth, credentialsManager } = useAuth0();
+  const { loginWithPasswordRealm } = useAuth0();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   async function handleLogin() {
     try {
-      const credentials = await auth.passwordRealm({
+      await loginWithPasswordRealm({
         username,
         password,
         realm: 'Username-Password-Authentication',
         audience: AUDIENCE,
         scope: 'openid profile email offline_access',
       });
-      await credentialsManager.saveCredentials(credentials);
+      // loginWithPasswordRealm persists credentials automatically before it resolves.
       setIsLoggedIn(true);
     } catch (error) {
       // TODO: handle MFA step-up — detect MFA-required error and complete the MFA flow
