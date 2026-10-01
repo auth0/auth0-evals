@@ -11,7 +11,14 @@ export function defineGraders() {
     ),
 
     // ── L2: Hallucination — local_enrollment_enabled was not requested ────
-    notRanCommand('local_enrollment_enabled', 'Did not set local_enrollment_enabled (not requested)', GraderLevel.L2),
+    // Seed resets it to false; only agents that actively enable it (set to true)
+    // should fail. Matching the value prevents false positives from read/verify
+    // commands that mention the field name without setting it.
+    notRanCommand(
+      '"local_enrollment_enabled":true',
+      'Did not enable local_enrollment_enabled (not requested)',
+      GraderLevel.L2,
+    ),
 
     // ── L4: Enable passkeys on the database connection ────────────────────
     ranCommand('connections', ['passkey'], 'Enabled passkeys on the database connection', GraderLevel.L4),
@@ -25,11 +32,12 @@ export function defineGraders() {
     ),
 
     // ── L4: Read before write — read the connection before updating it ────
-    // The read may be `auth0 api get connections/<id>` or `auth0 connections show`;
-    // the write may be `auth0 connections update` or `auth0 api patch connections`.
+    // The read may be `auth0 api get connections/<id>`, `auth0 api get "connections/<id>"`,
+    // or `auth0 connections show`; the write may be `auth0 connections update` or
+    // `auth0 api patch connections`.
     ranCommandsInOrder(
       [
-        ['get connections', 'connections show'],
+        ['get connections', 'get "connections', 'connections show'],
         ['connections update', 'patch connections'],
       ],
       'Read the connection before patching it (merge, not clobber)',
