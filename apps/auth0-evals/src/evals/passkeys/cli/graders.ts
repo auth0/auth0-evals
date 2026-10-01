@@ -10,6 +10,9 @@ export function defineGraders() {
       GraderLevel.L2,
     ),
 
+    // ── L2: Hallucination — local_enrollment_enabled was not requested ────
+    notRanCommand('local_enrollment_enabled', 'Did not set local_enrollment_enabled (not requested)', GraderLevel.L2),
+
     // ── L4: Enable passkeys on the database connection ────────────────────
     ranCommand('connections', ['passkey'], 'Enabled passkeys on the database connection', GraderLevel.L4),
 
