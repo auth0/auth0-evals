@@ -1,0 +1,4 @@
+# auth0-api-python ships as a 1.0.0 pre-release. Floor at b6 (where
+# get_token_by_exchange_profile landed) and cap below 1.0.1 so a future release
+# can't silently shift the token-exchange API out from under the skill.
+auth0-api-python>=1.0.0b6,<1.0.1
