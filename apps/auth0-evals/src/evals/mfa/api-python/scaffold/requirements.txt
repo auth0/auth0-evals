@@ -1,0 +1,10 @@
+# auth0-api-python ships only as a 1.0.0 pre-release — there is no stable
+# release, so a bare `>=0.1.0` resolves to nothing under pip's default
+# pre-release handling and the install fails. Float at b10 (the beta the MFA
+# skill is validated against) with a pre-release token so pip allows it, and
+# cap below 1.0.1 so a future release can't shift the scope API out from under
+# the eval; allows stable 1.0.0.
+auth0-api-python>=1.0.0b10,<1.0.1
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-dotenv>=1.0.0
