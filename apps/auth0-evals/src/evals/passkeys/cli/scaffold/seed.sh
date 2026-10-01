@@ -29,6 +29,13 @@ else
   log "created connection 'Username-Password-Authentication'"
 fi
 
+# Echo the connection ID so agents don't have to parse the `connections list`
+# table output, which truncates long IDs and causes read/write failures.
+CONN_ID=$(auth0 api get "connections?name=Username-Password-Authentication" 2>/dev/null | jq -r '.[0].id // empty')
+if [ -n "$CONN_ID" ]; then
+  log "database connection id: $CONN_ID"
+fi
+
 log "done: prerequisites ready"
 
 rm -f -- "$0"
