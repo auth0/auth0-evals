@@ -29,11 +29,29 @@ else
   log "created connection 'Username-Password-Authentication'"
 fi
 
+# Resolve the connection ID — used both to echo it and to reset passkey_options.
+CONN_ID=$(auth0 api get "connections?name=Username-Password-Authentication" 2>/dev/null | jq -r '.[0].id // empty')
+if [ -z "$CONN_ID" ]; then
+  log "error: could not resolve connection id"
+  exit 1
+fi
+
 # Echo the connection ID so agents don't have to parse the `connections list`
 # table output, which truncates long IDs and causes read/write failures.
-CONN_ID=$(auth0 api get "connections?name=Username-Password-Authentication" 2>/dev/null | jq -r '.[0].id // empty')
-if [ -n "$CONN_ID" ]; then
-  log "database connection id: $CONN_ID"
+log "database connection id: $CONN_ID"
+
+# Reset passkey_options to a known baseline so the local_enrollment_enabled
+# hallucination grader (L2) is meaningful: the tenant default has it true, so
+# agents doing a correct read-modify-write would preserve it and falsely trip
+# the grader. Setting it false here means only agents that actively enable it
+# will fail the check.
+EXISTING_OPTIONS=$(auth0 api get "connections/$CONN_ID" 2>/dev/null | jq '.options // {}')
+PATCHED_OPTIONS=$(echo "$EXISTING_OPTIONS" | jq '.passkey_options.local_enrollment_enabled = false')
+if auth0 api patch "connections/$CONN_ID" \
+  --data "{\"options\":$PATCHED_OPTIONS}" >/dev/null 2>&1; then
+  log "reset passkey_options.local_enrollment_enabled to false"
+else
+  log "warn: could not reset local_enrollment_enabled — grader may produce false negatives"
 fi
 
 log "done: prerequisites ready"
