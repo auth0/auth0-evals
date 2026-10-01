@@ -833,4 +833,15 @@ describe('@file data reference resolution', () => {
     const def = ranCommand('connections', ['progressive_enrollment_enabled'], undefined, GraderLevel.L4);
     expect(def.predicate!([absWrite, relRef])).toBe(true);
   });
+
+  it('resolves relative @basename for any arbitrary filename', () => {
+    // The suffix fallback is not specific to passkey_patch.json — any basename works.
+    const absWrite = cmd(
+      "cat > /tmp/run_xyz/request_body.json << 'EOF'\n" +
+        '{"options":{"mfa":{"active":true},"some_setting":"value"}}\nEOF',
+    );
+    const relRef = cmd('auth0 api patch connections/con_abc --data @request_body.json');
+    const def = ranCommand('connections', ['some_setting'], undefined, GraderLevel.L4);
+    expect(def.predicate!([absWrite, relRef])).toBe(true);
+  });
 });
