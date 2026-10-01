@@ -821,4 +821,16 @@ describe('@file data reference resolution', () => {
     const def = ranCommand('connections', ['passkey'], undefined, GraderLevel.L4);
     expect(def.predicate!([cmd('auth0 connections list 2>&1 >/dev/null --data @/dev/null')])).toBe(false);
   });
+
+  it('resolves relative @basename against an absolute write target', () => {
+    // Agent writes to /tmp/eval_abc/passkey_patch.json but references @passkey_patch.json.
+    const absWrite = cmd(
+      "cat > /tmp/eval_abc/passkey_patch.json << 'EOF'\n" +
+        '{"options":{"authentication_methods":{"passkey":{"enabled":true}},' +
+        '"passkey_options":{"progressive_enrollment_enabled":true}}}\nEOF',
+    );
+    const relRef = cmd('auth0 connections update con_abc --data @passkey_patch.json');
+    const def = ranCommand('connections', ['progressive_enrollment_enabled'], undefined, GraderLevel.L4);
+    expect(def.predicate!([absWrite, relRef])).toBe(true);
+  });
 });

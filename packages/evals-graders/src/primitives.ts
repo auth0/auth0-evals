@@ -228,7 +228,9 @@ function resolveDataFileRefs(commands: string[]): string[] {
       const path = m[2];
       if (!path || seen.has(path)) continue;
       seen.add(path);
-      const content = written.get(path);
+      // Exact match first; fall back to suffix match for relative-vs-absolute
+      // mismatches (e.g. agent writes to /tmp/foo/body.json but references @body.json).
+      const content = written.get(path) ?? [...written.entries()].find(([k]) => k.endsWith(`/${path}`))?.[1];
       if (content) augmented += `\n${content}`;
     }
     return augmented;
