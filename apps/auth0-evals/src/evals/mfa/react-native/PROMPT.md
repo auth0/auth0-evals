@@ -1,7 +1,7 @@
 ---
 id: react_native_mfa
 name: React Native MFA
-scaffold: src/evals/scaffolds/react-native/auth0
+scaffold: src/evals/mfa/react-native/scaffold
 skills: auth0
 ---
 

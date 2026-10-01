@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	jwtmiddleware "github.com/auth0/go-jwt-middleware/v2"
-	"github.com/auth0/go-jwt-middleware/v2/jwks"
-	"github.com/auth0/go-jwt-middleware/v2/validator"
+	jwtmiddleware "github.com/auth0/go-jwt-middleware/v3"
+	"github.com/auth0/go-jwt-middleware/v3/jwks"
+	"github.com/auth0/go-jwt-middleware/v3/validator"
 )
 
 // CustomClaims models the private claims we read off the access token.
@@ -40,14 +40,20 @@ func main() {
 		log.Fatalf("failed to parse the issuer url: %v", err)
 	}
 
-	provider := jwks.NewCachingProvider(issuerURL, 5*time.Minute)
+	provider, err := jwks.NewCachingProvider(
+		jwks.WithIssuerURL(issuerURL),
+		jwks.WithCacheTTL(5*time.Minute),
+	)
+	if err != nil {
+		log.Fatalf("failed to set up the jwks provider: %v", err)
+	}
 
 	jwtValidator, err := validator.New(
-		provider.KeyFunc,
-		validator.RS256,
-		issuerURL.String(),
-		[]string{os.Getenv("AUTH0_AUDIENCE")},
-		validator.WithCustomClaims(func() validator.CustomClaims {
+		validator.WithKeyFunc(provider.KeyFunc),
+		validator.WithAlgorithm(validator.RS256),
+		validator.WithIssuer(issuerURL.String()),
+		validator.WithAudiences([]string{os.Getenv("AUTH0_AUDIENCE")}),
+		validator.WithCustomClaims(func() *CustomClaims {
 			return &CustomClaims{}
 		}),
 	)
@@ -55,7 +61,10 @@ func main() {
 		log.Fatalf("failed to set up the jwt validator: %v", err)
 	}
 
-	middleware := jwtmiddleware.New(jwtValidator.ValidateToken)
+	middleware, err := jwtmiddleware.New(jwtmiddleware.WithValidator(jwtValidator))
+	if err != nil {
+		log.Fatalf("failed to set up the jwt middleware: %v", err)
+	}
 
 	mux := http.NewServeMux()
 
@@ -73,8 +82,8 @@ func main() {
 // validated token carries the given scope.
 func requireScope(scope string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
-		if !ok {
+		claims, err := jwtmiddleware.GetClaims[*validator.ValidatedClaims](r.Context())
+		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}

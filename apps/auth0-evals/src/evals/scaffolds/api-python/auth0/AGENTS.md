@@ -1,7 +1,3 @@
-# Barkbook API (Python) — Agent Guidance
+# api-python scaffold — Agent Guidance
 
-Edit only `server.py`. Do not modify `requirements.txt` or `.env.example`.
-
-Do not run `pip install`, start the server, or execute Python commands to explore the SDK. The auth0-api-python surface — `ApiClient`, `ApiClientOptions`, `verify_access_token`, `verify_request`, `VerifyAccessTokenError`, and the scope-gate pattern — is documented in the auth0 skill reference. Trust it and build from it.
-
-Domain and audience come from the `.env` file you will create from `.env.example` — do not hardcode them in `server.py`.
+Do not run build, install, or compile commands (do not run `pip install`, `python -m compileall`, or create a virtualenv); setup and compilation are handled for you. You may edit any project files — `app.py` and other source — but do not attempt to run or verify the app.

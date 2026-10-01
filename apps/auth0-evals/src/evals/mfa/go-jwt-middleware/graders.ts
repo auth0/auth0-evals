@@ -3,16 +3,17 @@ import { contains, notContains, notContainsInSource, judge, wroteFile, GraderLev
 export function defineGraders() {
   return [
     // ── L1: Required step-up symbols present ──────────────────────────────
-    contains('github.com/auth0/go-jwt-middleware/v2', 'Uses go-jwt-middleware v2', GraderLevel.L1),
+    contains('github.com/auth0/go-jwt-middleware/v3', 'Uses go-jwt-middleware v3', GraderLevel.L1),
     contains('transfer:funds', 'Gates the transfer on the step-up scope transfer:funds', GraderLevel.L1),
     contains('HasScope', 'Checks the scope through the CustomClaims HasScope helper', GraderLevel.L1),
 
     // ── L2: Hallucination / wrong approach ───────────────────────────────
     notContains('golang-jwt/jwt', 'No manual JWT parsing with golang-jwt', GraderLevel.L2),
     notContains('dgrijalva/jwt-go', 'No manual JWT parsing with the abandoned dgrijalva/jwt-go', GraderLevel.L2),
-    // The v2 module path is .../go-jwt-middleware/v2 — the bare path ending in the
-    // quote is the deprecated v1 import.
+    // The current module path is .../go-jwt-middleware/v3 — the bare path ending in
+    // the quote is the deprecated v1 import.
     notContains('go-jwt-middleware"', 'No deprecated v1 go-jwt-middleware import', GraderLevel.L2),
+    notContains('go-jwt-middleware/v2', 'No go-jwt-middleware v2 import — the current major is v3', GraderLevel.L2),
 
     // ── L3: Security checks ──────────────────────────────────────────────
     notContainsInSource(
@@ -45,19 +46,21 @@ export function defineGraders() {
     ),
 
     // ── L5: Version-specific API correctness ─────────────────────────────
-    // The v2 SDK exposes validated claims on the request context under
-    // jwtmiddleware.ContextKey{} as *validator.ValidatedClaims. Hand-decoding the
-    // bearer token or reading a bespoke context key is the deprecated path.
+    // The v3 SDK exposes validated claims on the request context via the generic
+    // jwtmiddleware.GetClaims[*validator.ValidatedClaims] helper. The v2-style
+    // jwtmiddleware.ContextKey{} lookup, and hand-decoding the bearer token, are
+    // the deprecated paths.
+    notContains('ContextKey{}', 'No v2-style ContextKey{} claim lookup — use the v3 GetClaims helper', GraderLevel.L5),
     judge(
       'Does the solution read the scope from the SDK-validated claims — the *validator.ValidatedClaims ' +
-        'pulled off the request context under jwtmiddleware.ContextKey{}, cast to the CustomClaims type — ' +
-        'rather than re-parsing the Authorization header or hand-decoding the JWT payload?',
+        'obtained via the jwtmiddleware.GetClaims helper on the request context, with the CustomClaims read ' +
+        'off it — rather than re-parsing the Authorization header or hand-decoding the JWT payload?',
       GraderLevel.L5,
     ),
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
-      'Does the solution correctly add step-up enforcement to the Go API using go-jwt-middleware v2? ' +
+      'Does the solution correctly add step-up enforcement to the Go API using go-jwt-middleware v3? ' +
         'POST /api/transfers must be gated on the transfer:funds scope — the scope the tenant issues only ' +
         'after MFA step-up — so a token without it is rejected with 403 insufficient_scope, while the ' +
         'existing write:transfers check is retained. GET /api/balance must still require read:balance. The ' +

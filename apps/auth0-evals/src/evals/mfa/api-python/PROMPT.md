@@ -1,7 +1,7 @@
 ---
 id: api_python_mfa
 name: Python API (auth0-api-python) MFA Step-Up
-scaffold: src/evals/scaffolds/api-python/auth0
+scaffold: src/evals/mfa/api-python/scaffold
 skills: auth0
 setup_command: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 compile_command: .venv/bin/python -m py_compile server.py
