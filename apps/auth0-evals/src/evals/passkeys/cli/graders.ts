@@ -26,7 +26,7 @@ export function defineGraders() {
 
     // ── L4: Read before write — GET the connection before PATCHing it ─────
     ranCommandsInOrder(
-      ['GET connections', 'PATCH connections'],
+      ['get connections', 'patch connections'],
       'Read the connection before patching it (merge, not clobber)',
       GraderLevel.L4,
     ),

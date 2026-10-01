@@ -177,9 +177,62 @@ function validateEventLevel(level: EventGraderLevel | undefined, primitive: stri
 const RUN_COMMAND_NAMES = new Set(['run_command', 'bash']);
 
 function getRunCommands(toolCalls: EventToolCall[]): string[] {
-  return toolCalls
+  const commands = toolCalls
     .filter((tc) => RUN_COMMAND_NAMES.has(tc.name) && !tc.causedError)
     .map((tc) => String(tc.args.command ?? ''));
+  return resolveDataFileRefs(commands);
+}
+
+// Matches a redirect/heredoc/tee write target in a shell command, e.g.
+// `cat > /tmp/body.json << EOF`, `printf ... > out.json`, `tee -a log`.
+// Requires whitespace before the path so `2>&1` / `>/dev/null` (no space) and
+// fd-dup forms don't register as writes.
+const WRITE_TARGET_RE = /(?:>>?|\btee\b(?:\s+-a)?)\s+(['"]?)([^\s'"]+)\1/g;
+// Matches a `@<path>` file reference, e.g. `auth0 ... --data @/tmp/body.json`.
+const DATA_FILE_REF_RE = /@(['"]?)([^\s'"]+)\1/g;
+
+/**
+ * Resolves `@<path>` data-file references so a payload written by an earlier
+ * redirect/heredoc run-command is matchable in the command that *uses* it.
+ *
+ * Agents often build a request body in one step (`cat > /tmp/body.json << EOF …`)
+ * and send it in another (`auth0 ... --data @/tmp/body.json`). Without this,
+ * graders that require two substrings in the *same* command (e.g. `connections`
+ * + `passkey`) miss payloads delivered via `--data @file`, producing a false
+ * negative even though the agent did exactly the right thing.
+ *
+ * Scope is intentionally limited to content already present in the command
+ * trace (redirect/heredoc/tee run-commands). Write-tool payloads are NOT folded
+ * in: doing so would introduce brand-new tokens to the corpus and could silently
+ * widen every `notRanCommand` (L2) check across all evals.
+ */
+function resolveDataFileRefs(commands: string[]): string[] {
+  // path -> concatenated text of every redirect/heredoc command targeting it
+  const written = new Map<string, string>();
+  for (const cmd of commands) {
+    WRITE_TARGET_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = WRITE_TARGET_RE.exec(cmd)) !== null) {
+      const path = m[2];
+      if (!path) continue;
+      written.set(path, `${written.get(path) ?? ''}\n${cmd}`);
+    }
+  }
+  if (written.size === 0) return commands;
+  return commands.map((cmd) => {
+    DATA_FILE_REF_RE.lastIndex = 0;
+    let augmented = cmd;
+    const seen = new Set<string>();
+    let m: RegExpExecArray | null;
+    while ((m = DATA_FILE_REF_RE.exec(cmd)) !== null) {
+      const path = m[2];
+      if (!path || seen.has(path)) continue;
+      seen.add(path);
+      const content = written.get(path);
+      if (content) augmented += `\n${content}`;
+    }
+    return augmented;
+  });
 }
 
 /**
