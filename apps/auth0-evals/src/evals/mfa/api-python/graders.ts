@@ -58,9 +58,9 @@ export function defineGraders() {
       GraderLevel.L5,
     ),
     judge(
-      'Does the solution enforce scope by splitting the scope claim string (e.g. claims.get("scope", "").split()) ' +
-        'and checking for "transfer:funds" in the resulting list, rather than using required_claims=["transfer:funds"] ' +
-        '(which only checks key presence) or manually re-validating the JWT?',
+      'Does the solution enforce the scope by splitting the space-delimited scope claim string into a list and ' +
+        'checking that "transfer:funds" is a member, rather than relying on required_claims to carry the step-up ' +
+        'scope (which only checks claim key presence) or manually re-validating the JWT?',
       GraderLevel.L5,
     ),
 
