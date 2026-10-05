@@ -67,7 +67,9 @@ export function defineGraders() {
       'Does the solution correctly add Custom Token Exchange to the Next.js App Router app using ' +
         '@auth0/nextjs-auth0 v4 — a server-side Route Handler that calls auth0.customTokenExchange with the ' +
         'partner token as subjectToken and subjectTokenType urn:barkbook:external-idp-token, keeps the ' +
-        'subject token and returned tokens on the server, and does not hand-roll the token-exchange grant?',
+        'subject token and returned tokens on the server, and does not hand-roll the token-exchange grant? ' +
+        'Judge only the Route Handler and the exchange itself; do not penalize how the scaffold-provided ' +
+        '.env.local or .gitignore are handled — secret-in-source is covered by other graders.',
     ),
   ];
 }
