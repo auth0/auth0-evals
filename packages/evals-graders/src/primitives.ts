@@ -176,11 +176,18 @@ function validateEventLevel(level: EventGraderLevel | undefined, primitive: stri
 // Tool names that represent shell execution across runners (Claude: run_command, Gemini: bash).
 const RUN_COMMAND_NAMES = new Set(['run_command', 'bash']);
 
-function getRunCommands(toolCalls: EventToolCall[]): string[] {
+function getRunCommands(toolCalls: EventToolCall[], opts: { resolveWriteRefs?: boolean } = {}): string[] {
   const commands = toolCalls
     .filter((tc) => RUN_COMMAND_NAMES.has(tc.name) && !tc.causedError)
     .map((tc) => String(tc.args.command ?? ''));
-  return resolveDataFileRefs(commands);
+  // Payloads written by the write TOOL (not a shell redirect), so a later
+  // `--data @path` reference resolves to that content too — see resolveDataFileRefs.
+  // Opt-in only: without it, behavior is identical to shell-redirect-only
+  // resolution, so no grader on any other eval changes.
+  const fileWrites = opts.resolveWriteRefs
+    ? getFileWrites(toolCalls).map((tc) => ({ path: getWritePath(tc), content: getWriteContent(tc) }))
+    : [];
+  return resolveDataFileRefs(commands, fileWrites);
 }
 
 // Matches a redirect/heredoc/tee write target in a shell command, e.g.
@@ -195,20 +202,28 @@ const DATA_FILE_REF_RE = /@(['"]?)([^\s'"]+)\1/g;
  * Resolves `@<path>` data-file references so a payload written by an earlier
  * redirect/heredoc run-command is matchable in the command that *uses* it.
  *
- * Agents often build a request body in one step (`cat > /tmp/body.json << EOF …`)
- * and send it in another (`auth0 ... --data @/tmp/body.json`). Without this,
- * graders that require two substrings in the *same* command (e.g. `connections`
- * + `passkey`) miss payloads delivered via `--data @file`, producing a false
- * negative even though the agent did exactly the right thing.
+ * Agents often build a request body in one step and send it in another:
+ * either via a shell redirect (`cat > /tmp/body.json << EOF …`) or the write
+ * tool, then `auth0 ... --data @/tmp/body.json`. Without this, graders that
+ * require two substrings in the *same* command (e.g. `connections` + `passkey`)
+ * miss payloads delivered via `--data @file`, producing a false negative even
+ * though the agent did exactly the right thing.
  *
- * Scope is intentionally limited to content already present in the command
- * trace (redirect/heredoc/tee run-commands). Write-tool payloads are NOT folded
- * in: doing so would introduce brand-new tokens to the corpus and could silently
- * widen every `notRanCommand` (L2) check across all evals.
+ * `fileWrites` carries write-TOOL payloads (`{ path, content }`), folded in
+ * alongside redirect/heredoc/tee run-commands so a `@path` reference resolves
+ * regardless of how the file was produced. Note this means a `notRanCommand`
+ * (L2) token present only inside a payload applied via `--data @file` will now
+ * register — which is the correct reading of "the agent ran this".
  */
-function resolveDataFileRefs(commands: string[]): string[] {
-  // path -> concatenated text of every redirect/heredoc command targeting it
+function resolveDataFileRefs(commands: string[], fileWrites: Array<{ path: string; content: string }> = []): string[] {
+  // path -> concatenated text of every write targeting it (shell redirect/
+  // heredoc/tee run-commands AND write-tool payloads).
   const written = new Map<string, string>();
+  // Seed with write-tool payloads first so same-path redirect writes append.
+  for (const { path, content } of fileWrites) {
+    if (!path) continue;
+    written.set(path, `${written.get(path) ?? ''}\n${content}`);
+  }
   for (const cmd of commands) {
     WRITE_TARGET_RE.lastIndex = 0;
     let m: RegExpExecArray | null;
@@ -243,22 +258,30 @@ function resolveDataFileRefs(commands: string[]): string[] {
  *
  * @param command - Substring that must appear in the executed command
  * @param args - Optional arg(s) that must also appear in the command string
+ * @param options - `resolveWriteRefs: true` folds write-TOOL payloads referenced
+ *   via `--data @file` into the command trace, so a two-step build-then-send
+ *   (write the body with the write tool, apply it with `@path`, then `rm` it) is
+ *   matchable. Off by default so every other eval's command matching is unchanged.
  */
 export function ranCommand(
   command: string,
   args: string | string[] | undefined,
   description: string | undefined,
   level: EventGraderLevel,
+  options: { resolveWriteRefs?: boolean } = {},
 ): GraderDef {
   validateEventLevel(level, 'ranCommand');
   const argList = args ? (Array.isArray(args) ? args : [args]) : [];
   const label = argList.length > 0 ? `${command} with [${argList.join(', ')}]` : command;
+  const { resolveWriteRefs } = options;
   return {
     kind: 'event',
     name: description ?? `ran command '${label}'`,
     level,
     predicate: (toolCalls: EventToolCall[]) =>
-      getRunCommands(toolCalls).some((cmd) => cmd.includes(command) && argList.every((arg) => cmd.includes(arg))),
+      getRunCommands(toolCalls, { resolveWriteRefs }).some(
+        (cmd) => cmd.includes(command) && argList.every((arg) => cmd.includes(arg)),
+      ),
   };
 }
 

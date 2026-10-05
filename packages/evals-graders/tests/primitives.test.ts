@@ -844,4 +844,70 @@ describe('@file data reference resolution', () => {
     const def = ranCommand('connections', ['some_setting'], undefined, GraderLevel.L4);
     expect(def.predicate!([absWrite, relRef])).toBe(true);
   });
+
+  // The passkeys_cli defect: the agent wrote the patch body with the write TOOL
+  // (not a shell redirect), applied it via `--data @file`, then rm'd the file.
+  // The payload lives only in the write-tool call, so command-text graders must
+  // still see it folded into the referencing command.
+  const write = (path: string, content: string): EventToolCall => evt({ name: 'write_file', args: { path, content } });
+
+  const RESOLVE = { resolveWriteRefs: true };
+
+  it('binds a needle from a write-TOOL payload into the command that uses it (opt-in)', () => {
+    const body = write(
+      '/tmp/connection_patch.json',
+      '{"options":{"authentication_methods":{"passkey":{"enabled":true}},' +
+        '"passkey_options":{"progressive_enrollment_enabled":true}}}',
+    );
+    const apply = cmd('auth0 connections update con_abc --data @/tmp/connection_patch.json');
+    expect(ranCommand('connections', ['passkey'], undefined, GraderLevel.L4, RESOLVE).predicate!([body, apply])).toBe(
+      true,
+    );
+    expect(
+      ranCommand('connections', ['progressive_enrollment_enabled'], undefined, GraderLevel.L4, RESOLVE).predicate!([
+        body,
+        apply,
+      ]),
+    ).toBe(true);
+  });
+
+  it('leaves write-TOOL payloads invisible by default (no opt-in) — guards other evals', () => {
+    // Without resolveWriteRefs, a write-tool payload must NOT fold into the
+    // command trace, so every grader on every other eval behaves as before.
+    const body = write(
+      '/tmp/connection_patch.json',
+      '{"options":{"authentication_methods":{"passkey":{"enabled":true}}}}',
+    );
+    const apply = cmd('auth0 connections update con_abc --data @/tmp/connection_patch.json');
+    expect(ranCommand('connections', ['passkey'], undefined, GraderLevel.L4).predicate!([body, apply])).toBe(false);
+  });
+
+  it("resolves a write-TOOL payload even after the file is rm'd (opt-in)", () => {
+    // The rm run-command has no bearing on resolution — the payload is carried
+    // by the write-tool call, not the (now-deleted) filesystem.
+    const body = write(
+      '/tmp/eval_abc/passkey_patch.json',
+      '{"options":{"authentication_methods":{"passkey":{"enabled":true}}}}',
+    );
+    const apply = cmd('auth0 connections update con_abc --data @passkey_patch.json');
+    const cleanup = cmd('rm /tmp/eval_abc/passkey_patch.json');
+    const def = ranCommand('connections', ['passkey'], undefined, GraderLevel.L4, RESOLVE);
+    expect(def.predicate!([body, apply, cleanup])).toBe(true);
+  });
+
+  it('still fails when the write-TOOL payload lacks the needle (discrimination)', () => {
+    const body = write('/tmp/connection_patch.json', '{"options":{"mfa":{"active":true}}}');
+    const apply = cmd('auth0 connections update con_abc --data @/tmp/connection_patch.json');
+    const def = ranCommand('connections', ['passkey'], undefined, GraderLevel.L4, RESOLVE);
+    expect(def.predicate!([body, apply])).toBe(false);
+  });
+
+  it('does not fold an unreferenced write-TOOL payload into unrelated commands', () => {
+    // The write exists but no command references @that-path, so its tokens must
+    // not leak into the connections command.
+    const stray = write('/tmp/other.json', '{"passkey":true}');
+    const apply = cmd('auth0 connections update con_abc --data @/tmp/connection_patch.json');
+    const def = ranCommand('connections', ['passkey'], undefined, GraderLevel.L4, RESOLVE);
+    expect(def.predicate!([stray, apply])).toBe(false);
+  });
 });
