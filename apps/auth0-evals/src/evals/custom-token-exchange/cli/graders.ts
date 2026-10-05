@@ -29,7 +29,7 @@ export function defineGraders() {
 
     // ── L4: Create an Action on the custom-token-exchange trigger ────────────
     ranCommandOneOf(
-      ['actions create', 'api post actions', 'api post "actions"'],
+      ['actions create', ['api post', 'actions']],
       'Created an Action on the custom-token-exchange trigger',
       GraderLevel.L4,
       ['custom-token-exchange'],
@@ -46,7 +46,7 @@ export function defineGraders() {
     // ── L4: Action created before the profile that references its action_id ──
     ranCommandsInOrder(
       [
-        ['actions create', 'api post actions', 'api post "actions"'],
+        ['actions create', 'actions/actions'],
         ['token-exchange create', 'token-exchange-profiles'],
       ],
       'Created the Action before the profile that references it',

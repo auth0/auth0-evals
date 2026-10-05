@@ -40,7 +40,11 @@ export function defineGraders() {
 
     // ── L4: Structural correctness ──────────────────────────────────────────
     compiles('Project byte-compiles (compileall succeeds)', GraderLevel.L4),
-    contains('CustomTokenExchangeOptions', 'Builds a CustomTokenExchangeOptions object for the call', GraderLevel.L4),
+    contains(
+      'CustomTokenExchangeOptions',
+      'Builds a typed CustomTokenExchangeOptions / LoginWithCustomTokenExchangeOptions object for the call',
+      GraderLevel.L4,
+    ),
     matches(
       String.raw`login_with_custom_token_exchange|custom_token_exchange\(`,
       'Awaits the custom-token-exchange method on the ServerClient',
@@ -48,7 +52,7 @@ export function defineGraders() {
     ),
     judge(
       'Does the /partner-login handler await login_with_custom_token_exchange (the variant that writes the ' +
-        'session) with a CustomTokenExchangeOptions carrying subject_token set to the partner token and ' +
+        'session) with a LoginWithCustomTokenExchangeOptions carrying subject_token set to the partner token and ' +
         'subject_token_type set to urn:barkbook:external-idp-token, so the user ends up with an Auth0 session?',
       GraderLevel.L4,
     ),
@@ -63,7 +67,7 @@ export function defineGraders() {
     // ── Holistic judge (no level — always runs) ─────────────────────────────
     judge(
       'Does the solution correctly add Custom Token Exchange to the Python web app using auth0-server-python — ' +
-        'awaiting login_with_custom_token_exchange with a CustomTokenExchangeOptions carrying subject_token ' +
+        'awaiting login_with_custom_token_exchange with a LoginWithCustomTokenExchangeOptions carrying subject_token ' +
         'and subject_token_type urn:barkbook:external-idp-token so an Auth0 session is established, without ' +
         'hand-rolling the grant, prefixing the subject token with "Bearer ", or storing tokens manually?',
     ),
