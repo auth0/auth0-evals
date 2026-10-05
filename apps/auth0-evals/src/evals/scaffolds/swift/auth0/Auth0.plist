@@ -5,6 +5,6 @@
     <key>ClientId</key>
     <string>barkbook_client_abc123xyz</string>
     <key>Domain</key>
-    <string>dev-barkbook.us.auth0.com</string>
+    <string>auth.barkbook.com</string>
 </dict>
 </plist>

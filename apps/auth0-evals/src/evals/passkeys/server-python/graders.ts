@@ -98,22 +98,6 @@ export function defineGraders() {
         'with a third-party FIDO2/WebAuthn library?',
       GraderLevel.L5,
     ),
-    judge(
-      "Does the code read the signed-in user's identity from the SDK — the PasskeyLoginResult.state_data " +
-        '(the returned user claims / token set) or a subsequent get_user() — and let the SDK persist the ' +
-        'session, rather than manually decoding the returned ID or access token (for example base64-decoding ' +
-        'a segment or calling jwt.decode by hand)?',
-      GraderLevel.L5,
-      {
-        context:
-          'signin_with_passkey returns a PasskeyLoginResult whose `state_data` is a plain `dict[str, Any]` ' +
-          '(not a Pydantic model), holding the persisted session: user claims at `state_data["user"]` plus ' +
-          'the tokens. So `result.state_data["user"]` and `.get("user")` are the correct way to read ' +
-          'identity — do not penalise them as an attribute or type mismatch; `get_user()` is an equivalent ' +
-          'alternative. Fail only genuine manual token decoding (jwt.decode, base64-splitting a token) or ' +
-          'code that never reads identity from the SDK.',
-      },
-    ),
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
