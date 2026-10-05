@@ -1,0 +1,19 @@
+{
+  "name": "barkbook-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "start": "node --env-file=.env dist/index.js"
+  },
+  "dependencies": {
+    "@auth0/auth0-express": "1.0.0-beta.4",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.13.0",
+    "typescript": "~5.8.3"
+  }
+}
