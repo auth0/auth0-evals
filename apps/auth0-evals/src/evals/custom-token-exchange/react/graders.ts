@@ -63,10 +63,10 @@ export function defineGraders() {
     // ── Holistic judge (no level — always runs) ─────────────────────────────
     judge(
       'Does the solution correctly add Custom Token Exchange to the React app using @auth0/auth0-react — ' +
-        'calling the exchange method from the useAuth0() hook with the partner token as subject_token and ' +
-        'subject_token_type urn:barkbook:external-idp-token so an Auth0 session is established and the React ' +
-        'auth state reflects the signed-in user, without calling the spa-js client directly, hand-rolling ' +
-        'the grant, or storing tokens manually?',
+        'calling loginWithCustomTokenExchange (or customTokenExchange) from the useAuth0() hook with the ' +
+        'partner token as subject_token and subject_token_type urn:barkbook:external-idp-token so an Auth0 ' +
+        'session is established and the React auth state reflects the signed-in user, without calling the ' +
+        'spa-js client directly, hand-rolling the grant, or storing tokens manually?',
     ),
   ];
 }
