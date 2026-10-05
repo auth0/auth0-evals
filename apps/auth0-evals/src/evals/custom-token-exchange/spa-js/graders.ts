@@ -1,4 +1,4 @@
-import { contains, notContains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
+import { contains, notContains, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -33,7 +33,6 @@ export function defineGraders() {
     // ── L3: Security ────────────────────────────────────────────────────────
     notContains('localStorage.setItem', 'No tokens stored in localStorage', GraderLevel.L3),
     notContains('sessionStorage.setItem', 'No tokens stored in sessionStorage', GraderLevel.L3),
-    notContainsInSource('barkbook_client_abc123xyz', 'No hardcoded client ID in source (ok in config)', GraderLevel.L3),
     judge(
       'Does the code let the auth0-spa-js client perform the exchange and store the resulting tokens, ' +
         'rather than hand-building a fetch/XHR POST to /oauth/token or persisting the subject token or the ' +

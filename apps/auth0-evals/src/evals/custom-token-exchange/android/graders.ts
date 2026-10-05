@@ -4,8 +4,8 @@ export function defineGraders() {
   return [
     // ── L1: Required Custom Token Exchange symbols present ──────────────────
     contains('customTokenExchange', 'Calls AuthenticationAPIClient#customTokenExchange', GraderLevel.L1),
-    contains('subjectTokenType', 'Passes the subjectTokenType argument', GraderLevel.L1),
-    contains('subjectToken', 'Passes the subjectToken argument', GraderLevel.L1),
+    // Accept both named (subjectTokenType = ...) and positional ("urn:...", token) Kotlin calls;
+    // L4 judge checks the argument order. Only the URN literal is asserted here.
     contains('urn:barkbook:external-idp-token', 'Wires the configured subjectTokenType', GraderLevel.L1),
 
     // ── L2: Hallucination / wrong approach ──────────────────────────────────

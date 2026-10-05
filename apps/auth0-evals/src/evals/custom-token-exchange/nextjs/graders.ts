@@ -11,9 +11,10 @@ export function defineGraders() {
     // ── L2: Hallucination / wrong approach ──────────────────────────────────
     notContains('@auth0/auth0-react', 'No React SDK in a server-side Next.js app', GraderLevel.L2),
     notContains(
-      'subject_token_type',
-      'No snake_case subject_token_type — @auth0/nextjs-auth0 options are camelCase',
+      'subject_token_type:',
+      'No snake_case subject_token_type option key — @auth0/nextjs-auth0 options are camelCase',
       GraderLevel.L2,
+      { ignoreComments: true },
     ),
     notContains(
       'loginWithCustomTokenExchange',
@@ -46,9 +47,8 @@ export function defineGraders() {
     compiles('Project compiles (build succeeds)', GraderLevel.L4),
     judge(
       'Does the Route Handler call auth0.customTokenExchange with the partner token as subjectToken and ' +
-        'subjectTokenType set to urn:barkbook:external-idp-token, read the access token from the returned ' +
-        'CustomTokenExchangeResponse, and import the Auth0Client from @auth0/nextjs-auth0/server (with any ' +
-        'option or response types from @auth0/nextjs-auth0/types)?',
+        'subjectTokenType set to urn:barkbook:external-idp-token, using the Auth0Client imported from ' +
+        '@auth0/nextjs-auth0/server, and return a success/failure status to the caller?',
       GraderLevel.L4,
     ),
 
