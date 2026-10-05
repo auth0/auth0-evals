@@ -1,4 +1,4 @@
-Universal Login already works in this app: `App.tsx` wraps the UI in `Auth0Provider` and the home
+Auth0 login already works in this app: `App.tsx` wraps the UI in `Auth0Provider` and the home
 screen logs in through the `useAuth0()` hook. The native iOS and Android projects are already
 configured for the Auth0 callback (manifest placeholders and the iOS URL scheme). Edit TypeScript —
 you should not need to touch the native projects for this task.
@@ -11,7 +11,7 @@ those take many minutes and then fail for reasons unrelated to your changes.
 
 ## No spelunking
 
-Do not read `node_modules` or crawl the `react-native-auth0` source to discover the Custom Token
-Exchange surface. The method name, its parameter object, which parameters are required, where it lives
-on both the hook and the class, and the minimum version are documented in the react-native-auth0 skill
-reference. Trust it and build from it.
+Do not read `node_modules` or crawl the `react-native-auth0` source to discover the API. The method
+names, their parameter objects, which parameters are required, where they live on both the hook and
+the class, and the minimum version are documented in the react-native-auth0 skill reference. Trust it
+and build from it.

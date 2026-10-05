@@ -9,12 +9,9 @@ setup_command: bash seed.sh
 
 ## Task
 
-We'd like our users to be able to sign up and log in with passkeys instead of passwords. Our tenant doesn't have a custom domain set up yet — passkeys require one so that enrolled credentials stay bound to a stable domain.
+We'd like our users to be able to sign up and log in with passkeys instead of passwords. The custom domain that passkeys require is handled separately — **do not create, configure, or verify a custom domain as part of this task.**
 
-Please do both steps using the Auth0 CLI only:
-
-1. Configure a custom domain for the tenant. Use `login.example.com` as the domain name. You don't need to run the verification step.
-2. Enable passkeys on the tenant's database connection.
+Please enable passkeys on the tenant's database connection using the Auth0 CLI only.
 
 A couple of things we care about:
 
