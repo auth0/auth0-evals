@@ -21,7 +21,12 @@ export function defineGraders() {
     ),
 
     // ── L4: Enable passkeys on the database connection ────────────────────
-    ranCommand('connections', ['passkey'], 'Enabled passkeys on the database connection', GraderLevel.L4),
+    // resolveWriteRefs: the patch body is often built with the write tool and
+    // applied via `auth0 connections update ... --data @file` (then rm'd), so the
+    // payload token lives only in the write-tool call — fold it into the trace.
+    ranCommand('connections', ['passkey'], 'Enabled passkeys on the database connection', GraderLevel.L4, {
+      resolveWriteRefs: true,
+    }),
 
     // ── L4: Configure progressive enrollment via passkey_options ──────────
     ranCommand(
@@ -29,6 +34,7 @@ export function defineGraders() {
       ['progressive_enrollment_enabled'],
       'Configured progressive passkey enrollment',
       GraderLevel.L4,
+      { resolveWriteRefs: true },
     ),
 
     // ── L4: Read before write — read the connection before updating it ────
