@@ -17,7 +17,7 @@ log() { echo "[seed] $*" >&2; }
 log "start: seeding tenant prerequisites"
 
 # Custom API the exchanged tokens are minted for.
-if auth0 api get "resource-servers?identifier=https://api.barkbook.com" | jq -e '.[0]' >/dev/null 2>&1; then
+if auth0 apis list --json | jq -e '.[] | select(.identifier=="https://api.barkbook.com")' >/dev/null 2>&1; then
   log "resource server 'https://api.barkbook.com' already present — skipping"
 else
   if ! auth0 api post resource-servers \
