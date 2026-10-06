@@ -1,6 +1,7 @@
 ---
 id: react_native_quickstart
 name: React Native Quickstart
+displayable_prompt: Add Auth0 login to a bare React Native app, including native iOS and Android callback URL configuration for the custom scheme.
 skills: auth0
 setup_command: npm install
 compile_command: npm run typecheck

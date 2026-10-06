@@ -45,7 +45,7 @@
       <tr>
         <th class="summary-eval-heading">Model</th>
         {% for eval_id in evals_run %}
-        <th class="summary-column-heading" title="{{ eval_descriptions[eval_id] if eval_descriptions[eval_id] else '' }}">
+        <th class="summary-column-heading" title="{{ eval_displayable_prompts[eval_id] if eval_displayable_prompts[eval_id] else '' }}">
           <div class="summary-column-model">{{ eval_id }}</div>
         </th>
         {% endfor %}
@@ -425,7 +425,7 @@
 {% macro render_detail_section(eval_id, results_for_eval) %}
 <div class="detail-section" data-eval="{{ eval_id }}">
   <h2 class="detail-section-title">{{ eval_id }}</h2>
-  {% if eval_descriptions[eval_id] %}<p class="detail-section-desc">{{ eval_descriptions[eval_id] }}</p>{% endif %}
+  {% if eval_displayable_prompts[eval_id] %}<p class="detail-section-desc">{{ eval_displayable_prompts[eval_id] }}</p>{% endif %}
   {% set sorted_keys = results_for_eval | sort_result_keys %}
   {% for key in sorted_keys %}
   {% set parts = key.split("|") %}

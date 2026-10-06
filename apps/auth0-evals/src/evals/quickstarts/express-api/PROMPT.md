@@ -1,6 +1,7 @@
 ---
 id: express_api_quickstart
 name: Express API Quickstart
+displayable_prompt: Protect an Express.js API with Auth0 JWT validation, scope-gated routes, and a profile endpoint returning token claims.
 skills: auth0
 setup_command: npm install
 compile_command: node --check server.js

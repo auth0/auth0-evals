@@ -1,6 +1,7 @@
 ---
 id: passkeys_cli
 name: Passkeys Config (CLI)
+displayable_prompt: Enable passkeys on an Auth0 tenant's database connection via CLI with progressive enrollment, without disturbing existing connection settings.
 category: passkeys
 skills: auth0
 provision: auth0-tenant

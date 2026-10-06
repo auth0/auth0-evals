@@ -1,6 +1,7 @@
 ---
 id: android_quickstart
 name: Android Quickstart
+displayable_prompt: Add Auth0 login and logout to an Android app using the Auth0 Android SDK.
 skills: auth0
 ---
 

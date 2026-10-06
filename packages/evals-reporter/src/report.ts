@@ -42,12 +42,12 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
   const variantsRun = [...new Set(results.map(resultVariant))];
   const evalsRun = [...new Set(results.map((r) => r.eval_id as string))].sort();
 
-  const evalDescriptions: Record<string, string> = {};
+  const evalDisplayablePrompts: Record<string, string> = {};
   for (const r of results) {
     const id = r.eval_id as string;
-    const desc = r.display_description as string | undefined;
-    if (id && desc && !evalDescriptions[id]) {
-      evalDescriptions[id] = desc;
+    const desc = r.displayable_prompt as string | undefined;
+    if (id && desc && !evalDisplayablePrompts[id]) {
+      evalDisplayablePrompts[id] = desc;
     }
   }
 
@@ -78,7 +78,7 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
     variants_run: variantsRun,
     variants_present: variantsPresent,
     evals_run: evalsRun,
-    eval_descriptions: evalDescriptions,
+    eval_displayable_prompts: evalDisplayablePrompts,
     generated_at: generatedAt,
     MODES,
   });

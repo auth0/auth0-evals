@@ -1,6 +1,7 @@
 ---
 id: react_passkeys
 name: React Passkey Sign-Up & Sign-In
+displayable_prompt: Add passkey sign-up and sign-in to a React app using @auth0/auth0-react, letting users register and authenticate with device biometrics instead of a password.
 scaffold: src/evals/scaffolds/react/auth0
 skills: auth0
 setup_command: npm install

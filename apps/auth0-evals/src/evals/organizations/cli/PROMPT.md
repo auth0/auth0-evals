@@ -1,6 +1,7 @@
 ---
 id: organizations_cli
 name: Organizations Login (CLI)
+displayable_prompt: Configure an Auth0 tenant for organization-based login via CLI — create an Acme Corp org, enable database connection login, and require org selection before credentials.
 category: organizations
 skills: auth0
 provision: auth0-tenant

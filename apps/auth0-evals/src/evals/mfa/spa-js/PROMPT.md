@@ -1,6 +1,7 @@
 ---
 id: spa_js_mfa
 name: SPA JS MFA Step-Up
+displayable_prompt: Add MFA step-up to a vanilla JavaScript SPA's Transfer Funds feature using @auth0/auth0-spa-js, triggering step-up when the session doesn't satisfy the MFA requirement.
 scaffold: src/evals/scaffolds/spa-js/auth0
 skills: auth0
 setup_command: npm install

@@ -1,6 +1,7 @@
 ---
 id: auth0_server_js_mfa
 name: Auth0 Server JS MFA API
+displayable_prompt: Add in-app MFA flows to an Express web app using @auth0/auth0-server-js, including authenticator app setup, OTP challenge, SMS, and recovery codes shown once at enrollment.
 scaffold: src/evals/scaffolds/auth0-server-js/auth0
 skills: auth0
 setup_command: npm install

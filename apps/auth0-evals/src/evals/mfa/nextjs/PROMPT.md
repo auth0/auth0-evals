@@ -1,6 +1,7 @@
 ---
 id: nextjs_mfa
 name: Next.js App Router MFA Step-Up
+displayable_prompt: Add MFA step-up to a Next.js App Router transfer feature using @auth0/nextjs-auth0 v4's MfaRequiredError and in-app challenge flow.
 scaffold: src/evals/scaffolds/nextjs/auth0
 skills: auth0
 setup_command: npm install

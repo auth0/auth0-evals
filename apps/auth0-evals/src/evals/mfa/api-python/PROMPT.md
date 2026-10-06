@@ -1,6 +1,7 @@
 ---
 id: api_python_mfa
 name: Python API (auth0-api-python) MFA Step-Up
+displayable_prompt: Gate a high-value transfer endpoint on an MFA-gated scope in a Python API using auth0-api-python, while keeping existing scope checks intact.
 scaffold: src/evals/mfa/api-python/scaffold
 skills: auth0
 setup_command: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
