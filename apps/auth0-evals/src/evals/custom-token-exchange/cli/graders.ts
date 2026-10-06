@@ -21,7 +21,7 @@ export function defineGraders() {
     // Native `auth0 apps update ... --allow-any-profile-of-type custom_authentication`
     // or the `auth0 api patch clients/<id>` passthrough carrying the same value.
     ranCommandOneOf(
-      ['apps update', 'clients'],
+      ['apps update', ['api patch', 'clients']],
       'Enabled custom_authentication token exchange on the application',
       GraderLevel.L4,
       ['custom_authentication'],

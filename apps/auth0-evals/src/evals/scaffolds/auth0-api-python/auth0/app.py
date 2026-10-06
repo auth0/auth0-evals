@@ -33,7 +33,10 @@ class AppHandler(BaseHTTPRequestHandler):
         return 200, {"balance": 4200, "sub": claims["sub"]}
 
     async def _partner_exchange(self):
-        partner_token = self._read_body().get("partner_token")
+        body = self._read_body()
+        if body is None:
+            return 400, {"error": "invalid_json"}
+        partner_token = body.get("partner_token")
         if not partner_token:
             return 400, {"error": "missing_partner_token"}
         # TODO: exchange the partner token (type urn:barkbook:external-idp-token)
@@ -50,7 +53,10 @@ class AppHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", "0") or "0")
         if not length:
             return {}
-        return json.loads(self.rfile.read(length) or b"{}")
+        try:
+            return json.loads(self.rfile.read(length) or b"{}")
+        except json.JSONDecodeError:
+            return None
 
     def _run(self, handler):
         try:
