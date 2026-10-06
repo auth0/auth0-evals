@@ -42,6 +42,15 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
   const variantsRun = [...new Set(results.map(resultVariant))];
   const evalsRun = [...new Set(results.map((r) => r.eval_id as string))].sort();
 
+  const evalDescriptions: Record<string, string> = {};
+  for (const r of results) {
+    const id = r.eval_id as string;
+    const desc = r.display_description as string | undefined;
+    if (id && desc && !evalDescriptions[id]) {
+      evalDescriptions[id] = desc;
+    }
+  }
+
   // Known base modes come first (in MODES order), then any extra variants alphabetically.
   const variantsPresent = [
     ...MODES.filter((m) => variantsRun.includes(m)),
@@ -69,6 +78,7 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
     variants_run: variantsRun,
     variants_present: variantsPresent,
     evals_run: evalsRun,
+    eval_descriptions: evalDescriptions,
     generated_at: generatedAt,
     MODES,
   });

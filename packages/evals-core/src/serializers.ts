@@ -177,6 +177,7 @@ export function serialiseBaseline(
     total_cost_usd: result.costUsd + judgeCost,
     error: redactSecrets(result.error ?? ''),
     graders: mapGraders(graderResults),
+    ...(evalDef.metadata?.display_description ? { display_description: evalDef.metadata.display_description } : {}),
   };
 }
 
@@ -227,6 +228,7 @@ export function serialiseAgent(
     session_trace: serialiseTrace(record),
     turn_metrics: serialiseTurnMetrics(record),
     recommendations,
+    ...(evalDef.metadata?.display_description ? { display_description: evalDef.metadata.display_description } : {}),
   };
 }
 
