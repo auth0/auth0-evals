@@ -29,7 +29,10 @@ class AppHandler(BaseHTTPRequestHandler):
         token = self._bearer_token()
         if not token:
             return 401, {"error": "missing_token"}
-        claims = await api_client.verify_access_token(access_token=token)
+        try:
+            claims = await api_client.verify_access_token(access_token=token)
+        except Exception:
+            return 401, {"error": "invalid_token"}
         return 200, {"balance": 4200, "sub": claims["sub"]}
 
     async def _partner_exchange(self):
@@ -62,7 +65,7 @@ class AppHandler(BaseHTTPRequestHandler):
         try:
             status, body = asyncio.run(handler())
         except Exception as err:
-            status, body = 401, {"error": str(err)}
+            status, body = 500, {"error": str(err)}
         self._reply(status, body)
 
     def _reply(self, status, body):
