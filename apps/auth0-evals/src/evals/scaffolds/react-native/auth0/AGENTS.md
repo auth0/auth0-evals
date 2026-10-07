@@ -8,10 +8,3 @@ Do not run a native build or launch a device/simulator — `gradle`/`gradlew`, `
 those take many minutes and then fail for reasons unrelated to your changes.
 
 `npm run typecheck` is the only verification you need.
-
-## No spelunking
-
-Do not read `node_modules` or crawl the `react-native-auth0` source to discover the API. The method
-names, their parameter objects, which parameters are required, where they live on both the hook and
-the class, and the minimum version are documented in the react-native-auth0 skill reference. Trust it
-and build from it.

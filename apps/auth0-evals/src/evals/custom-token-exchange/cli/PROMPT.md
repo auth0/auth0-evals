@@ -19,4 +19,4 @@ Set the tenant up so this exchange works end to end:
 - there must be logic that validates an incoming partner token and resolves it to a user in our `Username-Password-Authentication` database connection,
 - and the partner token type `urn:barkbook:external-idp-token` must be registered so Auth0 routes these exchange requests to that logic.
 
-The `auth0` CLI is already authenticated to the tenant. The exchange is non-interactive, so you do not need to configure user consent or authorize any application for the Management API — stop once the three items above are in place.
+The exchange is non-interactive, so you do not need to configure user consent or authorize any application for the Management API — stop once the three items above are in place.
