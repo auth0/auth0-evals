@@ -124,7 +124,8 @@ export function defineGraders() {
       // The judge sees commands but not their output. The state graders above
       // check what changed on each setting.
       'The tenant already had custom login text, a branding theme, and other settings before the run, and the trace shows the commands but not their output. ' +
-        'Did the agent read the current login text and branding theme before changing them, change only the identifier-first setting, the email screen heading, and the login button color, and avoid resetting, re-creating, or deleting any other setting?',
+        "Writing the custom text for a screen replaces all of that screen's text, and a theme update needs the full theme body, so sending the existing values back along with the change is the correct way to keep them. " +
+        'Did the agent read the current login text and branding theme before changing them, make all three requested changes (identifier-first, the email screen heading, and the login button color) while carrying the other existing values over, and avoid resetting, re-creating, or deleting any other setting?',
       undefined,
       { includeCommandTrace: true },
     ),
