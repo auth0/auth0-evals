@@ -95,6 +95,16 @@ describe('runAuth0Graders', () => {
     await expect(runAuth0Graders(makeResult(), BASE_OPTIONS)).rejects.toThrow('No eval found');
   });
 
+  it('throws when the loaded eval has a tenant fixture', async () => {
+    mockLoadEval.mockResolvedValue({
+      id: 'react_quickstart',
+      graders: [],
+      fixture: { seed: async () => ({}) },
+    } as unknown as EvalDefinition);
+    await expect(runAuth0Graders(makeResult(), BASE_OPTIONS)).rejects.toThrow('has a tenant fixture');
+    expect(mockRunGraders).not.toHaveBeenCalled();
+  });
+
   it('calls discoverEvals with correct evalsDir and frameworkRoot', async () => {
     await runAuth0Graders(makeResult(), BASE_OPTIONS);
     expect(mockDiscoverEvals).toHaveBeenCalledWith('src/evals', '/mock/auth0-evals');

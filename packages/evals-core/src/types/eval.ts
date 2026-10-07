@@ -6,7 +6,7 @@
  * shared so runners and skills strategies can reference them.
  */
 
-import type { GraderDef } from '@a0/evals-graders';
+import type { FixtureDef, GraderDef } from '@a0/evals-graders';
 export type { GraderDef } from '@a0/evals-graders';
 
 export interface EvalDefinition {
@@ -28,6 +28,11 @@ export interface EvalDefinition {
    * context (see `writeAgentGuidance`).
    */
   provision?: string;
+  /**
+   * Tenant fixture from the eval's `fixture.ts`, when present. Runs outside the
+   * agent with a verifier credential (see `openFixture`).
+   */
+  fixture?: FixtureDef;
   skills: string[];
   metadata: Record<string, string>;
 }

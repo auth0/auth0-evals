@@ -150,4 +150,4 @@ Full guide: [docs/ADDING_EVALS.md](docs/ADDING_EVALS.md)
 
 ## Documentation
 
-When you change behavior, update the affected doc. Key docs: `docs/ADDING_EVALS.md` (eval authoring), `docs/SCORING_METHODOLOGY.md` (scoring changes first), `docs/ARCHITECTURE.md` (structure/data flow — update prose and Mermaid diagrams), `docs/TESTING_SKILLS.md` (skills), `docs/PROTECTED_MCP.md` (protected MCP server setup and token forwarding).
+When you change behavior, update the affected doc. Key docs: `docs/ADDING_EVALS.md` (eval authoring), `docs/SCORING_METHODOLOGY.md` (scoring changes first), `docs/ARCHITECTURE.md` (structure/data flow — update prose and Mermaid diagrams), `docs/TESTING_SKILLS.md` (skills), `docs/CLI_WORKFLOW_EVALS.md` (tenant fixtures and CLI workflow evals), `docs/PROTECTED_MCP.md` (protected MCP server setup and token forwarding).

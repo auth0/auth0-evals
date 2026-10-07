@@ -7,7 +7,7 @@ import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { makeTmpDir } from './tmp.js';
 import { fileURLToPath } from 'node:url';
-import { loadEval } from '../src/loader.js';
+import { loadEval, resolveFixturePath } from '../src/loader.js';
 import { EvalConfigError, EvalNotFoundError } from '../src/errors.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -422,5 +422,72 @@ describe('loadEval - integration', () => {
     const err = await loadEval(evalConfig, tmpBase).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(EvalNotFoundError);
     expect((err as EvalNotFoundError).message).toContain('nonexistent');
+  });
+});
+
+// ── fixture.ts loading ────────────────────────────────────────────────────────
+
+describe('loadEval - fixture.ts', () => {
+  it('leaves fixture undefined when there is no fixture.ts', async () => {
+    makeEvalDir(tmpBase);
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+    expect(result.fixture).toBeUndefined();
+  });
+
+  it('loads the default export of fixture.ts', async () => {
+    const evalDir = makeEvalDir(tmpBase);
+    writeFileSync(join(evalDir, 'fixture.ts'), 'export default { seed: async () => ({ a: 1 }) };\n');
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+    expect(typeof result.fixture?.seed).toBe('function');
+    await expect(result.fixture!.seed!({} as never)).resolves.toEqual({ a: 1 });
+  });
+
+  it('throws EvalConfigError mentioning defineFixture when there is no default export', async () => {
+    const evalDir = makeEvalDir(tmpBase);
+    writeFileSync(join(evalDir, 'fixture.ts'), 'export const notDefault = {};\n');
+    const err = await loadEval(EVAL_CONFIG, tmpBase).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(EvalConfigError);
+    expect((err as Error).message).toContain('defineFixture');
+  });
+
+  it('throws EvalConfigError naming a hook that is not a function', async () => {
+    const evalDir = makeEvalDir(tmpBase);
+    writeFileSync(join(evalDir, 'fixture.ts'), "export default { cleanup: 'nope' };\n");
+    const err = await loadEval(EVAL_CONFIG, tmpBase).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(EvalConfigError);
+    expect((err as Error).message).toContain('cleanup');
+  });
+});
+
+describe('resolveFixturePath', () => {
+  const makeRoot = makeTmpDir('fixture_path_');
+  let root: string;
+  const config = { id: 'x_y', name: 'XY', category: 'c', path: 'src/evals/x/y' };
+
+  beforeEach(() => {
+    root = makeRoot();
+  });
+
+  function touch(rel: string): string {
+    const full = join(root, rel);
+    mkdirSync(dirname(full), { recursive: true });
+    writeFileSync(full, '');
+    return full;
+  }
+
+  it('returns undefined when fixture.ts is missing, even if a stale dist fixture.js exists', () => {
+    touch('dist/evals/x/y/fixture.js');
+    expect(resolveFixturePath(config, root)).toBeUndefined();
+  });
+
+  it('returns the dist path when both src and dist exist', () => {
+    touch('src/evals/x/y/fixture.ts');
+    const dist = touch('dist/evals/x/y/fixture.js');
+    expect(resolveFixturePath(config, root)).toBe(dist);
+  });
+
+  it('returns the src path when only src exists', () => {
+    const src = touch('src/evals/x/y/fixture.ts');
+    expect(resolveFixturePath(config, root)).toBe(src);
   });
 });

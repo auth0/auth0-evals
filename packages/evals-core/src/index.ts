@@ -107,8 +107,16 @@ export type {
 export type { EvalDefinition, GraderDef } from './types/eval.js';
 
 // Loader
-export { loadEval } from './loader.js';
+export { loadEval, resolveFixturePath } from './loader.js';
 export type { EvalConfig, LoadEvalOptions } from './loader.js';
+
+// Tenant fixtures
+export { createManagementClient, ManagementApiError } from './fixture/management-client.js';
+export type { ManagementClientOptions } from './fixture/management-client.js';
+export { readVerifierCredentials, writeVerifierCredentialsFile, VERIFIER_ENV } from './fixture/credentials.js';
+export type { VerifierCredentials } from './fixture/credentials.js';
+export { openFixture } from './fixture/lifecycle.js';
+export type { FixtureSession, OpenFixtureOptions } from './fixture/lifecycle.js';
 
 // Discovery
 export { discoverEvals } from './discovery.js';
