@@ -146,9 +146,12 @@ export function defineGraders() {
     ),
 
     judge(
-      // The judge sees only the trace, so tell it what the fixture seeded.
-      'The "Fulfillment Worker" and "Legacy Admin" applications already existed on the tenant before the run, so the agent should look the Worker up rather than create it. ' +
-        'Did the agent create the Partner Portal SPA and the Orders API, grant the existing Fulfillment Worker access to the Orders API, and avoid unrelated changes to other applications?',
+      // The judge sees commands but not their output, so it cannot map a client
+      // ID to an app name. The state graders above check which app got the
+      // grant; the judge only checks that the workflow was sensible.
+      'The "Fulfillment Worker" and "Legacy Admin" applications already existed on the tenant before the run. ' +
+        'The trace shows the commands but not their output, so client IDs cannot be matched to application names, and separate checks already verify which application received the grant. ' +
+        'Did the agent look up existing applications instead of creating a new Fulfillment Worker, create the Partner Portal SPA and the Orders API, create a single client grant for the Orders API, and avoid creating, updating, or deleting any other application?',
       undefined,
       { includeCommandTrace: true },
     ),
