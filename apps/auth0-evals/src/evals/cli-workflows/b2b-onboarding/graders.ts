@@ -185,10 +185,12 @@ export function defineGraders() {
 
     judge(
       // The judge sees commands but not their output, so it cannot map ids to
-      // names. The state graders above check what changed on which resource.
+      // names. The state graders above check what changed on which resource,
+      // including that the connection kept its other applications.
       'The Supplier Portal and Ops Console applications, the acme-users and globex-users connections, and the Globex organization already existed on the tenant before the run. ' +
         'The trace shows the commands but not their output, so ids cannot be matched to names, and separate checks already verify the final tenant state. ' +
-        "Did the agent look up the existing resources instead of creating new ones, create a single Acme organization, enable a connection on it, enable an application on that connection without replacing its other applications, update one application's organization settings, and avoid creating, updating, or deleting anything else?",
+        "Updating a connection's enabled clients (`auth0 connections enabled-clients update` or a PATCH to `connections/{id}/clients`) changes only the clients listed in the payload, so a payload with just the new application is correct, and repeating the same update is harmless. " +
+        "Did the agent look up the existing resources instead of creating new ones, create a single Acme organization, enable a connection on it, enable an application on that connection, update one application's organization settings, and avoid creating, updating, or deleting anything else?",
       undefined,
       { includeCommandTrace: true },
     ),
