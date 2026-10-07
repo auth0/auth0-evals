@@ -14,6 +14,8 @@ import {
   wroteFile,
   calledTool,
   calledToolOneOf,
+  tenantState,
+  secretNotExposed,
 } from '../src/primitives.js';
 import { GraderLevel, type EventToolCall } from '../src/types.js';
 
@@ -909,5 +911,42 @@ describe('@file data reference resolution', () => {
     const apply = cmd('auth0 connections update con_abc --data @/tmp/connection_patch.json');
     const def = ranCommand('connections', ['passkey'], undefined, GraderLevel.L4, RESOLVE);
     expect(def.predicate!([stray, apply])).toBe(false);
+  });
+});
+
+// ── tenantState ───────────────────────────────────────────────────────────────
+
+describe('tenantState', () => {
+  it('creates a GraderDef with kind "tenant_state", name and level', () => {
+    const def = tenantState('Client created', GraderLevel.L4, () => true);
+    expect(def.kind).toBe('tenant_state');
+    expect(def.name).toBe('Client created');
+    expect(def.level).toBe(GraderLevel.L4);
+  });
+
+  it('stores the predicate and passes the state through unchanged', () => {
+    const predicate = (s: { pre: unknown; post: unknown; seeded: Record<string, unknown> }) =>
+      s.post === 'after' || 'post was not after';
+    const def = tenantState('check', GraderLevel.L5, predicate);
+    expect(def.statePredicate).toBe(predicate);
+    expect(def.statePredicate!({ pre: 'before', post: 'after', seeded: {} })).toBe(true);
+    expect(def.statePredicate!({ pre: 'before', post: 'x', seeded: {} })).toBe('post was not after');
+  });
+});
+
+// ── secretNotExposed ──────────────────────────────────────────────────────────
+
+describe('secretNotExposed', () => {
+  it('uses the default name and L3 level', () => {
+    const def = secretNotExposed();
+    expect(def.kind).toBe('secret_not_exposed');
+    expect(def.name).toBe('No credential exposed in trace, reply, or files');
+    expect(def.level).toBe(GraderLevel.L3);
+  });
+
+  it('accepts a custom name and still uses L3', () => {
+    const def = secretNotExposed('Client secret not leaked');
+    expect(def.name).toBe('Client secret not leaked');
+    expect(def.level).toBe(GraderLevel.L3);
   });
 });

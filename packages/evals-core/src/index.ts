@@ -52,7 +52,7 @@ export { withRetry, isTransientLlmError } from './utils/retry.js';
 export type { RetryOptions } from './utils/retry.js';
 
 // Redaction
-export { redactSecrets, redactArgs, REDACTION_MARKER } from './utils/redact.js';
+export { redactSecrets, redactArgs, redactKnownSecrets, REDACTION_MARKER } from './utils/redact.js';
 
 // Costs
 export { estimateCost } from './config/costs.js';
@@ -171,6 +171,7 @@ export {
   getExecutor,
   executeGrader,
 } from './graders/index.js';
+export type { FixtureGradingInput } from './graders/index.js';
 
 export type { GraderContext, GraderExecutor } from './graders/index.js';
 export type { CompileResult } from '@a0/evals-graders';

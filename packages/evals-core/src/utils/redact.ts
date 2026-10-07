@@ -177,3 +177,23 @@ function redactValue(value: unknown): unknown {
   if (value !== null && typeof value === 'object') return redactArgs(value as Record<string, unknown>);
   return value;
 }
+
+/**
+ * Replaces every exact occurrence of a known secret in any string inside `value`,
+ * recursing through arrays and plain objects. Pattern redaction only recognises
+ * credentials by name or shape, so a short secret a fixture registered would
+ * otherwise reach a published trace verbatim when the agent leaks it.
+ */
+export function redactKnownSecrets<T>(value: T, secrets: readonly string[]): T {
+  const known = secrets.filter((s) => s.length > 0);
+  if (known.length === 0) return value;
+  const walk = (v: unknown): unknown => {
+    if (typeof v === 'string') return known.reduce((out, s) => out.split(s).join(REDACTION_MARKER), v);
+    if (Array.isArray(v)) return v.map(walk);
+    if (v !== null && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype) {
+      return Object.fromEntries(Object.entries(v).map(([k, inner]) => [k, walk(inner)]));
+    }
+    return v;
+  };
+  return walk(value) as T;
+}

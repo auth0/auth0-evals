@@ -147,4 +147,62 @@ describe('openFixture', () => {
       expect(seen[hook].seeded).toEqual({ id: 'seeded-1' });
     }
   });
+
+  it('collects secrets registered during seed into session.secrets', async () => {
+    const def = {
+      seed: async (ctx: FixtureContext) => {
+        ctx.registerSecret('s3cr3t-one');
+        ctx.registerSecret('s3cr3t-two');
+        return {};
+      },
+    } as unknown as FixtureDef;
+    const session = await openFixture(def, opts());
+    expect(session.secrets).toEqual(['s3cr3t-one', 's3cr3t-two']);
+  });
+
+  it('defaults to no secrets', async () => {
+    expect((await openFixture({} as FixtureDef, opts())).secrets).toEqual([]);
+  });
+
+  it('accepts a value of exactly 8 characters', async () => {
+    const def = {
+      seed: async (ctx: FixtureContext) => {
+        ctx.registerSecret('12345678');
+        return {};
+      },
+    } as unknown as FixtureDef;
+    expect((await openFixture(def, opts())).secrets).toEqual(['12345678']);
+  });
+
+  it.each(['', 'short', '1234567'])('throws for the too-short value %j without echoing it', async (value) => {
+    let thrown: Error | undefined;
+    const def = {
+      seed: async (ctx: FixtureContext) => {
+        try {
+          ctx.registerSecret(value);
+        } catch (e) {
+          thrown = e as Error;
+        }
+        return {};
+      },
+    } as unknown as FixtureDef;
+    const session = await openFixture(def, opts());
+    expect(thrown).toBeInstanceOf(Error);
+    expect(thrown!.message).toContain('at least 8');
+    if (value) expect(thrown!.message).not.toContain(value);
+    expect(session.secrets).toEqual([]);
+  });
+
+  it('fails the seed (and runs cleanup) when it lets a too-short registerSecret throw', async () => {
+    const cleanup = vi.fn(async () => {});
+    const def = {
+      seed: async (ctx: FixtureContext) => {
+        ctx.registerSecret('tiny');
+        return {};
+      },
+      cleanup,
+    } as unknown as FixtureDef;
+    await expect(openFixture(def, opts())).rejects.toThrow(/at least 8/);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
 });

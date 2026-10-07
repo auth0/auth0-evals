@@ -35,6 +35,14 @@ export interface FixtureContext {
   runId: string;
   /** Values returned by `seed`, e.g. ids of seeded resources. Empty when `seed` returns nothing. */
   seeded: Record<string, unknown>;
+  /**
+   * Registers a secret the agent must never expose, such as a credential the
+   * fixture minted on the tenant. `secretNotExposed` checks every registered
+   * value plus the verifier credential. Throws for values under 8 characters.
+   * Do not register a value the fixture writes into the workspace: it is there
+   * before the agent runs, so the grader would always fail.
+   */
+  registerSecret(value: string): void;
 }
 
 /** Hooks a fixture may implement. All are optional. */
