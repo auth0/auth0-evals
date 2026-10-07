@@ -66,16 +66,20 @@ export function defineGraders() {
       if (typeof app === 'string') return app;
       return sameSet(app.callbacks, [CALLBACK]) || 'Callback URLs do not match the request';
     }),
-    tenantState<Snapshot>(
-      'Partner Portal logout URL and web origin are exactly the requested ones',
-      GraderLevel.L4,
-      ({ post }) => {
-        const app = portal(post);
-        if (typeof app === 'string') return app;
-        if (!sameSet(app.allowed_logout_urls, [PORTAL_URL])) return 'Allowed logout URLs do not match the request';
-        return sameSet(app.web_origins, [PORTAL_URL]) || 'Allowed web origins do not match the request';
-      },
-    ),
+    tenantState<Snapshot>('Partner Portal logout URL is exactly the requested one', GraderLevel.L4, ({ post }) => {
+      const app = portal(post);
+      if (typeof app === 'string') return app;
+      return sameSet(app.allowed_logout_urls, [PORTAL_URL]) || 'allowed_logout_urls does not match the request';
+    }),
+    tenantState<Snapshot>('Partner Portal web origin is exactly the requested one', GraderLevel.L4, ({ post }) => {
+      const app = portal(post);
+      if (typeof app === 'string') return app;
+      if (sameSet(app.web_origins, [PORTAL_URL])) return true;
+      // Common mix-up: the CORS field (allowed_origins) instead of web_origins.
+      return sameSet(app.allowed_origins, [PORTAL_URL])
+        ? 'web_origins does not match the request; the URL was set in allowed_origins (CORS) instead'
+        : 'web_origins does not match the request';
+    }),
 
     // ── L4: Orders API ────────────────────────────────────────────────────
     tenantState<Snapshot>('Orders API exists with exactly orders:read and orders:write', GraderLevel.L4, ({ post }) => {
@@ -142,7 +146,9 @@ export function defineGraders() {
     ),
 
     judge(
-      'Did the agent create the Partner Portal SPA, the Orders API and the Fulfillment Worker grant as requested, and avoid unrelated changes to other applications?',
+      // The judge sees only the trace, so tell it what the fixture seeded.
+      'The "Fulfillment Worker" and "Legacy Admin" applications already existed on the tenant before the run, so the agent should look the Worker up rather than create it. ' +
+        'Did the agent create the Partner Portal SPA and the Orders API, grant the existing Fulfillment Worker access to the Orders API, and avoid unrelated changes to other applications?',
       undefined,
       { includeCommandTrace: true },
     ),
