@@ -35,6 +35,11 @@ export function defineGraders() {
       ['custom-token-exchange'],
     ),
 
+    // ── L4: Deploy the Action — a created-but-undeployed Action never runs ───
+    // Native `auth0 actions deploy <id>` or the `POST actions/actions/<id>/deploy`
+    // passthrough. Without this the exchange is wired but dead at runtime.
+    ranCommandOneOf(['actions deploy', ['api post', 'deploy']], 'Deployed the Action', GraderLevel.L4),
+
     // ── L4: Register the token-exchange profile for the partner token type ──
     ranCommandOneOf(
       ['token-exchange create', 'token-exchange-profiles'],
@@ -43,13 +48,14 @@ export function defineGraders() {
       ['urn:barkbook:external-idp-token'],
     ),
 
-    // ── L4: Action created before the profile that references its action_id ──
+    // ── L4: Action created, then deployed, then the profile that references it ──
     ranCommandsInOrder(
       [
         ['actions create', 'actions/actions'],
+        ['actions deploy', 'deploy'],
         ['token-exchange create', 'token-exchange-profiles'],
       ],
-      'Created the Action before the profile that references it',
+      'Created and deployed the Action before registering the profile',
       GraderLevel.L4,
     ),
 
@@ -68,7 +74,8 @@ export function defineGraders() {
         'custom_authentication profile type (apps update --allow-any-profile-of-type custom_authentication, ' +
         'or the clients Management API equivalent); ' +
         '(2) create an Action on the custom-token-exchange trigger that validates the partner token and ' +
-        'resolves the user into the Username-Password-Authentication connection; ' +
+        'resolves the user into the Username-Password-Authentication connection, and deploy that Action ' +
+        '(an undeployed Action never runs); ' +
         '(3) register a token-exchange profile of type custom_authentication for subject_token_type ' +
         'urn:barkbook:external-idp-token that points at that Action — ' +
         'using only the Auth0 CLI, not the dashboard or Terraform?',
