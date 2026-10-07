@@ -108,27 +108,40 @@ export function defineGraders() {
     ),
 
     // ── L4: Structural correctness (all three flows) ──────────────────────
+    // Each flow is split into its atomic ceremony steps (obtain challenge →
+    // finalize exchange) rather than one compound "(1)(2)(3)(4) in order" judge,
+    // so a partially-wired flow earns partial credit and the failing step is
+    // pinpointed. The shared ceremony step is graded once by the platform-split
+    // judge below.
     judge(
-      'Does the sign-in follow the correct passkey ceremony in order: (1) obtain a challenge via ' +
-        'passkeyLoginChallenge; (2) run the native WebAuthn ceremony (a passkey module such as react-native-passkey, ' +
-        'a native module, or navigator.credentials.get on web) using the challenge authParamsPublicKey; (3) pass the ' +
-        'resulting credential together with the challenge authSession to getTokenByPasskey to obtain Credentials?',
+      'Does the sign-in path obtain a login challenge via passkeyLoginChallenge (on the Authentication client or ' +
+        'the useAuth0 hook) before running the ceremony?',
       GraderLevel.L4,
     ),
     judge(
-      'Does the signup follow the correct passkey ceremony in order: (1) obtain a challenge via ' +
-        'passkeySignupChallenge with the new user details (such as email); (2) run the native WebAuthn registration ' +
-        'ceremony using the challenge authParamsPublicKey; (3) pass the resulting credential together with the ' +
-        'challenge authSession to getTokenByPasskey to obtain Credentials?',
+      'Does the sign-in path pass the credential produced by the WebAuthn ceremony, together with the challenge ' +
+        'authSession, to getTokenByPasskey to obtain Credentials?',
       GraderLevel.L4,
     ),
     judge(
-      'Does the passkey enrollment for the already-signed-in user follow the correct ceremony in order: ' +
-        '(1) obtain a MyAccount-audience access token and use the myAccount client; (2) obtain a challenge via ' +
-        'passkeyEnrollmentChallenge; (3) run the native WebAuthn registration ceremony using its authParamsPublicKey; ' +
-        '(4) pass the resulting credential with the challenge authSession (and authenticationMethodId) to ' +
-        'enrollPasskey so the passkey is ADDED to the current account rather than creating a new account through ' +
-        'getTokenByPasskey?',
+      "Does the signup path obtain a signup challenge via passkeySignupChallenge with the new user's details " +
+        '(such as email) before running the ceremony?',
+      GraderLevel.L4,
+    ),
+    judge(
+      'Does the signup path pass the credential produced by the WebAuthn registration ceremony, together with the ' +
+        'challenge authSession, to getTokenByPasskey to obtain Credentials?',
+      GraderLevel.L4,
+    ),
+    judge(
+      'Does the enrollment path obtain a MyAccount-audience access token, build the myAccount client, and request a ' +
+        'challenge via passkeyEnrollmentChallenge before running the ceremony?',
+      GraderLevel.L4,
+    ),
+    judge(
+      'Does the enrollment path pass the credential produced by the WebAuthn registration ceremony, with the ' +
+        'challenge authSession (and authenticationMethodId), to enrollPasskey so the passkey is ADDED to the current ' +
+        'account rather than creating a new one via getTokenByPasskey?',
       GraderLevel.L4,
     ),
     // The SDK methods are identical across platforms; only the ceremony between
