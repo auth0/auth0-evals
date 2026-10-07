@@ -91,6 +91,41 @@ The fixture talks to the tenant through a verifier credential. The agent's envir
 
 The credential is read once at startup, and every `AUTH0_VERIFIER_*` variable is then removed from the process environment, so setup and compile commands never inherit it. Only an agent job whose eval has a fixture gets its own single-use `0600` credentials file. A partial or invalid verifier config fails only those jobs. The file option exists because on Linux a process running as the same user can read a parent's `/proc/<pid>/environ`.
 
-## Status
+## Replaying scripted solutions
 
-Fixtures, the Management API client, the lifecycle, and the state graders (`tenantState` and `secretNotExposed`) are in place. A replay harness for reference and broken solutions follows in a later change.
+Graders for a live tenant are easy to get wrong in both directions: a grader that never passes, or one that passes for a broken workflow. `replay` checks them against hand-written solutions before any model runs, with no LLM in the loop.
+
+```bash
+npm run replay -- --eval <id>
+```
+
+Each eval keeps its scripts in a `replay/` folder next to `fixture.ts`:
+
+```
+src/evals/cli-workflows/<eval-dir>/
+├── PROMPT.md
+├── graders.ts
+├── fixture.ts
+└── replay/
+    ├── reference.sh        # a correct solution
+    └── mutants/
+        ├── wrong-url.sh    # a broken solution
+        └── reveal.sh
+```
+
+A script is a list of steps separated by blank lines. Each step runs as its own `bash -c` in a fresh workspace and is recorded as one `run_command` tool call, the same shape as an agent's shell calls, so command graders see a realistic trace. Comment lines are dropped. Steps get `RUN_ID` and every scalar seeded value as `SEED_<KEY>`, so `appId` becomes `SEED_APP_ID`.
+
+```bash
+# breaks: Callback set
+auth0 apps update "$SEED_APP_ID" --callbacks https://wrong.example.com --no-input --json
+```
+
+Every script gets its own seed, snapshot, and cleanup, and the deterministic graders are run on the result. Judges are skipped because they need an LLM. The verdicts work like this:
+
+- The reference must pass every grader.
+- A mutant with `# breaks: <grader name>` lines must fail every grader it names. A name that matches no grader is an error.
+- A mutant without `# breaks:` lines must fail at least one grader.
+
+The command exits 1 when any script misses its verdict. When a step exits non-zero, its output is printed with known secrets masked, because a failing step usually means a broken script rather than a grader verdict.
+
+Replay steps run the `auth0` CLI from your own environment, so log the CLI in to the same tenant as the verifier credential first. Scripts run one at a time, because they share the tenant.

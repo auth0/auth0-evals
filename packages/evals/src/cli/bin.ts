@@ -3,6 +3,8 @@ import { Command } from 'commander';
 import { runCli } from './run.js';
 import { runReport } from './report.js';
 import type { ReportOptions } from './report.js';
+import { runReplay } from './replay.js';
+import type { ReplayOptions } from './replay.js';
 import { ensureSubCommand } from './ensure-sub-command.js';
 
 const program = new Command();
@@ -24,6 +26,15 @@ program
   .option('--output <path>', 'Output HTML path', 'report.html')
   .action(async (opts: ReportOptions) => {
     await runReport(opts);
+  });
+
+program
+  .command('replay')
+  .description('Grade scripted reference and mutant solutions against a live tenant, without an LLM')
+  .requiredOption('--eval <id>', 'Eval id (must have fixture.ts and replay/reference.sh)')
+  .option('--config <path>', 'Path to eval.config.js')
+  .action(async (opts: ReplayOptions) => {
+    await runReplay(opts);
   });
 
 program.parseAsync(ensureSubCommand(process.argv)).catch((e) => {
