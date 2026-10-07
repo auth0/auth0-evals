@@ -309,6 +309,40 @@ describe('createManagementClient', () => {
       expect(fetchMock).toHaveBeenCalledTimes(4);
     });
 
+    it('retries a 429 from the token endpoint, then succeeds', async () => {
+      const cancelled = vi.fn();
+      const { client, sleep, fetchMock } = setup([
+        () => trackedResponse(429, cancelled),
+        tokenResponse(),
+        jsonResponse({ ok: true }),
+      ]);
+
+      await expect(client.get('clients')).resolves.toEqual({ ok: true });
+
+      expect(cancelled).toHaveBeenCalledTimes(1);
+      expect(sleep).toHaveBeenCalledWith(500);
+      expect(String(fetchMock.mock.calls[1]![0])).toContain('/oauth/token');
+    });
+
+    it('throws a 429 from the token endpoint once retries are exhausted', async () => {
+      const { client, sleep, fetchMock } = setup(
+        [
+          new Response('limit', { status: 429, headers: { 'retry-after': '1' } }),
+          new Response('limit', { status: 429, headers: { 'retry-after': '1' } }),
+          new Response('limit', { status: 429 }),
+        ],
+        { maxRetries: 2 },
+      );
+
+      const err = await client.get('clients').catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(ManagementApiError);
+      expect((err as ManagementApiError).status).toBe(429);
+      expect((err as ManagementApiError).path).toBe('oauth/token');
+      expect(sleep.mock.calls.map((c) => c[0])).toEqual([1000, 1000]);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
     it('drops the cached token and retries once on 401', async () => {
       const { client, fetchMock } = setup([
         tokenResponse('tok_old'),

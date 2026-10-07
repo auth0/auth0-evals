@@ -57,10 +57,18 @@ function redact(text: string, secrets: Array<string | undefined>): string {
   return out;
 }
 
+/** Wait before retrying a 429: `Retry-After` when present, otherwise exponential backoff, capped. */
+function retryDelayMs(res: Response, attempt: number): number {
+  const header = res.headers.get('retry-after');
+  const seconds = Number(header);
+  const waitMs = header !== null && Number.isFinite(seconds) ? seconds * 1000 : BASE_BACKOFF_MS * 2 ** attempt;
+  return Math.min(waitMs, MAX_RETRY_AFTER_MS);
+}
+
 /**
  * Builds a Management API v2 client authenticated with client credentials.
  * The access token is fetched lazily, cached in memory, and refreshed shortly
- * before it expires. HTTP 429 is retried with backoff and a 401 triggers a
+ * before it expires. HTTP 429 (including on the token endpoint) is retried with backoff and a 401 triggers a
  * single token refresh, since a token can expire earlier than `expires_in`.
  */
 export function createManagementClient(opts: ManagementClientOptions): ManagementApi {
@@ -80,8 +88,8 @@ export function createManagementClient(opts: ManagementClientOptions): Managemen
     return pendingToken;
   }
 
-  async function fetchToken(): Promise<string> {
-    const res = await fetchFn(`https://${domain}/oauth/token`, {
+  function postToken(): Promise<Response> {
+    return fetchFn(`https://${domain}/oauth/token`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -91,6 +99,15 @@ export function createManagementClient(opts: ManagementClientOptions): Managemen
         audience: `https://${domain}/api/v2/`,
       }),
     });
+  }
+
+  async function fetchToken(): Promise<string> {
+    let res = await postToken();
+    for (let attempt = 0; res.status === 429 && attempt < maxRetries; attempt++) {
+      await res.body?.cancel();
+      await sleep(retryDelayMs(res, attempt));
+      res = await postToken();
+    }
     const text = await res.text();
     if (!res.ok) {
       throw new ManagementApiError(res.status, 'POST', 'oauth/token', redact(text, [opts.clientSecret]));
@@ -140,11 +157,8 @@ export function createManagementClient(opts: ManagementClientOptions): Managemen
       });
 
       if (res.status === 429 && rateLimitRetries < maxRetries) {
-        const retryAfter = Number(res.headers.get('retry-after'));
-        const hasRetryAfter = res.headers.get('retry-after') !== null && Number.isFinite(retryAfter);
         await res.body?.cancel();
-        const waitMs = hasRetryAfter ? retryAfter * 1000 : BASE_BACKOFF_MS * 2 ** rateLimitRetries;
-        await sleep(Math.min(waitMs, MAX_RETRY_AFTER_MS));
+        await sleep(retryDelayMs(res, rateLimitRetries));
         rateLimitRetries++;
         continue;
       }
