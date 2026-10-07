@@ -11,6 +11,8 @@ export type {
   EventGraderLevel,
   NotRanCommandLevel,
   CompileResult,
+  FixtureState,
+  TenantStateLevel,
 } from './types.js';
 
 // Tenant fixtures
@@ -33,4 +35,6 @@ export {
   compiles,
   calledTool,
   calledToolOneOf,
+  tenantState,
+  secretNotExposed,
 } from './primitives.js';

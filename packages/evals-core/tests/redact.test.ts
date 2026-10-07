@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { redactArgs, redactSecrets, REDACTION_MARKER } from '../src/utils/redact.js';
+import { redactArgs, redactSecrets, redactKnownSecrets, REDACTION_MARKER } from '../src/utils/redact.js';
 
 describe('redactSecrets — masks credential values', () => {
   it('masks a --client-secret flag value', () => {
@@ -277,5 +277,58 @@ describe('redactArgs', () => {
 
   it('returns an empty record for empty args', () => {
     expect(redactArgs({})).toEqual({});
+  });
+});
+
+describe('redactKnownSecrets', () => {
+  const M = REDACTION_MARKER;
+
+  it('replaces a secret inside nested objects and arrays', () => {
+    const input = {
+      a: 'token=hunter2-secret',
+      b: ['x', { c: 'pre hunter2-secret post' }],
+      d: { e: [['hunter2-secret']] },
+    };
+    expect(redactKnownSecrets(input, ['hunter2-secret'])).toEqual({
+      a: `token=${M}`,
+      b: ['x', { c: `pre ${M} post` }],
+      d: { e: [[M]] },
+    });
+  });
+
+  it('replaces multiple occurrences and multiple secrets', () => {
+    const out = redactKnownSecrets('one-secret-aaa and one-secret-aaa and two-secret-bbb', [
+      'one-secret-aaa',
+      'two-secret-bbb',
+    ]);
+    expect(out).toBe(`${M} and ${M} and ${M}`);
+  });
+
+  it('leaves numbers, booleans, null and class instances untouched', () => {
+    class Box {
+      constructor(public v: string) {}
+    }
+    const box = new Box('hunter2-secret');
+    const out = redactKnownSecrets({ n: 42, t: true, f: false, z: null, u: undefined, box }, ['hunter2-secret']);
+    expect(out).toEqual({ n: 42, t: true, f: false, z: null, u: undefined, box });
+    expect(out.box).toBe(box);
+    expect(out.box.v).toBe('hunter2-secret');
+  });
+
+  it('does not mutate the input', () => {
+    const input = { a: 'hunter2-secret' };
+    redactKnownSecrets(input, ['hunter2-secret']);
+    expect(input.a).toBe('hunter2-secret');
+  });
+
+  it('returns the value unchanged for an empty or all-empty-string secrets list', () => {
+    const input = { a: 'anything' };
+    expect(redactKnownSecrets(input, [])).toBe(input);
+    expect(redactKnownSecrets(input, [''])).toBe(input);
+    expect(redactKnownSecrets('text', ['', ''])).toBe('text');
+  });
+
+  it('ignores empty-string entries alongside real secrets', () => {
+    expect(redactKnownSecrets('a hunter2-secret b', ['', 'hunter2-secret'])).toBe(`a ${M} b`);
   });
 });

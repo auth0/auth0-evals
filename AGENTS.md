@@ -111,6 +111,9 @@ Use `notContainsInSource` (not `notContains`) when a value is allowed in config 
 | `compiles(description, level)`                   | Framework runs `compile_command` after the agent finishes — L4 or L5 required. Requires `compile_command` in PROMPT.md frontmatter.           |
 | `calledTool(toolName, description, level)`       | Agent invoked an MCP tool whose name contains `toolName` — L4 or L5 required.                                                                 |
 | `calledToolOneOf(toolNames, description, level)` | Agent invoked at least one of the named MCP tools — L4 or L5 required.                                                                        |
+| `notRanCommand(command, description, level)` | Agent did NOT run a shell command containing `command`. Checks the command trace for wrong or forbidden commands — L2 (`hallucination`) required. |
+| `tenantState(description, level, predicate)` | Asserts on the tenant state the eval's `fixture.ts` snapshotted before and after the run. `predicate` receives `{ pre, post, seeded }` and returns `true`, `false`, or a string failure reason (never put secrets in it). Needs a fixture with a `snapshot` hook, otherwise it fails — L4 or L5 required. |
+| `secretNotExposed(description?)` | The verifier credential and anything registered with `ctx.registerSecret` do not appear in tool call arguments or output, the final reply, or workspace files. Fails when no secret is known — always L3 (`security`). |
 
 For MCP-only evals (agent replies with text, no files written): use `source: 'response'` on graders. See `docs/ADDING_EVALS.md` for examples.
 

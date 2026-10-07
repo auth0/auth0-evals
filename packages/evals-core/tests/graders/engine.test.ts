@@ -16,6 +16,8 @@ import {
   wroteFile,
   compiles,
   calledTool,
+  tenantState,
+  secretNotExposed,
   GraderLevel,
   type GraderResult,
   type EventToolCall,
@@ -1664,5 +1666,108 @@ describe('runGraders - agentText opt-in via source field', () => {
     expect(userContent).toContain('App.tsx');
     // Sentinel must NOT appear — default is files-only
     expect(userContent).not.toContain('AGENT_REPLY_SENTINEL_12345');
+  });
+});
+
+// ── runGraders — fixture graders ─────────────────────────────────────────────
+
+describe('runGraders - fixture graders', () => {
+  const state = { pre: { a: 1 }, post: { a: 2 }, seeded: { id: 'x' } };
+
+  it('passes tenant_state graders the fixture state exactly as provided', async () => {
+    const dir = tmpDir();
+    const predicate = vi.fn(() => true);
+    const results = await runGraders(
+      [tenantState('state ok', GraderLevel.L4, predicate)],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { state, secrets: [] },
+    );
+    expect(results[0]!.passed).toBe(true);
+    expect(predicate.mock.calls[0]![0]).toBe(state);
+  });
+
+  it('fails tenant_state gracefully when fixture is omitted, and contains still works', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'app.ts'), 'Auth0Provider');
+    const results = await runGraders(
+      [contains('Auth0Provider', GraderLevel.L1), tenantState('state ok', GraderLevel.L4, () => true)],
+      dir,
+      'unused',
+    );
+    expect(results[0]!.passed).toBe(true);
+    expect(results[1]!.passed).toBe(false);
+    expect(results[1]!.detail).toContain('fixture');
+  });
+
+  it('reports a throwing predicate without leaking its message', async () => {
+    const dir = tmpDir();
+    const results = await runGraders(
+      [
+        tenantState('boom', GraderLevel.L4, () => {
+          throw new Error('bad snapshot shape');
+        }),
+      ],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { state, secrets: [] },
+    );
+    expect(results[0]!.passed).toBe(false);
+    expect(results[0]!.detail).toBe('Tenant state predicate threw an error');
+    expect(results[0]!.detail).not.toContain('bad snapshot shape');
+  });
+
+  it('runs secret_not_exposed against workspace files, reply and secrets from fixture', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'config.ts'), 'const s = "topsecret-value"');
+    const fixture = { secrets: ['topsecret-value'] };
+    const leaked = await runGraders(
+      [secretNotExposed()],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      'all good',
+      fixture,
+    );
+    expect(leaked[0]!.passed).toBe(false);
+    expect(leaked[0]!.detail).toContain('file config.ts');
+    expect(leaked[0]!.detail).not.toContain('topsecret-value');
+
+    const clean = tmpDir();
+    const ok = await runGraders(
+      [secretNotExposed()],
+      clean,
+      'unused',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      'all good',
+      fixture,
+    );
+    expect(ok[0]!.passed).toBe(true);
+  });
+
+  it('fails secret_not_exposed when fixture is omitted', async () => {
+    const results = await runGraders([secretNotExposed()], tmpDir(), 'unused');
+    expect(results[0]!.passed).toBe(false);
+    expect(results[0]!.detail).toContain('No secrets');
   });
 });

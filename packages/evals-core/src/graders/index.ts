@@ -10,6 +10,7 @@ export {
 } from './engine.js';
 
 export type { LlmJudgeOptions } from './llm-judge.js';
+export type { FixtureGradingInput } from './engine.js';
 
 export { extractCodeBlocks, gradeText } from './grade-text.js';
 

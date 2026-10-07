@@ -13,6 +13,9 @@ import { randomBytes } from 'node:crypto';
 import type { FixtureContext, FixtureDef, ManagementApi } from '@a0/evals-graders';
 import { logger } from '../utils/logger.js';
 
+/** Shorter values would match ordinary words in replies and code, failing `secretNotExposed` for no reason. */
+const MIN_SECRET_LENGTH = 8;
+
 export interface OpenFixtureOptions {
   /** Verifier-backed client. Never shared with the agent. */
   mgmt: ManagementApi;
@@ -23,6 +26,8 @@ export interface OpenFixtureOptions {
 
 export interface FixtureSession {
   readonly context: FixtureContext;
+  /** Values registered with `ctx.registerSecret`, for `secretNotExposed`. */
+  readonly secrets: readonly string[];
   /** Snapshot taken after seeding, before the agent starts. `undefined` when the fixture has no `snapshot` hook. */
   readonly pre: unknown;
   /** Takes the post-run snapshot. */
@@ -36,11 +41,18 @@ export interface FixtureSession {
  * cleanup runs before the error propagates so a failed seed leaves nothing behind.
  */
 export async function openFixture(def: FixtureDef, options: OpenFixtureOptions): Promise<FixtureSession> {
+  const secrets: string[] = [];
   const context: FixtureContext = {
     mgmt: options.mgmt,
     workspace: options.workspace,
     runId: options.runId ?? randomBytes(4).toString('hex'),
     seeded: {},
+    registerSecret: (value: string) => {
+      if (value.length < MIN_SECRET_LENGTH) {
+        throw new Error(`registerSecret needs a value of at least ${MIN_SECRET_LENGTH} characters`);
+      }
+      secrets.push(value);
+    },
   };
 
   let closed = false;
@@ -70,6 +82,7 @@ export async function openFixture(def: FixtureDef, options: OpenFixtureOptions):
 
   return {
     context,
+    secrets,
     pre,
     snapshot: async () => (def.snapshot ? def.snapshot(context) : undefined),
     close,

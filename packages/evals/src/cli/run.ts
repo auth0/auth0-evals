@@ -51,8 +51,17 @@ import {
   writeVerifierCredentialsFile,
   resolveFixturePath,
   VERIFIER_ENV,
+  redactKnownSecrets,
 } from '@a0/evals-core';
-import type { EvalConfig, EvalDefinition, JobResult, AgentType, Mode, VerifierCredentials } from '@a0/evals-core';
+import type {
+  EvalConfig,
+  EvalDefinition,
+  JobResult,
+  AgentType,
+  Mode,
+  VerifierCredentials,
+  FixtureGradingInput,
+} from '@a0/evals-core';
 
 import { parseRunConfig, extractConfigPath } from './config.js';
 import { spawnEval, mergeIntoOutput } from './subprocess-runner.js';
@@ -202,6 +211,7 @@ async function runAgentJob(
     cliContext,
   });
   let fixtureSession: Awaited<ReturnType<typeof openFixture>> | undefined;
+  let verifierSecret: string | undefined;
   try {
     if (evalDef.fixture) {
       // Fixture hooks run in this process with the verifier credential. The docker
@@ -217,6 +227,7 @@ async function runAgentJob(
             `(${VERIFIER_ENV.file}, or ${VERIFIER_ENV.domain} + ${VERIFIER_ENV.clientId} + ${VERIFIER_ENV.clientSecret})`,
         );
       }
+      verifierSecret = credentials.clientSecret;
       fixtureSession = await openFixture(evalDef.fixture, { mgmt: createManagementClient(credentials), workspace });
     }
 
@@ -246,10 +257,18 @@ async function runAgentJob(
     const preparedEval = tools.includes('skills') ? await runner.prepareSkills(evalDef, workspace) : evalDef;
     const { record, resolvedModel } = await runner.run({ evalDef: preparedEval, workspace, model, tools, apiKey });
 
-    // Post-run tenant snapshot. Held in memory only; graders consume it in a follow-up.
+    // Post-run tenant snapshot for tenant_state graders. Held in memory only.
+    let fixtureGrading: FixtureGradingInput | undefined;
     if (fixtureSession) {
-      await fixtureSession.snapshot();
+      const post = await fixtureSession.snapshot();
       logger.info(`  [Fixture] Post-run snapshot taken (run ${fixtureSession.context.runId})`);
+      fixtureGrading = {
+        // Without a snapshot hook there is no state, so tenant_state graders say so instead of crashing.
+        state: evalDef.fixture?.snapshot
+          ? { pre: fixtureSession.pre, post, seeded: fixtureSession.context.seeded }
+          : undefined,
+        secrets: [...(verifierSecret ? [verifierSecret] : []), ...fixtureSession.secrets],
+      };
     }
 
     const compileResult =
@@ -270,10 +289,16 @@ async function runAgentJob(
         record.toolCalls,
         compileResult,
         record.finalSummary,
+        fixtureGrading,
       );
     }
 
     const scored = score(record, graderResults, getFrameworkConfig().scoring);
+    // Mask fixture-known secrets by exact value in everything that leaves this job:
+    // the analyst prompt, the recommendations, and the persisted result.
+    const knownSecrets = fixtureGrading?.secrets ?? [];
+    const safeRecord = redactKnownSecrets(record, knownSecrets);
+    const safeScored = redactKnownSecrets(scored, knownSecrets);
 
     // Generate recommendations for every agent job — including the no-tools control
     // run, whose clean-room result is the best evidence for a grader defect. Must
@@ -283,15 +308,18 @@ async function runAgentJob(
       resolvedModel,
       tools,
       workspace,
-      scored,
-      record,
+      safeScored,
+      safeRecord,
       apiKey,
     );
 
-    return {
-      ...serialiseAgent(evalDef, record, scored, graderResults, resolvedModel, mode, tools, recommendations),
-      agent_type: agentType,
-    };
+    return redactKnownSecrets(
+      {
+        ...serialiseAgent(evalDef, record, scored, graderResults, resolvedModel, mode, tools, recommendations),
+        agent_type: agentType,
+      },
+      knownSecrets,
+    );
   } finally {
     await fixtureSession?.close();
     if (!keepWorkspace) {
@@ -429,6 +457,25 @@ export function buildJobList(
   return jobs;
 }
 
+/**
+ * Removes baseline jobs for evals with a tenant fixture. Baseline never seeds a
+ * tenant or runs a CLI, so those jobs could only fail their fixture graders.
+ */
+export function dropBaselineFixtureJobs(
+  jobs: Array<[EvalConfig, string, Mode, string[], AgentType]>,
+  frameworkRoot: string,
+): Array<[EvalConfig, string, Mode, string[], AgentType]> {
+  const skipped = new Set<string>();
+  const kept = jobs.filter(([evalCfg, , mode]) => {
+    if (mode !== 'baseline' || !resolveFixturePath(evalCfg, frameworkRoot)) return true;
+    skipped.add(evalCfg.id);
+    return false;
+  });
+  for (const id of skipped)
+    logger.info(`[Fixture] Skipping baseline for ${id}: tenant fixture evals run in agent mode only`);
+  return kept;
+}
+
 // ── Main CLI entry point ──────────────────────────────────────────────────────
 
 export async function runCli(): Promise<void> {
@@ -504,7 +551,11 @@ export async function runCli(): Promise<void> {
     process.exit(1);
   }
 
-  const jobs = buildJobList(registry, models, modes, tools, agentType);
+  const jobs = dropBaselineFixtureJobs(buildJobList(registry, models, modes, tools, agentType), frameworkRoot);
+  if (jobs.length === 0) {
+    logger.warn('No jobs to run: tenant fixture evals run in agent mode only.');
+    return;
+  }
 
   // Ensure Docker image exists before dispatching subprocesses — avoids N parallel builds.
   if (sandbox && modes.includes('agent')) {

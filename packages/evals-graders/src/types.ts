@@ -56,6 +56,13 @@ export interface GraderDef {
   caseSensitive?: boolean;
   predicate?: (toolCalls: EventToolCall[]) => boolean;
   /**
+   * tenant_state graders only. Receives the fixture's pre- and post-run
+   * snapshots. Return `true` to pass, `false` to fail, or a string to fail with
+   * that reason. The reason is persisted in results, so never echo secrets or
+   * raw snapshots into it.
+   */
+  statePredicate?: (state: FixtureState) => boolean | string;
+  /**
    * Judge graders only. When true, the agent's command trace is appended to the
    * judge's input alongside workspace files. Needed for evals whose work is
    * entirely CLI invocations (no files to inspect) — e.g. tenant config via the
@@ -108,6 +115,19 @@ export interface GraderOptions {
 
 /** Levels valid for event-based graders (agent-only — no tool calls exist in baseline). */
 export type EventGraderLevel = GraderLevel.L4 | GraderLevel.L5;
+
+/** Tenant state read by an eval's fixture, handed to tenant_state graders. Never persisted. */
+export interface FixtureState<S = unknown> {
+  /** Snapshot taken after seeding, before the agent started. */
+  pre: S;
+  /** Snapshot taken after the agent exited. */
+  post: S;
+  /** Values returned by the fixture's `seed`. */
+  seeded: Record<string, unknown>;
+}
+
+/** Levels valid for tenantState — agent-only, like event graders. */
+export type TenantStateLevel = GraderLevel.L4 | GraderLevel.L5;
 
 /** Level valid for notRanCommand — a hallucination (L2) check on the command trace. */
 export type NotRanCommandLevel = GraderLevel.L2;

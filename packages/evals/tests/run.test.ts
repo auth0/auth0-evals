@@ -5,8 +5,11 @@
  * to a flat list of jobs. No subprocess, no filesystem, no mocking required.
  */
 
-import { describe, it, expect } from 'vitest';
-import { buildJobList, buildSubprocessArgs } from '../src/cli/run.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { buildJobList, buildSubprocessArgs, dropBaselineFixtureJobs } from '../src/cli/run.js';
 import type { EvalConfig } from '@a0/evals-core';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -177,5 +180,58 @@ describe('buildSubprocessArgs', () => {
 
   it('returns input unchanged when no per-job flags are present', () => {
     expect(buildSubprocessArgs(['--workers', '4', '--braintrust'])).toEqual(['--workers', '4', '--braintrust']);
+  });
+});
+
+// ── dropBaselineFixtureJobs ───────────────────────────────────────────────────
+
+describe('dropBaselineFixtureJobs', () => {
+  let root: string;
+
+  const cfg = (id: string, withFixture: boolean): EvalConfig => {
+    const path = `src/evals/cli/${id}`;
+    mkdirSync(join(root, path), { recursive: true });
+    writeFileSync(join(root, path, 'PROMPT.md'), '---\nid: x\n---\n');
+    if (withFixture) writeFileSync(join(root, path, 'fixture.ts'), 'export const seed = async () => ({});\n');
+    return { id, category: 'cli', path } as EvalConfig;
+  };
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'drop-baseline-'));
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('drops baseline jobs for evals with a fixture.ts and keeps their agent jobs', () => {
+    const fx = cfg('with_fixture', true);
+    const jobs = buildJobList([fx], ['gpt-5.2'], ['baseline', 'agent'], [], 'claude-code');
+    expect(jobs.map((j) => j[2])).toEqual(['baseline', 'agent']);
+
+    const kept = dropBaselineFixtureJobs(jobs, root);
+    expect(kept).toHaveLength(1);
+    expect(kept[0]![0]).toBe(fx);
+    expect(kept[0]![2]).toBe('agent');
+  });
+
+  it('keeps baseline jobs for evals without a fixture.ts', () => {
+    const plain = cfg('plain', false);
+    const jobs = buildJobList([plain], ['gpt-5.2'], ['baseline', 'agent'], [], 'claude-code');
+    expect(dropBaselineFixtureJobs(jobs, root)).toEqual(jobs);
+  });
+
+  it('filters per eval in a mixed list', () => {
+    const fx = cfg('with_fixture', true);
+    const plain = cfg('plain', false);
+    const jobs = buildJobList([fx, plain], ['gpt-5.2'], ['baseline', 'agent'], [], 'claude-code');
+    const kept = dropBaselineFixtureJobs(jobs, root).map((j) => `${j[0].id}:${j[2]}`);
+    expect(kept.sort()).toEqual(['plain:agent', 'plain:baseline', 'with_fixture:agent']);
+  });
+
+  it('returns an empty list when only baseline jobs exist for fixture evals', () => {
+    const fx = cfg('with_fixture', true);
+    const jobs = buildJobList([fx], ['gpt-5.2'], ['baseline'], [], undefined);
+    expect(dropBaselineFixtureJobs(jobs, root)).toEqual([]);
   });
 });
