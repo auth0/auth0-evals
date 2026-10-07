@@ -339,12 +339,15 @@ export function score(record: RunRecord, graderResults?: GraderResult[], opts?: 
   const gr = graderResults ?? [];
   const baseWeights = { ...DEFAULT_WEIGHTS, ...opts?.weights };
 
-  // CLI evals write no files — Security auto-scores 100 (no L3 graders fire),
-  // inflating every run. Redistribute its weight to Correctness so scores
-  // reflect actual agent behavior. Hallucination (L2) is kept — CLI agents can
-  // still hallucinate commands or flags in their responses.
+  // CLI evals usually write no files, so Security would auto-score 100 with no
+  // L3 graders and inflate every run. Redistribute its weight to Correctness so
+  // scores reflect actual agent behavior. A CLI eval that does register an L3
+  // grader (e.g. secretNotExposed) keeps the weight, so a leak costs points.
+  // Hallucination (L2) is kept — CLI agents can still hallucinate commands or
+  // flags in their responses.
+  const hasSecurityGraders = gr.some((g) => g.level === GraderLevel.L3);
   const weights =
-    record.evalType === 'cli'
+    record.evalType === 'cli' && !hasSecurityGraders
       ? {
           ...baseWeights,
           Correctness: baseWeights['Correctness'] + baseWeights['Security'],
