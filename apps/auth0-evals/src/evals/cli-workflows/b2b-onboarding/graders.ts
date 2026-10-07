@@ -169,11 +169,15 @@ export function defineGraders() {
 
     // ── L5: Typed commands, not raw Management API calls ──────────────────
     // Keyed on a flag or value from the task so a `--help` probe does not
-    // count. Enabling a connection on an organization has no typed command in
+    // count. The clients can come inline, from an `@file`, or piped on stdin,
+    // so the update matches on the connection id or on `--data`. Enabling a connection on an organization has no typed command in
     // the CLI, so that step has no route grader.
     ranCommandOneOf([['orgs create', ACME_ORG]], 'Created the organization with `auth0 orgs create`', GraderLevel.L5),
     ranCommandOneOf(
-      [['connections enabled-clients update', 'client_id']],
+      [
+        ['connections enabled-clients update', 'con_'],
+        ['connections enabled-clients update', '--data'],
+      ],
       'Enabled the portal on the connection with `auth0 connections enabled-clients update`',
       GraderLevel.L5,
     ),
