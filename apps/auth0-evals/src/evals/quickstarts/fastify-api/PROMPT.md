@@ -1,17 +1,18 @@
 ---
 id: fastify_api_quickstart
 name: Fastify API Quickstart
-displayable_prompt: Add Auth0 JWT validation to a Fastify API with a scope-gated messages route and a general protected route returning the user's sub claim.
 skills: auth0
 setup_command: npm install
 compile_command: node --check server.js
 ---
 
-## Task
-Add Auth0 authentication to my Fastify API.
+## System
 
 Domain: dev-barkbook.us.auth0.com
 Audience: https://api.barkbook.com
+
+## Task
+Add Auth0 authentication to my Fastify API.
 
 I need two protected routes:
 1. /api/messages — requires a valid token with the `read:messages` scope, returns the user's `sub` claim

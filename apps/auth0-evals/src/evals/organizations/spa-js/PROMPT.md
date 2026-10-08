@@ -1,17 +1,18 @@
 ---
 id: spa_js_organizations
 name: SPA JS Organizations Login
-displayable_prompt: Add Auth0 Organizations support to a vanilla JavaScript SPA using @auth0/auth0-spa-js — Acme org login, invitation links, and org membership display.
 scaffold: src/evals/scaffolds/spa-js/auth0
 skills: auth0
 setup_command: npm install
 compile_command: npm run build
 ---
 
-## Task
-
-Our vanilla JavaScript SPA already has Auth0 login working. Add Auth0 Organizations support: log users in to our "Acme" org (`org_barkbook_acme`), accept organization invitation links, and show which organization the signed-in user belongs to.
+## System
 
 Domain: dev-barkbook.us.auth0.com
 Client ID: barkbook_client_abc123xyz
 Audience: https://api.barkbook.com
+
+## Task
+
+Our vanilla JavaScript SPA already has Auth0 login working. Add Auth0 Organizations support: log users in to our "Acme" org (`org_barkbook_acme`), accept organization invitation links, and show which organization the signed-in user belongs to.

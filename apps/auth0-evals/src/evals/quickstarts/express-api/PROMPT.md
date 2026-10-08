@@ -1,17 +1,18 @@
 ---
 id: express_api_quickstart
 name: Express API Quickstart
-displayable_prompt: Protect an Express.js API with Auth0 JWT validation, scope-gated routes, and a profile endpoint returning token claims.
 skills: auth0
 setup_command: npm install
 compile_command: node --check server.js
 ---
 
-## Task
-Protect my Express.js API with Auth0.
+## System
 
 Domain: dev-barkbook.us.auth0.com
 Audience: https://api.barkbook.com
+
+## Task
+Protect my Express.js API with Auth0.
 
 I need these routes:
 - GET /api/messages — requires `read:messages` scope

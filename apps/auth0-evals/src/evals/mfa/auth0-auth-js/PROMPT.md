@@ -1,12 +1,18 @@
 ---
 id: auth0_auth_js_mfa
 name: Auth0 Auth JS MFA API
-displayable_prompt: Add full in-app MFA support to a Node.js auth service using @auth0/auth0-auth-js, including authenticator app setup, OTP challenge, SMS, recovery codes, and factor management.
 scaffold: src/evals/scaffolds/auth0-auth-js/auth0
 skills: auth0
 setup_command: npm install
 compile_command: npm run build
 ---
+
+## System
+
+Domain: dev-barkbook.us.auth0.com
+Client ID: barkbook_client_abc123xyz
+Client Secret: barkbook_secret_def456uvw
+Audience: https://api.barkbook.com
 
 ## Task
 
@@ -19,8 +25,3 @@ Add multi-factor support to the service, as HTTP routes my mobile client can dri
 - Either way, once they submit a valid code, sign-in finishes and we hand back tokens like we do today.
 - Someone who has lost their phone should be able to finish sign-in with a recovery code.
 - Let a user see the factors on their account and remove one they no longer use.
-
-Domain: dev-barkbook.us.auth0.com
-Client ID: barkbook_client_abc123xyz
-Client Secret: barkbook_secret_def456uvw
-Audience: https://api.barkbook.com

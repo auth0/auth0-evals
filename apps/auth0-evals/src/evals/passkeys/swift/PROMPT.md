@@ -1,10 +1,15 @@
 ---
 id: swift_passkeys
 name: Swift Passkey Enrollment, Sign-In & Signup
-displayable_prompt: Add passkey enrollment, sign-in, and sign-up to a Swift iOS app using the Auth0 Swift SDK with Face ID and Touch ID support.
 scaffold: src/evals/scaffolds/swift/auth0
 skills: auth0
 ---
+
+## System
+
+Domain: auth.barkbook.com
+Client ID: barkbook_client_abc123xyz
+Audience: https://api.barkbook.com
 
 ## Task
 
@@ -15,7 +20,3 @@ My iOS app already has Auth0 login working through Universal Login. The tenant a
 - Let brand-new users create an account with a passkey.
 
 Add all three.
-
-Domain: auth.barkbook.com
-Client ID: barkbook_client_abc123xyz
-Audience: https://api.barkbook.com

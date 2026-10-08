@@ -1,18 +1,19 @@
 ---
 id: nextjs_quickstart
 name: Next.js App Router Quickstart
-displayable_prompt: Add Auth0 login to a Next.js App Router app, protect the dashboard behind authentication, and make authenticated API calls with an access token.
 skills: auth0
 setup_command: npm install
 compile_command: npm run build
 ---
 
-## Task
-Add Auth0 login to my Next.js app using the App Router.
+## System
 
 Domain: dev-barkbook.us.auth0.com
 Client ID: barkbook_client_abc123xyz
 Client Secret: barkbook_secret_def456uvw
+
+## Task
+Add Auth0 login to my Next.js app using the App Router.
 
 The /dashboard page should be behind a login — if the user is not authenticated, redirect them to log in.
 

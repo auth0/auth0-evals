@@ -1,7 +1,6 @@
 ---
 id: regular_web_cli_quickstart
 name: Regular Web App Quickstart Setup (CLI)
-displayable_prompt: Create a Regular Web Application in Auth0 via CLI with the correct callback and logout URLs for a local Express quickstart.
 skills: auth0
 provision: auth0-tenant
 ---

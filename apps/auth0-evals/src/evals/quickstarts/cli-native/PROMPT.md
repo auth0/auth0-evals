@@ -1,7 +1,6 @@
 ---
 id: native_cli_quickstart
 name: Native App Quickstart Setup (CLI)
-displayable_prompt: Create a Native mobile Auth0 application via CLI with the correct custom URL scheme callback and logout URLs for a mobile quickstart.
 skills: auth0
 provision: auth0-tenant
 ---

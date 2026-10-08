@@ -1,7 +1,6 @@
 ---
 id: express_api_mfa
 name: Express API MFA Step-Up
-displayable_prompt: Gate a high-value transfer endpoint on an MFA-gated scope in an Express API using express-oauth2-jwt-bearer, while keeping existing scope checks intact.
 scaffold: src/evals/scaffolds/express-api/auth0
 skills: auth0
 setup_command: npm install

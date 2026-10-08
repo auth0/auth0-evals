@@ -1,7 +1,6 @@
 ---
 id: auth0_server_js_passkeys
 name: auth0-server-js Passkey Sign-In & Signup
-displayable_prompt: Add passkey sign-in and sign-up to an Express web app using @auth0/auth0-server-js, with passkey users landing in the same server-side session as password users.
 scaffold: src/evals/scaffolds/auth0-server-js/auth0
 skills: auth0
 setup_command: npm install

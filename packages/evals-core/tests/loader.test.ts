@@ -201,6 +201,15 @@ describe('loadEval - system prompt', () => {
 
     expect(result.baselineSystemPrompt).toContain('Generic system prompt');
   });
+
+  it('always appends the standing SDK instruction to a ## System section', async () => {
+    makeEvalDir(tmpBase, '## System\nDomain: dev.example.com\n\n## Task\nDo the task.\n');
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.baselineSystemPrompt).toContain('Domain: dev.example.com');
+    expect(result.baselineSystemPrompt).toContain('official Auth0 SDK');
+  });
 });
 
 // ── Scaffold loading tests ────────────────────────────────────────────────────

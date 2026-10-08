@@ -1,10 +1,15 @@
 ---
 id: android_passkeys
 name: Android Passkey Enrollment, Sign-In & Signup
-displayable_prompt: Add passkey enrollment, sign-in, and sign-up to an Android app using the Auth0 Android SDK — existing users enroll from settings, returning users sign in, and new users register with device biometrics.
 scaffold: src/evals/scaffolds/android/auth0
 skills: auth0
 ---
+
+## System
+
+Domain: auth.barkbook.com
+Client ID: barkbook_client_abc123xyz
+Audience: https://api.barkbook.com
 
 ## Task
 
@@ -15,7 +20,3 @@ My Android app already has Auth0 login working through Universal Login. The tena
 - Let brand-new users create an account with a passkey.
 
 Add all three.
-
-Domain: auth.barkbook.com
-Client ID: barkbook_client_abc123xyz
-Audience: https://api.barkbook.com

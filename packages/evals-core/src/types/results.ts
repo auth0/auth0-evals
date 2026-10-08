@@ -80,8 +80,6 @@ export interface BaselineJobResult {
   error: string;
   /** Per-grader pass/fail detail. */
   graders: GraderSummary[];
-  /** Short display description for the eval, shown in reports (max two lines). */
-  displayable_prompt?: string;
 }
 
 /**
@@ -143,8 +141,6 @@ export interface AgentJobResult {
   turn_metrics: TurnMetricEntry[];
   /** Structured recommendations for improving graders, skills, MCP, and efficiency. Present only when skills or MCP tools are enabled. */
   recommendations?: Recommendations;
-  /** Short display description for the eval, shown in reports (max two lines). */
-  displayable_prompt?: string;
 }
 
 /**

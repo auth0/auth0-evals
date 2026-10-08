@@ -1,17 +1,18 @@
 ---
 id: angular_quickstart
 name: Angular Quickstart
-displayable_prompt: Add Auth0 login to an Angular app using @auth0/auth0-angular, with a protected profile route and authenticated API calls using an access token.
 skills: auth0
 setup_command: npm install
 compile_command: npm run build
 ---
 
-## Task
-Add Auth0 authentication to an Angular application using the @auth0/auth0-angular SDK.
+## System
 
 Domain: dev-playground.us.auth0.com
 Client ID: playground_client_abc123xyz
+
+## Task
+Add Auth0 authentication to an Angular application using the @auth0/auth0-angular SDK.
 
 Set up Auth0 using provideAuth0, implement login and logout, display the authenticated user's name and profile picture, and protect a /profile route so only logged-in users can access it.
 

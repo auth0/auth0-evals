@@ -1,7 +1,6 @@
 ---
 id: backend_api_cli_quickstart
 name: Backend API Quickstart Setup (CLI)
-displayable_prompt: Register a Backend API in Auth0 via CLI with the correct audience and read/write permissions for an Express JWT quickstart.
 skills: auth0
 provision: auth0-tenant
 ---

@@ -1,12 +1,19 @@
 ---
 id: auth0_server_js_mfa
 name: Auth0 Server JS MFA API
-displayable_prompt: Add in-app MFA flows to an Express web app using @auth0/auth0-server-js, including authenticator app setup, OTP challenge, SMS, and recovery codes shown once at enrollment.
 scaffold: src/evals/scaffolds/auth0-server-js/auth0
 skills: auth0
 setup_command: npm install
 compile_command: npm run build
 ---
+
+## System
+
+Domain: dev-barkbook.us.auth0.com
+Client ID: barkbook_client_abc123xyz
+Client Secret: barkbook_secret_def456uvw
+Audience: https://api.barkbook.com
+Base URL: http://localhost:3000
 
 ## Task
 
@@ -19,9 +26,3 @@ Add the multi-factor step to the app, with our own pages rather than a hosted on
 - Some of our users enrolled with SMS instead — send them their code and let them type it in.
 - Once they submit a valid code, they should be properly signed in, so `/profile` and the transfers call work for the rest of the session.
 - Show a user their recovery code once, when they first set a factor up.
-
-Domain: dev-barkbook.us.auth0.com
-Client ID: barkbook_client_abc123xyz
-Client Secret: barkbook_secret_def456uvw
-Audience: https://api.barkbook.com
-Base URL: http://localhost:3000

@@ -388,15 +388,9 @@ a { color: var(--link); }
   font-size: 16px;
   color: var(--text-light);
   font-family: monospace;
-  margin-bottom: 4px;
+  margin-bottom: 12px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border);
-}
-.detail-section-desc {
-  font-size: 12px;
-  color: var(--text-muted, var(--text-light));
-  margin: 0 0 12px;
-  opacity: 0.75;
 }
 
 /* ── Page footer ────────────────────────────────────────────────────────── */
