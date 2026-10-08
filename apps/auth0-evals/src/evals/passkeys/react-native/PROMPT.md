@@ -1,7 +1,7 @@
 ---
 id: react_native_passkeys
 name: React Native Passkey Enrollment, Sign-In & Signup
-scaffold: src/evals/scaffolds/react-native/auth0
+scaffold: src/evals/scaffolds/react-native/auth0-passkeys
 skills: auth0
 ---
 

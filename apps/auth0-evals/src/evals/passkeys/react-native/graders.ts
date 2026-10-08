@@ -156,11 +156,14 @@ export function defineGraders() {
         'iOS/Android)?',
       GraderLevel.L4,
     ),
+    // The custom domain already ships in the scaffold's Auth0Provider, so this
+    // check measures the agent's own work — the platform association that
+    // passkeys additionally require — rather than re-grading the fixture domain.
     judge(
-      'Does the solution use the custom domain (auth.barkbook.com) on the Auth0Provider and set up — or explicitly ' +
-        'call out as required — the platform association that passkeys need (an iOS Associated Domains ' +
-        'webcredentials entry and/or an Android Digital Asset Links assetlinks file for the Auth0 domain), without ' +
-        'which the OS refuses the passkey ceremony? A config change or an explicit instruction to add it both count.',
+      'Does the solution set up — or explicitly call out as required — the platform association that passkeys need: ' +
+        'an iOS Associated Domains webcredentials entry and an Android Digital Asset Links assetlinks file for the ' +
+        'Auth0 domain, without which the OS refuses the passkey ceremony? A config change or an explicit instruction ' +
+        'to add it both count.',
       GraderLevel.L4,
     ),
 
