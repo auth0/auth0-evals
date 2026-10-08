@@ -13,7 +13,7 @@ My React Native app already has Auth0 login working through Universal Login, and
 - Let returning users sign in with a passkey instead of a password.
 - Let brand-new users create an account with a passkey.
 
-Add all three, and make them work on both the native (iOS/Android) and web builds — the WebAuthn ceremony is handled differently on each.
+Add all three, and make them work on both the native (iOS/Android) and web builds. Use react-native-auth0 across all platforms, including the web build — do not swap in a different Auth0 SDK for web. Only the WebAuthn ceremony step differs per platform; the SDK itself does not.
 
 Domain: auth.barkbook.com
 Client ID: barkbook_client_abc123xyz

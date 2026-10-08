@@ -42,17 +42,23 @@ export function defineGraders() {
     // ── L2: Hallucination / wrong approach ────────────────────────────────
     // signupWithPasskey / loginWithPasskey are the Auth0.Android one-call method
     // names — they do NOT exist in react-native-auth0, whose flow is
-    // challenge → native ceremony → getTokenByPasskey. Their presence means the
-    // model crossed SDKs.
-    notContains(
-      'signupWithPasskey',
+    // challenge → native ceremony → getTokenByPasskey. Match only the
+    // member-access CALL form (`.signupWithPasskey(` / `.loginWithPasskey(`),
+    // which is what the cross-SDK hallucination looks like — a bare substring
+    // would false-fail correct code that merely names a local UI handler
+    // `signupWithPasskey` / `loginWithPasskey`. Source-only + ignoreComments so
+    // a mention in a comment cannot trip it either.
+    notContainsInSource(
+      '.signupWithPasskey(',
       'Does not call the nonexistent signupWithPasskey (that is the Android SDK, not react-native-auth0)',
       GraderLevel.L2,
+      { ignoreComments: true },
     ),
-    notContains(
-      'loginWithPasskey',
+    notContainsInSource(
+      '.loginWithPasskey(',
       'Does not call the nonexistent loginWithPasskey (that is the Android SDK, not react-native-auth0)',
       GraderLevel.L2,
+      { ignoreComments: true },
     ),
     // The one-call passkey client (passkey.signup / passkey.login) lives in the
     // browser SDK @auth0/auth0-react — pulling it into a React Native app is the
@@ -162,8 +168,9 @@ export function defineGraders() {
     judge(
       'Does the solution set up — or explicitly call out as required — the platform association that passkeys need: ' +
         'an iOS Associated Domains webcredentials entry and an Android Digital Asset Links assetlinks file for the ' +
-        'Auth0 domain, without which the OS refuses the passkey ceremony? A config change or an explicit instruction ' +
-        'to add it both count.',
+        'Auth0 domain, without which the OS refuses the passkey ceremony? Setting it up in config, or documenting it ' +
+        'as a required step in a README or a code comment, both count — the agent does not have to create native ' +
+        'project files.',
       GraderLevel.L4,
     ),
 
