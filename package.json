@@ -37,5 +37,6 @@
       "prettier --write",
       "eslint --fix"
     ]
-  }
+  },
+  "version": "2.2.1"
 }
