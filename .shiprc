@@ -1,0 +1,20 @@
+{
+  "conventionalCommits": true,
+  "prefixVersion": false,
+  "files": {
+    "apps/auth0-evals/package.json":        ["\"version\": \"{MAJOR}.{MINOR}.{PATCH}\""],
+    "packages/evals/package.json":          ["\"version\": \"{MAJOR}.{MINOR}.{PATCH}\""],
+    "packages/evals-axis/package.json":     ["\"version\": \"{MAJOR}.{MINOR}.{PATCH}\""],
+    "packages/evals-core/package.json":     ["\"version\": \"{MAJOR}.{MINOR}.{PATCH}\""],
+    "packages/evals-graders/package.json":  ["\"version\": \"{MAJOR}.{MINOR}.{PATCH}\""],
+    "packages/evals-reporter/package.json": ["\"version\": \"{MAJOR}.{MINOR}.{PATCH}\""],
+  },
+  "postbump": "npm install --package-lock-only",
+  "prFilters": [
+    {
+      "type": "title",
+      "args": ["^chore\\(release\\):"],
+      "invert": true
+    }
+  ]
+}
