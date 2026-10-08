@@ -14,4 +14,4 @@ We are refreshing the login page for the Acme Supplier Network on our Auth0 tena
 - Change the heading of the first login screen, where users enter their email, to "Sign in to Acme".
 - Change the color of the login button to `#0B5FFF`.
 
-Keep the rest of the login page text, the branding, and every other tenant setting as they are.
+Keep everything else about the login page, including the rest of its text and the rest of its look, and every other tenant setting as they are.
