@@ -68,6 +68,7 @@ See [`@a0/evals` CLI docs](../../packages/evals/) for the full list of flags and
 | `react_organizations` | organizations | Add Auth0 Organizations to a React SPA — org login, invitation acceptance, and org read-back from the `org_id` claim |
 | `spa_js_organizations`    | organizations | Add Auth0 Organizations (org-scoped login, invitation acceptance, org_id read-back) to a vanilla JS SPA using `@auth0/auth0-spa-js` |
 | `organizations_cli` | organizations | Set up B2B organization login on a live tenant using the Auth0 CLI - create an org, enable a connection with auto-membership, and require org login on the SPA |
+| `universal_login_change_cli` | cli-workflows | Update the Universal Login experience on a live tenant using the Auth0 CLI - turn on identifier-first, change the email screen heading, and set the theme button color while keeping every other setting |
 
 ## Configuration
 
