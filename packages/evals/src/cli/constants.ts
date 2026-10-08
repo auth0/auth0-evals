@@ -15,7 +15,7 @@ export const KNOWN_WORKING_MODELS = [
   'gpt-5.6-terra',
   'claude-sonnet-5',
   'claude-opus-5',
-  'claude-haiku-4-5',
+  'claude-haiku-5-5',
   'gemini-3.1-pro-preview',
   'gemini-3.8-flash',
 ];
