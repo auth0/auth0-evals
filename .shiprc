@@ -7,7 +7,7 @@
     "packages/evals-axis/package.json":     ["\"version\": \"{MAJOR}.{MINOR}.{PATCH}\""],
     "packages/evals-core/package.json":     ["\"version\": \"{MAJOR}.{MINOR}.{PATCH}\""],
     "packages/evals-graders/package.json":  ["\"version\": \"{MAJOR}.{MINOR}.{PATCH}\""],
-    "packages/evals-reporter/package.json": ["\"version\": \"{MAJOR}.{MINOR}.{PATCH}\""],
+    "packages/evals-reporter/package.json": ["\"version\": \"{MAJOR}.{MINOR}.{PATCH}\""]
   },
   "postbump": "npm install --package-lock-only",
   "prFilters": [
