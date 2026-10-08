@@ -113,9 +113,14 @@ export function defineGraders() {
 
     // ── L5: Typed commands, not raw Management API calls ──────────────────
     // Identifier-first and the theme have no typed command in the CLI, so
-    // those steps have no route grader. `texts` is an alias of `prompts`.
+    // those steps have no route grader. `texts` is an alias of `prompts`. The
+    // prompt name is matched on its own so `-l <lang>` can come before it; the
+    // leading space keeps a `"login-id"` key in a payload from matching.
     ranCommandOneOf(
-      ['prompts update login-id', 'texts update login-id'],
+      [
+        ['prompts update', ' login-id'],
+        ['texts update', ' login-id'],
+      ],
       'Updated the email screen text with `auth0 universal-login prompts update`',
       GraderLevel.L5,
     ),
@@ -125,6 +130,7 @@ export function defineGraders() {
       // check what changed on each setting.
       'The tenant already had custom login text, a branding theme, and other settings before the run, and the trace shows the commands but not their output. ' +
         "Writing the custom text for a screen replaces all of that screen's text, and a theme update needs the full theme body, so sending the existing values back along with the change is the correct way to keep them. " +
+        'With identifier-first on, the screen where users enter their email is the `login-id` prompt, so changing the `login-id` title is the correct way to change the email screen heading. ' +
         'Did the agent read the current login text and branding theme before changing them, make all three requested changes (identifier-first, the email screen heading, and the login button color) while carrying the other existing values over, and avoid resetting, re-creating, or deleting any other setting?',
       undefined,
       { includeCommandTrace: true },
