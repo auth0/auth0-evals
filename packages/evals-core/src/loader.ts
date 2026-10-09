@@ -4,6 +4,7 @@
  * Each eval directory contains:
  *   PROMPT.md   — frontmatter metadata + ## System and ## Task sections
  *   graders.ts  — defineGraders() returning a list of grader dicts
+ *   fixture.ts  — (optional) default-exported defineFixture({...}) for live-tenant evals
  *   scaffold/   — (optional) starter files written to the agent workspace
  */
 
@@ -15,6 +16,7 @@ import { logger } from './utils/logger.js';
 import { parseFrontmatter } from './utils/frontmatter.js';
 import { resolveInside } from './workspace/path-utils.js';
 import type { EvalDefinition, GraderDef } from './types/eval.js';
+import type { FixtureDef } from '@a0/evals-graders';
 
 export { EvalDefinition, GraderDef } from './types/eval.js';
 
@@ -53,6 +55,8 @@ export async function loadEval(
   const srcGradersPath = join(evalPath, 'graders.ts');
   const gradersPath = existsSync(distGradersPath) ? distGradersPath : srcGradersPath;
   const graders = await loadGraders(gradersPath);
+  const fixturePath = resolveFixturePath(evalConfig, frameworkRoot);
+  const fixture = fixturePath ? await loadFixture(fixturePath) : undefined;
   const scaffoldDir = resolveScaffoldFromMeta(meta.scaffold, evalPath, frameworkRoot);
   const scaffold = loadScaffold(scaffoldDir);
 
@@ -78,6 +82,7 @@ export async function loadEval(
     setupCommand,
     compileCommand,
     provision,
+    ...(fixture ? { fixture } : {}),
     skills,
     metadata: {
       provider_name: meta.provider_name ?? 'Auth0',
@@ -127,6 +132,37 @@ async function loadGraders(gradersPath: string): Promise<GraderDef[]> {
   }
 
   return mod.defineGraders();
+}
+
+// ── fixture.ts dynamic import ─────────────────────────────────────────────────
+
+/**
+ * Path to load an eval's fixture from, or `undefined` when it has none. The
+ * source `fixture.ts` decides whether a fixture exists, so a stale compiled
+ * `dist/.../fixture.js` left behind after deleting the source is ignored.
+ */
+export function resolveFixturePath(evalConfig: EvalConfig, frameworkRoot: string): string | undefined {
+  const srcFixturePath = join(frameworkRoot, evalConfig.path, 'fixture.ts');
+  if (!existsSync(srcFixturePath)) return undefined;
+  const distFixturePath = join(frameworkRoot, 'dist', evalConfig.path.replace(/^src\//, ''), 'fixture.js');
+  return existsSync(distFixturePath) ? distFixturePath : srcFixturePath;
+}
+
+const FIXTURE_HOOKS = ['seed', 'snapshot', 'cleanup'] as const;
+
+async function loadFixture(fixturePath: string): Promise<FixtureDef> {
+  const mod = await import(pathToFileURL(fixturePath).href);
+  const def: unknown = mod.default;
+  if (!def || typeof def !== 'object') {
+    throw new EvalConfigError('fixture.ts must default-export defineFixture({...})', fixturePath);
+  }
+  for (const hook of FIXTURE_HOOKS) {
+    const fn = (def as Record<string, unknown>)[hook];
+    if (fn !== undefined && typeof fn !== 'function') {
+      throw new EvalConfigError(`fixture.ts '${hook}' must be a function`, fixturePath);
+    }
+  }
+  return def as FixtureDef;
 }
 
 // ── scaffold resolution ───────────────────────────────────────────────────────

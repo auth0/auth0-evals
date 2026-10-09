@@ -20,6 +20,7 @@
  *   --braintrust       Log results to Braintrust experiment (requires BRAINTRUST_API_KEY)
  */
 
+import { rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pLimit from 'p-limit';
@@ -46,8 +47,12 @@ import {
   registerRunner,
   getRunner,
   logger,
+  readVerifierCredentials,
+  writeVerifierCredentialsFile,
+  resolveFixturePath,
+  VERIFIER_ENV,
 } from '@a0/evals-core';
-import type { EvalConfig, EvalDefinition, JobResult, AgentType, Mode } from '@a0/evals-core';
+import type { EvalConfig, EvalDefinition, JobResult, AgentType, Mode, VerifierCredentials } from '@a0/evals-core';
 
 import { parseRunConfig, extractConfigPath } from './config.js';
 import { spawnEval, mergeIntoOutput } from './subprocess-runner.js';
@@ -116,6 +121,52 @@ export async function runJob(
   }
 }
 
+let verifierLoaded = false;
+let verifierCredentials: VerifierCredentials | null = null;
+let verifierError: unknown;
+
+/**
+ * Reads the verifier credential once per process, then removes every
+ * `AUTH0_VERIFIER_*` key from `process.env` so no child process (setup or
+ * compile commands, agent-written build scripts) inherits it. A credentials file
+ * is deleted on read. A bad config is only an error for jobs that need it.
+ */
+function loadVerifierCredentials(): void {
+  if (verifierLoaded) return;
+  verifierLoaded = true;
+  try {
+    verifierCredentials = readVerifierCredentials();
+  } catch (e) {
+    verifierError = e;
+  } finally {
+    for (const key of Object.values(VERIFIER_ENV)) delete process.env[key];
+  }
+}
+
+function getVerifierCredentials(): VerifierCredentials | null {
+  loadVerifierCredentials();
+  if (verifierError) throw verifierError;
+  return verifierCredentials;
+}
+
+/**
+ * Env for one job subprocess. Only an agent job whose eval has a fixture gets a
+ * credential, as its own single-use file that the child deletes at startup.
+ * Every other child inherits an env with no verifier keys. Returns the file's
+ * directory so the caller can remove it if the child never read it.
+ */
+function jobSubprocessEnv(
+  evalCfg: EvalConfig,
+  mode: Mode,
+  frameworkRoot: string,
+): { env?: NodeJS.ProcessEnv; tempDir?: string } {
+  if (mode !== 'agent' || !resolveFixturePath(evalCfg, frameworkRoot)) return {};
+  const credentials = getVerifierCredentials();
+  if (!credentials) return {};
+  const file = writeVerifierCredentialsFile(credentials);
+  return { env: { ...process.env, [VERIFIER_ENV.file]: file }, tempDir: dirname(file) };
+}
+
 async function runAgentJob(
   evalDef: EvalDefinition,
   model: string,
@@ -126,8 +177,15 @@ async function runAgentJob(
   agentType: AgentType,
   sandbox: boolean,
 ): Promise<JobResult> {
-  const { setupWorkspace, runSetupCommand, runCompileCommand, cleanupWorkspace, writeAgentGuidance } =
-    await import('@a0/evals-core');
+  const {
+    setupWorkspace,
+    runSetupCommand,
+    runCompileCommand,
+    cleanupWorkspace,
+    writeAgentGuidance,
+    openFixture,
+    createManagementClient,
+  } = await import('@a0/evals-core');
   const { generateRunRecommendations } = await import('../recommendations/index.js');
   await initRunners();
 
@@ -143,7 +201,25 @@ async function runAgentJob(
     compileCommand: evalDef.compileCommand,
     cliContext,
   });
+  let fixtureSession: Awaited<ReturnType<typeof openFixture>> | undefined;
   try {
+    if (evalDef.fixture) {
+      // Fixture hooks run in this process with the verifier credential. The docker
+      // path grades inside the container, which would need that credential too, so
+      // fixtures are local-only until grading moves to the host.
+      if (sandbox) {
+        throw new Error(`${evalDef.id} has a tenant fixture; run it with --dangerously-skip-sandbox`);
+      }
+      const credentials = getVerifierCredentials();
+      if (!credentials) {
+        throw new Error(
+          `${evalDef.id} has a tenant fixture but no verifier credential is set ` +
+            `(${VERIFIER_ENV.file}, or ${VERIFIER_ENV.domain} + ${VERIFIER_ENV.clientId} + ${VERIFIER_ENV.clientSecret})`,
+        );
+      }
+      fixtureSession = await openFixture(evalDef.fixture, { mgmt: createManagementClient(credentials), workspace });
+    }
+
     if (!sandbox && evalDef.setupCommand) {
       runSetupCommand(workspace, evalDef.setupCommand);
     }
@@ -169,6 +245,12 @@ async function runAgentJob(
     const runner = getRunner(agentType);
     const preparedEval = tools.includes('skills') ? await runner.prepareSkills(evalDef, workspace) : evalDef;
     const { record, resolvedModel } = await runner.run({ evalDef: preparedEval, workspace, model, tools, apiKey });
+
+    // Post-run tenant snapshot. Held in memory only; graders consume it in a follow-up.
+    if (fixtureSession) {
+      await fixtureSession.snapshot();
+      logger.info(`  [Fixture] Post-run snapshot taken (run ${fixtureSession.context.runId})`);
+    }
 
     const compileResult =
       evalDef.compileCommand !== undefined
@@ -211,6 +293,7 @@ async function runAgentJob(
       agent_type: agentType,
     };
   } finally {
+    await fixtureSession?.close();
     if (!keepWorkspace) {
       cleanupWorkspace(workspace);
     }
@@ -351,6 +434,8 @@ export function buildJobList(
 export async function runCli(): Promise<void> {
   // Load .env from the cwd
   loadDotenv();
+  // Consume the verifier credential before anything can spawn a child process.
+  loadVerifierCredentials();
 
   // Load the framework configuration (eval.config.js) *before* parsing CLI args
   // so `--model all` can expand to the app's `models.known`. The config path is
@@ -453,7 +538,12 @@ export async function runCli(): Promise<void> {
             jobAgentType,
             ...(jobTools.length > 0 ? ['--tools', jobTools.join(',')] : []),
           ];
-          await spawnEval(selfPath, evalCfg.id, [...jobArgs, '--output', tempFile]);
+          const { env, tempDir } = jobSubprocessEnv(evalCfg, mode, frameworkRoot);
+          try {
+            await spawnEval(selfPath, evalCfg.id, [...jobArgs, '--output', tempFile], env);
+          } finally {
+            if (tempDir) rmSync(tempDir, { recursive: true, force: true });
+          }
         }),
       ),
     );
