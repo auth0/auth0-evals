@@ -108,7 +108,8 @@ function parsePromptMd(
   const systemMatch = body.match(/^## System\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
   const taskMatch = body.match(/^## Task\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
 
-  const baselineSystemPrompt = systemMatch?.[1] ? systemMatch[1].trim() : defaultBaselinePrompt;
+  const evalSystem = systemMatch?.[1]?.trim();
+  const baselineSystemPrompt = evalSystem ? `${evalSystem}\n\n${defaultBaselinePrompt}` : defaultBaselinePrompt;
   const userPrompt = taskMatch?.[1] ? taskMatch[1].trim() : body.trim();
 
   return { baselineSystemPrompt, userPrompt, meta };
