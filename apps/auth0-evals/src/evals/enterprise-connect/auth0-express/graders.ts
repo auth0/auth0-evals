@@ -1,11 +1,21 @@
 import { contains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
+// The scaffold ships a /transfers route that reads an Auth0 access token. It is pre-existing and not part of
+// the enterprise sign-in path, so no judge should penalise it.
+const FIXTURE_CONTEXT =
+  'Treat the scaffold pre-existing /transfers access-token route as a fixture: only the new enterprise ' +
+  'sign-in path is under test.';
+
 export function defineGraders() {
   return [
     // ── L1: Required Enterprise Connect symbols present ───────────────────
     contains('@auth0/auth0-express', 'Uses @auth0/auth0-express SDK', GraderLevel.L1),
     // Relay mode is a client-level flag; it also makes onCallback mandatory.
-    contains('enterpriseConnect', 'Puts the client into Enterprise Connect relay mode', GraderLevel.L1),
+    matches(
+      String.raw`enterpriseConnect\s*[:=]`,
+      'Puts the client into Enterprise Connect relay mode (enterpriseConnect option set)',
+      GraderLevel.L1,
+    ),
     // The single entry point folds email-domain discovery + the authorize redirect.
     contains(
       'startEnterpriseLogin',
@@ -59,16 +69,10 @@ export function defineGraders() {
       GraderLevel.L3,
     ),
     judge(
-      'In the enterprise sign-in path, does the app establish and own its own session in the onCallback hook ' +
-        "(ending the response itself, such as via res.redirect after setting the app's session) from the returned " +
-        'ID-token claims, rather than relying on an Auth0 session that Enterprise Connect never creates or ' +
-        'persisting the Auth0 access token for later use?',
+      'In the enterprise sign-in path, does the app avoid persisting the Auth0 access token (or any token) from ' +
+        'the callback for later use, keeping only identity claims in its own session?',
       GraderLevel.L3,
-      {
-        context:
-          'Treat the scaffold pre-existing /transfers access-token route as a fixture: only the new enterprise ' +
-          'sign-in path is under test.',
-      },
+      { context: FIXTURE_CONTEXT },
     ),
 
     // ── L4: Structural correctness ────────────────────────────────────────
@@ -80,13 +84,14 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
     judge(
-      'Does the enterprise flow follow the correct shape: (1) createAuth0 is called with enterpriseConnect ' +
-        'enabled and an onCallback hook; (2) an email-entry login calls startEnterpriseLogin(req, res, { email }), ' +
-        'routing the user to their IdP by email domain (and falling back when it returns false for a ' +
-        'non-federated domain); (3) the onCallback hook builds the app session and ends the response; (4) logout ' +
-        'ends the enterprise IdP session (the mounted /auth/logout is federated automatically in EC mode, or an ' +
-        'explicit client.logout({ federated: true }))?',
+      'Does the enterprise flow follow the correct shape? Check each item and answer yes only if all are met: ' +
+        '(1) an email-entry login calls startEnterpriseLogin(req, res, { email }), routing the user to their IdP ' +
+        'by email domain and falling back when it returns false for a non-federated domain; (2) the onCallback ' +
+        'hook builds the app session from the returned claims and ends the response itself; (3) logout ends the ' +
+        'enterprise IdP session (the mounted /auth/logout is federated automatically in EC mode, or an explicit ' +
+        'client.logout({ federated: true }) is used)?',
       GraderLevel.L4,
+      { context: FIXTURE_CONTEXT },
     ),
 
     // ── L5: Current API patterns ──────────────────────────────────────────
@@ -98,6 +103,7 @@ export function defineGraders() {
         'requiresAuth()/getUser (which throw in relay mode), requesting offline_access, or pinning a fixed ' +
         'organization for every customer?',
       GraderLevel.L5,
+      { context: FIXTURE_CONTEXT },
     ),
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
@@ -119,7 +125,8 @@ export function defineGraders() {
           'SDK writes no Auth0 session (so the onCallback hook must end the response or the handler returns 500 ' +
           'callback_not_resolved), and the mounted /auth/logout is forced federated. getSession, getAccessToken, ' +
           'getUser, and requiresAuth() all throw in relay mode, so the app owning its session and omitting ' +
-          'offline_access is correct, not a defect.',
+          'offline_access is correct, not a defect. ' +
+          FIXTURE_CONTEXT,
       },
     ),
   ];

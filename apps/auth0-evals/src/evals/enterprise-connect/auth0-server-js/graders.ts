@@ -1,11 +1,21 @@
 import { contains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
+// The scaffold ships a /transfers route that reads an Auth0 access token. It is pre-existing and not part of
+// the enterprise sign-in path, so no judge should penalise it.
+const FIXTURE_CONTEXT =
+  'Treat the scaffold pre-existing /transfers access-token route as a fixture: only the new enterprise ' +
+  'sign-in path is under test.';
+
 export function defineGraders() {
   return [
     // ── L1: Required Enterprise Connect symbols present ───────────────────
     contains('@auth0/auth0-server-js', 'Uses @auth0/auth0-server-js SDK', GraderLevel.L1),
     // Relay mode is a client-level flag on ServerClient.
-    contains('enterpriseConnect', 'Puts the ServerClient into Enterprise Connect relay mode', GraderLevel.L1),
+    matches(
+      String.raw`enterpriseConnect\s*[:=]`,
+      'Puts the ServerClient into Enterprise Connect relay mode (enterpriseConnect option set)',
+      GraderLevel.L1,
+    ),
     // The single entry point folds email-domain discovery + the authorize redirect.
     contains(
       'startEnterpriseLogin',
@@ -34,16 +44,10 @@ export function defineGraders() {
       GraderLevel.L3,
     ),
     judge(
-      'In the enterprise sign-in path, does the app own the session itself — writing its own session from the ' +
-        'ID-token claims returned by completeInteractiveLogin (or the equivalent SDK callback result) — rather ' +
-        'than persisting the Auth0 access token for later API calls or relying on an Auth0 session that ' +
-        'Enterprise Connect does not create?',
+      'In the enterprise sign-in path, does the app avoid persisting the Auth0 access token (or any token) from ' +
+        'completeInteractiveLogin for later API calls, keeping only identity claims in its own session?',
       GraderLevel.L3,
-      {
-        context:
-          'Treat the scaffold pre-existing /transfers access-token route as a fixture: only the new enterprise ' +
-          'sign-in path is under test.',
-      },
+      { context: FIXTURE_CONTEXT },
     ),
 
     // ── L4: Structural correctness ────────────────────────────────────────
@@ -55,12 +59,13 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
     judge(
-      'Does the enterprise flow follow the correct shape: (1) the ServerClient is constructed with Enterprise ' +
-        'Connect enabled; (2) a login route collects the email and calls startEnterpriseLogin, redirecting to the ' +
-        'returned URL (and falling back when it returns null for a non-federated domain); (3) the callback route ' +
-        'completes the login via the SDK and the app establishes its own session from the returned claims; ' +
-        '(4) logout is federated?',
+      'Does the enterprise flow follow the correct shape? Check each item and answer yes only if all are met: ' +
+        '(1) a login route collects the email and calls startEnterpriseLogin, redirecting to the returned URL and ' +
+        'falling back when it returns null for a non-federated domain; (2) the callback route completes the login ' +
+        'via completeInteractiveLogin and the app establishes its own session from the returned claims; (3) logout ' +
+        'is federated?',
       GraderLevel.L4,
+      { context: FIXTURE_CONTEXT },
     ),
 
     // ── L5: Current API patterns ──────────────────────────────────────────
@@ -70,6 +75,7 @@ export function defineGraders() {
         'rather than by hand-building /authorize or /oauth/token requests, calling the raw WebFinger endpoint, ' +
         'requesting offline_access / refresh tokens, or pinning a fixed organization for every customer?',
       GraderLevel.L5,
+      { context: FIXTURE_CONTEXT },
     ),
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
@@ -87,7 +93,8 @@ export function defineGraders() {
           'EnterpriseConnectNotSupportedError are all real exports — grade the integration, not whether the ' +
           'symbols exist. In relay mode the SDK writes no Auth0 session and issues no refresh token, so the app ' +
           'owning its session and omitting offline_access is correct, not a defect. logout defaults federated to ' +
-          'true in this mode; an explicit federated: true is also correct.',
+          'true in this mode; an explicit federated: true is also correct. ' +
+          FIXTURE_CONTEXT,
       },
     ),
   ];
