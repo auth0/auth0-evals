@@ -1,11 +1,28 @@
 import { contains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
+// The scaffold ships a /transfer route that reads an Auth0 access token. It is pre-existing and not part of
+// the enterprise sign-in path, so no judge should penalise it.
+// Verified surface of auth0-server-python, so judges do not flag real behaviour as hallucinated.
+const PY_SURFACE_CONTEXT =
+  'In auth0-server-python, Enterprise Connect is enabled by passing enterprise_connect=True to the ' +
+  'ServerClient(...) constructor. Only a transaction_store is needed (no state_store), because the SDK writes ' +
+  'no Auth0 session in relay mode, so omitting state_store is correct. Internal SDK helpers such as ' +
+  '_apply_enterprise_connect_restrictions are real SDK internals and must not be treated as hallucinated.';
+
+const FIXTURE_CONTEXT =
+  'Treat the scaffold pre-existing /transfer access-token route as a fixture: only the new enterprise ' +
+  'sign-in path is under test.';
+
 export function defineGraders() {
   return [
     // ── L1: Required Enterprise Connect symbols present ───────────────────
     contains('auth0_server_python', 'Uses the auth0-server-python SDK', GraderLevel.L1),
     // Relay mode is a client-level flag on ServerClient.
-    contains('enterprise_connect', 'Puts the ServerClient into Enterprise Connect relay mode', GraderLevel.L1),
+    matches(
+      String.raw`enterprise_connect\s*=\s*True`,
+      'Puts the ServerClient into Enterprise Connect relay mode (enterprise_connect=True)',
+      GraderLevel.L1,
+    ),
     // The single entry point folds email-domain discovery + the authorize redirect.
     contains(
       'start_enterprise_login',
@@ -19,7 +36,11 @@ export function defineGraders() {
       GraderLevel.L1,
     ),
     // Logout must terminate the federated IdP session, not just the local app one.
-    contains('federated', 'Logout is federated (ends the enterprise IdP session)', GraderLevel.L1),
+    matches(
+      String.raw`federated\s*=\s*True`,
+      'Logout is federated (LogoutOptions(federated=True) ends the enterprise IdP session)',
+      GraderLevel.L1,
+    ),
 
     // ── L2: Hallucination / wrong approach ────────────────────────────────
     notContainsInSource('@auth0/auth0-spa-js', 'No browser SPA SDK in a server-side Python app', GraderLevel.L2),
@@ -55,16 +76,10 @@ export function defineGraders() {
       GraderLevel.L3,
     ),
     judge(
-      'In the enterprise sign-in path, does the app own the session itself — writing its own session from the ' +
-        'ID-token claims returned by complete_interactive_login (the result["user"] claims) — rather than ' +
-        'persisting the Auth0 access token for later API calls or relying on an Auth0 session that Enterprise ' +
-        'Connect does not create?',
+      'In the enterprise sign-in path, does the app avoid persisting the Auth0 access token (or any token) from ' +
+        'complete_interactive_login for later API calls, keeping only identity claims in its own session?',
       GraderLevel.L3,
-      {
-        context:
-          'Treat the scaffold pre-existing /transfer access-token route as a fixture: only the new enterprise ' +
-          'sign-in path is under test.',
-      },
+      { context: FIXTURE_CONTEXT + ' ' + PY_SURFACE_CONTEXT },
     ),
 
     // ── L4: Structural correctness ────────────────────────────────────────
@@ -76,12 +91,13 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
     judge(
-      'Does the enterprise flow follow the correct shape: (1) the ServerClient is constructed with Enterprise ' +
-        'Connect enabled; (2) a login route collects the email and calls start_enterprise_login, redirecting to ' +
-        'the returned URL (and falling back when it returns None for a non-federated domain); (3) the callback ' +
-        'route completes the login via complete_interactive_login and the app establishes its own session from ' +
-        'the returned claims; (4) logout is federated?',
+      'Does the enterprise flow follow the correct shape? Check each item and answer yes only if all are met: ' +
+        '(1) a login route collects the email and calls start_enterprise_login, redirecting to the returned URL ' +
+        'and falling back when it returns None for a non-federated domain; (2) the callback route completes the ' +
+        'login via complete_interactive_login and the app establishes its own session from the returned claims; ' +
+        '(3) logout passes a LogoutOptions with federated=True?',
       GraderLevel.L4,
+      { context: FIXTURE_CONTEXT + ' ' + PY_SURFACE_CONTEXT },
     ),
 
     // ── L5: Current API patterns ──────────────────────────────────────────
@@ -92,6 +108,7 @@ export function defineGraders() {
         'WebFinger endpoint, decoding the ID token by hand, requesting offline_access / refresh tokens, or ' +
         'pinning a fixed organization for every customer?',
       GraderLevel.L5,
+      { context: FIXTURE_CONTEXT + ' ' + PY_SURFACE_CONTEXT },
     ),
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
@@ -111,7 +128,10 @@ export function defineGraders() {
           'complete_interactive_login returns a result whose result["user"] is a UserClaims model read by ' +
           'attribute. In relay mode the SDK writes no Auth0 session and issues no refresh token, so the app ' +
           'owning its session and omitting offline_access is correct, not a defect. LogoutOptions.federated ' +
-          'defaults to False, so an explicit federated=True is required to end the enterprise IdP session.',
+          'defaults to False, so an explicit federated=True is required to end the enterprise IdP session. ' +
+          FIXTURE_CONTEXT +
+          ' ' +
+          PY_SURFACE_CONTEXT,
       },
     ),
   ];

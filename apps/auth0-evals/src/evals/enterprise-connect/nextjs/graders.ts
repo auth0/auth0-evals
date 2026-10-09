@@ -4,7 +4,11 @@ export function defineGraders() {
   return [
     // ── L1: Required Enterprise Connect symbols present ───────────────────
     contains('@auth0/nextjs-auth0', 'Uses @auth0/nextjs-auth0 SDK', GraderLevel.L1),
-    contains('enterpriseConnect', 'Puts the Auth0Client into Enterprise Connect relay mode', GraderLevel.L1),
+    matches(
+      String.raw`enterpriseConnect\s*[:=]`,
+      'Puts the Auth0Client into Enterprise Connect relay mode (enterpriseConnect option set)',
+      GraderLevel.L1,
+    ),
     contains('startEnterpriseLogin', 'Starts enterprise login via the SDK (server or client helper)', GraderLevel.L1),
     // In relay mode the SDK writes no Auth0 session; onCallback is the only path
     // that can establish the app's own session.
@@ -39,9 +43,8 @@ export function defineGraders() {
       GraderLevel.L3,
     ),
     judge(
-      'Does the app establish and own its own session in the onCallback hook (returning a NextResponse that sets ' +
-        "the app's session) from the returned ID-token claims, rather than relying on an Auth0 session that " +
-        'Enterprise Connect never creates or persisting the Auth0 access token for later use?',
+      'In the enterprise sign-in path, does the app avoid persisting the Auth0 access token (or any token) from ' +
+        'the callback for later use, keeping only identity claims in its own session?',
       GraderLevel.L3,
     ),
 
@@ -54,18 +57,19 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
     judge(
-      'Does the feature wire up the full relay flow: (1) the Auth0Client is created with Enterprise Connect ' +
-        'enabled and an onCallback hook; (2) an email-entry login triggers startEnterpriseLogin (server-side ' +
-        'returning a NextResponse redirect, or the client helper), routing the user to their IdP by email domain; ' +
-        '(3) the onCallback hook builds the app session and returns a NextResponse; (4) logout is federated with ' +
-        'an absolute returnTo?',
+      'Does the feature wire up the full relay flow? Check each item and answer yes only if all are met: ' +
+        '(1) an email-entry login triggers startEnterpriseLogin (server-side returning a NextResponse redirect, or ' +
+        'the client helper), routing the user to their IdP by email domain; (2) the onCallback hook builds the app ' +
+        'session from the returned claims and returns a NextResponse; (3) logout is federated with an absolute ' +
+        'returnTo?',
       GraderLevel.L4,
     ),
 
     // ── L5: Current API patterns ──────────────────────────────────────────
     judge(
       'Is the enterprise sign-in built on the current @auth0/nextjs-auth0 v4 Enterprise Connect surface ' +
-        '(the enterpriseConnect option, startEnterpriseLogin from @auth0/nextjs-auth0/server or the client helper, ' +
+        '(the enterpriseConnect option, startEnterpriseLogin from @auth0/nextjs-auth0/server or the client helper ' +
+        'from @auth0/nextjs-auth0 or @auth0/nextjs-auth0/client, ' +
         'and the onCallback hook) rather than by hand-building /authorize or token requests, calling getSession in ' +
         'relay mode (which throws), or pinning a fixed organization for every enterprise customer?',
       GraderLevel.L5,
@@ -82,9 +86,11 @@ export function defineGraders() {
         context:
           'Enterprise Connect is a real, Early-Access feature of @auth0/nextjs-auth0 v4 (4.31.x). ' +
           'Auth0ClientOptions.enterpriseConnect, the server startEnterpriseLogin from @auth0/nextjs-auth0/server ' +
-          'returning NextResponse | null, the client startEnterpriseLogin from @auth0/nextjs-auth0 returning ' +
-          'boolean, isFederatedDomain, and the onCallback hook are all real — grade the integration, not whether ' +
-          'the symbols exist. In relay mode the SDK writes no session and session-dependent methods (getSession, ' +
+          'returning NextResponse | null, the client startEnterpriseLogin (importable from @auth0/nextjs-auth0 or ' +
+          '@auth0/nextjs-auth0/client) returning boolean, isFederatedDomain, and the onCallback hook are all real ' +
+          '— grade the integration, not whether the symbols exist. The client helper calls the SDK-mounted ' +
+          'routes, so no custom route handler is required when it is used. jose is a transitive dependency of the ' +
+          'SDK, so importing it without listing it in package.json is acceptable. In relay mode the SDK writes no session and session-dependent methods (getSession, ' +
           'getAccessToken) throw EnterpriseConnectError, so establishing the app session in onCallback and ' +
           'omitting offline_access is correct. A server action cannot return the redirect, so driving ' +
           'startEnterpriseLogin from a Route Handler (and re-emitting the 307 as 303) is the correct shape.',

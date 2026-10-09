@@ -48,20 +48,23 @@ export function defineGraders() {
 
     // ── L3: Security ──────────────────────────────────────────────────────
     judge(
-      'Does the logout end the enterprise IdP session (federated: true) so a later login cannot silently reuse ' +
-        'the previous enterprise user, and does the code treat isFederatedDomain (from useEnterpriseConnect) ' +
-        'purely as a routing hint (never as an authentication/authorization gate) while NOT pinning a single ' +
-        'static organization for every enterprise customer?',
+      'Is the enterprise IdP session ended on EVERY logout path (each logout call passes federated: true' +
+        '), so a later login cannot silently reuse the previous enterprise user?',
+      GraderLevel.L3,
+    ),
+    judge(
+      'Does the code treat isFederatedDomain purely as a routing hint (never as an authentication/authorization ' +
+        'gate) while NOT pinning a single static organization for every enterprise customer?',
       GraderLevel.L3,
     ),
 
     // ── L4: Structural correctness ────────────────────────────────────────
     compiles('Project builds (vite build succeeds)', GraderLevel.L4),
     judge(
-      'Does the enterprise flow follow the correct React shape: (1) Auth0Provider is configured with ' +
-        'enterpriseConnect and scope openid profile email (no offline_access); (2) an email-entry form uses ' +
+      'Does the enterprise flow follow the correct React shape? Check each item and answer yes only if all are ' +
+        'met: (1) Auth0Provider is configured with enterpriseConnect; (2) an email-entry form uses ' +
         'useEnterpriseConnect() to call isFederatedDomain(emailDomain); (3) when federated it calls ' +
-        'loginWithSSO(email) (falling back to the normal loginWithRedirect otherwise); (4) logout passes ' +
+        'loginWithSSO(email), falling back to the normal loginWithRedirect otherwise; (4) logout passes ' +
         'federated: true?',
       GraderLevel.L4,
     ),

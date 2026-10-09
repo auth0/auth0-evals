@@ -45,20 +45,23 @@ export function defineGraders() {
 
     // ── L3: Security ──────────────────────────────────────────────────────
     judge(
-      'Does the logout end the enterprise IdP session (federated: true) so a later login cannot silently reuse ' +
-        'the previous enterprise user, and does the code treat isFederatedDomain purely as a routing hint (never ' +
-        'as an authentication/authorization gate) while NOT pinning a single static organization for every ' +
-        'enterprise customer?',
+      'Is the enterprise IdP session ended on EVERY logout path (each logout call passes federated: true' +
+        '), so a later login cannot silently reuse the previous enterprise user?',
+      GraderLevel.L3,
+    ),
+    judge(
+      'Does the code treat isFederatedDomain purely as a routing hint (never as an authentication/authorization ' +
+        'gate) while NOT pinning a single static organization for every enterprise customer?',
       GraderLevel.L3,
     ),
 
     // ── L4: Structural correctness ────────────────────────────────────────
     compiles('Project builds (vite build succeeds)', GraderLevel.L4),
     judge(
-      'Does the enterprise flow follow the correct SPA shape: (1) the client is created with enterpriseConnect ' +
-        'and scope openid profile email (no offline_access); (2) an email-entry form derives the email domain and ' +
-        'calls isFederatedDomain; (3) when federated, it calls loginWithRedirect with login_hint set to the email ' +
-        '(falling back to the normal login otherwise); (4) logout passes federated: true?',
+      'Does the enterprise flow follow the correct SPA shape? Check each item and answer yes only if all are met: ' +
+        '(1) the client is created with enterpriseConnect; (2) an email-entry form derives the email domain and ' +
+        'calls isFederatedDomain; (3) when federated, it calls loginWithRedirect with login_hint set to the email, ' +
+        'falling back to the normal login otherwise; (4) logout passes federated: true?',
       GraderLevel.L4,
     ),
 
