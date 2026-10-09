@@ -1,6 +1,7 @@
 ---
 id: android_passkeys
 name: Android Passkey Enrollment, Sign-In & Signup
+displayable_prompt: Add passkey enrollment, sign-in, and sign-up to an Android app using the Auth0 Android SDK — existing users enroll from settings, returning users sign in, and new users register with device biometrics.
 scaffold: src/evals/scaffolds/android/auth0
 skills: auth0
 ---

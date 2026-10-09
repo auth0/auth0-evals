@@ -1,6 +1,7 @@
 ---
 id: express_api_mcd
 name: Express API Multiple Custom Domains
+displayable_prompt: Update an Express API to accept JWT tokens from multiple Auth0 custom domain issuers read from an environment variable, validating each against its own signing keys.
 scaffold: src/evals/scaffolds/express-api/auth0
 skills: auth0
 setup_command: npm install

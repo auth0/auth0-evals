@@ -1,6 +1,7 @@
 ---
 id: spa_cli_quickstart
 name: SPA Quickstart Setup (CLI)
+displayable_prompt: Create a Single-Page Application in Auth0 via CLI with the correct allowed origins, callback, and logout URLs for a local React quickstart.
 skills: auth0
 provision: auth0-tenant
 ---

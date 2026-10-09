@@ -1,6 +1,7 @@
 ---
 id: server_python_passkeys
 name: Python (auth0-server-python) Passkey Sign-Up & Sign-In
+displayable_prompt: Add passkey sign-up and sign-in to a Python web app using auth0-server-python, letting new and returning users authenticate with device biometrics.
 scaffold: src/evals/scaffolds/server-python/auth0
 skills: auth0
 setup_command: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt

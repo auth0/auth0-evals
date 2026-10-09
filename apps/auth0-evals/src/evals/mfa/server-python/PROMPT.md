@@ -1,6 +1,7 @@
 ---
 id: server_python_mfa
 name: Python (auth0-server-python) MFA Step-Up
+displayable_prompt: Add MFA step-up to a Python web app's transfer feature using auth0-server-python's direct MFA API client, without a Universal Login redirect.
 scaffold: src/evals/scaffolds/server-python/auth0
 skills: auth0
 setup_command: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt

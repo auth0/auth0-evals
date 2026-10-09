@@ -84,6 +84,7 @@ export async function loadEval(
       provider_url: meta.provider_url ?? 'auth0.com',
       category: evalConfig.category ?? '',
       task_description: meta.task_description ?? evalConfig.name ?? '',
+      displayable_prompt: meta.displayable_prompt ?? '',
     },
   };
 }

@@ -1,6 +1,7 @@
 ---
 id: oidc_client_net_wpf_organizations
 name: .NET WPF (Auth0.OidcClient.WPF) Organizations Login
+displayable_prompt: Add Auth0 Organizations support to a WPF desktop app using Auth0.OidcClient.WPF — Acme org login, invitation links, and org membership display.
 scaffold: src/evals/scaffolds/oidc-client-net-wpf/auth0
 skills: auth0
 ---

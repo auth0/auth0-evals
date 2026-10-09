@@ -1,6 +1,7 @@
 ---
 id: auth0_auth_js_organizations
 name: auth0-auth-js Organizations Login
+displayable_prompt: Add Auth0 Organizations support to a Node.js auth service using @auth0/auth0-auth-js — org-scoped authorization URLs, invitation links, org claim validation, and org_id in the callback response.
 scaffold: src/evals/scaffolds/auth0-auth-js/auth0
 skills: auth0
 setup_command: npm install

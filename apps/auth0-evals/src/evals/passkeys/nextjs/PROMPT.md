@@ -1,6 +1,7 @@
 ---
 id: nextjs_passkeys
 name: Next.js Passkey Enrollment, Sign-In & Signup
+displayable_prompt: Add passkey enrollment, sign-in, and sign-up to a Next.js App Router app using @auth0/nextjs-auth0 v4, with challenges driven server-side in route handlers or server actions.
 scaffold: src/evals/scaffolds/nextjs/auth0
 skills: auth0
 setup_command: npm install
