@@ -19,10 +19,10 @@ log "start: seeding tenant prerequisites"
 
 # Default database connection (normally auto-created with a tenant, but seed
 # defensively — some provisioned tenants come up bare).
-if auth0 api get "connections?name=Username-Password-Authentication" | jq -e '.[0]' >/dev/null 2>&1; then
+if auth0 connections list --query '{"name":"Username-Password-Authentication"}' --json | jq -e '.[0]' >/dev/null 2>&1; then
   log "connection 'Username-Password-Authentication' already present — skipping"
 else
-  if ! auth0 api post connections \
+  if ! auth0 connections create \
     --data '{"name":"Username-Password-Authentication","strategy":"auth0"}' >/dev/null; then
     log "error: failed to create connection 'Username-Password-Authentication'"
     exit 1
