@@ -85,8 +85,9 @@ export function defineGraders() {
       {
         context:
           'Enterprise Connect is a real, Early-Access feature of @auth0/nextjs-auth0 v4 (4.31.x). ' +
-          'Auth0ClientOptions.enterpriseConnect, the server startEnterpriseLogin from @auth0/nextjs-auth0/server ' +
-          'returning NextResponse | null, the client startEnterpriseLogin (importable from @auth0/nextjs-auth0 or ' +
+          'Auth0ClientOptions.enterpriseConnect (enterpriseConnect: true on new Auth0Client), the server ' +
+          'startEnterpriseLogin — a method on the Auth0Client instance exported from @auth0/nextjs-auth0/server, ' +
+          'called as auth0.startEnterpriseLogin({ email, returnTo }) and returning NextResponse | null, the client startEnterpriseLogin (importable from @auth0/nextjs-auth0 or ' +
           '@auth0/nextjs-auth0/client) returning boolean, isFederatedDomain, and the onCallback hook are all real ' +
           '— grade the integration, not whether the symbols exist. The client helper calls the SDK-mounted ' +
           'routes, so no custom route handler is required when it is used. jose is a transitive dependency of the ' +

@@ -125,8 +125,9 @@ export function defineGraders() {
           'carrying the email) returning a URL or None, complete_interactive_login, is_federated_domain, ' +
           'LogoutOptions.federated, and EnterpriseConnectError are all real — grade the integration, not whether ' +
           'the symbols exist. The SDK is async-only, so awaiting these calls is correct. ' +
-          'complete_interactive_login returns a result whose result["user"] is a UserClaims model read by ' +
-          'attribute. In relay mode the SDK writes no Auth0 session and issues no refresh token, so the app ' +
+          'complete_interactive_login returns a plain dict (keys user, token_set, id_token, domain, app_state) ' +
+          'and result["user"] is itself a plain dict of claims (the SDK returns user_claims.dict()), so reading ' +
+          'it with user.get("sub") / user["email"] is correct. In relay mode the SDK writes no Auth0 session and issues no refresh token, so the app ' +
           'owning its session and omitting offline_access is correct, not a defect. LogoutOptions.federated ' +
           'defaults to False, so an explicit federated=True is required to end the enterprise IdP session. ' +
           FIXTURE_CONTEXT +

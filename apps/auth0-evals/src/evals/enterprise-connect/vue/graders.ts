@@ -1,5 +1,11 @@
 import { contains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
+const SPA_SURFACE_CONTEXT =
+  'Enterprise Connect is a real, Early-Access feature of @auth0/auth0-vue. Relay mode is enabled by the enterpriseConnect option on createAuth0 — a ' +
+  'plain boolean config flag; there is no separate Enterprise Connect client or factory. isFederatedDomain(auth0Domain, emailDomain) is a standalone export of @auth0/auth0-vue. ' +
+  'Federated logout is logout({ logoutParams: { federated: true, returnTo } }) — federated inside ' +
+  'logoutParams is the correct v2 shape, not a defect. Grade the integration, not whether the symbols exist.';
+
 export function defineGraders() {
   return [
     // ── L1: Required Enterprise Connect symbols present ───────────────────
@@ -51,11 +57,13 @@ export function defineGraders() {
       'Is the enterprise IdP session ended on EVERY logout path (each logout call passes federated: true' +
         ', including any rejection or org-mismatch logout, if the app has one), so a later login cannot silently reuse the previous enterprise user?',
       GraderLevel.L3,
+      { context: SPA_SURFACE_CONTEXT },
     ),
     judge(
       'Does the code treat isFederatedDomain purely as a routing hint (never as an authentication/authorization ' +
         'gate) while NOT pinning a single static organization for every enterprise customer?',
       GraderLevel.L3,
+      { context: SPA_SURFACE_CONTEXT },
     ),
 
     // ── L4: Structural correctness ────────────────────────────────────────
@@ -67,6 +75,7 @@ export function defineGraders() {
         'authorizationParams.login_hint set to the email, falling back to the normal login otherwise; (4) ' +
         'useAuth0().logout passes federated: true?',
       GraderLevel.L4,
+      { context: SPA_SURFACE_CONTEXT },
     ),
 
     // ── L5: Current API patterns ──────────────────────────────────────────
@@ -77,6 +86,7 @@ export function defineGraders() {
         'a non-existent startEnterpriseLogin, dropping to the raw spa-js client, hand-building /authorize ' +
         'requests, requesting offline_access, or pinning a fixed organization for every customer?',
       GraderLevel.L5,
+      { context: SPA_SURFACE_CONTEXT },
     ),
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
