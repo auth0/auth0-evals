@@ -41,7 +41,7 @@ import {
   mcpBearerTokenEnvVar,
   unwrapMcpContent,
 } from '@a0/evals-core';
-import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/evals-core';
+import { agentPrompt, classifyActionType, classifyErrorCategory, detectRetry } from '@a0/evals-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
 import { CodexTranslator, detectReadOnlyFileRead } from './translator.js';
 
@@ -588,7 +588,7 @@ export async function runCodexAgent(
 
   // Prepend a short action directive because reasoning models often output a
   // planning message before calling tools.
-  const execPrompt = `Start immediately — use shell commands and file writes to complete the task. Do not explain your plan first.\n\n${evalDef.userPrompt}`;
+  const execPrompt = `Start immediately — use shell commands and file writes to complete the task. Do not explain your plan first.\n\n${agentPrompt(evalDef)}`;
 
   try {
     const thread = codex.startThread(threadOptions);

@@ -214,6 +214,20 @@ describe('loadEval - system prompt', () => {
 
 // ── Scaffold loading tests ────────────────────────────────────────────────────
 
+describe('loadEval - systemContext', () => {
+  it('is the ## System text without the standing SDK instruction', async () => {
+    makeEvalDir(tmpBase, '## System\nDomain: dev.example.com\n\n## Task\nDo the task.\n');
+    const def = await loadEval(EVAL_CONFIG, tmpBase);
+    expect(def.systemContext).toBe('Domain: dev.example.com');
+  });
+
+  it('is undefined when there is no ## System section', async () => {
+    makeEvalDir(tmpBase, '## Task\nDo the task.\n');
+    const def = await loadEval(EVAL_CONFIG, tmpBase);
+    expect(def.systemContext).toBeUndefined();
+  });
+});
+
 describe('loadEval - scaffold loading', () => {
   it('loads scaffold files', async () => {
     makeEvalDir(tmpBase, MINIMAL_PROMPT, DEFAULT_GRADERS, {
