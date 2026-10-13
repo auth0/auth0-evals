@@ -387,6 +387,264 @@ describe('createManagementClient', () => {
     });
   });
 
+  describe('transient failures', () => {
+    const networkError = () => {
+      throw new TypeError('fetch failed');
+    };
+    const timeoutError = () => {
+      throw new DOMException('The operation timed out', 'TimeoutError');
+    };
+
+    it('retries a network TypeError on GET, then succeeds', async () => {
+      const { client, sleep, fetchMock } = setup([tokenResponse(), networkError, jsonResponse({ ok: true })]);
+
+      await expect(client.get('clients')).resolves.toEqual({ ok: true });
+
+      expect(sleep.mock.calls.map((c) => c[0])).toEqual([500]);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('retries a TimeoutError DOMException on GET, then succeeds', async () => {
+      const { client, sleep, fetchMock } = setup([tokenResponse(), timeoutError, jsonResponse({ ok: true })]);
+
+      await expect(client.get('clients')).resolves.toEqual({ ok: true });
+
+      expect(sleep).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('retries a 503 on GET, then succeeds', async () => {
+      const cancelled = vi.fn();
+      const { client, sleep, fetchMock } = setup([
+        tokenResponse(),
+        () => trackedResponse(503, cancelled),
+        jsonResponse({ ok: true }),
+      ]);
+
+      await expect(client.get('clients')).resolves.toEqual({ ok: true });
+
+      expect(cancelled).toHaveBeenCalledTimes(1);
+      expect(sleep).toHaveBeenCalledWith(500);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('honors Retry-After on a 503', async () => {
+      const { client, sleep } = setup([
+        tokenResponse(),
+        new Response('', { status: 503, headers: { 'retry-after': '3' } }),
+        jsonResponse({}),
+      ]);
+
+      await client.get('clients');
+
+      expect(sleep.mock.calls.map((c) => c[0])).toEqual([3000]);
+    });
+
+    it.each([
+      ['put', 'PUT', 502],
+      ['put', 'PUT', 504],
+      ['delete', 'DELETE', 502],
+      ['delete', 'DELETE', 504],
+    ] as const)('retries a %s request on %i (%s)', async (fn, method, status) => {
+      const { client, fetchMock } = setup([tokenResponse(), new Response('', { status }), jsonResponse({ ok: true })]);
+
+      await expect(client[fn]('clients/abc', ...(fn === 'put' ? [{ x: 1 }] : [])) as Promise<unknown>).resolves.toEqual(
+        {
+          ok: true,
+        },
+      );
+
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(fetchMock.mock.calls[2][1]?.method).toBe(method);
+    });
+
+    it('retries a network error on PUT and DELETE', async () => {
+      const put = setup([tokenResponse(), networkError, jsonResponse({})]);
+      await put.client.put('clients/abc', { x: 1 });
+      expect(put.fetchMock).toHaveBeenCalledTimes(3);
+
+      const del = setup([tokenResponse(), networkError, new Response(null, { status: 204 })]);
+      await del.client.delete('clients/abc');
+      expect(del.fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it.each([
+      ['post', 503],
+      ['patch', 503],
+      ['post', 502],
+      ['patch', 504],
+    ] as const)('does not retry a %s request on %i', async (fn, status) => {
+      const { client, sleep, fetchMock } = setup([tokenResponse(), new Response('down', { status }), jsonResponse({})]);
+
+      const err = await client[fn]('clients', { x: 1 }).catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(ManagementApiError);
+      expect((err as ManagementApiError).status).toBe(status);
+      expect(sleep).not.toHaveBeenCalled();
+      // 1 token call + exactly 1 request call
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it.each([
+      ['post', networkError],
+      ['patch', networkError],
+      ['post', timeoutError],
+      ['patch', timeoutError],
+    ] as const)('does not retry a thrown error on %s', async (fn, thrower) => {
+      const { client, sleep, fetchMock } = setup([tokenResponse(), thrower, jsonResponse({})]);
+
+      await expect(client[fn]('clients', { x: 1 })).rejects.toThrow();
+
+      expect(sleep).not.toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('still retries a 429 on POST', async () => {
+      const { client, sleep, fetchMock } = setup([
+        tokenResponse(),
+        new Response('', { status: 429, headers: { 'retry-after': '1' } }),
+        jsonResponse({ id: 'x' }),
+      ]);
+
+      await expect(client.post('clients', { name: 'app' })).resolves.toEqual({ id: 'x' });
+
+      expect(sleep).toHaveBeenCalledWith(1000);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not retry a 500, even on GET', async () => {
+      const { client, sleep, fetchMock } = setup([
+        tokenResponse(),
+        new Response('boom', { status: 500 }),
+        jsonResponse({}),
+      ]);
+
+      const err = await client.get('clients').catch((e: unknown) => e);
+
+      expect((err as ManagementApiError).status).toBe(500);
+      expect(sleep).not.toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not retry a thrown error that is not a network failure or timeout', async () => {
+      const { client, sleep, fetchMock } = setup([
+        tokenResponse(),
+        () => {
+          throw new SyntaxError('bad');
+        },
+        jsonResponse({}),
+      ]);
+
+      await expect(client.get('clients')).rejects.toBeInstanceOf(SyntaxError);
+
+      expect(sleep).not.toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('shares one retry budget across 429, 503 and network errors', async () => {
+      const { client, sleep, fetchMock } = setup(
+        [
+          tokenResponse(),
+          new Response('', { status: 429 }),
+          new Response('', { status: 503 }),
+          networkError,
+          jsonResponse({ unreachable: true }),
+        ],
+        { maxRetries: 2 },
+      );
+
+      const err = await client.get('clients').catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(TypeError);
+      expect(sleep.mock.calls.map((c) => c[0])).toEqual([500, 1000]);
+      // 1 token call + maxRetries + 1 request calls
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+    });
+
+    it('stops after the retry limit and throws the last status error', async () => {
+      const { client, sleep, fetchMock } = setup(
+        [
+          tokenResponse(),
+          new Response('a', { status: 503 }),
+          new Response('b', { status: 502 }),
+          new Response('c', { status: 504 }),
+        ],
+        { maxRetries: 2 },
+      );
+
+      const err = await client.get('clients').catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(ManagementApiError);
+      expect((err as ManagementApiError).status).toBe(504);
+      expect(sleep).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+    });
+
+    it('retries a network error from the token endpoint', async () => {
+      const { client, sleep, fetchMock } = setup([networkError, tokenResponse(), jsonResponse({ ok: true })]);
+
+      await expect(client.get('clients')).resolves.toEqual({ ok: true });
+
+      expect(sleep.mock.calls.map((c) => c[0])).toEqual([500]);
+      expect(String(fetchMock.mock.calls[1]![0])).toContain('/oauth/token');
+    });
+
+    it('retries a 503 from the token endpoint', async () => {
+      const { client, sleep, fetchMock } = setup([
+        new Response('', { status: 503, headers: { 'retry-after': '2' } }),
+        tokenResponse(),
+        jsonResponse({ ok: true }),
+      ]);
+
+      await expect(client.get('clients')).resolves.toEqual({ ok: true });
+
+      expect(sleep.mock.calls.map((c) => c[0])).toEqual([2000]);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not multiply a failing token fetch through the request loop', async () => {
+      const { client, fetchMock } = setup(
+        [
+          new Response('', { status: 503 }),
+          new Response('', { status: 503 }),
+          new Response('', { status: 503 }),
+          new Response('', { status: 503 }),
+        ],
+        { maxRetries: 2 },
+      );
+
+      const err = await client.get('clients').catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(ManagementApiError);
+      expect((err as ManagementApiError).path).toBe('oauth/token');
+      // maxRetries + 1 token calls, no request calls
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not multiply a failing token network error through the request loop', async () => {
+      const { client, fetchMock } = setup([networkError, networkError, networkError, networkError], { maxRetries: 2 });
+
+      await expect(client.get('clients')).rejects.toBeInstanceOf(TypeError);
+
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('handles a 401 refresh followed by a 503 within the budget', async () => {
+      const { client, fetchMock } = setup([
+        tokenResponse('tok_old'),
+        new Response('expired', { status: 401 }),
+        tokenResponse('tok_new'),
+        new Response('', { status: 503 }),
+        jsonResponse({ ok: true }),
+      ]);
+
+      await expect(client.get('clients')).resolves.toEqual({ ok: true });
+
+      expect(fetchMock).toHaveBeenCalledTimes(5);
+      expect(headersOf(fetchMock.mock.calls[4][1]).authorization).toBe('Bearer tok_new');
+    });
+  });
+
   describe('timeouts', () => {
     it('passes an AbortSignal to every token and API request', async () => {
       const { client, fetchMock } = setup([tokenResponse(), jsonResponse({}), jsonResponse({})]);
@@ -414,11 +672,13 @@ describe('createManagementClient', () => {
         clientId: 'client-id',
         clientSecret: SECRET,
         fetch: fetchMock as unknown as typeof fetch,
+        sleep: async () => {},
         timeoutMs: 20,
       });
 
       await expect(client.get('clients')).rejects.toMatchObject({ name: 'TimeoutError' });
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      // The token request hangs on every attempt: the initial call plus the default 3 retries.
+      expect(fetchMock).toHaveBeenCalledTimes(4);
     });
   });
 
