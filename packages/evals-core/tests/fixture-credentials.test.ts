@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
-import { existsSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { rmSync } from 'node:fs';
 import { readVerifierCredentials, writeVerifierCredentialsFile, VERIFIER_ENV } from '../src/fixture/credentials.js';
@@ -107,6 +107,33 @@ describe('readVerifierCredentials', () => {
     expect(message).not.toContain('file-secret');
     expect(existsSync(path)).toBe(false);
   });
+
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
+    'still returns the credentials when the file cannot be deleted',
+    () => {
+      const dir = join(tmp(), 'locked');
+      mkdirSync(dir);
+      const path = join(dir, 'creds.json');
+      writeFileSync(
+        path,
+        JSON.stringify({ domain: 'file.auth0.com', client_id: 'file-id', client_secret: 'file-secret' }),
+      );
+      // A read-only directory forbids unlinking the file inside it.
+      chmodSync(dir, 0o555);
+
+      try {
+        let creds;
+        expect(() => {
+          creds = readVerifierCredentials({ [VERIFIER_ENV.file]: path });
+        }).not.toThrow();
+
+        expect(creds).toEqual({ domain: 'file.auth0.com', clientId: 'file-id', clientSecret: 'file-secret' });
+        expect(existsSync(path)).toBe(true);
+      } finally {
+        chmodSync(dir, 0o755);
+      }
+    },
+  );
 
   it('throws when the file does not exist', () => {
     const path = join(tmp(), 'missing.json');

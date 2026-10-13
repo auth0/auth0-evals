@@ -5,9 +5,12 @@
  * to a flat list of jobs. No subprocess, no filesystem, no mocking required.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { buildJobList, buildSubprocessArgs } from '../src/cli/run.js';
 import type { EvalConfig } from '@a0/evals-core';
+import { makeTmpDir } from './tmp.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -177,5 +180,113 @@ describe('buildSubprocessArgs', () => {
 
   it('returns input unchanged when no per-job flags are present', () => {
     expect(buildSubprocessArgs(['--workers', '4', '--braintrust'])).toEqual(['--workers', '4', '--braintrust']);
+  });
+});
+
+// ── jobSubprocessEnv ──────────────────────────────────────────────────────────
+
+describe('jobSubprocessEnv', () => {
+  const VERIFIER_KEYS = ['AUTH0_VERIFIER_DOMAIN', 'AUTH0_VERIFIER_CLIENT_ID', 'AUTH0_VERIFIER_CLIENT_SECRET'] as const;
+  const tmp = makeTmpDir('job_env_');
+  let savedEnv: NodeJS.ProcessEnv;
+  const createdTempDirs: string[] = [];
+
+  beforeEach(() => {
+    savedEnv = { ...process.env };
+  });
+
+  afterEach(() => {
+    for (const dir of createdTempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+    process.env = savedEnv;
+    vi.resetModules();
+  });
+
+  function setCredentials(): void {
+    process.env.AUTH0_VERIFIER_DOMAIN = 'test.auth0.com';
+    process.env.AUTH0_VERIFIER_CLIENT_ID = 'cid';
+    process.env.AUTH0_VERIFIER_CLIENT_SECRET = 'dummy-secret-value';
+  }
+
+  function clearCredentials(): void {
+    for (const key of [...VERIFIER_KEYS, 'AUTH0_VERIFIER_CREDENTIALS_FILE']) delete process.env[key];
+  }
+
+  /** Creates <root>/<path>/PROMPT.md, plus fixture.ts when `withFixture` is set. */
+  function makeEval(withFixture: boolean): { evalCfg: EvalConfig; frameworkRoot: string } {
+    const frameworkRoot = tmp();
+    const path = 'src/evals/cli/sample_eval';
+    const dir = join(frameworkRoot, path);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'PROMPT.md'), '---\nid: sample_eval\n---\nPrompt\n');
+    if (withFixture) writeFileSync(join(dir, 'fixture.ts'), 'export default {};\n');
+    return { evalCfg: { id: 'sample_eval', category: 'cli', path } as EvalConfig, frameworkRoot };
+  }
+
+  async function freshModule() {
+    vi.resetModules();
+    return import('../src/cli/run.js');
+  }
+
+  it('gives an agent job with a fixture a single-use credentials file', async () => {
+    clearCredentials();
+    setCredentials();
+    const { jobSubprocessEnv } = await freshModule();
+    const { evalCfg, frameworkRoot } = makeEval(true);
+
+    const { env, tempDir } = jobSubprocessEnv(evalCfg, 'agent', frameworkRoot);
+    if (tempDir) createdTempDirs.push(tempDir);
+
+    const file = env?.AUTH0_VERIFIER_CREDENTIALS_FILE;
+    expect(file).toBeTruthy();
+    expect(tempDir).toBe(dirname(file as string));
+    expect(existsSync(file as string)).toBe(true);
+    expect(JSON.parse(readFileSync(file as string, 'utf8'))).toEqual({
+      domain: 'test.auth0.com',
+      client_id: 'cid',
+      client_secret: 'dummy-secret-value',
+    });
+    if (process.platform !== 'win32') expect(statSync(file as string).mode & 0o777).toBe(0o600);
+  });
+
+  it('returns nothing for an agent job whose eval has no fixture', async () => {
+    clearCredentials();
+    setCredentials();
+    const { jobSubprocessEnv } = await freshModule();
+    const { evalCfg, frameworkRoot } = makeEval(false);
+
+    expect(jobSubprocessEnv(evalCfg, 'agent', frameworkRoot)).toEqual({});
+  });
+
+  it('returns nothing for a baseline job even when the eval has a fixture', async () => {
+    clearCredentials();
+    setCredentials();
+    const { jobSubprocessEnv } = await freshModule();
+    const { evalCfg, frameworkRoot } = makeEval(true);
+
+    expect(jobSubprocessEnv(evalCfg, 'baseline', frameworkRoot)).toEqual({});
+  });
+
+  it('never exposes the verifier env vars to the child or to process.env', async () => {
+    clearCredentials();
+    setCredentials();
+    const { jobSubprocessEnv } = await freshModule();
+    const { evalCfg, frameworkRoot } = makeEval(true);
+
+    const { env, tempDir } = jobSubprocessEnv(evalCfg, 'agent', frameworkRoot);
+    if (tempDir) createdTempDirs.push(tempDir);
+
+    expect(env).toBeDefined();
+    for (const key of VERIFIER_KEYS) {
+      expect(env).not.toHaveProperty(key);
+      expect(process.env).not.toHaveProperty(key);
+    }
+  });
+
+  it('returns nothing when no credentials are configured', async () => {
+    clearCredentials();
+    const { jobSubprocessEnv } = await freshModule();
+    const { evalCfg, frameworkRoot } = makeEval(true);
+
+    expect(jobSubprocessEnv(evalCfg, 'agent', frameworkRoot)).toEqual({});
   });
 });

@@ -6,6 +6,8 @@ export interface ManagementClientOptions {
   clientSecret: string;
   /** Injectable for tests. Defaults to the global `fetch`. */
   fetch?: typeof fetch;
+  /** Per-request timeout in milliseconds. Defaults to 30s. */
+  timeoutMs?: number;
   /** Maximum retries on HTTP 429. Defaults to 3. */
   maxRetries?: number;
   /** Injectable for tests. Defaults to a real `setTimeout` wait. */
@@ -18,6 +20,7 @@ const TOKEN_EXPIRY_MARGIN_MS = 60_000;
 const DEFAULT_TOKEN_TTL_S = 86_400;
 const MAX_RETRY_AFTER_MS = 60_000;
 const ERROR_BODY_MAX_CHARS = 500;
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const REDACTED = '[redacted]';
 
 export class ManagementApiError extends Error {
@@ -61,7 +64,10 @@ function redact(text: string, secrets: Array<string | undefined>): string {
 function retryDelayMs(res: Response, attempt: number): number {
   const header = res.headers.get('retry-after');
   const seconds = Number(header);
-  const waitMs = header !== null && Number.isFinite(seconds) ? seconds * 1000 : BASE_BACKOFF_MS * 2 ** attempt;
+  const waitMs =
+    header !== null && header.trim() !== '' && Number.isFinite(seconds)
+      ? seconds * 1000
+      : BASE_BACKOFF_MS * 2 ** attempt;
   return Math.min(waitMs, MAX_RETRY_AFTER_MS);
 }
 
@@ -76,6 +82,7 @@ export function createManagementClient(opts: ManagementClientOptions): Managemen
   const fetchFn = opts.fetch ?? fetch;
   const maxRetries = opts.maxRetries ?? DEFAULT_MAX_RETRIES;
   const sleep = opts.sleep ?? defaultSleep;
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
   let cached: CachedToken | null = null;
   let pendingToken: Promise<string> | null = null;
 
@@ -92,6 +99,7 @@ export function createManagementClient(opts: ManagementClientOptions): Managemen
     return fetchFn(`https://${domain}/oauth/token`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
+      signal: AbortSignal.timeout(timeoutMs),
       body: JSON.stringify({
         grant_type: 'client_credentials',
         client_id: opts.clientId,
@@ -153,6 +161,7 @@ export function createManagementClient(opts: ManagementClientOptions): Managemen
       const res = await fetchFn(url, {
         method,
         headers,
+        signal: AbortSignal.timeout(timeoutMs),
         body: body !== undefined ? JSON.stringify(body) : undefined,
       });
 

@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { logger } from '../utils/logger.js';
 
 export interface VerifierCredentials {
   domain: string;
@@ -22,10 +23,11 @@ const FILE_FIELDS = ['domain', 'client_id', 'client_secret'] as const;
  * Reads the verifier tenant credentials used by eval fixtures, or returns null
  * when none are configured.
  *
- * A credentials file takes precedence over the individual env vars. The file is
- * deleted as soon as it is read: on Linux a same-user agent process can read the
- * parent's `/proc/<pid>/environ`, so CI should pass a file path rather than the
- * secret itself. Error messages name missing fields but never include values.
+ * A credentials file takes precedence over the individual env vars. The path is
+ * consumed: the file is deleted as soon as it is read, and a failed delete only
+ * warns. On Linux a same-user agent process can read the parent's
+ * `/proc/<pid>/environ`, so CI should pass a file path rather than the secret
+ * itself. Error messages name missing fields but never include values.
  */
 export function readVerifierCredentials(env: NodeJS.ProcessEnv = process.env): VerifierCredentials | null {
   const filePath = env[VERIFIER_ENV.file];
@@ -34,7 +36,13 @@ export function readVerifierCredentials(env: NodeJS.ProcessEnv = process.env): V
     try {
       raw = readFileSync(filePath, 'utf8');
     } finally {
-      rmSync(filePath, { force: true });
+      // A failed delete (read-only mount, no write access to the directory) must not
+      // replace a successful read, so it only warns.
+      try {
+        rmSync(filePath, { force: true });
+      } catch (e) {
+        logger.warn(`Could not delete ${VERIFIER_ENV.file} after reading it: ${(e as Error).message}`);
+      }
     }
 
     let parsed: Record<string, unknown>;

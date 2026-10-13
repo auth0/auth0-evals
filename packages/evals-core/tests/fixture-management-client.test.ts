@@ -289,6 +289,19 @@ describe('createManagementClient', () => {
       expect(sleep.mock.calls.map((c) => c[0])).toEqual([500, 1000, 2000]);
     });
 
+    it('uses exponential backoff when Retry-After is empty', async () => {
+      const { client, sleep } = setup([
+        tokenResponse(),
+        new Response('', { status: 429, headers: { 'retry-after': '' } }),
+        jsonResponse({}),
+      ]);
+
+      await client.get('clients');
+
+      expect(sleep).toHaveBeenCalledTimes(1);
+      expect(sleep).toHaveBeenCalledWith(500);
+    });
+
     it('throws ManagementApiError with status 429 once retries are exhausted', async () => {
       const { client, sleep, fetchMock } = setup(
         [
@@ -371,6 +384,41 @@ describe('createManagementClient', () => {
       expect(err).toBeInstanceOf(ManagementApiError);
       expect((err as ManagementApiError).status).toBe(401);
       expect(fetchMock).toHaveBeenCalledTimes(4);
+    });
+  });
+
+  describe('timeouts', () => {
+    it('passes an AbortSignal to every token and API request', async () => {
+      const { client, fetchMock } = setup([tokenResponse(), jsonResponse({}), jsonResponse({})]);
+
+      await client.get('clients');
+      await client.post('clients', { name: 'app' });
+
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      for (const call of fetchMock.mock.calls) {
+        expect(call[1]?.signal).toBeInstanceOf(AbortSignal);
+      }
+    });
+
+    it('rejects instead of hanging when the request exceeds timeoutMs', async () => {
+      const fetchMock = vi.fn(
+        (_url: string | URL | Request, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            const signal = init?.signal;
+            if (!signal) return;
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+          }),
+      );
+      const client = createManagementClient({
+        domain: 'acme.auth0.com',
+        clientId: 'client-id',
+        clientSecret: SECRET,
+        fetch: fetchMock as unknown as typeof fetch,
+        timeoutMs: 20,
+      });
+
+      await expect(client.get('clients')).rejects.toMatchObject({ name: 'TimeoutError' });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     });
   });
 

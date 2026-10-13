@@ -46,6 +46,8 @@ Snapshots stay in memory and are never written to the scores file, because a ten
 ### Rules
 
 - Name run-owned resources with `runId` so parallel runs do not collide.
+- Management API requests time out after 30 seconds. Only HTTP 429 (and one 401 token refresh) is retried. Network errors and 5xx responses are not, so a transient failure in `seed` fails the job instead of being masked.
+- `cleanup` runs in a `finally`, so it does not run if the process is hard-killed or interrupted. Name tenant resources with `runId` so leftovers from an aborted run can be found and removed.
 - Cleanup deletes only what this run created. If `seed` throws partway, `seeded` is empty when cleanup runs, so look run-owned resources up by `runId` too.
 - AXIS does not run fixtures and rejects fixture evals. Use `npm run evals`.
 - Seed infrastructure, not answers. Do not create the resource the agent is being asked to produce.
@@ -55,10 +57,12 @@ Fixture evals require `--dangerously-skip-sandbox` (the runner already passes it
 
 ## Verifier credential
 
-The fixture talks to the tenant through a verifier credential that the agent never sees. The agent's environment is an allowlist, so the verifier variables are not passed to it.
+The fixture talks to the tenant through a verifier credential. The agent's environment is an allowlist, so the verifier variables are not passed to it. This keeps the credential out of the agent's environment, but it is not a sandbox. Fixture evals run with `--dangerously-skip-sandbox`, so an agent running on your machine can read files you can read, including `apps/auth0-evals/.env`.
 
-- **Local:** set `AUTH0_VERIFIER_DOMAIN`, `AUTH0_VERIFIER_CLIENT_ID`, and `AUTH0_VERIFIER_CLIENT_SECRET` in `apps/auth0-evals/.env`. Use an M2M app with Management API scopes on a dev tenant.
-- **CI:** set `AUTH0_VERIFIER_CREDENTIALS_FILE` to a JSON file containing `{ "domain", "client_id", "client_secret" }`. The file is deleted after it is read.
+Use a dedicated M2M client for the verifier, on a dev tenant, with only the Management API scopes your fixtures need. Do not reuse a client that has broader access.
+
+- **Local:** set `AUTH0_VERIFIER_DOMAIN`, `AUTH0_VERIFIER_CLIENT_ID`, and `AUTH0_VERIFIER_CLIENT_SECRET` in `apps/auth0-evals/.env`.
+- **CI:** set `AUTH0_VERIFIER_CREDENTIALS_FILE` to a JSON file containing `{ "domain", "client_id", "client_secret" }`. The path is consumed: the file is deleted after it is read, so do not point it at a file you want to keep. If the delete fails (for example on a read-only mount), the run logs a warning and continues.
 
 The credential is read once at startup, and every `AUTH0_VERIFIER_*` variable is then removed from the process environment, so setup and compile commands never inherit it. Only an agent job whose eval has a fixture gets its own single-use `0600` credentials file. A partial or invalid verifier config fails only those jobs. The file option exists because on Linux a process running as the same user can read a parent's `/proc/<pid>/environ`.
 

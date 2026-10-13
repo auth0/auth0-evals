@@ -155,7 +155,7 @@ function getVerifierCredentials(): VerifierCredentials | null {
  * Every other child inherits an env with no verifier keys. Returns the file's
  * directory so the caller can remove it if the child never read it.
  */
-function jobSubprocessEnv(
+export function jobSubprocessEnv(
   evalCfg: EvalConfig,
   mode: Mode,
   frameworkRoot: string,
