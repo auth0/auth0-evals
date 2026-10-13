@@ -4,9 +4,11 @@ name: Swift iOS Quickstart
 skills: auth0
 ---
 
-## Task
-Add Auth0 login to my iOS app.
+## System
 
 Domain: dev-barkbook.us.auth0.com
 Client ID: barkbook_client_abc123xyz
+
+## Task
+Add Auth0 login to my iOS app.
 

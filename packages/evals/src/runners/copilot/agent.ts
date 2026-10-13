@@ -29,7 +29,7 @@ import {
   filteredEnv,
   mintMcpToken,
 } from '@a0/evals-core';
-import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/evals-core';
+import { agentPrompt, classifyActionType, classifyErrorCategory, detectRetry } from '@a0/evals-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
 import { CopilotCliTranslator } from './translator.js';
 
@@ -338,7 +338,7 @@ export async function runCopilotAgent(
   });
 
   try {
-    const lastMessage = await session.sendAndWait({ prompt: evalDef.userPrompt }, COPILOT_TASK_TIMEOUT_MS);
+    const lastMessage = await session.sendAndWait({ prompt: agentPrompt(evalDef) }, COPILOT_TASK_TIMEOUT_MS);
     if (lastMessage && !record.finalSummary) {
       record.finalSummary = lastMessage.data?.content ?? '';
     }

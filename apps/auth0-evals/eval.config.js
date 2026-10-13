@@ -114,9 +114,10 @@ export default {
   // CLI/platform context injected into the agent's context file for evals that
   // declare a matching `provision` frontmatter kind. The framework owns the
   // injection mechanism (see writeAgentGuidance); this Auth0-specific wording
-  // lives here so evals-core stays provider-agnostic. Injecting it here — rather
-  // than in a PROMPT.md `## System` section — is also what makes it reach the
-  // agent at all: `## System` only feeds baseline mode.
+  // lives here so evals-core stays provider-agnostic. Use this rather than a
+  // PROMPT.md `## System` section for platform context: `## System` is for
+  // per-eval config (credentials, .env setup) and is prepended to the task for
+  // agent runners and AXIS, in addition to feeding baseline mode.
   //
   // Scope: only generic facts about operating the already-authenticated `auth0`
   // CLI against the live tenant — nothing task- or feature-specific (that lives

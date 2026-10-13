@@ -46,7 +46,10 @@ export async function loadEval(
   }
 
   const defaultBaselinePrompt = options?.defaultBaselineSystemPrompt ?? FALLBACK_BASELINE_PROMPT;
-  const { baselineSystemPrompt, userPrompt, meta } = parsePromptMd(join(evalPath, 'PROMPT.md'), defaultBaselinePrompt);
+  const { baselineSystemPrompt, systemContext, userPrompt, meta } = parsePromptMd(
+    join(evalPath, 'PROMPT.md'),
+    defaultBaselinePrompt,
+  );
 
   const distRelPath = evalConfig.path.replace(/^src\//, '');
   const distGradersPath = join(frameworkRoot, 'dist', distRelPath, 'graders.js');
@@ -72,6 +75,7 @@ export async function loadEval(
     category: evalConfig.category ?? meta.category ?? '',
     path: evalPath,
     baselineSystemPrompt,
+    systemContext,
     userPrompt,
     graders,
     scaffold,
@@ -95,6 +99,7 @@ function parsePromptMd(
   defaultBaselinePrompt: string,
 ): {
   baselineSystemPrompt: string;
+  systemContext: string | undefined;
   userPrompt: string;
   meta: Record<string, string>;
 } {
@@ -108,10 +113,11 @@ function parsePromptMd(
   const systemMatch = body.match(/^## System\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
   const taskMatch = body.match(/^## Task\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
 
-  const baselineSystemPrompt = systemMatch?.[1] ? systemMatch[1].trim() : defaultBaselinePrompt;
+  const evalSystem = systemMatch?.[1]?.trim();
+  const baselineSystemPrompt = evalSystem ? `${evalSystem}\n\n${defaultBaselinePrompt}` : defaultBaselinePrompt;
   const userPrompt = taskMatch?.[1] ? taskMatch[1].trim() : body.trim();
 
-  return { baselineSystemPrompt, userPrompt, meta };
+  return { baselineSystemPrompt, systemContext: evalSystem || undefined, userPrompt, meta };
 }
 
 // ── graders.ts dynamic import ─────────────────────────────────────────────────

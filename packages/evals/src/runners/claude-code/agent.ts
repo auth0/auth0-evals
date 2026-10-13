@@ -32,7 +32,7 @@ import {
   filteredEnv,
   mintMcpToken,
 } from '@a0/evals-core';
-import { classifyActionType, classifyErrorCategory, detectRetry, unwrapMcpContent } from '@a0/evals-core';
+import { agentPrompt, classifyActionType, classifyErrorCategory, detectRetry, unwrapMcpContent } from '@a0/evals-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
 import { ClaudeCodeTranslator } from './translator.js';
 
@@ -197,7 +197,7 @@ export async function runClaudeCodeAgent(
 
   try {
     const q = query({
-      prompt: evalDef.userPrompt,
+      prompt: agentPrompt(evalDef),
       options: {
         cwd: workspace,
         pathToClaudeCodeExecutable: process.env.CLAUDE_CLI_PATH || undefined,
