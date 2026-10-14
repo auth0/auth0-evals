@@ -310,6 +310,11 @@ function escapeRegExp(literal: string): string {
  * @param flags - `[flag, value]` pairs; every value must appear inside its flag's argument.
  *   A flag may be an array of alternative spellings (e.g. `['--callbacks', '--callback-url']`)
  *   when the accepted commands name the same option differently.
+ * @param description - Grader name
+ * @param level - Grader level (L4 or L5)
+ * @param options - `exactValue`: when true, the value must end its URL entry (an optional single
+ *   trailing `/` is allowed, followed by end of argument, `,`, whitespace, or a quote), so
+ *   `localhost:3000` no longer matches `localhost:3000/callback`. Default is substring matching.
  */
 // Known short aliases for auth0 CLI long flags, so a value set via the short
 // form (e.g. `-c http://localhost:3000`) still matches its long-flag binding.
@@ -327,8 +332,10 @@ export function ranCommandWithFlags(
   flags: Array<[string | string[], string]>,
   description: string | undefined,
   level: EventGraderLevel,
+  options: { exactValue?: boolean } = {},
 ): GraderDef {
   validateEventLevel(level, 'ranCommandWithFlags');
+  const { exactValue = false } = options;
   const commandList = Array.isArray(command) ? command : [command];
   const bindings = flags.map(([flagSpec, value]) => {
     const names = (Array.isArray(flagSpec) ? flagSpec : [flagSpec]).flatMap((f) =>
@@ -341,7 +348,8 @@ export function ranCommandWithFlags(
       // <flag><sep><non-space run><value> — the [^\s]* keeps the match inside the
       // flag's own argument so a value belonging to a later flag can't satisfy it.
       // Long flag or its known short alias may carry the value.
-      re: new RegExp(`${flagPattern}[=\\s]+[^\\s]*${escapeRegExp(value)}`),
+      // exactValue additionally requires the value to end the URL entry.
+      re: new RegExp(`${flagPattern}[=\\s]+[^\\s]*${escapeRegExp(value)}${exactValue ? `/?(?=$|[,\\s'"])` : ''}`),
     };
   });
   const label = bindings.map((b) => `${b.flag}=${b.value}`).join(', ');

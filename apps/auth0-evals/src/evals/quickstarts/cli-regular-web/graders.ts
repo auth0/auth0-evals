@@ -22,18 +22,20 @@ export function defineGraders() {
 
     // ── L4: Configure the callback and logout URLs ────────────────────────
     // Bind each value to its own flag — the logout URL (localhost:3000) is a
-    // substring of the callback URL, so a shared check would pass on either.
+    // substring of the callback URL, so exactValue stops it matching the callback.
     ranCommandWithFlags(
       ['apps create', 'qs setup'],
       [[['--callbacks', '--callback-url'], 'localhost:3000/callback']],
       'Configured the local dev callback URL',
       GraderLevel.L4,
+      { exactValue: true },
     ),
     ranCommandWithFlags(
       ['apps create', 'qs setup'],
       [[['--logout-urls', '--logout-url'], 'localhost:3000']],
       'Configured the local dev logout URL',
       GraderLevel.L4,
+      { exactValue: true },
     ),
 
     // ── L2: Must NOT enable the legacy implicit grant ─────────────────────

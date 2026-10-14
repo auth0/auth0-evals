@@ -80,6 +80,26 @@ describe('cli quickstart graders', () => {
     expect(missing['Configured the local dev logout URL']).toBe(false);
   });
 
+  it('rejects a logout URL that is the callback URL for regular-web', () => {
+    const qs = eventResults(
+      regular(),
+      'auth0 qs setup --type regular --callback-url http://localhost:3000/callback --logout-url http://localhost:3000/callback',
+    );
+    expect(qs['Configured the local dev callback URL']).toBe(true);
+    expect(qs['Configured the local dev logout URL']).toBe(false);
+    const create = eventResults(
+      regular(),
+      'auth0 apps create --type regular --callbacks http://localhost:3000/callback --logout-urls http://localhost:3000/callback',
+    );
+    expect(create['Configured the local dev logout URL']).toBe(false);
+    const ok = eventResults(
+      regular(),
+      'auth0 apps create --type regular --callbacks http://localhost:3000/callback --logout-urls http://localhost:3000',
+    );
+    expect(ok['Configured the local dev callback URL']).toBe(true);
+    expect(ok['Configured the local dev logout URL']).toBe(true);
+  });
+
   it('does not accept qs setup for SPA graders', () => {
     const r = eventResults(
       spa(),
