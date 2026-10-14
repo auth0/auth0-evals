@@ -338,6 +338,20 @@ describe('ranCommandWithFlags predicate', () => {
     ).toBe(true);
   });
 
+  it('accepts alternative commands and flag spellings', () => {
+    const def = ranCommandWithFlags(
+      ['apps create', 'qs setup'],
+      [[['--callbacks', '--callback-url'], 'localhost:3000/callback']],
+      undefined,
+      GraderLevel.L4,
+    );
+    const call = (command: string) => [evt({ name: 'run_command', args: { command } })];
+    expect(run(def, call('auth0 apps create --callbacks http://localhost:3000/callback'))).toBe(true);
+    expect(run(def, call('auth0 qs setup --callback-url http://localhost:3000/callback'))).toBe(true);
+    expect(run(def, call('auth0 qs setup --logout-url http://localhost:3000/callback'))).toBe(false);
+    expect(run(def, call('auth0 apps list --callbacks http://localhost:3000/callback'))).toBe(false);
+  });
+
   it('matches a value set via the flag short alias', () => {
     const def = ranCommandWithFlags('apps create', [['--callbacks', 'localhost:3000']], undefined, GraderLevel.L4);
     expect(

@@ -53,12 +53,31 @@ describe('cli quickstart graders', () => {
     for (const name of L4_REGULAR) expect(r[name]).toBe(true);
   });
 
-  it('rejects apps create for the regular-web graders', () => {
+  it('accepts apps create for the regular-web create/callback/logout graders', () => {
     const r = eventResults(
       regular(),
-      'auth0 apps create --type regular --callbacks http://localhost:3000/callback --logout-urls http://localhost:3000',
+      'auth0 apps create --name "Quickstart Web App" --type regular --callbacks "http://localhost:3000/callback" --logout-urls "http://localhost:3000"',
     );
-    for (const name of L4_REGULAR) expect(r[name]).toBe(false);
+    for (const name of L4_REGULAR) expect(r[name]).toBe(true);
+  });
+
+  it('accepts the raw api post clients route for the regular-web create grader', () => {
+    const r = eventResults(regular(), `auth0 api post clients --data '{"app_type":"regular_web"}'`);
+    expect(r['Created a Regular Web Application']).toBe(true);
+  });
+
+  it('rejects swapped or missing callback/logout flags for regular-web', () => {
+    const swapped = eventResults(
+      regular(),
+      'auth0 apps create --type regular --callbacks http://localhost:3000 --logout-urls http://localhost:3000/callback',
+    );
+    expect(swapped['Configured the local dev callback URL']).toBe(false);
+    const missing = eventResults(
+      regular(),
+      'auth0 qs setup --type regular --callback-url http://localhost:3000/callback',
+    );
+    expect(missing['Configured the local dev callback URL']).toBe(true);
+    expect(missing['Configured the local dev logout URL']).toBe(false);
   });
 
   it('does not accept qs setup for SPA graders', () => {
