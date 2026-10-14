@@ -24,6 +24,7 @@ export {
   ranCommandWithFlags,
   notRanCommand,
   ranCommandOneOf,
+  anyOf,
   ranCommandsInOrder,
   wroteFile,
   compiles,
