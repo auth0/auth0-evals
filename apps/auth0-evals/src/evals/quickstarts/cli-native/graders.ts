@@ -5,10 +5,9 @@ import { ranCommandOneOf, ranCommandWithFlags, notRanCommand, judge, GraderLevel
 // on event graders (command trace) plus a trace-aware judge.
 //
 // Tests that the agent creates a Native application via `auth0 apps create --type native`
-// with the custom-scheme callback/logout URLs, and configures grant types per current
-// best practice. The CLI's default grants for a native app include the legacy `implicit`
-// grant, so a best-practice solution must pass grants explicitly (Authorization Code +
-// refresh_token).
+// with the custom-scheme callback/logout URLs.
+// The CLI's default grants (which include Authorization Code + refresh_token) are
+// acceptable, so the agent need not pass `--grants`.
 export function defineGraders() {
   return [
     // ── L4: Create a Native application ───────────────────────────────────
@@ -31,19 +30,6 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
 
-    // ── L5: Explicitly set best-practice grants (Auth Code + refresh) ─────
-    // Bind both grant values to the --grants argument so a value that merely
-    // appears under another flag (e.g. --description refresh-token) can't pass.
-    ranCommandWithFlags(
-      'apps create',
-      [
-        ['--grants', 'code'],
-        ['--grants', 'refresh-token'],
-      ],
-      'Explicitly configured Authorization Code + refresh token grants',
-      GraderLevel.L5,
-    ),
-
     // ── L2: Must NOT enable the legacy implicit grant ─────────────────────
     notRanCommand('implicit', 'Did not enable the legacy implicit grant', GraderLevel.L2),
 
@@ -52,8 +38,7 @@ export function defineGraders() {
       'Based on the command trace, does the solution create a Native application with the ' +
         'Auth0 CLI (either `auth0 apps create --type native` or a raw `auth0 api post clients` call), ' +
         'register callback and logout URLs using the ' +
-        'com.example.quickstart custom URL scheme, and configure grant types per current best ' +
-        'practice (Authorization Code + refresh token, without the legacy implicit grant), and name ' +
+        'com.example.quickstart custom URL scheme, and name ' +
         'the application `Quickstart Native` — using only the Auth0 CLI, not the dashboard or Terraform?',
       undefined,
       { includeCommandTrace: true },

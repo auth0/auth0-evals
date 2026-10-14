@@ -5,16 +5,16 @@ import { ranCommandOneOf, ranCommandWithFlags, notRanCommand, judge, GraderLevel
 // on event graders (command trace) plus a trace-aware judge.
 //
 // Tests that the agent creates a Regular Web Application via
-// `auth0 apps create --type regular` with the local dev callback/logout URLs, and
-// configures grant types per current best practice. The CLI's default grants for a
-// regular web app include the legacy `implicit` grant, so a best-practice solution
-// must pass grants explicitly (Authorization Code + refresh_token).
+// `auth0 apps create --type regular` or `auth0 qs setup --type regular` (or the
+// raw `auth0 api post clients` route) with the local dev callback/logout URLs.
+// The CLI's default grants (which include Authorization Code + refresh_token) are
+// acceptable, so the agent need not pass `--grants`.
 export function defineGraders() {
   return [
     // ── L4: Create a Regular Web Application ──────────────────────────────
-    // Accept both the dedicated subcommand and the raw Management API route.
+    // Accept both CLI subcommands and the raw Management API route.
     ranCommandOneOf(
-      ['apps create', ['api post', 'clients']],
+      ['apps create', 'qs setup', ['api post', 'clients']],
       'Created a Regular Web Application',
       GraderLevel.L4,
       'regular',
@@ -22,31 +22,20 @@ export function defineGraders() {
 
     // ── L4: Configure the callback and logout URLs ────────────────────────
     // Bind each value to its own flag — the logout URL (localhost:3000) is a
-    // substring of the callback URL, so a shared check would pass on either.
+    // substring of the callback URL, so exactValue stops it matching the callback.
     ranCommandWithFlags(
-      'apps create',
-      [['--callbacks', 'localhost:3000/callback']],
+      ['apps create', 'qs setup'],
+      [[['--callbacks', '--callback-url'], 'localhost:3000/callback']],
       'Configured the local dev callback URL',
       GraderLevel.L4,
+      { exactValue: true },
     ),
     ranCommandWithFlags(
-      'apps create',
-      [['--logout-urls', 'localhost:3000']],
+      ['apps create', 'qs setup'],
+      [[['--logout-urls', '--logout-url'], 'localhost:3000']],
       'Configured the local dev logout URL',
       GraderLevel.L4,
-    ),
-
-    // ── L5: Explicitly set best-practice grants (Auth Code + refresh) ─────
-    // Bind both grant values to the --grants argument so a value that merely
-    // appears under another flag (e.g. --description refresh-token) can't pass.
-    ranCommandWithFlags(
-      'apps create',
-      [
-        ['--grants', 'code'],
-        ['--grants', 'refresh-token'],
-      ],
-      'Explicitly configured Authorization Code + refresh token grants',
-      GraderLevel.L5,
+      { exactValue: true },
     ),
 
     // ── L2: Must NOT enable the legacy implicit grant ─────────────────────
@@ -55,11 +44,8 @@ export function defineGraders() {
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
       'Based on the command trace, does the solution create a Regular Web Application with the ' +
-        'Auth0 CLI (either `auth0 apps create --type regular` or a raw `auth0 api post clients` call), ' +
-        'set the callback URL to http://localhost:3000/callback ' +
-        'and the logout URL to http://localhost:3000, and configure grant types per current best ' +
-        'practice (Authorization Code + refresh token, without the legacy implicit grant), and name ' +
-        'the application `Quickstart Web App` — using only the Auth0 CLI, not the dashboard or Terraform?',
+        'Auth0 CLI (via `auth0 apps create --type regular`, `auth0 qs setup --type regular`, or a raw `auth0 api post clients` call), set the callback URL to http://localhost:3000/callback and the logout URL to http://localhost:3000, and name the application `Quickstart Web App` — ' +
+        'using only the Auth0 CLI, not the dashboard or Terraform?',
       undefined,
       { includeCommandTrace: true },
     ),
