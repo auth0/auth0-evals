@@ -1,10 +1,29 @@
 import { contains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
-// The scaffold ships a /transfers route that reads an Auth0 access token. It is pre-existing and not part of
-// the enterprise sign-in path, so no judge should penalise it.
+// Barkbook already has its own password sign-in and session; the task puts Enterprise Connect in
+// front of it. Judges must not penalise valid placements of the email step or optional extras.
 const FIXTURE_CONTEXT =
-  'Treat the scaffold pre-existing /transfers access-token route as a fixture: only the new enterprise ' +
-  'sign-in path is under test.';
+  'The scaffold is Barkbook, an app with its own email + password sign-in that did not use Auth0 ' +
+  'before: GET /signin renders the form (?email= pre-fills it, ?error=invalid shows an error), POST ' +
+  '/signin verifies the password and signs the user in with the app session helper createSession, ' +
+  '/dashboard is guarded by requireSession, and /signout clears the app cookie. The SDK was installed ' +
+  'but not wired. The task adds Auth0 Enterprise Connect with one createAuth0 client, configured with ' +
+  'the B2B Connect integration credentials, in front of that existing login. Expected: an email-first ' +
+  'step calls startEnterpriseLogin; a federated email goes to Auth0, and a non-federated email falls ' +
+  'back to the existing password sign-in at /signin (a redirect to /signin with the email in the query, ' +
+  'or rendering the existing sign-in page with the email pre-filled). The quickstart placeholder ' +
+  '/login?mode=password must be replaced by that real route. The onCallback hook signs the enterprise ' +
+  'user in with the existing createSession helper, mapping the OIDC claims (sub, email, name) onto the ' +
+  'app user shape, so the existing /dashboard guard accepts them. The email step may live on /signin ' +
+  'itself (email first, then the existing password form) or on a new route, as long as the password ' +
+  'sign-in still works. Federated logout must return to /signin, the only registered Allowed Logout ' +
+  'URL. Using it only for enterprise users (e.g. recording the sign-in method in the app session) or ' +
+  'for every user are both acceptable. Calling isFederatedDomain separately, catching Enterprise ' +
+  'Connect errors, and validating org_id are optional. ' +
+  'req.auth0.client is the real underlying ServerClient, and a custom logout route that clears the app ' +
+  'cookie and redirects to await req.auth0.client.logout({ returnTo, federated: true }) is the ' +
+  'SDK-documented logout in EC mode, not an invented API. The startEnterpriseLogin returnTo option is ' +
+  'surfaced to onCallback as appState.returnTo.';
 
 export function defineGraders() {
   return [
@@ -64,7 +83,7 @@ export function defineGraders() {
 
     // ── L3: Security ──────────────────────────────────────────────────────
     notContainsInSource(
-      'barkbook_secret_def456uvw',
+      'barkbook_b2b_secret_def456',
       'No hardcoded Auth0 client secret in source (belongs in the environment)',
       GraderLevel.L3,
     ),
@@ -88,8 +107,35 @@ export function defineGraders() {
         '(1) an email-entry login calls startEnterpriseLogin(req, res, { email }), routing the user to their IdP ' +
         'by email domain and falling back when it returns false for a non-federated domain; (2) the onCallback ' +
         'hook builds the app session from the returned claims and ends the response itself; (3) logout ends the ' +
-        'enterprise IdP session (the mounted /auth/logout is federated automatically in EC mode, or an explicit ' +
-        'client.logout({ federated: true }) is used)?',
+        'enterprise IdP session with req.auth0.client.logout({ returnTo, federated: true }) — the mounted ' +
+        '/auth/logout returns to the base URL, which is not a registered Allowed Logout URL here?',
+      GraderLevel.L4,
+      { context: FIXTURE_CONTEXT },
+    ),
+
+    // The quickstart fallback is a placeholder the developer must replace with
+    // their own login route; Barkbook's existing sign-in lives at /signin.
+    notContainsInSource(
+      '/login?mode=password',
+      'Replaces the quickstart placeholder fallback with the existing /signin route',
+      GraderLevel.L4,
+      { ignoreComments: true },
+    ),
+    // /signin is the only registered Allowed Logout URL.
+    matches(
+      String.raw`returnTo[\s\S]{0,120}/signin`,
+      'Federated logout returns to the registered /signin URL',
+      GraderLevel.L4,
+    ),
+    judge(
+      'Is the enterprise sign-in integrated with the existing app rather than built beside it? Check each ' +
+        'item and answer yes only if all are met: (1) a non-federated email falls back to the existing ' +
+        '/signin password sign-in with the email pre-filled, not to a placeholder or a new password flow; (2) ' +
+        'the onCallback hook signs the enterprise user in with the existing createSession helper, so the ' +
+        'existing /dashboard guard accepts them without a second session mechanism; (3) the existing password ' +
+        'sign-in (POST /signin and its password check) still works; (4) a single Auth0 client is configured ' +
+        'from the B2B Connect integration credentials in the environment; (5) the federated logout returns to ' +
+        '/signin?',
       GraderLevel.L4,
       { context: FIXTURE_CONTEXT },
     ),
@@ -97,8 +143,8 @@ export function defineGraders() {
     // ── L5: Current API patterns ──────────────────────────────────────────
     judge(
       'Is the enterprise sign-in built on the current @auth0/auth0-express Enterprise Connect surface ' +
-        '(createAuth0 with the enterpriseConnect option and onCallback hook, startEnterpriseLogin, and the ' +
-        'federated mounted logout) rather than by hand-building /authorize or /oauth/token requests, calling the ' +
+        '(createAuth0 with the enterpriseConnect option and onCallback hook, startEnterpriseLogin, and a federated ' +
+        'logout via either the mounted /auth/logout or req.auth0.client.logout({ federated: true })) rather than by hand-building /authorize or /oauth/token requests, calling the ' +
         'raw WebFinger endpoint, using the legacy express-openid-connect afterCallback hook, gating routes with ' +
         'requiresAuth()/getUser (which throw in relay mode), requesting offline_access, or pinning a fixed ' +
         'organization for every customer?',
@@ -108,10 +154,11 @@ export function defineGraders() {
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
-      'Does the solution correctly add Enterprise Connect relay login to an Express app using ' +
+      'Does the solution correctly put Enterprise Connect relay login in front of the existing sign-in of an Express app using ' +
         '@auth0/auth0-express — the client created with enterpriseConnect and an onCallback hook, an email-driven ' +
         'startEnterpriseLogin that routes users to their enterprise IdP by domain, the app owning its own session ' +
-        'created in onCallback, and a federated logout?',
+        'created in onCallback, a fallback to the existing /signin password sign-in for non-federated emails, and a federated ' +
+        'logout?',
       undefined,
       {
         context:

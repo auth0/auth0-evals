@@ -1,5 +1,31 @@
 import { contains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
+// Barkbook already has its own password sign-in and session; the task puts Enterprise Connect in
+// front of it. Judges must not penalise valid placements of the email step or optional extras.
+const FIXTURE_CONTEXT =
+  'The scaffold is Barkbook, an app with its own email + password sign-in that did not use Auth0 ' +
+  'before: GET /signin renders the form (?email= pre-fills it, ?error=invalid shows an error), the POST ' +
+  '/api/signin Route Handler verifies the password and signs the user in with the app session helper ' +
+  'createSession (lib/session.ts), /dashboard is guarded by the dashboard page getSession() check, and ' +
+  '/api/signout clears the app cookie. The SDK was installed but not wired. The task adds Auth0 ' +
+  'Enterprise Connect with one Auth0Client, configured with the B2B Connect integration credentials, in ' +
+  'front of that existing login. Expected: an email-first step calls startEnterpriseLogin; a federated ' +
+  'email goes to Auth0, and a non-federated email falls back to the existing password sign-in at ' +
+  '/signin (a redirect to /signin with the email in the query, or rendering the existing sign-in page ' +
+  'with the email pre-filled). The quickstart placeholder /login?mode=password must be replaced by that ' +
+  'real route. The onCallback hook signs the enterprise user in with the existing createSession helper, ' +
+  'mapping the OIDC claims (sub, email, name) onto the app user shape, so the existing /dashboard guard ' +
+  'accepts them. The email step may live on /signin itself (email first, then the existing password ' +
+  'form) or on a new route, as long as the password sign-in still works. Federated logout must return ' +
+  'to /signin, the only registered Allowed Logout URL. Using it only for enterprise users (e.g. ' +
+  'recording the sign-in method in the app session) or for every user are both acceptable. Calling ' +
+  'isFederatedDomain separately, catching Enterprise Connect errors, and validating org_id are ' +
+  'optional. getSession in lib/session.ts is the app own cookie reader, not the SDK auth0.getSession(), ' +
+  'so calling it in relay mode is correct. ' +
+  'The SDK-mounted /auth/logout route reads federated and returnTo query params and defaults to federated ' +
+  'when enterpriseConnect is set, so redirecting there with an absolute /signin returnTo is a correct ' +
+  'federated logout.';
+
 export function defineGraders() {
   return [
     // ── L1: Required Enterprise Connect symbols present ───────────────────
@@ -38,7 +64,7 @@ export function defineGraders() {
 
     // ── L3: Security ──────────────────────────────────────────────────────
     notContainsInSource(
-      'barkbook_secret_def456uvw',
+      'barkbook_b2b_secret_def456',
       'No hardcoded Auth0 client secret in source (belongs in the environment)',
       GraderLevel.L3,
     ),
@@ -46,6 +72,7 @@ export function defineGraders() {
       'In the enterprise sign-in path, does the app avoid persisting the Auth0 access token (or any token) from ' +
         'the callback for later use, keeping only identity claims in its own session?',
       GraderLevel.L3,
+      { context: FIXTURE_CONTEXT },
     ),
 
     // ── L4: Structural correctness ────────────────────────────────────────
@@ -63,6 +90,34 @@ export function defineGraders() {
         'session from the returned claims and returns a NextResponse; (3) logout is federated with an absolute ' +
         'returnTo?',
       GraderLevel.L4,
+      { context: FIXTURE_CONTEXT },
+    ),
+
+    // The quickstart fallback is a placeholder the developer must replace with
+    // their own login route; Barkbook's existing sign-in lives at /signin.
+    notContainsInSource(
+      '/login?mode=password',
+      'Replaces the quickstart placeholder fallback with the existing /signin route',
+      GraderLevel.L4,
+      { ignoreComments: true },
+    ),
+    // /signin is the only registered Allowed Logout URL.
+    matches(
+      String.raw`returnTo[\s\S]{0,120}/signin`,
+      'Federated logout returns to the registered /signin URL',
+      GraderLevel.L4,
+    ),
+    judge(
+      'Is the enterprise sign-in integrated with the existing app rather than built beside it? Check each ' +
+        'item and answer yes only if all are met: (1) a non-federated email falls back to the existing ' +
+        '/signin password sign-in with the email pre-filled, not to a placeholder or a new password flow; (2) ' +
+        'the onCallback hook signs the enterprise user in with the existing createSession helper, so the ' +
+        'existing /dashboard guard accepts them without a second session mechanism; (3) the existing password ' +
+        'sign-in (the POST /api/signin Route Handler and its password check) still works; (4) a single Auth0 ' +
+        'client is configured from the B2B Connect integration credentials in the environment; (5) the ' +
+        'federated logout returns to /signin?',
+      GraderLevel.L4,
+      { context: FIXTURE_CONTEXT },
     ),
 
     // ── L5: Current API patterns ──────────────────────────────────────────
@@ -73,14 +128,16 @@ export function defineGraders() {
         'and the onCallback hook) rather than by hand-building /authorize or token requests, calling getSession in ' +
         'relay mode (which throws), or pinning a fixed organization for every enterprise customer?',
       GraderLevel.L5,
+      { context: FIXTURE_CONTEXT },
     ),
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
-      'Does the solution correctly add Enterprise Connect relay login to a Next.js App Router app using ' +
+      'Does the solution correctly put Enterprise Connect relay login in front of the existing sign-in of a Next.js App Router app using ' +
         '@auth0/nextjs-auth0 — the Auth0Client configured for Enterprise Connect with an onCallback hook, an ' +
         'email-driven startEnterpriseLogin that routes users to their enterprise IdP by domain, the app owning its ' +
-        'own session created in onCallback, and a federated logout?',
+        'own session created in onCallback, a fallback to the existing /signin password sign-in for non-federated emails, and a federated ' +
+        'logout?',
       undefined,
       {
         context:
@@ -94,7 +151,8 @@ export function defineGraders() {
           'SDK, so importing it without listing it in package.json is acceptable. In relay mode the SDK writes no session and session-dependent methods (getSession, ' +
           'getAccessToken) throw EnterpriseConnectError, so establishing the app session in onCallback and ' +
           'omitting offline_access is correct. A server action cannot return the redirect, so driving ' +
-          'startEnterpriseLogin from a Route Handler (and re-emitting the 307 as 303) is the correct shape.',
+          'startEnterpriseLogin from a Route Handler (and re-emitting the 307 as 303) is the correct shape. ' +
+          FIXTURE_CONTEXT,
       },
     ),
   ];

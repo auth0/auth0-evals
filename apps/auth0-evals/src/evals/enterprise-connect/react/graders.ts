@@ -6,6 +6,23 @@ const SPA_SURFACE_CONTEXT =
   'Federated logout is logout({ logoutParams: { federated: true, returnTo } }) — federated inside ' +
   'logoutParams is the correct v2 shape, not a defect. Grade the integration, not whether the symbols exist.';
 
+// Barkbook already has its own password sign-in; the task puts Enterprise Connect in front of it.
+const FIXTURE_CONTEXT =
+  'The scaffold is Barkbook, a single-page app with its own email + password sign-in that did not use ' +
+  'Auth0 before: the /signin view signs users in against the app API (signInWithPassword / ' +
+  'fetchCurrentUser / signOut in src/api.js), ?email= pre-fills it, and /dashboard loads ' +
+  'fetchCurrentUser() and sends signed-out users to /signin. The SDK was installed but not wired. The ' +
+  'task adds Enterprise Connect with ONE Auth0 client configured with the B2B Connect integration ' +
+  'domain and client ID (a public client: no client secret). Expected: an email-first step checks ' +
+  'isFederatedDomain; a federated email starts the Auth0 redirect with the email as login_hint, and a ' +
+  'non-federated email continues to the existing /signin password sign-in with the email pre-filled, ' +
+  'not to loginWithRedirect / Auth0 Universal Login. An enterprise user comes back signed in through ' +
+  'the SDK (tokens in memory), so /dashboard must accept a user authenticated through the SDK ' +
+  '(useAuth0() isAuthenticated / user) as well as a password user from fetchCurrentUser. The email step ' +
+  'may live on /signin itself or on a separate view. Federated logout must return to /signin, the ' +
+  'registered Allowed Logout URL; password users may keep using signOut(). Validating org_id is ' +
+  'optional.';
+
 export function defineGraders() {
   return [
     // ── L1: Required Enterprise Connect symbols present ───────────────────
@@ -72,10 +89,28 @@ export function defineGraders() {
       'Does the enterprise flow follow the correct React shape? Check each item and answer yes only if all are ' +
         'met: (1) Auth0Provider is configured with enterpriseConnect; (2) an email-entry form uses ' +
         'useEnterpriseConnect() to call isFederatedDomain(emailDomain); (3) when federated it calls ' +
-        'loginWithSSO(email), falling back to the normal loginWithRedirect otherwise; (4) logout passes ' +
+        'loginWithSSO(email), falling back to the existing /signin password sign-in otherwise; (4) logout passes ' +
         'federated: true?',
       GraderLevel.L4,
-      { context: SPA_SURFACE_CONTEXT },
+      { context: SPA_SURFACE_CONTEXT + ' ' + FIXTURE_CONTEXT },
+    ),
+
+    // /signin is the only registered Allowed Logout URL.
+    matches(
+      String.raw`returnTo[\s\S]{0,120}/signin`,
+      'Federated logout returns to the registered /signin URL',
+      GraderLevel.L4,
+    ),
+    judge(
+      'Is the enterprise sign-in integrated with the existing app rather than replacing it? Check each item ' +
+        'and answer yes only if all are met: (1) a non-federated email continues to the existing /signin ' +
+        'password sign-in with the email pre-filled, not to loginWithRedirect / Universal Login; (2) the ' +
+        'existing password sign-in (signInWithPassword) still works; (3) /dashboard accepts an enterprise ' +
+        'user authenticated through the SDK as well as a password user; (4) a single Auth0 client is ' +
+        'configured from the B2B Connect integration domain and client ID; (5) the federated logout returns ' +
+        'to /signin?',
+      GraderLevel.L4,
+      { context: SPA_SURFACE_CONTEXT + ' ' + FIXTURE_CONTEXT },
     ),
 
     // ── L5: Current API patterns ──────────────────────────────────────────
@@ -93,8 +128,8 @@ export function defineGraders() {
     judge(
       'Does the solution correctly add Enterprise Connect sign-in to a React app using @auth0/auth0-react — ' +
         'Auth0Provider flagged for Enterprise Connect, an email-driven useEnterpriseConnect().isFederatedDomain ' +
-        'discovery that then calls loginWithSSO(email) to route the user to their enterprise IdP by domain, and a ' +
-        'federated logout?',
+        'discovery that then calls loginWithSSO(email) to route the user to their enterprise IdP by domain, a fallback to the ' +
+        'existing /signin password sign-in for non-federated emails, and a federated logout?',
       undefined,
       {
         context:
@@ -106,7 +141,8 @@ export function defineGraders() {
           'Logout uses useAuth0().logout with logoutParams.federated: true. Grade the integration, not whether ' +
           'the symbols exist. isFederatedDomain never throws and returns false on any failure, so it is a routing ' +
           'hint, not a security control. Tokens are in-memory and there is no refresh token, so omitting ' +
-          'offline_access is correct, not a defect.',
+          'offline_access is correct, not a defect. ' +
+          FIXTURE_CONTEXT,
       },
     ),
   ];
