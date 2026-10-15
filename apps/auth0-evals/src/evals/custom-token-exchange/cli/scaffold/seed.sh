@@ -20,7 +20,7 @@ log "start: seeding tenant prerequisites"
 if auth0 apis list --json | jq -e '.[] | select(.identifier=="https://api.barkbook.com")' >/dev/null 2>&1; then
   log "resource server 'https://api.barkbook.com' already present — skipping"
 else
-  if ! auth0 api post resource-servers \
+  if ! auth0 apis create \
     --data '{"name":"Barkbook API","identifier":"https://api.barkbook.com","signing_alg":"RS256"}' >/dev/null; then
     log "error: failed to create resource server 'https://api.barkbook.com'"
     exit 1
@@ -29,10 +29,10 @@ else
 fi
 
 # Default database connection the exchange logic resolves users into.
-if auth0 api get "connections?name=Username-Password-Authentication" | jq -e '.[0]' >/dev/null 2>&1; then
+if auth0 connections list --query '{"name":"Username-Password-Authentication"}' --json | jq -e '.[0]' >/dev/null 2>&1; then
   log "connection 'Username-Password-Authentication' already present — skipping"
 else
-  if ! auth0 api post connections \
+  if ! auth0 connections create \
     --data '{"name":"Username-Password-Authentication","strategy":"auth0"}' >/dev/null; then
     log "error: failed to create connection 'Username-Password-Authentication'"
     exit 1
