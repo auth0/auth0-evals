@@ -10,7 +10,6 @@ import {
   ranCommandWithFlags,
   notRanCommand,
   ranCommandOneOf,
-  anyOf,
   ranCommandsInOrder,
   wroteFile,
   calledTool,
@@ -607,70 +606,6 @@ describe('ranCommandOneOf predicate', () => {
       'acme',
     ]);
     expect(def.name).toBe('ran one of [auth0 orgs create | (api post + organizations) with [acme]]');
-  });
-});
-
-// ── anyOf (predicate) ───────────────────────────────────────────────────────
-
-describe('anyOf predicate', () => {
-  const run = (def: ReturnType<typeof anyOf>, calls: EventToolCall[]) => def.predicate!(calls);
-  const cmd = (command: string) => evt({ name: 'run_command', args: { command } });
-
-  // The callback URL can be set on either creation route, each with its own flag.
-  const callbackSet = () =>
-    anyOf(
-      [
-        ranCommandWithFlags('apps create', [['--callbacks', 'localhost:3000']], undefined, GraderLevel.L4),
-        ranCommandWithFlags('qs setup', [['--callback-url', 'localhost:3000']], undefined, GraderLevel.L4),
-      ],
-      'Configured the local dev callback URL',
-      GraderLevel.L4,
-    );
-
-  it('passes when any child grader matches', () => {
-    expect(run(callbackSet(), [cmd('auth0 apps create --type spa --callbacks http://localhost:3000')])).toBe(true);
-    expect(run(callbackSet(), [cmd('auth0 qs setup --app --type spa --callback-url http://localhost:3000')])).toBe(
-      true,
-    );
-  });
-
-  it('fails when no child grader matches', () => {
-    expect(run(callbackSet(), [cmd('auth0 apps list')])).toBe(false);
-  });
-
-  // Regression: before anyOf, the callback check was bound to `apps create` only,
-  // so a correct `qs setup` run failed. Each route must still bind the value to
-  // its own flag — `localhost:3000` under a different flag is not a callback.
-  it('keeps each child flag-bound, so a value under another flag does not pass', () => {
-    expect(run(callbackSet(), [cmd('auth0 qs setup --app --type spa --logout-url http://localhost:3000')])).toBe(false);
-    // `--callbacks` belongs to `apps create`, not `qs setup`.
-    expect(run(callbackSet(), [cmd('auth0 qs setup --app --callbacks http://localhost:3000')])).toBe(false);
-  });
-
-  it('throws when given no graders', () => {
-    expect(() => anyOf([], 'empty', GraderLevel.L4)).toThrow(/at least one grader/);
-  });
-
-  it('throws when a child is not an event grader', () => {
-    expect(() => anyOf([contains('needle')], 'bad child', GraderLevel.L4)).toThrow(/event grader with a predicate/);
-  });
-
-  it('rejects non-event levels', () => {
-    const child = ranCommandOneOf(['apps create'], undefined, GraderLevel.L4);
-    // @ts-expect-error — L1 is not an EventGraderLevel
-    expect(() => anyOf([child], 'bad level', GraderLevel.L1)).toThrow(/only support L4/);
-  });
-
-  it('joins child names when no description is given', () => {
-    const def = anyOf(
-      [
-        ranCommandOneOf(['apps create'], 'native', GraderLevel.L4),
-        ranCommandOneOf(['qs setup'], 'quickstart', GraderLevel.L4),
-      ],
-      undefined,
-      GraderLevel.L4,
-    );
-    expect(def.name).toBe('native OR quickstart');
   });
 });
 

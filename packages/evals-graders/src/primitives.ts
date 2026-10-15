@@ -423,42 +423,6 @@ export function ranCommandOneOf(
 }
 
 /**
- * Asserts that **at least one** of the given event graders passes — a logical OR
- * across matchers that can't be collapsed into a single primitive.
- *
- * `ranCommandOneOf` ORs alternative routes only when every route is a substring
- * (or AND-group of substrings) checked against the same args. Some checks must OR
- * different match shapes instead — e.g. a callback URL bound to `--callbacks` on
- * `auth0 apps create` OR to `--callback-url` on `auth0 qs setup`. Each side needs
- * `ranCommandWithFlags` so the value stays bound to its own flag; `anyOf` lets one
- * grader accept either.
- *
- * Every child must be an event grader (it must expose a `predicate`). Each child's
- * own name and level are ignored — the composed grader carries the description and
- * level given here.
- *
- * @param graders - Event graders to OR together; the composed check passes if any does
- */
-export function anyOf(graders: GraderDef[], description: string | undefined, level: EventGraderLevel): GraderDef {
-  validateEventLevel(level, 'anyOf');
-  if (graders.length === 0) {
-    throw new Error('anyOf: requires at least one grader');
-  }
-  const predicates = graders.map((g) => {
-    if (typeof g.predicate !== 'function') {
-      throw new Error(`anyOf: every grader must be an event grader with a predicate (got kind '${g.kind}')`);
-    }
-    return g.predicate;
-  });
-  return {
-    kind: 'event',
-    name: description ?? graders.map((g) => g.name).join(' OR '),
-    level,
-    predicate: (toolCalls: EventToolCall[]) => predicates.some((p) => p(toolCalls)),
-  };
-}
-
-/**
  * Asserts that the agent ran a sequence of commands **in order**.
  *
  * Each step is a needle (or a one-of array of alternative needles) that must be
