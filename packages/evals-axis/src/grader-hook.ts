@@ -46,6 +46,11 @@ export async function runAuth0Graders(result: RunResult, options: RunAuth0Grader
   }
 
   const evalDef = await loadEval(evalConfig, frameworkRoot);
+  // AXIS has no hook to seed before its agent runs, so a fixture eval would be
+  // graded against a tenant it never prepared.
+  if (evalDef.fixture) {
+    throw new Error(`'${evalDef.id}' has a tenant fixture, which AXIS does not run; use npm run evals instead`);
+  }
   const toolCalls = axisTranscriptToToolCalls(result.output.transcript);
 
   let compileResult;

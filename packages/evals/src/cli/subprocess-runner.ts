@@ -3,12 +3,14 @@ import { spawn } from 'node:child_process';
 
 /**
  * Spawns a single-eval subprocess and waits for it to exit cleanly.
- * The subprocess runs `selfPath --eval <evalId> ...args`.
+ * The subprocess runs `selfPath --eval <evalId> ...args`, inheriting this
+ * process's env unless `env` is given.
  */
-export function spawnEval(selfPath: string, evalId: string, args: string[]): Promise<void> {
+export function spawnEval(selfPath: string, evalId: string, args: string[], env?: NodeJS.ProcessEnv): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [selfPath, '--eval', evalId, ...args], {
       stdio: 'inherit',
+      ...(env ? { env } : {}),
     });
     child.on('close', (code, signal) => {
       if (code === 0 && signal === null) {
