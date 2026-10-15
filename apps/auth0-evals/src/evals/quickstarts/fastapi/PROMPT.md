@@ -6,11 +6,13 @@ setup_command: python3 -m venv .venv && .venv/bin/pip install -r requirements.tx
 compile_command: .venv/bin/python -m py_compile main.py
 ---
 
-## Task
-Add Auth0 authentication to my FastAPI API.
+## System
 
 Domain: dev-barkbook.us.auth0.com
 Audience: https://api.barkbook.com
+
+## Task
+Add Auth0 authentication to my FastAPI API.
 
 I need two protected routes:
 1. /api/messages — requires a valid token with the `read:messages` scope, returns the user's `sub` claim

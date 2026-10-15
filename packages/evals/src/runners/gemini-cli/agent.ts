@@ -32,7 +32,7 @@ import {
   mintMcpToken,
   mcpBearerTokenEnvVar,
 } from '@a0/evals-core';
-import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/evals-core';
+import { agentPrompt, classifyActionType, classifyErrorCategory, detectRetry } from '@a0/evals-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
 import { GeminiCliTranslator } from './translator.js';
 
@@ -222,7 +222,7 @@ export async function runGeminiCliAgent(
   // Trust only this workspace so YOLO mode isn't overridden in CI/headless environments.
   const trustedFoldersPath = writeTrustedFolders(workspace);
 
-  const args: string[] = ['-p', evalDef.userPrompt, '--approval-mode', 'yolo', '-o', 'stream-json', '-m', model];
+  const args: string[] = ['-p', agentPrompt(evalDef), '--approval-mode', 'yolo', '-o', 'stream-json', '-m', model];
 
   const geminiEnv: Record<string, string> = {
     ...filteredEnv(),

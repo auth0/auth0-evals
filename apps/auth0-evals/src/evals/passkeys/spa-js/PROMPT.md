@@ -7,10 +7,12 @@ setup_command: npm install
 compile_command: npm run build
 ---
 
-## Task
-
-My JavaScript SPA app already has Auth0 login working with @auth0/auth0-spa-js. I want to let people use passkeys instead of a password — new users should be able to sign up with a passkey and returning users should be able to sign in with one, using their device biometrics or screen lock. The tenant is already configured for passkeys.
+## System
 
 Domain: dev-barkbook.us.auth0.com
 Client ID: barkbook_client_abc123xyz
 Audience: https://api.barkbook.com
+
+## Task
+
+My JavaScript SPA app already has Auth0 login working with @auth0/auth0-spa-js. I want to let people use passkeys instead of a password — new users should be able to sign up with a passkey and returning users should be able to sign in with one, using their device biometrics or screen lock. The tenant is already configured for passkeys.

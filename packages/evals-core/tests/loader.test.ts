@@ -201,9 +201,32 @@ describe('loadEval - system prompt', () => {
 
     expect(result.baselineSystemPrompt).toContain('Generic system prompt');
   });
+
+  it('always appends the standing SDK instruction to a ## System section', async () => {
+    makeEvalDir(tmpBase, '## System\nDomain: dev.example.com\n\n## Task\nDo the task.\n');
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.baselineSystemPrompt).toContain('Domain: dev.example.com');
+    expect(result.baselineSystemPrompt).toContain('official Auth0 SDK');
+  });
 });
 
 // ── Scaffold loading tests ────────────────────────────────────────────────────
+
+describe('loadEval - systemContext', () => {
+  it('is the ## System text without the standing SDK instruction', async () => {
+    makeEvalDir(tmpBase, '## System\nDomain: dev.example.com\n\n## Task\nDo the task.\n');
+    const def = await loadEval(EVAL_CONFIG, tmpBase);
+    expect(def.systemContext).toBe('Domain: dev.example.com');
+  });
+
+  it('is undefined when there is no ## System section', async () => {
+    makeEvalDir(tmpBase, '## Task\nDo the task.\n');
+    const def = await loadEval(EVAL_CONFIG, tmpBase);
+    expect(def.systemContext).toBeUndefined();
+  });
+});
 
 describe('loadEval - scaffold loading', () => {
   it('loads scaffold files', async () => {

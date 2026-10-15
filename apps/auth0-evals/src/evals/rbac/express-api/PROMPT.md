@@ -7,12 +7,16 @@ setup_command: npm install
 compile_command: node --check server.js
 ---
 
-## Task
-
-My Express API validates Auth0 JWT access tokens with express-oauth2-jwt-bearer. I need finer-grained authorization on top of it.
+## System
 
 Domain: dev-barkbook.us.auth0.com
 Audience: https://api.barkbook.com
+
+There is a `.env.example` in the project — create the real `.env` from it with the values above.
+
+## Task
+
+My Express API validates Auth0 JWT access tokens with express-oauth2-jwt-bearer. I need finer-grained authorization on top of it.
 
 I have RBAC enabled on the API in the Auth0 Dashboard, with "Add Permissions in the Access Token" turned on.
 
@@ -23,5 +27,3 @@ Add these routes:
 - `GET /api/admin` — only callers whose token has an `isAdmin` claim exactly equal to boolean `true` may pass. An Action adds this claim; namespace it however you normally would.
 
 Keep the existing `/api/balance` and `/api/transfers` routes working as they are.
-
-There is a `.env.example` in the project — create the real `.env` from it with the values above.

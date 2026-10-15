@@ -64,8 +64,13 @@ const scenarios = evalConfigs.map((cfg) => {
   // Extract the ## Task section — split on headings so multi-paragraph tasks
   // and blank lines are captured correctly. The multiline $ anchor in a
   // lookahead would stop at the first blank line, truncating the prompt.
-  const taskSection = raw.split(/^(?=## )/m).find((s) => s.startsWith('## Task'));
-  const prompt = taskSection?.replace(/^## Task[^\n]*\n/, '').trim() ?? '';
+  const sections = raw.split(/^(?=## )/m);
+  const taskSection = sections.find((s) => s.startsWith('## Task'));
+  const taskText = taskSection?.replace(/^## Task[^\n]*\n/, '').trim() ?? '';
+  // The ## System section (credentials, .env steering) must reach the agent too.
+  const systemSection = sections.find((s) => s.startsWith('## System'));
+  const systemText = systemSection?.replace(/^## System[^\n]*\n/, '').trim() ?? '';
+  const prompt = systemText ? `${systemText}\n\n${taskText}` : taskText;
 
   const scaffold = fm(raw, 'scaffold');
 
