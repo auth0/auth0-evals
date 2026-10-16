@@ -33,6 +33,18 @@ async function requireSession(request: Request, response: Response, next: NextFu
   next();
 }
 
+// Browsers always send Origin on cross-site POSTs, so a mismatch means CSRF.
+function requireSameOrigin(request: Request, response: Response, next: NextFunction): void {
+  const origin = request.get('origin');
+
+  if (origin && origin !== new URL(appBaseUrl).origin) {
+    response.status(403).json({ error: 'Invalid request origin' });
+    return;
+  }
+
+  next();
+}
+
 app.get('/', async (request: Request, response: Response) => {
   const session = await request.auth0.client.getSession();
   response.send(session ? 'Logged in' : 'Logged out');
@@ -43,7 +55,7 @@ app.get('/profile', requireSession, async (request: Request, response: Response)
   response.json({ user });
 });
 
-app.post('/transfers', requireSession, async (request: Request, response: Response) => {
+app.post('/transfers', requireSession, requireSameOrigin, async (request: Request, response: Response) => {
   const { amount, to } = request.body ?? {};
 
   const tokenSet = await request.auth0.client.getAccessToken();

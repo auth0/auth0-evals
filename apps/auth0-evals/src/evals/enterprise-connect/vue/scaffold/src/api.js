@@ -17,5 +17,6 @@ export async function fetchCurrentUser() {
 }
 
 export async function signOut() {
-  await fetch('/api/session', { method: 'DELETE', credentials: 'include' });
+  const response = await fetch('/api/session', { method: 'DELETE', credentials: 'include' });
+  if (!response.ok) throw new Error('Sign out failed.');
 }
