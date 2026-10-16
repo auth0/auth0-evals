@@ -1,6 +1,7 @@
 ---
 id: android_organizations
 name: Android Organizations Login
+displayable_prompt: Add Auth0 Organizations support to an Android app — log users into the Acme org, accept invitation links, and display org membership.
 scaffold: src/evals/scaffolds/android/auth0
 skills: auth0
 ---

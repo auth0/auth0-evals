@@ -1,6 +1,7 @@
 ---
 id: auth0_server_js_organizations
 name: auth0-server-js Organizations Login
+displayable_prompt: Add Auth0 Organizations support to an Express web app using @auth0/auth0-server-js — Acme org login, invitation links, validation error handling, and org membership display.
 scaffold: src/evals/scaffolds/auth0-server-js/auth0
 skills: auth0
 setup_command: npm install

@@ -1,6 +1,7 @@
 ---
 id: express_oidc_mfa
 name: Express OpenID Connect MFA Step-Up
+displayable_prompt: Add MFA step-up to a protected transfer route in an Express app using express-openid-connect, redirecting users to step up and verifying MFA completion server-side before allowing the transfer.
 scaffold: src/evals/scaffolds/express-oidc/auth0
 skills: auth0
 setup_command: npm install

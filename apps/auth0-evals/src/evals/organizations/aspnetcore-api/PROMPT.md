@@ -1,6 +1,7 @@
 ---
 id: aspnetcore_api_organizations
 name: ASP.NET Core API (Auth0.AspNetCore.Authentication.Api) Organizations
+displayable_prompt: Add Organizations support to an ASP.NET Core API — restrict a members endpoint to the Acme org and expose org profile data.
 scaffold: src/evals/scaffolds/aspnetcore-api/auth0
 skills: auth0
 ---

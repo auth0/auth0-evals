@@ -1,6 +1,7 @@
 ---
 id: express_oidc_organizations
 name: Express OIDC Organizations Login
+displayable_prompt: Add Auth0 Organizations support to an Express web app using express-openid-connect — Acme org login, invitation links, and org membership display.
 scaffold: src/evals/scaffolds/express-oidc/auth0
 skills: auth0
 setup_command: npm install

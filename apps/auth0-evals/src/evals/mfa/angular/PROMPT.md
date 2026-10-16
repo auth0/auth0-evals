@@ -1,6 +1,7 @@
 ---
 id: angular_mfa
 name: Angular MFA Step-Up
+displayable_prompt: Add MFA step-up to an Angular app's Transfer Funds feature using @auth0/auth0-angular so users must complete MFA before a transfer runs.
 scaffold: src/evals/scaffolds/angular/auth0
 skills: auth0
 setup_command: npm install

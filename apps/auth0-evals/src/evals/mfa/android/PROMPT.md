@@ -1,6 +1,7 @@
 ---
 id: android_mfa
 name: Android MFA Step-Up
+displayable_prompt: Handle MFA step-up in an Android app using the Auth0 Authentication API — detect the MFA required error, complete the in-app challenge, and finish login with credentials stored.
 scaffold: src/evals/scaffolds/android/auth0
 skills: auth0
 ---

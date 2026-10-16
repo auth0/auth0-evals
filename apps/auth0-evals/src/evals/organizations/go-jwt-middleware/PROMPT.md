@@ -1,6 +1,7 @@
 ---
 id: go_jwt_organizations
 name: Go API (go-jwt-middleware) Organizations
+displayable_prompt: Add Organizations support to a Go API using go-jwt-middleware — restrict a members endpoint to the Acme org and expose org profile data.
 scaffold: src/evals/scaffolds/go-jwt-middleware/auth0
 skills: auth0
 ---

@@ -1,6 +1,7 @@
 ---
 id: react_quickstart
 name: React Quickstart
+displayable_prompt: Add Auth0 login to a React app using @auth0/auth0-react and include an authenticated API call using an access token.
 scaffold: src/evals/scaffolds/react/basic
 skills: auth0
 setup_command: npm install

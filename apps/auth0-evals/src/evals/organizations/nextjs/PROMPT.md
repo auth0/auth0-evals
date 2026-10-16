@@ -1,6 +1,7 @@
 ---
 id: nextjs_organizations
 name: Next.js App Router Organizations Login
+displayable_prompt: Add Auth0 Organizations support to a Next.js App Router app using @auth0/nextjs-auth0 v4 — Acme org login, invitation links, and org membership on the dashboard.
 scaffold: src/evals/scaffolds/nextjs/auth0
 skills: auth0
 setup_command: npm install

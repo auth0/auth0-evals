@@ -1,6 +1,7 @@
 ---
 id: spring_security_api_mfa
 name: Spring Boot API MFA Step-Up
+displayable_prompt: Gate a high-value transfer endpoint on an MFA-gated scope in a Spring Boot OAuth2 resource server, while keeping existing scope checks intact.
 scaffold: src/evals/scaffolds/spring-security-api/auth0
 skills: auth0
 ---

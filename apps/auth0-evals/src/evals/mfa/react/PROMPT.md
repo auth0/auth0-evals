@@ -1,6 +1,7 @@
 ---
 id: react_mfa
 name: React MFA Step-Up
+displayable_prompt: Add MFA step-up to a React app's Transfer Funds feature using @auth0/auth0-react so users must complete MFA before a transfer runs.
 scaffold: src/evals/scaffolds/react/auth0
 skills: auth0
 setup_command: npm install

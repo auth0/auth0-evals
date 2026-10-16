@@ -1,6 +1,7 @@
 ---
 id: react_native_mfa
 name: React Native MFA
+displayable_prompt: Handle MFA step-up in a React Native app using the Auth0 Authentication API — detect the error, complete the in-app OTP challenge, and finish login with credentials stored.
 scaffold: src/evals/mfa/react-native/scaffold
 skills: auth0
 ---

@@ -1,6 +1,7 @@
 ---
 id: api_python_organizations
 name: Python API (auth0-api-python) Organizations
+displayable_prompt: Add Organizations support to a Python API using auth0-api-python — restrict a members endpoint to the Acme org and expose org profile data.
 scaffold: src/evals/scaffolds/api-python/auth0
 skills: auth0
 setup_command: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt

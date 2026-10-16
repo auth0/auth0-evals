@@ -1,6 +1,7 @@
 ---
 id: flask_quickstart
 name: Flask Quickstart
+displayable_prompt: Add Auth0 login, a protected profile route, and an authenticated external API call to a Flask app.
 skills: auth0
 setup_command: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 compile_command: .venv/bin/python -m py_compile app.py

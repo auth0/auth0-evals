@@ -1,6 +1,7 @@
 ---
 id: vue_mfa
 name: Vue MFA Step-Up
+displayable_prompt: Add MFA step-up to a Vue app's Transfer Funds feature using @auth0/auth0-vue so users must complete MFA before a transfer runs.
 scaffold: src/evals/scaffolds/vue/auth0
 skills: auth0
 setup_command: npm install

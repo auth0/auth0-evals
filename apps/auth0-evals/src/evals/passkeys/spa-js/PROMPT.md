@@ -1,6 +1,7 @@
 ---
 id: spa_js_passkeys
 name: SPA JS Passkey Sign-Up and Sign-In
+displayable_prompt: Add passkey sign-up and sign-in to a vanilla JavaScript SPA using @auth0/auth0-spa-js, letting users register and authenticate with device biometrics.
 scaffold: src/evals/scaffolds/spa-js/auth0
 skills: auth0
 setup_command: npm install

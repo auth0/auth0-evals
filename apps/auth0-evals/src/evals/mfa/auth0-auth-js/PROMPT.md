@@ -1,6 +1,7 @@
 ---
 id: auth0_auth_js_mfa
 name: Auth0 Auth JS MFA API
+displayable_prompt: Add full in-app MFA support to a Node.js auth service using @auth0/auth0-auth-js, including authenticator app setup, OTP challenge, SMS, recovery codes, and factor management.
 scaffold: src/evals/scaffolds/auth0-auth-js/auth0
 skills: auth0
 setup_command: npm install

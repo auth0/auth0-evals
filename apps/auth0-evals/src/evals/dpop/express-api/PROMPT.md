@@ -1,6 +1,7 @@
 ---
 id: express_api_dpop
 name: Express API DPoP Enforcement
+displayable_prompt: Enforce DPoP sender-constrained tokens on an Express API, rejecting plain Bearer tokens and validating proof age and HTTP URI claim behind a TLS-terminating proxy.
 scaffold: src/evals/scaffolds/express-api/auth0
 skills: auth0
 setup_command: npm install

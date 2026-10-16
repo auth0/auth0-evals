@@ -1,6 +1,7 @@
 ---
 id: express_api_rbac
 name: Express API RBAC and Scopes
+displayable_prompt: Add fine-grained authorization to an Express API — combined scopes, OR-scopes, RBAC permission claims, and custom Action claims — on top of existing Auth0 JWT validation.
 scaffold: src/evals/scaffolds/express-api/auth0
 skills: auth0
 setup_command: npm install

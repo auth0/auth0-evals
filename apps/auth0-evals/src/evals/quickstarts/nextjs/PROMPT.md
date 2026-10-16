@@ -1,6 +1,7 @@
 ---
 id: nextjs_quickstart
 name: Next.js App Router Quickstart
+displayable_prompt: Add Auth0 login to a Next.js App Router app, protect the dashboard behind authentication, and make authenticated API calls with an access token.
 skills: auth0
 setup_command: npm install
 compile_command: npm run build
