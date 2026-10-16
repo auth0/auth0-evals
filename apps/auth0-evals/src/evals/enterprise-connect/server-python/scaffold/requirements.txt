@@ -1,0 +1,5 @@
+auth0-server-python>=1.0.0b17,<1.0.1
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+python-dotenv>=1.0
