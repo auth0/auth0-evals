@@ -147,12 +147,11 @@ export function defineGraders() {
 
     // ── L4: Structural correctness ────────────────────────────────────────
     compiles('Project builds (vite build succeeds)', GraderLevel.L4),
+    // One judge per outcome so a failure names itself. What a regex already checks (the flag,
+    // federated: true, returnTo /signin, signInWithPassword) is not asked again.
     judge(
-      'Does the enterprise flow follow the correct React shape? Check each item and answer yes only if all are ' +
-        'met: (1) Auth0Provider is configured with enterpriseConnect; (2) an email-entry form uses ' +
-        'useEnterpriseConnect() to call isFederatedDomain(emailDomain); (3) when federated it calls ' +
-        'loginWithSSO(email), falling back to the existing /signin password sign-in otherwise; (4) logout passes ' +
-        'federated: true?',
+      'Is loginWithSSO called with the email the user typed, and only after the awaited ' +
+        "useEnterpriseConnect().isFederatedDomain(emailDomain) resolved true for that email's domain?",
       GraderLevel.L4,
       { context: SPA_SURFACE_CONTEXT + ' ' + FIXTURE_CONTEXT },
     ),
@@ -164,13 +163,23 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
     judge(
-      'Is the enterprise sign-in integrated with the existing app rather than replacing it? Check each item ' +
-        'and answer yes only if all are met: (1) a non-federated email continues to the existing /signin ' +
-        'password sign-in with the email pre-filled, not to loginWithRedirect / Universal Login; (2) the ' +
-        'existing password sign-in (signInWithPassword) still works; (3) /dashboard accepts an enterprise ' +
-        'user authenticated through the SDK as well as a password user; (4) a single Auth0 client is ' +
-        'configured from the B2B Connect integration domain and client ID; (5) the federated logout returns ' +
-        'to /signin?',
+      'Does a non-federated email continue to the existing /signin password sign-in with the email pre-filled, ' +
+        'rather than to loginWithRedirect / loginWithSSO / Auth0 Universal Login or a new password form?',
+      GraderLevel.L4,
+      { context: SPA_SURFACE_CONTEXT + ' ' + FIXTURE_CONTEXT },
+    ),
+    judge(
+      'Does an enterprise user coming back from Auth0 reach /dashboard signed in? Answer yes only if both hold: ' +
+        '(1) /dashboard accepts a user authenticated through the SDK (useAuth0() isAuthenticated / user) as well ' +
+        'as a password user from fetchCurrentUser; (2) after Auth0Provider handles the callback the app reaches ' +
+        '/dashboard in the same page load or navigates client-side (a full page load such as ' +
+        'window.location.assign or setting location.href, including inside onRedirectCallback, clears the ' +
+        'in-memory SDK session, so the user would be sent back to /signin).',
+      GraderLevel.L4,
+      { context: SPA_SURFACE_CONTEXT + ' ' + FIXTURE_CONTEXT },
+    ),
+    judge(
+      'Is exactly one Auth0Provider configured, from the B2B Connect integration domain and client ID?',
       GraderLevel.L4,
       { context: SPA_SURFACE_CONTEXT + ' ' + FIXTURE_CONTEXT },
     ),

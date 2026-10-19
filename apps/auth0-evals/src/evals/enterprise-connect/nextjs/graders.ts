@@ -161,21 +161,40 @@ export function defineGraders() {
 
     // ── L4: Structural correctness ────────────────────────────────────────
     compiles('Project compiles (next build succeeds)', GraderLevel.L4),
+    // Without the middleware mount, /auth/callback and /auth/logout are never served.
+    matches(
+      String.raw`\bauth0\.middleware\s*\(`,
+      'Mounts the SDK middleware (serves /auth/callback and /auth/logout)',
+      GraderLevel.L4,
+      { caseSensitive: true },
+    ),
     // The enterprise login is driven by the user-supplied email.
     matches(
       String.raw`startEnterpriseLogin\s*\([\s\S]{0,200}email`,
       'Calls startEnterpriseLogin with the user-supplied email',
       GraderLevel.L4,
     ),
+    // One judge per outcome so a failure names itself. What a regex already checks (startEnterpriseLogin
+    // with the email, federated, the placeholder, returnTo /signin, the POST /api/signin password check)
+    // is not asked again.
     judge(
-      'Does the feature wire up the full relay flow? Check each item and answer yes only if all are met: ' +
-        '(1) an email-entry login triggers startEnterpriseLogin (server-side returning a NextResponse redirect, or ' +
-        'the client helper), routing the user to their IdP by email domain; (2) the onCallback hook builds the app ' +
-        'session from the returned claims and returns a NextResponse; (3) logout is federated with an absolute ' +
-        'returnTo?',
+      'Does the email step follow the startEnterpriseLogin result (server-side: send the redirect NextResponse it ' +
+        'returns, re-emitted as 303 or not; client helper: it navigates itself and resolves true), and when it signals not federated (null / false) fall ' +
+        'back to the existing /signin password sign-in with the email pre-filled, not to a placeholder or a new ' +
+        'password flow?',
       GraderLevel.L4,
       { context: FIXTURE_CONTEXT },
     ),
+    judge(
+      'Does the onCallback hook sign the enterprise user in with the existing createSession helper from the ' +
+        'returned claims and return a NextResponse, so the existing /dashboard guard accepts them without a ' +
+        'second session mechanism?',
+      GraderLevel.L4,
+      { context: FIXTURE_CONTEXT },
+    ),
+    judge('Does the federated logout pass an absolute returnTo URL, not a bare path?', GraderLevel.L4, {
+      context: FIXTURE_CONTEXT,
+    }),
 
     // The quickstart fallback is a placeholder the developer must replace with
     // their own login route; Barkbook's existing sign-in lives at /signin.
@@ -192,14 +211,8 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
     judge(
-      'Is the enterprise sign-in integrated with the existing app rather than built beside it? Check each ' +
-        'item and answer yes only if all are met: (1) a non-federated email falls back to the existing ' +
-        '/signin password sign-in with the email pre-filled, not to a placeholder or a new password flow; (2) ' +
-        'the onCallback hook signs the enterprise user in with the existing createSession helper, so the ' +
-        'existing /dashboard guard accepts them without a second session mechanism; (3) the existing password ' +
-        'sign-in (the POST /api/signin Route Handler and its password check) still works; (4) a single Auth0 ' +
-        'client is configured from the B2B Connect integration credentials in the environment; (5) the ' +
-        'federated logout returns to /signin?',
+      'Is exactly one Auth0Client configured, from the B2B Connect integration credentials read from the ' +
+        'environment?',
       GraderLevel.L4,
       { context: FIXTURE_CONTEXT },
     ),
@@ -211,8 +224,9 @@ export function defineGraders() {
       GraderLevel.L4,
       { caseSensitive: true },
     ),
+    // Also accepts an expression such as action={passwordMode ? '/api/signin' : '/api/login'}.
     matches(
-      String.raw`(?:action|href)\s*=\s*['"]?\{?['"]?/api/signin`,
+      String.raw`(?:action|href)\s*=\s*\{?[^>]{0,80}?['"\x60]/api/signin(?![\w/-])`,
       'Sign-in form still posts to the existing /api/signin handler',
       GraderLevel.L4,
       { caseSensitive: true },
