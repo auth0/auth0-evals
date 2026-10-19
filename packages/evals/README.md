@@ -108,6 +108,7 @@ export default defineConfig({
 | `judge.model` | `string` | Yes | Model for LLM-as-judge grading |
 | `judge.maxTokens` | `number` | No | Max tokens for judge responses (default 4096). Thinking-capable models count reasoning against this budget, so keep headroom or the verdict line can be truncated. |
 | `judge.maxCodeChars` | `number` | No | Max source code chars sent to judge |
+| `judge.concurrency` | `number` | No | Max graders run at once within one job (default 1, sequential). Raising it runs LLM judges in parallel. Proxy load is `--workers` × this value, because every concurrent job runs its own judges. |
 | `models.known` | `string[]` | No | Models available via `--model all` |
 | `models.default` | `string` | Yes | Default model when `--model` is omitted |
 | `agents.<runner>.proxy` | `{ baseUrl }` | No | Per-agent proxy overrides |
