@@ -504,9 +504,9 @@ describe('status and final state', () => {
     expect(record.providerErrors.some((e) => e.includes('spawn ENOENT'))).toBe(true);
   });
 
-  it('kills subprocess when MAX_TURNS is reached', async () => {
+  it('kills subprocess as a backstop once turns exceed MAX_TURNS', async () => {
     const events: JsonlEvent[] = [];
-    for (let i = 0; i < MAX_TURNS + 5; i++) {
+    for (let i = 0; i < MAX_TURNS + 1; i++) {
       events.push({ type: 'tool_use', tool_id: `t${i}`, tool_name: 'read_file', parameters: {} });
       events.push({ type: 'tool_result', tool_id: `t${i}`, status: 'success', output: 'ok' });
       events.push({ type: 'message', role: 'assistant', content: `Turn ${i + 1}.`, delta: false });
@@ -522,8 +522,54 @@ describe('status and final state', () => {
     expect(record.providerErrors.some((e) => e.includes('turn limit'))).toBe(true);
     // child.kill is mocked so the stream isn't actually stopped — turns may
     // exceed MAX_TURNS in the test. In production SIGTERM kills the process.
-    expect(record.turnMetrics.length).toBeGreaterThanOrEqual(MAX_TURNS);
+    expect(record.turnMetrics.length).toBeGreaterThan(MAX_TURNS);
     expect(child.kill).toHaveBeenCalledWith('SIGTERM');
+  });
+
+  it('does not kill at exactly MAX_TURNS — the CLI enforces its own limit first', async () => {
+    const events: JsonlEvent[] = [];
+    for (let i = 0; i < MAX_TURNS; i++) {
+      events.push({ type: 'message', role: 'assistant', content: `Turn ${i + 1}.`, delta: false });
+    }
+    events.push(resultEvent());
+
+    const child = makeChild(events);
+    mockSpawn.mockReturnValue(child);
+
+    const record = await runGeminiCliAgent(evalDef, workspace);
+    expect(child.kill).not.toHaveBeenCalled();
+    expect(record.providerErrors.some((e) => e.includes('turn limit'))).toBe(false);
+  });
+
+  // Gemini CLI emits this when model.maxSessionTurns is hit (handleMaxTurnsExceededError).
+  it('records tokens and one turn-limit error when the CLI stops at maxSessionTurns', async () => {
+    const events: JsonlEvent[] = [];
+    for (let i = 0; i < MAX_TURNS; i++) {
+      events.push({ type: 'tool_use', tool_id: `t${i}`, tool_name: 'read_file', parameters: {} });
+      events.push({ type: 'tool_result', tool_id: `t${i}`, status: 'success', output: 'ok' });
+      events.push({ type: 'message', role: 'assistant', content: `Turn ${i + 1}.`, delta: false });
+    }
+    events.push({
+      type: 'result',
+      status: 'error',
+      error: {
+        type: 'FatalTurnLimitedError',
+        message:
+          'Reached max session turns for this session. Increase the number of turns by specifying maxSessionTurns in settings.json.',
+      },
+      stats: { input_tokens: 1200, output_tokens: 300, duration_ms: 0, tool_calls: MAX_TURNS },
+    });
+
+    const child = makeChild(events, 53);
+    mockSpawn.mockReturnValue(child);
+
+    const record = await runGeminiCliAgent(evalDef, workspace);
+    expect(record.status).toBe('failure');
+    expect(record.inputTokens).toBe(1200);
+    expect(record.outputTokens).toBe(300);
+    expect(record.costUsd).toBeGreaterThan(0);
+    expect(record.providerErrors.filter((e) => e.includes('turn limit'))).toHaveLength(1);
+    expect(child.kill).not.toHaveBeenCalled();
   });
 
   it('endTime is always set after completion', async () => {
@@ -624,7 +670,7 @@ describe('status and final state', () => {
   // session holding an unresolved tool call would never hit the turn limit.
   it('still enforces MAX_TURNS while a tool call remains unresolved', async () => {
     const events: JsonlEvent[] = [{ type: 'tool_use', tool_id: 'held', tool_name: 'write_file', parameters: {} }];
-    for (let i = 0; i < MAX_TURNS + 3; i++) {
+    for (let i = 0; i < MAX_TURNS + 1; i++) {
       events.push({ type: 'message', role: 'assistant', content: `turn ${i}` });
     }
     const child = makeChild(events);
@@ -684,6 +730,15 @@ describe('.gemini/settings.json', () => {
     const settings = readSettings();
     expect(settings.security).toEqual({ auth: { selectedType: 'gemini-api-key' } });
     expect(settings).not.toHaveProperty('mcpServers');
+  });
+
+  it('sets model.maxSessionTurns to MAX_TURNS so the CLI stops itself and reports stats', async () => {
+    mockSpawn.mockReturnValue(makeChild([resultEvent()]));
+
+    await runGeminiCliAgent(evalDef, tmpWorkspace, { tools: [] });
+
+    const settings = readSettings() as { model?: { maxSessionTurns?: number } };
+    expect(settings.model?.maxSessionTurns).toBe(MAX_TURNS);
   });
 
   it('registers HTTP MCP servers alongside the pinned auth type when MCP is enabled', async () => {

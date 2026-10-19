@@ -108,9 +108,13 @@ interface GeminiMcpSettings {
 async function writeGeminiSettings(workspace: string, includeMcp: boolean): Promise<GeminiMcpSettings> {
   const settings: {
     security: { auth: { selectedType: string } };
+    model: { maxSessionTurns: number };
     mcpServers?: Record<string, GeminiMcpServer>;
   } = {
     security: { auth: { selectedType: GEMINI_AUTH_TYPE } },
+    // Let the CLI enforce the turn limit itself: it then emits a final
+    // `result` event carrying token stats, which a SIGTERM kill never gets.
+    model: { maxSessionTurns: MAX_TURNS },
   };
 
   const mcpServers: Record<string, GeminiMcpServer> = {};
@@ -406,11 +410,14 @@ export async function runGeminiCliAgent(
                 turnStartTime = turnEndTime;
                 logger.info(`[GeminiCLI] Turn ${turnNum}: ${turnToolCount} tool(s)`);
                 turnToolCount = 0;
-                if (!turnLimitReached && turnNum >= MAX_TURNS) {
+                // Backstop only: the CLI enforces maxSessionTurns itself and
+                // emits a stats-bearing `result`, so kill only once our count
+                // has gone past the limit without that happening.
+                if (!turnLimitReached && turnNum > MAX_TURNS) {
                   turnLimitReached = true;
                   record.providerErrors.push(`turn limit: stopped after ${MAX_TURNS} turns`);
                   record.status = 'failure';
-                  logger.info(`[GeminiCLI] ✗ Turn limit reached (${MAX_TURNS}) — killing`);
+                  logger.info(`[GeminiCLI] ✗ Turn limit exceeded (${MAX_TURNS}) — killing`);
                   child.kill('SIGTERM');
                 }
               }
@@ -451,13 +458,26 @@ export async function runGeminiCliAgent(
               record.turnMetrics.push(tm);
               turnToolCount = 0;
 
-              if (!turnLimitReached && turnNum >= MAX_TURNS) {
+              if (!turnLimitReached && turnNum > MAX_TURNS) {
                 turnLimitReached = true;
                 record.providerErrors.push(`turn limit: stopped after ${MAX_TURNS} turns`);
                 record.status = 'failure';
-                logger.info(`[GeminiCLI] ✗ Turn limit reached (${MAX_TURNS}) — killing`);
+                logger.info(`[GeminiCLI] ✗ Turn limit exceeded (${MAX_TURNS}) — killing`);
                 child.kill('SIGTERM');
               }
+            }
+
+            // The CLI stopped itself at model.maxSessionTurns: it emits
+            // status:"error" with a FatalTurnLimitedError, plus the token stats
+            // recorded below.
+            const resultError = (event.error ?? {}) as Record<string, unknown>;
+            if (event.status === 'error' && resultError.type === 'FatalTurnLimitedError') {
+              if (!turnLimitReached) {
+                turnLimitReached = true;
+                record.providerErrors.push(`turn limit: stopped after ${MAX_TURNS} turns`);
+                logger.info(`[GeminiCLI] ✗ Turn limit reached (${MAX_TURNS}) — CLI stopped`);
+              }
+              record.status = 'failure';
             }
 
             record.inputTokens = inputTokens;
