@@ -210,21 +210,26 @@ export async function runClaudeCodeAgent(
         env: { ...filteredEnv(), ...claudeEnv, ...proxyEnv, ...env },
         mcpServers,
         settingSources: ['project'],
+        maxTurns: MAX_TURNS,
       },
     });
 
     for await (const message of q) {
-      const update = handleMessage(message, record, pending, turnNum, prevTurnEndTime);
-      if (update) {
-        turnNum = update.turnNum;
-        prevTurnEndTime = update.prevTurnEndTime;
-      }
-      if (turnNum >= MAX_TURNS) {
-        record.providerErrors.push(`turn limit: stopped after ${MAX_TURNS} turns`);
+      // Backstop in case the SDK counts turns differently: let the SDK's own
+      // `error_max_turns` result (which carries cost/usage) arrive first, and
+      // only abort once another assistant turn would exceed the limit.
+      if (turnNum >= MAX_TURNS && message.type === 'assistant') {
+        const limitError = turnLimitError();
+        if (!record.providerErrors.includes(limitError)) record.providerErrors.push(limitError);
         record.status = 'failure';
         logger.info(`[ClaudeCode] ✗ Turn limit reached (${MAX_TURNS}) — aborting`);
         abortController.abort();
         break;
+      }
+      const update = handleMessage(message, record, pending, turnNum, prevTurnEndTime);
+      if (update) {
+        turnNum = update.turnNum;
+        prevTurnEndTime = update.prevTurnEndTime;
       }
     }
   } catch (err: unknown) {
@@ -237,6 +242,16 @@ export async function runClaudeCodeAgent(
     }
   } finally {
     clearTimeout(taskTimeout);
+  }
+
+  // No `result` message (timeout / backstop abort): estimate cost from per-turn tokens
+  if (record.costUsd === 0 && record.turnMetrics.length > 0) {
+    let total = 0;
+    for (const tm of record.turnMetrics) {
+      tm.costUsd = estimateCost(record.model, tm.inputTokens, tm.outputTokens);
+      total += tm.costUsd;
+    }
+    record.costUsd = total;
   }
 
   // Drain any tool_use blocks that never received a result
@@ -471,13 +486,20 @@ export function handleMessage(
       record.status = 'success';
     } else {
       record.status = 'failure';
-      const message = ('result' in res ? res.result : undefined) || res.subtype;
-      record.providerErrors.push(message);
+      const message =
+        res.subtype === 'error_max_turns'
+          ? turnLimitError()
+          : ('result' in res ? res.result : undefined) || res.subtype;
+      if (!record.providerErrors.includes(message)) record.providerErrors.push(message);
     }
     return null;
   }
 
   return null;
+}
+
+function turnLimitError(): string {
+  return `turn limit: stopped after ${MAX_TURNS} turns`;
 }
 
 // ── Stop-reason normaliser ────────────────────────────────────────────────────

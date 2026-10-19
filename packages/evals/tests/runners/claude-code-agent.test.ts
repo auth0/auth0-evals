@@ -589,11 +589,11 @@ describe('handleMessage — result', () => {
     expect(record.status).toBe('success');
   });
 
-  it('error_max_turns sets status to failure and records the subtype', () => {
+  it('error_max_turns sets status to failure and records the turn-limit error', () => {
     const record = makeRecord();
     handleMessage(makeResultMsg({ subtype: 'error_max_turns' }), record, makePending(), 0, 0);
     expect(record.status).toBe('failure');
-    expect(record.providerErrors.some((e) => e.includes('error_max_turns'))).toBe(true);
+    expect(record.providerErrors.some((e) => e.includes('turn limit'))).toBe(true);
   });
 
   it('other subtype sets status to failure and records the subtype', () => {
@@ -857,6 +857,72 @@ describe('runClaudeCodeAgent', () => {
     expect(record.status).toBe('failure');
     expect(record.providerErrors.some((e) => e.includes('turn limit'))).toBe(true);
     expect(record.turnMetrics.length).toBe(MAX_TURNS);
+  });
+
+  it('keeps SDK cost and usage when the SDK stops with error_max_turns', async () => {
+    const messages: SDKMessage[] = [];
+    for (let i = 0; i < MAX_TURNS; i++) {
+      messages.push(
+        makeAssistantMsg({
+          content: [{ type: 'tool_use', id: `tu_${i}`, name: 'Bash', input: { command: 'echo hi' } }],
+        }) as SDKMessage,
+      );
+      messages.push(
+        makeUserMsg([{ type: 'tool_result', tool_use_id: `tu_${i}`, content: 'hi', is_error: false }]) as SDKMessage,
+      );
+    }
+    messages.push(
+      makeResultMsg({
+        subtype: 'error_max_turns',
+        total_cost_usd: 1.25,
+        input_tokens: 9000,
+        output_tokens: 3000,
+      }) as SDKMessage,
+    );
+
+    mockQuery.mockReturnValue(fakeQuery(messages));
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+
+    expect(record.status).toBe('failure');
+    expect(record.providerErrors.filter((e) => e.includes('turn limit'))).toHaveLength(1);
+    expect(record.costUsd).toBe(1.25);
+    expect(record.inputTokens).toBe(9000);
+    expect(record.outputTokens).toBe(3000);
+    expect(record.turnMetrics.length).toBe(MAX_TURNS);
+    expect(record.turnMetrics.every((tm) => tm.costUsd > 0)).toBe(true);
+  });
+
+  it('estimates cost from turn tokens when aborted without a result message', async () => {
+    const messages: SDKMessage[] = [];
+    for (let i = 0; i < MAX_TURNS + 5; i++) {
+      messages.push(
+        makeAssistantMsg({
+          content: [{ type: 'tool_use', id: `tu_${i}`, name: 'Bash', input: { command: 'echo hi' } }],
+          input_tokens: 1000,
+          output_tokens: 500,
+        }) as SDKMessage,
+      );
+      messages.push(
+        makeUserMsg([{ type: 'tool_result', tool_use_id: `tu_${i}`, content: 'hi', is_error: false }]) as SDKMessage,
+      );
+    }
+
+    mockQuery.mockReturnValue(fakeQuery(messages));
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+
+    expect(record.status).toBe('failure');
+    expect(record.providerErrors.filter((e) => e.includes('turn limit'))).toHaveLength(1);
+    expect(record.costUsd).toBeGreaterThan(0);
+    expect(record.turnMetrics.every((tm) => tm.costUsd > 0)).toBe(true);
+    const sum = record.turnMetrics.reduce((acc, tm) => acc + tm.costUsd, 0);
+    expect(record.costUsd).toBeCloseTo(sum, 10);
+  });
+
+  it('passes maxTurns: MAX_TURNS to query options', async () => {
+    mockQuery.mockReturnValue(fakeQuery([makeResultMsg({ subtype: 'success' }) as SDKMessage]));
+    await runClaudeCodeAgent(evalDef, workspace);
+    const call = mockQuery.mock.calls[0] as [{ options: { maxTurns?: number } }];
+    expect(call[0].options.maxTurns).toBe(MAX_TURNS);
   });
 });
 
