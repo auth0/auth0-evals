@@ -168,7 +168,8 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
       .map((l) => l.trim())
       .filter((l) => l.length > 0);
     const lastLine = lines[lines.length - 1]!.toLowerCase();
-    const m = /^(yes|no)\b/.exec(lastLine);
+    // Some models wrap the verdict in markdown or quotes (`**yes**`, `> no`); strip that leading decoration.
+    const m = /^(yes|no)\b/.exec(lastLine.replace(/^[*_`#>"'\s]+/, ''));
     if (!m) {
       if (wasTruncated) reportTruncated();
       throw new JudgeError(model, `unexpected verdict ${JSON.stringify(lastLine)}: ${answer}`);
