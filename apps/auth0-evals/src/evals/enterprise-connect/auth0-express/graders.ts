@@ -178,13 +178,27 @@ export function defineGraders() {
       'Calls startEnterpriseLogin with the user-supplied email',
       GraderLevel.L4,
     ),
+    // One judge per outcome so a failure names itself. What a regex already checks (startEnterpriseLogin
+    // with the email, the placeholder, returnTo /signin, the POST /signin password check) is not asked again.
     judge(
-      'Does the enterprise flow follow the correct shape? Check each item and answer yes only if all are met: ' +
-        '(1) an email-entry login calls startEnterpriseLogin(req, res, { email }), routing the user to their IdP ' +
-        'by email domain and falling back when it returns false for a non-federated domain; (2) the onCallback ' +
-        'hook builds the app session from the returned claims and ends the response itself; (3) logout ends the ' +
-        'enterprise IdP session with req.auth0.client.logout({ returnTo, federated: true }) — the mounted ' +
-        '/auth/logout returns to the base URL, which is not a registered Allowed Logout URL here?',
+      'Does the email step branch on the startEnterpriseLogin(req, res, { email }) result: when it resolves true ' +
+        'the SDK has already redirected to Auth0 and the handler sends nothing else, and when it resolves false ' +
+        '(non-federated domain or malformed email) the user falls back to the existing /signin password sign-in ' +
+        'with the email pre-filled, not to a placeholder or a new password flow?',
+      GraderLevel.L4,
+      { context: FIXTURE_CONTEXT },
+    ),
+    judge(
+      'Does the onCallback hook sign the enterprise user in with the existing createSession helper from the ' +
+        'returned claims and end the response itself, so the existing /dashboard guard accepts them without a ' +
+        'second session mechanism?',
+      GraderLevel.L4,
+      { context: FIXTURE_CONTEXT },
+    ),
+    judge(
+      'Does logout end the enterprise IdP session with req.auth0.client.logout({ returnTo, federated: true }), ' +
+        'rather than relying on the mounted /auth/logout (which returns to the base URL, not a registered Allowed ' +
+        'Logout URL here)?',
       GraderLevel.L4,
       { context: FIXTURE_CONTEXT },
     ),
@@ -204,21 +218,16 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
     judge(
-      'Is the enterprise sign-in integrated with the existing app rather than built beside it? Check each ' +
-        'item and answer yes only if all are met: (1) a non-federated email falls back to the existing ' +
-        '/signin password sign-in with the email pre-filled, not to a placeholder or a new password flow; (2) ' +
-        'the onCallback hook signs the enterprise user in with the existing createSession helper, so the ' +
-        'existing /dashboard guard accepts them without a second session mechanism; (3) the existing password ' +
-        'sign-in (POST /signin and its password check) still works; (4) a single Auth0 client is configured ' +
-        'from the B2B Connect integration credentials in the environment; (5) the federated logout returns to ' +
-        '/signin?',
+      'Is exactly one Auth0 client (createAuth0) configured, from the B2B Connect integration credentials read ' +
+        'from the environment?',
       GraderLevel.L4,
       { context: FIXTURE_CONTEXT },
     ),
 
     // ── Existing password sign-in still works (non-federated path is untouched) ──
+    // Wide, lazy window: the email step may run first inside the same POST /signin handler.
     matches(
-      String.raw`\.post\(\s*['"]/signin['"][\s\S]{0,400}verifyPassword\s*\([\s\S]{0,400}createSession\s*\(`,
+      String.raw`\.post\(\s*['"]/signin['"][\s\S]{0,1500}?verifyPassword\s*\([\s\S]{0,600}?createSession\s*\(`,
       'POST /signin still verifies the password and creates the app session',
       GraderLevel.L4,
       { caseSensitive: true },
@@ -252,7 +261,8 @@ export function defineGraders() {
           'Enterprise Connect is a real, Early-Access feature of @auth0/auth0-express (1.0.x), the ' +
           'successor to express-openid-connect that wraps @auth0/auth0-server-js. The createAuth0 factory, its ' +
           'enterpriseConnect option, the required onCallback hook (EnterpriseConnectCallbackHook), ' +
-          'startEnterpriseLogin(req, res, options) returning boolean, isFederatedDomain, and ' +
+          'startEnterpriseLogin(req, res, options) returning boolean (a standalone export of @auth0/auth0-express, ' +
+          'imported alongside createAuth0, not a req.auth0 method), isFederatedDomain, and ' +
           'EnterpriseConnectNotSupportedError are all real — grade the integration, not whether the symbols ' +
           'exist. StartEnterpriseLoginOptions is imported from @auth0/auth0-server-js (not re-exported by ' +
           'auth0-express). When enterpriseConnect is set, config throws at startup if onCallback is missing, the ' +

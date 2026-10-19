@@ -150,14 +150,12 @@ export function defineGraders() {
 
     // ── L4: Structural correctness ────────────────────────────────────────
     compiles('Project builds (ng build succeeds)', GraderLevel.L4),
+    // One judge per outcome so a failure names itself. What a regex already checks (the flag,
+    // federated: true, returnTo /signin, signInWithPassword) is not asked again.
     judge(
-      'Does the enterprise flow follow the correct Angular shape? Check each item and answer yes only if all are ' +
-        'met: (1) the Auth0 config (provideAuth0 or AuthModule.forRoot) sets enterpriseConnect; (2) an email-entry ' +
-        'form derives the email domain and calls the standalone isFederatedDomain; (3) when federated it calls ' +
-        'AuthService.loginWithRedirect with authorizationParams.login_hint set to the email and consumes the ' +
-        'returned Observable (subscribe, firstValueFrom, or equivalent), falling back to the existing /signin ' +
-        'password sign-in otherwise; (4) AuthService.logout passes federated: true, either as logoutParams.federated or as an ' +
-        'equivalent logout options object?',
+      'Is AuthService.loginWithRedirect called with authorizationParams.login_hint set to the email the user ' +
+        'typed, with its returned Observable consumed (subscribe, firstValueFrom, or equivalent), and only after ' +
+        "the awaited standalone isFederatedDomain(auth0Domain, emailDomain) resolved true for that email's domain?",
       GraderLevel.L4,
       { context: SPA_SURFACE_CONTEXT + ' ' + FIXTURE_CONTEXT },
     ),
@@ -169,13 +167,24 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
     judge(
-      'Is the enterprise sign-in integrated with the existing app rather than replacing it? Check each item ' +
-        'and answer yes only if all are met: (1) a non-federated email continues to the existing /signin ' +
-        'password sign-in with the email pre-filled, not to loginWithRedirect / Universal Login; (2) the ' +
-        'existing password sign-in (signInWithPassword) still works; (3) /dashboard accepts an enterprise ' +
-        'user authenticated through the SDK as well as a password user; (4) a single Auth0 client is ' +
-        'configured from the B2B Connect integration domain and client ID; (5) the federated logout returns ' +
-        'to /signin?',
+      'Does a non-federated email continue to the existing /signin password sign-in with the email pre-filled, ' +
+        'rather than to loginWithRedirect / Auth0 Universal Login or a new password form?',
+      GraderLevel.L4,
+      { context: SPA_SURFACE_CONTEXT + ' ' + FIXTURE_CONTEXT },
+    ),
+    judge(
+      'Does an enterprise user coming back from Auth0 reach /dashboard signed in? Answer yes only if both hold: ' +
+        '(1) /dashboard accepts a user authenticated through the SDK (AuthService isAuthenticated$ / user$) as ' +
+        'well as a password user from fetchCurrentUser; (2) after the SDK handles the callback the app reaches ' +
+        '/dashboard in the same page load or navigates client-side (a full page load such as ' +
+        'window.location.assign or setting location.href clears the in-memory SDK session, so the user would be ' +
+        'sent back to /signin).',
+      GraderLevel.L4,
+      { context: SPA_SURFACE_CONTEXT + ' ' + FIXTURE_CONTEXT },
+    ),
+    judge(
+      'Is exactly one Auth0 client (provideAuth0 or AuthModule.forRoot) configured, from the B2B Connect ' +
+        'integration domain and client ID?',
       GraderLevel.L4,
       { context: SPA_SURFACE_CONTEXT + ' ' + FIXTURE_CONTEXT },
     ),

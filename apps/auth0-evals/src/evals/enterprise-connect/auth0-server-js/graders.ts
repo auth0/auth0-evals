@@ -149,12 +149,20 @@ export function defineGraders() {
       'Calls startEnterpriseLogin with the user-supplied email',
       GraderLevel.L4,
     ),
+    // One judge per outcome so a failure names itself. What a regex already checks (startEnterpriseLogin
+    // with the email, federated: true, the placeholder, returnTo /signin, the POST /signin password check)
+    // is not asked again.
     judge(
-      'Does the enterprise flow follow the correct shape? Check each item and answer yes only if all are met: ' +
-        '(1) a login route collects the email and calls startEnterpriseLogin, redirecting to the returned URL and ' +
-        'falling back when it returns null for a non-federated domain; (2) the callback route completes the login ' +
-        'via completeInteractiveLogin and the app establishes its own session from the returned claims; (3) logout ' +
-        'is federated?',
+      'Does the email step redirect to the URL startEnterpriseLogin returns, and when it returns null ' +
+        '(non-federated domain) fall back to the existing /signin password sign-in with the email pre-filled, not ' +
+        'to a placeholder or a new password flow?',
+      GraderLevel.L4,
+      { context: FIXTURE_CONTEXT },
+    ),
+    judge(
+      'Does the /auth/callback route sign the enterprise user in with the existing createSession helper from ' +
+        'the completeInteractiveLogin claims, so the existing /dashboard guard accepts them without a second ' +
+        'session mechanism?',
       GraderLevel.L4,
       { context: FIXTURE_CONTEXT },
     ),
@@ -174,14 +182,8 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
     judge(
-      'Is the enterprise sign-in integrated with the existing app rather than built beside it? Check each ' +
-        'item and answer yes only if all are met: (1) a non-federated email falls back to the existing ' +
-        '/signin password sign-in with the email pre-filled, not to a placeholder or a new password flow; (2) ' +
-        'the /auth/callback route (completeInteractiveLogin) signs the enterprise user in with the existing ' +
-        'createSession helper, so the existing /dashboard guard accepts them without a second session ' +
-        'mechanism; (3) the existing password sign-in (POST /signin and its password check) still works; (4) ' +
-        'a single Auth0 client is configured from the B2B Connect integration credentials in the environment; ' +
-        '(5) the federated logout returns to /signin?',
+      'Is exactly one Auth0 client (ServerClient) configured, from the B2B Connect integration credentials read ' +
+        'from the environment?',
       GraderLevel.L4,
       { context: FIXTURE_CONTEXT },
     ),

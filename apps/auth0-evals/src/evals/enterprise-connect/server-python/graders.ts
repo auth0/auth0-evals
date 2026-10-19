@@ -160,12 +160,20 @@ export function defineGraders() {
       'Calls start_enterprise_login with the user-supplied email',
       GraderLevel.L4,
     ),
+    // One judge per outcome so a failure names itself. What a regex already checks (start_enterprise_login
+    // with the email, federated=True, the placeholder, return_to /signin, the POST /signin password check)
+    // is not asked again.
     judge(
-      'Does the enterprise flow follow the correct shape? Check each item and answer yes only if all are met: ' +
-        '(1) a login route collects the email and calls start_enterprise_login, redirecting to the returned URL ' +
-        'and falling back when it returns None for a non-federated domain; (2) the callback route completes the ' +
-        'login via complete_interactive_login and the app establishes its own session from the returned claims; ' +
-        '(3) logout passes a LogoutOptions with federated=True?',
+      'Does the email step redirect to the URL start_enterprise_login returns, and when it returns None ' +
+        '(non-federated domain) fall back to the existing /signin password sign-in with the email pre-filled, not ' +
+        'to a placeholder or a new password flow?',
+      GraderLevel.L4,
+      { context: FIXTURE_CONTEXT + ' ' + PY_SURFACE_CONTEXT },
+    ),
+    judge(
+      'Does the /auth/callback route sign the enterprise user in with the existing create_session helper from ' +
+        'the complete_interactive_login claims, so the existing /dashboard guard accepts them without a second ' +
+        'session mechanism?',
       GraderLevel.L4,
       { context: FIXTURE_CONTEXT + ' ' + PY_SURFACE_CONTEXT },
     ),
@@ -185,21 +193,16 @@ export function defineGraders() {
       GraderLevel.L4,
     ),
     judge(
-      'Is the enterprise sign-in integrated with the existing app rather than built beside it? Check each ' +
-        'item and answer yes only if all are met: (1) a non-federated email falls back to the existing ' +
-        '/signin password sign-in with the email pre-filled, not to a placeholder or a new password flow; (2) ' +
-        'the /auth/callback route (complete_interactive_login) signs the enterprise user in with the existing ' +
-        'create_session helper, so the existing /dashboard guard accepts them without a second session ' +
-        'mechanism; (3) the existing password sign-in (POST /signin and its password check) still works; (4) ' +
-        'a single Auth0 client is configured from the B2B Connect integration credentials in the environment; ' +
-        '(5) the federated logout returns to /signin?',
+      'Is exactly one Auth0 client (ServerClient) configured, from the B2B Connect integration credentials read ' +
+        'from the environment?',
       GraderLevel.L4,
-      { context: FIXTURE_CONTEXT },
+      { context: FIXTURE_CONTEXT + ' ' + PY_SURFACE_CONTEXT },
     ),
 
     // ── Existing password sign-in still works (non-federated path is untouched) ──
+    // Wide, lazy window: the email step may run first inside the same POST /signin handler.
     matches(
-      String.raw`@app\.post\(\s*['"]/signin['"]\)[\s\S]{0,400}verify_password\s*\([\s\S]{0,400}create_session\s*\(`,
+      String.raw`@app\.post\(\s*['"]/signin['"]\)[\s\S]{0,1500}?verify_password\s*\([\s\S]{0,600}?create_session\s*\(`,
       'POST /signin still verifies the password and creates the app session',
       GraderLevel.L4,
       { caseSensitive: true },
