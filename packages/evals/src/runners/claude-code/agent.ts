@@ -194,6 +194,7 @@ export async function runClaudeCodeAgent(
   // Mutable turn state
   let turnNum = 0;
   let prevTurnEndTime = record.startTime;
+  let lastMessageId: string | undefined;
 
   try {
     const q = query({
@@ -217,8 +218,9 @@ export async function runClaudeCodeAgent(
     for await (const message of q) {
       // Backstop in case the SDK counts turns differently: let the SDK's own
       // `error_max_turns` result (which carries cost/usage) arrive first, and
-      // only abort once another assistant turn would exceed the limit.
-      if (turnNum >= MAX_TURNS && message.type === 'assistant') {
+      // only abort once another assistant turn would exceed the limit. Frames
+      // that continue the current turn (same message.id) are not a new turn.
+      if (turnNum >= MAX_TURNS && message.type === 'assistant' && message.message.id !== lastMessageId) {
         const limitError = turnLimitError();
         if (!record.providerErrors.includes(limitError)) record.providerErrors.push(limitError);
         record.status = 'failure';
@@ -226,10 +228,11 @@ export async function runClaudeCodeAgent(
         abortController.abort();
         break;
       }
-      const update = handleMessage(message, record, pending, turnNum, prevTurnEndTime);
+      const update = handleMessage(message, record, pending, turnNum, prevTurnEndTime, lastMessageId);
       if (update) {
         turnNum = update.turnNum;
         prevTurnEndTime = update.prevTurnEndTime;
+        if (update.messageId !== undefined) lastMessageId = update.messageId;
       }
     }
   } catch (err: unknown) {
@@ -308,6 +311,8 @@ export async function runClaudeCodeAgent(
 export interface TurnStateUpdate {
   turnNum: number;
   prevTurnEndTime: number;
+  /** message.id of the last assistant frame, used to merge streamed frames of one turn */
+  messageId?: string;
 }
 
 /**
@@ -320,6 +325,7 @@ export function handleMessage(
   pending: Map<string, { name: string; input: Record<string, unknown>; startTime: number }>,
   turnNum: number,
   prevTurnEndTime: number,
+  lastMessageId?: string,
 ): TurnStateUpdate | null {
   if (message.type === 'system') {
     const sys = message as SDKSystemMessage;
@@ -343,8 +349,6 @@ export function handleMessage(
     const turnInput =
       (usage?.input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0) + (usage?.cache_creation_input_tokens ?? 0);
     const turnOutput = usage?.output_tokens ?? 0;
-    record.inputTokens += turnInput;
-    record.outputTokens += turnOutput;
 
     // Register each tool_use block as pending; timing starts now
     for (const block of msg.content) {
@@ -352,6 +356,37 @@ export function handleMessage(
         pending.set(block.id, { name: block.name, input: block.input as Record<string, unknown>, startTime: now });
       }
     }
+
+    // The CLI emits one assistant frame per content block, all sharing the
+    // turn's message.id with non-final usage. Merge follow-up frames into the
+    // current turn so they are not counted (or costed) as extra turns.
+    const lastTurn = record.turnMetrics[record.turnMetrics.length - 1];
+    if (msg.id && msg.id === lastMessageId && lastTurn) {
+      record.inputTokens += turnInput - lastTurn.inputTokens;
+      record.outputTokens += turnOutput - lastTurn.outputTokens;
+      lastTurn.inputTokens = turnInput;
+      lastTurn.outputTokens = turnOutput;
+      const frameToolUseCount = msg.content.filter((b) => b.type === 'tool_use').length;
+      lastTurn.toolCallCount += frameToolUseCount;
+      if (frameToolUseCount > 0) {
+        lastTurn.finishReason = normaliseStopReason('tool_use');
+      } else if (msg.stop_reason && lastTurn.toolCallCount === 0) {
+        lastTurn.finishReason = normaliseStopReason(msg.stop_reason);
+      }
+      if (frameToolUseCount === 0 && (msg.stop_reason ?? 'end_turn') !== 'tool_use') {
+        const textContent = msg.content
+          .filter((b) => b.type === 'text')
+          .map((b) => b.text)
+          .join('\n');
+        if (textContent) {
+          record.finalSummary = textContent;
+        }
+      }
+      return { turnNum, prevTurnEndTime, messageId: msg.id };
+    }
+
+    record.inputTokens += turnInput;
+    record.outputTokens += turnOutput;
 
     // Infer stop reason
     const hasToolUse = msg.content.some((b) => b.type === 'tool_use');
@@ -385,7 +420,7 @@ export function handleMessage(
         `${toolUseCount} tool(s), finish=${stopReason}`,
     );
 
-    return { turnNum: nextTurnNum, prevTurnEndTime };
+    return { turnNum: nextTurnNum, prevTurnEndTime, messageId: msg.id };
   }
 
   if (message.type === 'user') {
