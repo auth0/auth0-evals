@@ -61,6 +61,13 @@ const GEMINI_AUTH_TYPE = 'gemini-api-key';
 const GEMINI_CLI_TIMEOUT_MS = CLAUDE_CODE_TASK_TIMEOUT_MS;
 
 /**
+ * How long a stopped Gemini CLI process gets to exit after SIGTERM before it is
+ * sent SIGKILL. The CLI has been seen ignoring SIGTERM and carrying on with the
+ * task after the task timeout fired, so SIGTERM alone does not bound the run.
+ */
+export const GEMINI_CLI_KILL_GRACE_MS = 10_000;
+
+/**
  * Detects a Gemini CLI command auto-cancellation notice in tool output. The CLI
  * cancels a command exceeding its own per-command timeout but reports the result
  * with status:"success", so the only signal is this text in the output.
@@ -267,11 +274,24 @@ export async function runGeminiCliAgent(
   return new Promise<RunRecord>((resolve) => {
     const child = spawn('gemini', args, { cwd: workspace, env: geminiEnv });
 
+    // Ask the CLI to stop with SIGTERM, then force it with SIGKILL if it is still
+    // running after the grace period. Idempotent: the timeout and the turn limit
+    // can both fire, but only the first call starts the escalation.
+    let forceKill: NodeJS.Timeout | undefined;
+    const stopChild = () => {
+      if (forceKill) return;
+      child.kill('SIGTERM');
+      forceKill = setTimeout(() => {
+        logger.info(`[GeminiCLI] ✗ Still running ${GEMINI_CLI_KILL_GRACE_MS / 1000}s after SIGTERM — sending SIGKILL`);
+        child.kill('SIGKILL');
+      }, GEMINI_CLI_KILL_GRACE_MS);
+    };
+
     const taskTimeout = setTimeout(() => {
       record.providerErrors.push(`task timeout after ${GEMINI_CLI_TIMEOUT_MS / 1000}s`);
       record.status = 'failure';
       logger.info(`[GeminiCLI] ✗ Task timeout — killing`);
-      child.kill('SIGTERM');
+      stopChild();
     }, GEMINI_CLI_TIMEOUT_MS);
 
     const stderrChunks: Buffer[] = [];
@@ -411,7 +431,7 @@ export async function runGeminiCliAgent(
                   record.providerErrors.push(`turn limit: stopped after ${MAX_TURNS} turns`);
                   record.status = 'failure';
                   logger.info(`[GeminiCLI] ✗ Turn limit reached (${MAX_TURNS}) — killing`);
-                  child.kill('SIGTERM');
+                  stopChild();
                 }
               }
             }
@@ -456,7 +476,7 @@ export async function runGeminiCliAgent(
                 record.providerErrors.push(`turn limit: stopped after ${MAX_TURNS} turns`);
                 record.status = 'failure';
                 logger.info(`[GeminiCLI] ✗ Turn limit reached (${MAX_TURNS}) — killing`);
-                child.kill('SIGTERM');
+                stopChild();
               }
             }
 
@@ -485,6 +505,7 @@ export async function runGeminiCliAgent(
 
     child.on('close', (code) => {
       clearTimeout(taskTimeout);
+      clearTimeout(forceKill);
 
       // A timeout or hard exit can end the process with no result event at all,
       // leaving the streamed reply buffered. Commit it before the status checks
@@ -546,6 +567,7 @@ export async function runGeminiCliAgent(
 
     child.on('error', (err) => {
       clearTimeout(taskTimeout);
+      clearTimeout(forceKill);
       record.providerErrors.push(`spawn error: ${err.message}`);
       record.status = 'failure';
       record.endTime = Date.now() / 1000;
