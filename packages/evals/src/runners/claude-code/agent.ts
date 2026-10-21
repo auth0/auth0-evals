@@ -39,6 +39,11 @@ import { ClaudeCodeTranslator } from './translator.js';
 // Module-level translator instance — all event processing uses this.
 const translator = new ClaudeCodeTranslator();
 
+/** Cache-read tokens per turn (included in TurnMetric.inputTokens), used by the no-`result` cost fallback. */
+const cacheReadTokens = new WeakMap<TurnMetric, number>();
+/** Cache reads bill at ~10% of the base input rate. */
+const CACHE_READ_PRICE_RATIO = 0.1;
+
 // ── Model alias mapping ───────────────────────────────────────────────────────
 
 function getKnownModelAliases(): Set<string> {
@@ -251,7 +256,10 @@ export async function runClaudeCodeAgent(
   if (record.costUsd === 0 && record.turnMetrics.length > 0) {
     let total = 0;
     for (const tm of record.turnMetrics) {
-      tm.costUsd = estimateCost(record.model, tm.inputTokens, tm.outputTokens);
+      // Cache reads bill at ~10% of the input rate; price them as such so cache-heavy runs aren't overstated.
+      const cacheRead = cacheReadTokens.get(tm) ?? 0;
+      const billableInput = tm.inputTokens - cacheRead * (1 - CACHE_READ_PRICE_RATIO);
+      tm.costUsd = estimateCost(record.model, billableInput, tm.outputTokens);
       total += tm.costUsd;
     }
     record.costUsd = total;
@@ -349,6 +357,7 @@ export function handleMessage(
     const turnInput =
       (usage?.input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0) + (usage?.cache_creation_input_tokens ?? 0);
     const turnOutput = usage?.output_tokens ?? 0;
+    const turnCacheRead = usage?.cache_read_input_tokens ?? 0;
 
     // Register each tool_use block as pending; timing starts now
     for (const block of msg.content) {
@@ -366,6 +375,7 @@ export function handleMessage(
       record.outputTokens += turnOutput - lastTurn.outputTokens;
       lastTurn.inputTokens = turnInput;
       lastTurn.outputTokens = turnOutput;
+      cacheReadTokens.set(lastTurn, turnCacheRead);
       const frameToolUseCount = msg.content.filter((b) => b.type === 'tool_use').length;
       lastTurn.toolCallCount += frameToolUseCount;
       if (frameToolUseCount > 0) {
@@ -414,6 +424,7 @@ export function handleMessage(
       costUsd: 0,
     };
     record.turnMetrics.push(turnMetric);
+    cacheReadTokens.set(turnMetric, turnCacheRead);
 
     logger.info(
       `[ClaudeCode] Turn ${nextTurnNum}: ${turnInput}in/${turnOutput}out tokens, ` +

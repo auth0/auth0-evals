@@ -921,6 +921,30 @@ describe('runClaudeCodeAgent', () => {
     expect(record.costUsd).toBeCloseTo(sum, 10);
   });
 
+  it('prices cache-read tokens at a discount in the no-result fallback cost', async () => {
+    mockQuery.mockReturnValue(
+      fakeQuery([
+        makeAssistantMsg({ content: [{ type: 'text', text: 'a' }], input_tokens: 1_000_000, output_tokens: 0 }),
+      ] as SDKMessage[]),
+    );
+    const uncached = await runClaudeCodeAgent(evalDef, workspace);
+
+    mockQuery.mockReturnValue(
+      fakeQuery([
+        makeAssistantMsg({
+          content: [{ type: 'text', text: 'a' }],
+          input_tokens: 0,
+          output_tokens: 0,
+          cache_read_input_tokens: 1_000_000,
+        }),
+      ] as SDKMessage[]),
+    );
+    const cached = await runClaudeCodeAgent(evalDef, workspace);
+
+    expect(uncached.costUsd).toBeGreaterThan(0);
+    expect(cached.costUsd).toBeCloseTo(uncached.costUsd * 0.1, 10);
+  });
+
   it('counts streamed frames sharing a message.id as one turn', async () => {
     const messages: SDKMessage[] = [
       makeAssistantMsg({ id: 'msg_a', content: [{ type: 'text', text: 'Let me check.' }] }) as SDKMessage,
