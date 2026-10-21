@@ -18,8 +18,15 @@
  *   --output      JSON output path (default: scores-<mode>.json)
  *   --keep-workspace   (agent mode) Keep temp workspace after run
  *   --braintrust       Log results to Braintrust experiment (requires BRAINTRUST_API_KEY)
+ *   --phase       Run phase: all | agent | grade (default: all).
+ *                 agent: run the model and write a self-contained run artefact (no grader files needed).
+ *                 grade: grade stored artefacts (graders + scoring + recommendations) and emit results.
+ *                 agent/grade require --artifact-dir and --dangerously-skip-sandbox.
+ *   --artifact-dir     Directory run artefacts are written to (agent) or read from (grade).
+ *                      Artefacts hold unredacted traces and agent-written files: treat as sensitive.
  */
 
+import { randomBytes } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pLimit from 'p-limit';
@@ -46,10 +53,27 @@ import {
   registerRunner,
   getRunner,
   logger,
+  writeRunArtifact,
+  readRunArtifact,
+  readRunArtifactManifest,
+  findRunArtifacts,
+  restoreArtifactWorkspace,
 } from '@a0/evals-core';
-import type { EvalConfig, EvalDefinition, JobResult, AgentType, Mode } from '@a0/evals-core';
+import type {
+  EvalConfig,
+  EvalDefinition,
+  JobResult,
+  AgentType,
+  Mode,
+  RunRecord,
+  CompileResult,
+  ArtifactSkillFile,
+  ArtifactManifest,
+  RunArtifact,
+} from '@a0/evals-core';
 
 import { parseRunConfig, extractConfigPath } from './config.js';
+import type { GradeFilters } from './config.js';
 import { spawnEval, mergeIntoOutput } from './subprocess-runner.js';
 import { DEFAULT_AGENT_TYPE } from './constants.js';
 import { resolveOutputPath, mergeResults, loadResults, saveResults } from '../persistence/index.js';
@@ -116,6 +140,112 @@ export async function runJob(
   }
 }
 
+/** Output of the agent half of a run: everything grading needs besides the workspace. */
+interface AgentRunOutput {
+  record: RunRecord;
+  resolvedModel: string;
+  compileResult: CompileResult | undefined;
+}
+
+/**
+ * Creates the workspace and injects agent guidance. Must run before both the docker and
+ * local execution paths so every runner picks it up.
+ */
+async function prepareAgentWorkspace(evalDef: EvalDefinition, agentType: AgentType): Promise<string> {
+  const { setupWorkspace, writeAgentGuidance } = await import('@a0/evals-core');
+  const workspace = setupWorkspace(evalDef.scaffold);
+  // Inject "no docs files" guidance into the context file this runner reads
+  // (CLAUDE.md / GEMINI.md / AGENTS.md). When the eval declares a
+  // `provision` kind, also inject the app-configured platform context for it —
+  // the `## System` section only feeds baseline mode, so this is how that
+  // guidance reaches the agent.
+  const cliContext = evalDef.provision ? getFrameworkConfig().cliContext?.[evalDef.provision] : undefined;
+  writeAgentGuidance(workspace, agentType, {
+    compileCommand: evalDef.compileCommand,
+    cliContext,
+  });
+  return workspace;
+}
+
+/** Agent half (local execution): prepare skills, run the agent, then run the compile command. */
+async function executeAgentRun(
+  evalDef: EvalDefinition,
+  workspace: string,
+  model: string,
+  tools: string[],
+  apiKey: string,
+  agentType: AgentType,
+): Promise<AgentRunOutput> {
+  const { runCompileCommand } = await import('@a0/evals-core');
+  const runner = getRunner(agentType);
+  const preparedEval = tools.includes('skills') ? await runner.prepareSkills(evalDef, workspace) : evalDef;
+  const { record, resolvedModel } = await runner.run({ evalDef: preparedEval, workspace, model, tools, apiKey });
+
+  const compileResult =
+    evalDef.compileCommand !== undefined
+      ? runCompileCommand(workspace, evalDef.compileCommand, { setupCommand: evalDef.setupCommand })
+      : undefined;
+
+  return { record, resolvedModel, compileResult };
+}
+
+/**
+ * Grade half: graders, scoring, recommendations, serialisation. Reads the workspace only
+ * through the file walkers, so it works on a restored artefact workspace as well. Must run
+ * before the workspace is cleaned up.
+ *
+ * `skillFiles` (grade phase) overrides skill resolution in the recommendations step.
+ */
+async function gradeAgentRun(
+  evalDef: EvalDefinition,
+  workspace: string,
+  run: AgentRunOutput,
+  tools: string[],
+  apiKey: string,
+  agentType: AgentType,
+  skillFiles?: ArtifactSkillFile[],
+): Promise<JobResult> {
+  const { generateRunRecommendations } = await import('../recommendations/index.js');
+  const { record, resolvedModel, compileResult } = run;
+
+  let graderResults: Awaited<ReturnType<typeof runGraders>> = [];
+  if (evalDef.graders.length > 0) {
+    const agentLevels = tools.includes('mcp') ? AGENT_MCP_LEVELS : AGENT_LEVELS;
+    graderResults = await runGraders(
+      evalDef.graders,
+      workspace,
+      apiKey,
+      undefined,
+      agentLevels,
+      true,
+      record.toolCalls,
+      compileResult,
+      record.finalSummary,
+    );
+  }
+
+  const scored = score(record, graderResults, getFrameworkConfig().scoring);
+
+  // Generate recommendations for every agent job — including the no-tools control
+  // run, whose clean-room result is the best evidence for a grader defect. Must
+  // happen before workspace cleanup.
+  const recommendations = await generateRunRecommendations(
+    evalDef,
+    resolvedModel,
+    tools,
+    workspace,
+    scored,
+    record,
+    apiKey,
+    skillFiles,
+  );
+
+  return {
+    ...serialiseAgent(evalDef, record, scored, graderResults, resolvedModel, 'agent', tools, recommendations),
+    agent_type: agentType,
+  };
+}
+
 async function runAgentJob(
   evalDef: EvalDefinition,
   model: string,
@@ -126,23 +256,10 @@ async function runAgentJob(
   agentType: AgentType,
   sandbox: boolean,
 ): Promise<JobResult> {
-  const { setupWorkspace, runSetupCommand, runCompileCommand, cleanupWorkspace, writeAgentGuidance } =
-    await import('@a0/evals-core');
-  const { generateRunRecommendations } = await import('../recommendations/index.js');
+  const { runSetupCommand, cleanupWorkspace } = await import('@a0/evals-core');
   await initRunners();
 
-  const workspace = setupWorkspace(evalDef.scaffold);
-  // Inject "no docs files" guidance into the context file this runner reads
-  // (CLAUDE.md / GEMINI.md / AGENTS.md). Must run before both the docker and
-  // local execution paths so every runner picks it up. When the eval declares a
-  // `provision` kind, also inject the app-configured platform context for it —
-  // the `## System` section only feeds baseline mode, so this is how that
-  // guidance reaches the agent.
-  const cliContext = evalDef.provision ? getFrameworkConfig().cliContext?.[evalDef.provision] : undefined;
-  writeAgentGuidance(workspace, agentType, {
-    compileCommand: evalDef.compileCommand,
-    cliContext,
-  });
+  const workspace = await prepareAgentWorkspace(evalDef, agentType);
   try {
     if (!sandbox && evalDef.setupCommand) {
       runSetupCommand(workspace, evalDef.setupCommand);
@@ -166,54 +283,161 @@ async function runAgentJob(
     }
 
     // Local execution (--dangerously-skip-sandbox or baseline)
-    const runner = getRunner(agentType);
-    const preparedEval = tools.includes('skills') ? await runner.prepareSkills(evalDef, workspace) : evalDef;
-    const { record, resolvedModel } = await runner.run({ evalDef: preparedEval, workspace, model, tools, apiKey });
-
-    const compileResult =
-      evalDef.compileCommand !== undefined
-        ? runCompileCommand(workspace, evalDef.compileCommand, { setupCommand: evalDef.setupCommand })
-        : undefined;
-
-    let graderResults: Awaited<ReturnType<typeof runGraders>> = [];
-    if (evalDef.graders.length > 0) {
-      const agentLevels = tools.includes('mcp') ? AGENT_MCP_LEVELS : AGENT_LEVELS;
-      graderResults = await runGraders(
-        evalDef.graders,
-        workspace,
-        apiKey,
-        undefined,
-        agentLevels,
-        true,
-        record.toolCalls,
-        compileResult,
-        record.finalSummary,
-      );
-    }
-
-    const scored = score(record, graderResults, getFrameworkConfig().scoring);
-
-    // Generate recommendations for every agent job — including the no-tools control
-    // run, whose clean-room result is the best evidence for a grader defect. Must
-    // happen before workspace cleanup.
-    const recommendations = await generateRunRecommendations(
-      evalDef,
-      resolvedModel,
-      tools,
-      workspace,
-      scored,
-      record,
-      apiKey,
-    );
-
-    return {
-      ...serialiseAgent(evalDef, record, scored, graderResults, resolvedModel, mode, tools, recommendations),
-      agent_type: agentType,
-    };
+    const run = await executeAgentRun(evalDef, workspace, model, tools, apiKey, agentType);
+    return await gradeAgentRun(evalDef, workspace, run, tools, apiKey, agentType);
   } finally {
     if (!keepWorkspace) {
       cleanupWorkspace(workspace);
     }
+  }
+}
+
+// ── Agent phase (--phase agent) ───────────────────────────────────────────────
+
+/** `<evalId>-<safeModel>-<mode>[-<tools>]` — the stem shared by temp score files and artefact dirs. */
+function jobStem(evalId: string, model: string, mode: Mode, tools: string[]): string {
+  const toolsSuffix = tools.length > 0 ? `-${tools.join('+')}` : '';
+  const safeModel = model.replace(/[^a-zA-Z0-9.-]/g, '_');
+  return `${evalId}-${safeModel}-${mode}${toolsSuffix}`;
+}
+
+/**
+ * Runs one job's agent phase: executes the model and writes a run artefact to
+ * `<artifactDir>/<slug>/`. No grader runs and no grader file is read. Any failure is
+ * recorded as an `error` artefact so the grade phase emits the same error result as
+ * today. Returns `false` when the job errored.
+ */
+export async function runAgentPhaseJob(
+  evalConfig: EvalConfig,
+  model: string,
+  mode: Mode,
+  tools: string[],
+  apiKey: string,
+  keepWorkspace: boolean,
+  agentType: AgentType,
+  frameworkRoot: string,
+  artifactDir: string,
+): Promise<boolean> {
+  const artifactPath = join(
+    artifactDir,
+    `${jobStem(evalConfig.id, model, mode, tools)}-${randomBytes(3).toString('hex')}`,
+  );
+  const agentLabel = mode === 'agent' ? ` (${agentType})` : '';
+  logger.info(`  [${mode}${agentLabel}] ${evalConfig.id} / ${model}  (agent phase)`);
+  const common = {
+    evalId: evalConfig.id,
+    category: evalConfig.category,
+    model,
+    tools,
+    ...(mode === 'agent' ? { agentType } : {}),
+  };
+
+  let workspace: string | undefined;
+  try {
+    const evalDef = await loadEval(evalConfig, frameworkRoot, { skipGraders: true });
+    if (mode === 'baseline') {
+      const result = await runBaseline(apiKey, model, evalDef);
+      writeRunArtifact(artifactPath, {
+        ...common,
+        kind: 'baseline',
+        mode: 'baseline',
+        result,
+        responseText: result.responseText,
+      });
+    } else if (mode === 'agent') {
+      const { runSetupCommand } = await import('@a0/evals-core');
+      const { resolveSkillFiles } = await import('../recommendations/index.js');
+      await initRunners();
+      workspace = await prepareAgentWorkspace(evalDef, agentType);
+      if (evalDef.setupCommand) {
+        runSetupCommand(workspace, evalDef.setupCommand);
+      }
+      const run = await executeAgentRun(evalDef, workspace, model, tools, apiKey, agentType);
+      writeRunArtifact(artifactPath, {
+        ...common,
+        kind: 'agent',
+        mode: 'agent',
+        workspace,
+        record: run.record,
+        resolvedModel: run.resolvedModel,
+        compileResult: run.compileResult,
+        skillFiles: resolveSkillFiles(evalDef, tools),
+      });
+    } else {
+      throw new UnknownModeError(mode);
+    }
+    logger.info(`  ✓ [${evalConfig.id}] ${model} - artefact: ${artifactPath}`);
+    return true;
+  } catch (e) {
+    const errorMsg = String(e);
+    logger.error(`  ✗ [${evalConfig.id}] ${model} - ERROR: ${errorMsg.slice(0, 100)}`);
+    try {
+      writeRunArtifact(artifactPath, { ...common, kind: 'error', mode, error: errorMsg });
+    } catch (writeErr) {
+      logger.error(`  [${evalConfig.id}] Failed to write error artefact: ${writeErr}`);
+    }
+    return false;
+  } finally {
+    if (workspace !== undefined && !keepWorkspace) {
+      const { cleanupWorkspace } = await import('@a0/evals-core');
+      cleanupWorkspace(workspace);
+    }
+  }
+}
+
+// ── Grade phase (--phase grade) ───────────────────────────────────────────────
+
+/**
+ * Grades one stored artefact into a JobResult, mirroring `runJob`'s result shapes
+ * (including its catch-all `serialiseError`). The artefact is only read, never modified.
+ */
+export async function gradeArtifact(
+  artifact: RunArtifact,
+  evalsById: Map<string, EvalConfig>,
+  apiKey: string,
+  frameworkRoot: string,
+): Promise<JobResult> {
+  const { evalId, category, model, mode, tools } = artifact.manifest;
+  const agentType = artifact.manifest.agentType ?? DEFAULT_AGENT_TYPE;
+  const errorResult = (errorMsg: string, evalCategory: string): JobResult => ({
+    ...serialiseError(evalId, evalCategory, model, mode, tools, errorMsg),
+    ...(mode === 'agent' ? { agent_type: agentType } : {}),
+  });
+
+  if (artifact.kind === 'error') {
+    logger.error(`  ✗ [${evalId}] ${model} - ERROR: ${artifact.run.error.slice(0, 100)}`);
+    return errorResult(artifact.run.error, category);
+  }
+
+  const evalConfig = evalsById.get(evalId);
+  try {
+    if (!evalConfig) {
+      throw new Error(`eval '${evalId}' (from artefact ${artifact.dir}) not found in evalsDir`);
+    }
+    const evalDef = await loadEval(evalConfig, frameworkRoot);
+    const agentLabel = mode === 'agent' ? ` (${agentType})` : '';
+    logger.info(`  [${mode}${agentLabel}] ${evalDef.id} / ${model}  (grade phase)`);
+
+    if (artifact.kind === 'baseline') {
+      const { result, responseText } = artifact.run;
+      const graderResults = await gradeText(evalDef, responseText, apiKey, BASELINE_LEVELS);
+      return serialiseBaseline(evalDef, result, graderResults, responseText);
+    }
+    const workspace = restoreArtifactWorkspace(artifact);
+    const { record, resolvedModel, compileResult, skillFiles } = artifact.run;
+    return await gradeAgentRun(
+      evalDef,
+      workspace,
+      { record, resolvedModel, compileResult },
+      tools,
+      apiKey,
+      agentType,
+      skillFiles,
+    );
+  } catch (e) {
+    const errorMsg = String(e);
+    logger.error(`  ✗ [${evalId}] ${model} - ERROR: ${errorMsg.slice(0, 100)}`);
+    return errorResult(errorMsg, evalConfig?.category ?? category);
   }
 }
 
@@ -375,6 +599,9 @@ export async function runCli(): Promise<void> {
     apiKey,
     agentType,
     sandbox,
+    phase,
+    artifactDir,
+    gradeFilters,
   } = config;
 
   // Validate required runtime fields
@@ -391,7 +618,10 @@ export async function runCli(): Promise<void> {
   }
 
   const frameworkRoot = process.cwd();
-  const evaluations = discoverEvals(frameworkConfig.evalsDir, frameworkRoot);
+  // The agent phase must not need grader files on disk, so it discovers evals by PROMPT.md alone.
+  const evaluations = discoverEvals(frameworkConfig.evalsDir, frameworkRoot, {
+    requireGraders: phase !== 'agent',
+  });
   if (evaluations.length === 0) {
     logger.error(
       `[Config] No evaluations found in evalsDir '${frameworkConfig.evalsDir}'. ` +
@@ -419,7 +649,27 @@ export async function runCli(): Promise<void> {
     process.exit(1);
   }
 
+  if (phase === 'grade') {
+    const outcome = await runGradePhase({
+      registry,
+      artifactDir: artifactDir!,
+      evalIds,
+      filters: gradeFilters,
+      workers,
+      apiKey,
+      frameworkRoot,
+      outputOverride,
+      braintrust,
+    });
+    if (outcome.failed) process.exit(1);
+    return;
+  }
+
   const jobs = buildJobList(registry, models, modes, tools, agentType);
+
+  if (phase === 'agent' && braintrust) {
+    logger.warn('[Braintrust] --braintrust is ignored in the agent phase (no results yet); pass it to --phase grade.');
+  }
 
   // Ensure Docker image exists before dispatching subprocesses — avoids N parallel builds.
   if (sandbox && modes.includes('agent')) {
@@ -439,9 +689,7 @@ export async function runCli(): Promise<void> {
     const settled = await Promise.allSettled(
       jobs.map(([evalCfg, model, mode, jobTools, jobAgentType]) =>
         subLimit(async () => {
-          const toolsSuffix = jobTools.length > 0 ? `-${jobTools.join('+')}` : '';
-          const safeModel = model.replace(/[^a-zA-Z0-9.-]/g, '_');
-          const tempFile = join(frameworkRoot, `scores-tmp-${evalCfg.id}-${safeModel}-${mode}${toolsSuffix}.json`);
+          const tempFile = join(frameworkRoot, `scores-tmp-${jobStem(evalCfg.id, model, mode, jobTools)}.json`);
           tempFiles.push(tempFile);
           const jobArgs = [
             ...baseArgs,
@@ -463,6 +711,13 @@ export async function runCli(): Promise<void> {
       logger.error(`  [Subprocess] ${(f as PromiseRejectedResult).reason}`);
     }
 
+    if (phase === 'agent') {
+      // Agent-phase subprocesses write artefacts, not score files: nothing to merge.
+      logger.info(`\n[Output] Run artefacts written under: ${artifactDir}`);
+      if (failures.length > 0) process.exit(1);
+      return;
+    }
+
     const merged = mergeIntoOutput(tempFiles, outputPath);
     logger.info(`\n[Output] Results saved to: ${outputPath}`);
 
@@ -470,6 +725,31 @@ export async function runCli(): Promise<void> {
     if (hasErrors) {
       process.exit(1);
     }
+    return;
+  }
+
+  if (phase === 'agent') {
+    const agentLimit = pLimit(workers);
+    const oks = await Promise.all(
+      jobs.map(([evalCfg, model, mode, jobTools, jobAgentType]) =>
+        agentLimit(() =>
+          runAgentPhaseJob(
+            evalCfg,
+            model,
+            mode,
+            jobTools,
+            apiKey,
+            keepWorkspace,
+            jobAgentType,
+            frameworkRoot,
+            artifactDir!,
+          ),
+        ),
+      ),
+    );
+    const failed = oks.filter((ok) => !ok).length;
+    logger.info(`\n[Output] Run artefacts written under: ${artifactDir}  (${oks.length - failed}/${oks.length} ok)`);
+    if (failed > 0) process.exit(1);
     return;
   }
 
@@ -550,4 +830,224 @@ export async function runCli(): Promise<void> {
   if (errorResults.length > 0) {
     process.exit(1);
   }
+}
+
+/** Options for {@link runGradePhase}. */
+export interface GradePhaseOptions {
+  /** Discovered evals (graders required); artefacts for other evals become error results. */
+  registry: EvalConfig[];
+  artifactDir: string;
+  /** `--eval` ids; empty means every eval. */
+  evalIds: string[];
+  /** Explicit `--model`/`--mode`/`--tools`/`--agent-type` filters. */
+  filters: GradeFilters;
+  workers: number;
+  apiKey: string;
+  frameworkRoot: string;
+  outputOverride: string | undefined;
+  braintrust: boolean;
+}
+
+/** What the grade phase produced; the CLI turns `failed` into the exit code. */
+export interface GradePhaseOutcome {
+  results: JobResult[];
+  /** Absent when nothing was graded, in which case no file is written. */
+  outputPath: string | undefined;
+  failed: boolean;
+}
+
+/**
+ * The key two results collide on in the output file (same as `resultKey`), so artefacts
+ * sharing it would overwrite each other there.
+ */
+function artifactResultKey(m: ArtifactManifest): string {
+  return `${m.evalId}|${m.model}|${m.mode}|${[...new Set(m.tools)].sort().join(',')}`;
+}
+
+function sameToolSet(a: string[], b: string[]): boolean {
+  const sa = [...new Set(a)].sort();
+  const sb = [...new Set(b)].sort();
+  return sa.length === sb.length && sa.every((t, i) => t === sb[i]);
+}
+
+/**
+ * The agent type and recorded model `buildJobList` gives an agent job requested with
+ * `model` and `--agent-type`: auto-routing by model prefix, and the `claude-code` / `codex`
+ * sentinel model for a model from another family. Kept in step with `buildJobList` by a test.
+ */
+export function agentJobIdentity(
+  model: string,
+  agentType: AgentType | undefined,
+): { agentType: AgentType; model: string } {
+  const effective: AgentType =
+    !agentType && isClaudeModel(model)
+      ? 'claude-code'
+      : !agentType && isGeminiModel(model)
+        ? 'gemini-cli'
+        : !agentType && isGptModel(model)
+          ? 'codex'
+          : (agentType ?? DEFAULT_AGENT_TYPE);
+  if (effective === 'claude-code' && !isClaudeModel(model)) return { agentType: effective, model: 'claude-code' };
+  if (effective === 'codex' && !isGptModel(model)) return { agentType: effective, model: 'codex' };
+  return { agentType: effective, model };
+}
+
+/** What artefact selection needs: the directory and its manifest. */
+export interface ArtifactRef {
+  dir: string;
+  manifest: ArtifactManifest;
+}
+
+/**
+ * Applies the CLI filters, then keeps only the newest artefact (by `createdAt`) per result
+ * key. Older artefacts with the same key would otherwise be graded too (paying for judges
+ * and recommendations again) and whichever finished last would win in the output file.
+ *
+ * Filters select the artefacts the same flags would have produced as jobs: `--model` on an
+ * agent artefact is matched through {@link agentJobIdentity} (so `--agent-type claude-code
+ * --model gpt-…` finds the `claude-code` run), and `--tools` / `--agent-type` apply to agent
+ * artefacts only.
+ */
+export function selectArtifacts<T extends ArtifactRef>(
+  artifacts: T[],
+  evalIds: string[],
+  filters: GradeFilters,
+): { selected: T[]; superseded: T[] } {
+  const matching = artifacts.filter(({ manifest: m }) => {
+    if (evalIds.length > 0 && !evalIds.includes(m.evalId)) return false;
+    if (filters.modes && !filters.modes.includes(m.mode)) return false;
+    if (m.mode !== 'agent') return !filters.models || filters.models.includes(m.model);
+
+    const agentType = m.agentType ?? DEFAULT_AGENT_TYPE;
+    if (filters.tools && !sameToolSet(filters.tools, m.tools)) return false;
+    if (filters.agentType && agentType !== filters.agentType) return false;
+    if (filters.models) {
+      const requested = filters.models.map((model) => agentJobIdentity(model, filters.agentType));
+      if (!requested.some((id) => id.model === m.model && id.agentType === agentType)) return false;
+    }
+    return true;
+  });
+
+  const newest = new Map<string, T>();
+  for (const a of matching) {
+    const key = artifactResultKey(a.manifest);
+    const current = newest.get(key);
+    const isNewer =
+      !current ||
+      a.manifest.createdAt > current.manifest.createdAt ||
+      (a.manifest.createdAt === current.manifest.createdAt && a.dir > current.dir);
+    if (isNewer) newest.set(key, a);
+  }
+  const selected = [...newest.values()].sort((x, y) => x.dir.localeCompare(y.dir));
+  const kept = new Set(selected);
+  return { selected, superseded: matching.filter((a) => !kept.has(a)) };
+}
+
+/**
+ * Grade phase: grades the selected artefacts under `artifactDir` and writes results like
+ * the in-process `all` path (`mergeResults` + `saveResults`). Each artefact is read once.
+ * Writes nothing when no artefact could be graded.
+ */
+export async function runGradePhase(options: GradePhaseOptions): Promise<GradePhaseOutcome> {
+  const { registry, artifactDir, evalIds, filters, workers, apiKey, frameworkRoot, outputOverride } = options;
+
+  // Manifests first: filtering needs only them, and run.json (the full trace) can be large.
+  // An unreadable manifest cannot be matched to a filter, so it only fails the phase when
+  // nothing is filtered (every artefact under the directory is in scope).
+  const filtered = evalIds.length > 0 || Object.keys(filters).length > 0;
+  const refs: ArtifactRef[] = [];
+  let unreadable = 0;
+  for (const dir of findRunArtifacts(artifactDir)) {
+    try {
+      refs.push({ dir, manifest: readRunArtifactManifest(dir) });
+    } catch (e) {
+      if (filtered) {
+        logger.warn(`  [Grade] Ignoring unreadable artefact ${dir} (outside the filters' reach): ${e}`);
+      } else {
+        unreadable++;
+        logger.error(`  [ERROR] Cannot read artefact ${dir}: ${e}`);
+      }
+    }
+  }
+
+  const { selected: selectedRefs, superseded } = selectArtifacts(refs, evalIds, filters);
+  for (const old of superseded) {
+    logger.warn(`  [Grade] Skipping ${old.dir}: a newer artefact for the same eval/model/mode/tools exists`);
+  }
+
+  // A selected artefact whose run.json is broken is in scope, so it counts as a failure.
+  const selected: RunArtifact[] = [];
+  for (const ref of selectedRefs) {
+    try {
+      selected.push(readRunArtifact(ref.dir));
+    } catch (e) {
+      unreadable++;
+      logger.error(`  [ERROR] Cannot read artefact ${ref.dir}: ${e}`);
+    }
+  }
+  if (selected.length === 0) {
+    logger.error(`[Config] No gradable run artefacts found under '${artifactDir}'.`);
+    return { results: [], outputPath: undefined, failed: true };
+  }
+
+  const modes = [...new Set(selected.map((a) => a.manifest.mode))].sort();
+  // Name the output like the `all` path would for the same flags: from an explicit --mode,
+  // otherwise from the modes actually graded.
+  const outputModes = filters.modes ?? modes;
+  const btReporter = options.braintrust
+    ? await createGradeBraintrustReporter(selected, modes, filters, registry, frameworkRoot)
+    : null;
+
+  logger.info(`\nGrading ${selected.length} artefact(s) from ${artifactDir}  workers=${workers}\n`);
+  const evalsById = new Map(registry.map((e) => [e.id, e]));
+  const results: JobResult[] = [];
+  const tStart = Date.now();
+  const limit = pLimit(workers);
+  await Promise.all(
+    selected.map((artifact) =>
+      limit(async () => {
+        const result = await gradeArtifact(artifact, evalsById, apiKey, frameworkRoot);
+        results.push(result);
+        printResult(result);
+        btReporter?.log(result);
+      }),
+    ),
+  );
+
+  printSummary(results, (Date.now() - tStart) / 1000);
+  if (btReporter) await btReporter.summarize();
+
+  const outputPath = resolveOutputPath(frameworkRoot, outputModes, outputOverride);
+  saveResults(outputPath, mergeResults(loadResults(outputPath), results));
+  logger.info(`\n[Output] Results saved to: ${outputPath}`);
+
+  return { results, outputPath, failed: unreadable > 0 || results.some((r) => r.status === 'error') };
+}
+
+/** Braintrust reporting for the grade phase, mirroring the `all` path's setup. */
+async function createGradeBraintrustReporter(
+  selected: RunArtifact[],
+  modes: string[],
+  filters: GradeFilters,
+  registry: EvalConfig[],
+  frameworkRoot: string,
+): Promise<Awaited<ReturnType<typeof createBraintrustReporter>>> {
+  const frameworkConfig = getFrameworkConfig();
+  const btProjectId = frameworkConfig.braintrust.projectId || undefined;
+  const btDatasetName = frameworkConfig.braintrust.datasetName || undefined;
+  const agentTools = selected.filter((a) => a.manifest.mode === 'agent').map((a) => a.manifest.tools);
+  const tools =
+    filters.tools ??
+    (agentTools.length > 0 && agentTools.every((t) => sameToolSet(t, agentTools[0]!)) ? agentTools[0]! : []);
+  const reporter = await createBraintrustReporter(modes.join(','), tools, { projectId: btProjectId });
+
+  if (btDatasetName) {
+    const gradedIds = new Set(selected.map((a) => a.manifest.evalId));
+    Promise.all(registry.filter((cfg) => gradedIds.has(cfg.id)).map((cfg) => loadEval(cfg, frameworkRoot)))
+      .then((evalDefs) =>
+        syncDataset(toEvalSummaries(evalDefs), { projectId: btProjectId, datasetName: btDatasetName }),
+      )
+      .catch((e) => logger.error(`[Braintrust] Dataset sync error: ${e}`));
+  }
+  return reporter;
 }

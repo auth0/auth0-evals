@@ -13,6 +13,7 @@ import {
   DEFAULT_AGENT_TYPE,
   type Mode,
   type AgentType,
+  type Phase,
 } from './constants.js';
 import {
   validateApiKey,
@@ -22,6 +23,8 @@ import {
   validateTools,
   validateWorkers,
   validateAgentType,
+  validatePhase,
+  validatePhaseOptions,
 } from './validators.js';
 
 /** Validated, fully-resolved configuration derived from the CLI flags. */
@@ -56,6 +59,27 @@ export interface RunConfig {
    * Defaults to `true` — pass `--dangerously-skip-sandbox` to disable.
    */
   sandbox: boolean;
+  /**
+   * Run phase. `all` (default) runs agent + grading in one go; `agent` runs the model and
+   * writes run artefacts under `artifactDir`; `grade` grades artefacts found under `artifactDir`.
+   */
+  phase: Phase;
+  /** Directory for run artefacts (`--artifact-dir`). Required for `agent` and `grade` phases. */
+  artifactDir: string | undefined;
+  /**
+   * Filters for `--phase grade`, set only for flags passed explicitly on the command line.
+   * `--model` and `--mode` have defaults, so their resolved values above cannot tell
+   * "filter to this" from "not given".
+   */
+  gradeFilters: GradeFilters;
+}
+
+/** Artefact filters for `--phase grade`; an absent field means "do not filter on it". */
+export interface GradeFilters {
+  models?: string[];
+  modes?: Mode[];
+  tools?: string[];
+  agentType?: AgentType;
 }
 
 export interface ParseRunConfigOptions {
@@ -136,7 +160,12 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
       '--dangerously-skip-sandbox',
       'Disable Docker sandboxing — run agent jobs directly on the host (used in CI)',
       false,
-    );
+    )
+    .option(
+      '--phase <phase>',
+      'Run phase: agent (run model, write artefact) | grade (grade stored artefacts) | all (default). agent/grade require --artifact-dir and --dangerously-skip-sandbox.',
+    )
+    .option('--artifact-dir <dir>', 'Directory where run artefacts are written (agent phase) or read (grade phase)');
 
   program.parse(argv);
   const opts = program.opts();
@@ -151,6 +180,17 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
   const tools = validateTools(opts.tools as string);
   const workers = validateWorkers(opts.workers as string | undefined);
   const agentType = validateAgentType(opts.agentType as string | undefined);
+  const phase = validatePhase(opts.phase as string | undefined);
+  const artifactDir = opts.artifactDir as string | undefined;
+  const sandbox = !(opts.dangerouslySkipSandbox as boolean);
+  validatePhaseOptions(phase, artifactDir, sandbox);
+  const fromCli = (key: string): boolean => program.getOptionValueSource(key) === 'cli';
+  const gradeFilters: GradeFilters = {
+    ...(fromCli('model') ? { models } : {}),
+    ...(fromCli('mode') ? { modes } : {}),
+    ...(fromCli('tools') ? { tools } : {}),
+    ...(fromCli('agentType') && agentType !== undefined ? { agentType } : {}),
+  };
 
   return {
     models,
@@ -164,6 +204,9 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
     apiKey,
     agentType,
     configPath: opts.config as string | undefined,
-    sandbox: !(opts.dangerouslySkipSandbox as boolean),
+    sandbox,
+    phase,
+    artifactDir,
+    gradeFilters,
   };
 }

@@ -139,6 +139,8 @@ a0-eval [options]
 | `--output <path>` | file path | auto-named | JSON results output path |
 | `--keep-workspace` | flag | off | Don't delete temp workspace after run |
 | `--dangerously-skip-sandbox` | flag | off | Skip Docker sandbox (see warning below) |
+| `--phase <phase>` | `all`, `agent`, `grade` | `all` | `agent` runs the model and writes a run artefact (no grader files needed); `grade` grades stored artefacts (newest per eval/model/mode/tools; explicit `--eval`/`--model`/`--mode`/`--tools`/`--agent-type` filter them) and emits the usual results. `agent`/`grade` require `--artifact-dir` and `--dangerously-skip-sandbox` |
+| `--artifact-dir <dir>` | path | — | Where `--phase agent` writes artefacts (`<dir>/<eval>-<model>-<mode>[-<tools>]-<rand>/`) and `--phase grade` reads them. Artefacts hold unredacted traces and agent-written files (e.g. `.env`): treat them as sensitive |
 | `--braintrust` | flag | off | Log results to Braintrust |
 | `--config <path>` | file path | auto-discovered | Path to `eval.config.js` (overrides auto-discovery) |
 

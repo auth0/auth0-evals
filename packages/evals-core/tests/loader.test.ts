@@ -415,6 +415,32 @@ export function defineGraders() {
   });
 });
 
+describe('loadEval - skipGraders', () => {
+  it('returns no graders and does not require a graders file', async () => {
+    const evalDir = join(tmpBase, 'my_eval');
+    mkdirSync(evalDir, { recursive: true });
+    writeFileSync(join(evalDir, 'PROMPT.md'), MINIMAL_PROMPT);
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase, { skipGraders: true });
+    expect(result.graders).toEqual([]);
+    expect(result.userPrompt).toBe('Do the task.');
+  });
+
+  it('does not import graders.ts even when it would throw on import', async () => {
+    makeEvalDir(tmpBase, MINIMAL_PROMPT, "throw new Error('graders must not be imported');\n");
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase, { skipGraders: true });
+    expect(result.graders).toEqual([]);
+    await expect(loadEval(EVAL_CONFIG, tmpBase)).rejects.toThrow();
+  });
+
+  it('still loads graders by default', async () => {
+    makeEvalDir(tmpBase);
+    const result = await loadEval(EVAL_CONFIG, tmpBase, { skipGraders: false });
+    expect(result.graders).toHaveLength(1);
+  });
+});
+
 // ── Integration tests ─────────────────────────────────────────────────────────
 
 describe('loadEval - integration', () => {

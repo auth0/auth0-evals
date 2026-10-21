@@ -26,6 +26,11 @@ export const DEFAULT_MODEL = 'gpt-5.6-sol';
 /** Tool names accepted by the `--tools` flag (case-insensitive). */
 export const KNOWN_TOOLS = ['skills', 'mcp'];
 
+/** Values accepted by `--phase`. */
+export const KNOWN_PHASES = ['agent', 'grade', 'all'] as const;
+/** Run phase: `agent` (run model, write artefact), `grade` (grade stored artefacts), or `all`. */
+export type Phase = (typeof KNOWN_PHASES)[number];
+
 /** Agent runner used when no `--agent-type` flag is provided. */
 export const DEFAULT_AGENT_TYPE = 'copilot';
 
