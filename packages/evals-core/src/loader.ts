@@ -30,6 +30,11 @@ export interface EvalConfig {
 export interface LoadEvalOptions {
   /** Default baseline system prompt when no `## System` section is found. */
   defaultBaselineSystemPrompt?: string;
+  /**
+   * When true, no graders file is looked up or imported and `graders` is `[]`.
+   * Used by the agent phase so the model's run never needs grader files on disk.
+   */
+  skipGraders?: boolean;
 }
 
 const FALLBACK_BASELINE_PROMPT =
@@ -51,11 +56,14 @@ export async function loadEval(
     defaultBaselinePrompt,
   );
 
-  const distRelPath = evalConfig.path.replace(/^src\//, '');
-  const distGradersPath = join(frameworkRoot, 'dist', distRelPath, 'graders.js');
-  const srcGradersPath = join(evalPath, 'graders.ts');
-  const gradersPath = existsSync(distGradersPath) ? distGradersPath : srcGradersPath;
-  const graders = await loadGraders(gradersPath);
+  let graders: GraderDef[] = [];
+  if (!options?.skipGraders) {
+    const distRelPath = evalConfig.path.replace(/^src\//, '');
+    const distGradersPath = join(frameworkRoot, 'dist', distRelPath, 'graders.js');
+    const srcGradersPath = join(evalPath, 'graders.ts');
+    const gradersPath = existsSync(distGradersPath) ? distGradersPath : srcGradersPath;
+    graders = await loadGraders(gradersPath);
+  }
   const scaffoldDir = resolveScaffoldFromMeta(meta.scaffold, evalPath, frameworkRoot);
   const scaffold = loadScaffold(scaffoldDir);
 

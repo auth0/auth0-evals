@@ -10,6 +10,21 @@ import { collectSkillFiles } from './collect-skill-content.js';
 import type { SkillFile } from './collect-skill-content.js';
 
 /**
+ * Collects the markdown files of the skills attached to an eval, or `undefined` when the
+ * skill was not in the agent's context (`tools` lacks `skills`). The agent phase calls this
+ * so the grade phase can reuse the exact content without the skills directory on disk.
+ */
+export function resolveSkillFiles(evalDef: EvalDefinition, tools: string[]): SkillFile[] | undefined {
+  if (!tools.includes('skills')) return undefined;
+  const manager = getSkillsManager();
+  const skillDirs: Record<string, string | null> = {};
+  for (const skill of evalDef.skills) {
+    skillDirs[skill] = manager.resolveSkillDir(skill);
+  }
+  return collectSkillFiles(skillDirs);
+}
+
+/**
  * Generates recommendations for a completed agent run.
  *
  * Runs for every agent job, including one with no tools at all. That run is the
@@ -29,21 +44,14 @@ export async function generateRunRecommendations(
   scored: ScoredResult,
   record: RunRecord,
   apiKey: string,
+  skillFilesOverride?: SkillFile[],
 ): Promise<Recommendations> {
   const config = getFrameworkConfig();
 
   // Only send the skill when the skill was actually in the agent's context. Handing
   // the analyst documentation the agent never saw is how a control run acquires an
   // invented "the skill should say X" finding.
-  let skillFiles: SkillFile[] | undefined;
-  if (tools.includes('skills')) {
-    const manager = getSkillsManager();
-    const skillDirs: Record<string, string | null> = {};
-    for (const skill of evalDef.skills) {
-      skillDirs[skill] = manager.resolveSkillDir(skill);
-    }
-    skillFiles = collectSkillFiles(skillDirs);
-  }
+  const skillFiles = tools.includes('skills') ? (skillFilesOverride ?? resolveSkillFiles(evalDef, tools)) : undefined;
 
   return generateRecommendations({
     evalId: evalDef.id,

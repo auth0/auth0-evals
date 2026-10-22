@@ -6,7 +6,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { buildJobList, buildSubprocessArgs } from '../src/cli/run.js';
+import { buildJobList, buildSubprocessArgs, resolveAgentType } from '../src/cli/run.js';
+import { DEFAULT_AGENT_TYPE } from '../src/cli/constants.js';
 import type { EvalConfig } from '@a0/evals-core';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -150,6 +151,34 @@ describe('buildSubprocessArgs', () => {
     expect(buildSubprocessArgs(['--agent-type', 'claude-code', '--workers', '4'])).toEqual(['--workers', '4']);
   });
 
+  it('strips the --flag=value form of every per-job flag', () => {
+    const argv = [
+      '--eval=react_quickstart',
+      '--model=gpt-5.4',
+      '--model=claude-sonnet-5',
+      '--mode=agent',
+      '--tools=skills,mcp',
+      '--agent-type=copilot',
+      '--output=scores.json',
+      '--workers=8',
+      '--config=eval.config.js',
+    ];
+    expect(buildSubprocessArgs(argv)).toEqual(['--workers=8', '--config=eval.config.js']);
+  });
+
+  it('leaves the child exactly one --model when the parent used the = form', () => {
+    const child = [...buildSubprocessArgs(['--model=a', '--model=b', '--phase', 'agent']), '--model', 'a'];
+    expect(child.filter((x) => x === '--model' || x.startsWith('--model='))).toEqual(['--model']);
+  });
+
+  it('does not strip flags that only share a prefix', () => {
+    expect(buildSubprocessArgs(['--models-file=x', '--evaluate', '--output-dir=y'])).toEqual([
+      '--models-file=x',
+      '--evaluate',
+      '--output-dir=y',
+    ]);
+  });
+
   it('strips multiple per-job flags and keeps the rest', () => {
     const argv = [
       '--eval',
@@ -177,5 +206,19 @@ describe('buildSubprocessArgs', () => {
 
   it('returns input unchanged when no per-job flags are present', () => {
     expect(buildSubprocessArgs(['--workers', '4', '--braintrust'])).toEqual(['--workers', '4', '--braintrust']);
+  });
+});
+
+describe('resolveAgentType', () => {
+  it('uses --agent-type when given, whatever the model', () => {
+    expect(resolveAgentType('claude-sonnet-5', 'codex')).toBe('codex');
+    expect(resolveAgentType('gpt-5.6-sol', 'claude-code')).toBe('claude-code');
+  });
+
+  it('routes by model prefix otherwise', () => {
+    expect(resolveAgentType('claude-sonnet-5', undefined)).toBe('claude-code');
+    expect(resolveAgentType('gemini-3.8-flash', undefined)).toBe('gemini-cli');
+    expect(resolveAgentType('gpt-5.6-sol', undefined)).toBe('codex');
+    expect(resolveAgentType('some-other-model', undefined)).toBe(DEFAULT_AGENT_TYPE);
   });
 });
