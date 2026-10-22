@@ -10,6 +10,8 @@
 #
 # Must be idempotent: never assume a pristine tenant, and never abort the run on
 # an "already exists" — hence `set -uo pipefail` (not `-e`) and check-or-create.
+# A failed baseline reset IS fatal, though: continuing would let graders score
+# settings left behind by a previous run.
 set -uo pipefail
 
 log() { echo "[seed] $*" >&2; }
@@ -61,7 +63,8 @@ if auth0 apps update "$APP_ID" --data '{
 }' >/dev/null 2>&1; then
   log "reset 'Barkbook Web' to baseline (no Token Vault grant, rotating refresh tokens)"
 else
-  log "warn: could not reset 'Barkbook Web' — graders may produce false negatives"
+  log "error: failed to reset 'Barkbook Web' to baseline — aborting so graders never score a stale tenant"
+  exit 1
 fi
 
 # The Google social connection users sign in with. Placeholder Google
@@ -102,7 +105,8 @@ fi
 if auth0 connections update "$CONN_ID" --data '{"connected_accounts":{"active":false}}' >/dev/null 2>&1; then
   log "reset 'google-oauth2' to baseline (connected_accounts inactive)"
 else
-  log "warn: could not reset connected_accounts on 'google-oauth2' — graders may produce false negatives"
+  log "error: failed to reset connected_accounts on 'google-oauth2' — aborting so graders never score a stale tenant"
+  exit 1
 fi
 
 log "done: prerequisites ready"

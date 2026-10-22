@@ -112,8 +112,11 @@ export function defineGraders() {
           'appState?, openUrl? }): Promise<void>` is a real Auth0Client method (src/Auth0Client.ts) — it ' +
           'redirects and returns nothing. On return the URL carries `?connect_code=...&state=...` (not `code=`), ' +
           'and `handleRedirectCallback()` returns a `ConnectAccountRedirectResult` with `id`, `connection`, ' +
-          '`scopes`, `created_at`, `appState` and `response_type: "connect_code"`. Note the substring ' +
-          '`code=` also matches `connect_code=`, so keeping a `code=`/`state=` check is functionally acceptable. ' +
+          '`scopes`, `created_at`, `appState` and `response_type: "connect_code"`. The callback check must ' +
+          "actually match `connect_code`: an explicit `connect_code` check, or the scaffold's raw substring " +
+          'check `query.includes("code=")` (which also matches `connect_code=`), is correct; a parsed check ' +
+          'such as `URLSearchParams.has("code")` or `.get("code")` alone does NOT match `connect_code` and skips ' +
+          'handleRedirectCallback() for the connect return, so it is incorrect. ' +
           '`createAuth0Client({ useRefreshTokens: true, useMrrt: true, useDpop: true, authorizationParams: { ' +
           'audience, scope: "openid profile email offline_access" } })` is the documented setup (examples/token-vault.md); ' +
           'with useRefreshTokens: true the SDK injects offline_access itself (src/Auth0Client.ts:332-338), so an ' +

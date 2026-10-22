@@ -44,10 +44,11 @@ export function defineGraders() {
     // ── L4: Read before write — grant_types is replaced, not merged ─────────
     // PATCHing grant_types with only the Token Vault grant drops the app's
     // existing authorization_code / refresh_token grants, so the current list
-    // must be read first.
+    // must be read first. `apps list --json` counts as a read — its JSON output
+    // carries each client's grant_types — but the plain table listing does not.
     ranCommandsInOrder(
       [
-        ['get clients', 'get "clients', "get 'clients", 'apps show'],
+        ['get clients', 'get "clients', "get 'clients", 'apps show', 'apps list --json', 'apps ls --json'],
         ['apps update', 'patch clients', 'patch "clients', "patch 'clients"],
       ],
       'Read the application before patching grant_types (merge, not clobber)',
