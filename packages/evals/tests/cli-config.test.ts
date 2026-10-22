@@ -399,6 +399,25 @@ describe('parseRunConfig — --phase and --artifact-dir', () => {
   it.each(['agent', 'grade'])('rejects --phase %s with the Docker sandbox', (phase) => {
     expect(() => parse('--phase', phase, '--artifact-dir', 'out/art')).toThrow('process.exit(1)');
   });
+
+  it('rejects --output with --phase agent, which never writes a scores file', () => {
+    expect(() =>
+      parse('--phase', 'agent', '--artifact-dir', 'out/art', '--dangerously-skip-sandbox', '--output', 's.json'),
+    ).toThrow('process.exit(1)');
+  });
+
+  it('accepts --output with --phase grade', () => {
+    const cfg = parse(
+      '--phase',
+      'grade',
+      '--artifact-dir',
+      'out/art',
+      '--dangerously-skip-sandbox',
+      '--output',
+      's.json',
+    );
+    expect(cfg.outputPath).toBe('s.json');
+  });
 });
 
 describe('parseRunConfig — grade filters', () => {

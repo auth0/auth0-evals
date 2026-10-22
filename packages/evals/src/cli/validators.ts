@@ -141,10 +141,22 @@ export function validatePhase(phase: string | undefined): Phase {
 /**
  * Validates flags that `--phase agent|grade` depends on: both require `--artifact-dir`
  * and `--dangerously-skip-sandbox` (the Docker sandbox runs the whole job in one container
- * and does not support the split). `--phase all` has no extra requirements.
+ * and does not support the split). `--phase agent` rejects `--output`, because it writes
+ * artefacts and never a scores file. `--phase all` has no extra requirements.
  */
-export function validatePhaseOptions(phase: Phase, artifactDir: string | undefined, sandbox: boolean): void {
+export function validatePhaseOptions(
+  phase: Phase,
+  artifactDir: string | undefined,
+  sandbox: boolean,
+  outputPath?: string,
+): void {
   if (phase === 'all') return;
+  if (phase === 'agent' && outputPath !== undefined) {
+    logger.error(
+      '--output is not used by --phase agent (it writes run artefacts to --artifact-dir); pass --output to --phase grade.',
+    );
+    process.exit(1);
+  }
   if (!artifactDir) {
     logger.error(`--phase ${phase} requires --artifact-dir <dir>.`);
     process.exit(1);

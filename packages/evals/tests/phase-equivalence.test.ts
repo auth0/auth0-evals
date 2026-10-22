@@ -7,7 +7,7 @@
  * must be byte-identical.
  */
 
-import './setup-config.js';
+import { TEST_CONFIG } from './setup-config.js';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -38,7 +38,7 @@ vi.mock('../src/runners/codex/runner.js', () => ({ CodexRunner: class {} }));
 vi.mock('../src/runners/baseline.js', () => ({ runBaseline: (...a: unknown[]) => hoisted.baseline(...a) }));
 
 import { runJob, runAgentPhaseJob, gradeArtifact } from '../src/cli/run.js';
-import { findRunArtifacts, readRunArtifact } from '@a0/evals-core';
+import { findRunArtifacts, readRunArtifact, resetSkillsManager, setFrameworkConfig } from '@a0/evals-core';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const GRADERS_ABS_PATH = resolve(__dirname, '../../evals-graders/dist/index.js');
@@ -47,6 +47,22 @@ const EVAL_ID = 'equiv_eval';
 const MODEL = 'claude-sonnet-5';
 const AGENT_TYPE: AgentType = 'claude-code';
 const tmp = makeTmpDir('phase_equiv_');
+
+/** The eval's skill, and a marker that only appears in its SKILL.md. */
+const SKILL = 'auth0';
+const SKILL_MARKER = 'SKILL-MARKER-7f3a: wrap the root in Auth0Provider';
+/** Local skills dir the SkillsManager resolves from; removed before grading in the split path. */
+let skillsRoot = '';
+
+/** Creates `<root>/auth0/` with SKILL.md and a reference, and points the SkillsManager at it. */
+function installSkills(): void {
+  skillsRoot = tmp();
+  mkdirSync(join(skillsRoot, SKILL, 'references'), { recursive: true });
+  writeFileSync(join(skillsRoot, SKILL, 'SKILL.md'), `# Auth0\n\n${SKILL_MARKER}\n`);
+  writeFileSync(join(skillsRoot, SKILL, 'references', 'react.md'), '# React\n\nUse @auth0/auth0-react.\n');
+  setFrameworkConfig({ ...TEST_CONFIG, skills: { localDirs: [skillsRoot], remoteRepos: [] } });
+  resetSkillsManager();
+}
 
 const evalConfig: EvalConfig = {
   id: EVAL_ID,
@@ -58,7 +74,7 @@ const evalConfig: EvalConfig = {
 const PROMPT = `---
 id: ${EVAL_ID}
 category: quickstarts
-skills:
+skills: ${SKILL}
 ---
 
 ## Task
@@ -209,6 +225,9 @@ async function runSplitPath(
   expect(ok).toBe(true);
   // The agent phase never talks to the judge / analyst.
   expect(requests).toEqual([]);
+  // Grading must not depend on the skills directory: it reuses the skill files stored in
+  // the artefact. Removing the directory makes a fallback to the SkillsManager visible.
+  rmSync(skillsRoot, { recursive: true, force: true });
   const [artifactDir] = findRunArtifacts(artifactRoot);
   const result = await gradeArtifact(readRunArtifact(artifactDir!), new Map([[EVAL_ID, evalConfig]]), 'key', gradeRoot);
   return { result, artifactDir: artifactDir!, requests: [...requests] };
@@ -217,11 +236,21 @@ async function runSplitPath(
 beforeEach(() => {
   installRunner();
   stubFetch();
+  installSkills();
 });
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  setFrameworkConfig(TEST_CONFIG);
+  resetSkillsManager();
 });
+
+/** Body of the recommendations analyst request (the only one asking to diagnose the run). */
+function analystBody(reqs: LlmRequest[]): string {
+  const bodies = reqs.map((r) => r.body).filter((b) => b.includes('Diagnose this run'));
+  expect(bodies).toHaveLength(1);
+  return bodies[0]!;
+}
 
 describe('--phase all vs --phase agent + --phase grade', () => {
   it.each([[[]], [['mcp']], [['skills']], [['mcp', 'skills']]] as string[][][])(
@@ -243,6 +272,20 @@ describe('--phase all vs --phase agent + --phase grade', () => {
       expect(split.result).toEqual(all.result);
       expect(split.requests).toEqual(all.requests);
       expect(split.requests.map((r) => r.body)).toEqual(all.requests.map((r) => r.body));
+
+      // The skill reaches the analyst only when it was in the agent's context. On the split
+      // path the skills directory was gone during grading, so the content came from the
+      // artefact's stored skillFiles.
+      const stored = readRunArtifact(split.artifactDir);
+      if (stored.kind !== 'agent') throw new Error('expected an agent artefact');
+      if (tools.includes('skills')) {
+        expect(stored.run.skillFiles?.map((f) => f.relPath)).toEqual(['SKILL.md', 'references/react.md']);
+        expect(analystBody(split.requests)).toContain(SKILL_MARKER);
+        expect(existsSync(skillsRoot)).toBe(false);
+      } else {
+        expect(stored.run.skillFiles).toBeUndefined();
+        expect(analystBody(split.requests)).not.toContain(SKILL_MARKER);
+      }
     },
   );
 

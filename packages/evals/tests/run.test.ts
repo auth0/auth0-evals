@@ -6,7 +6,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { buildJobList, buildSubprocessArgs } from '../src/cli/run.js';
+import { buildJobList, buildSubprocessArgs, resolveAgentType } from '../src/cli/run.js';
+import { DEFAULT_AGENT_TYPE } from '../src/cli/constants.js';
 import type { EvalConfig } from '@a0/evals-core';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -177,5 +178,19 @@ describe('buildSubprocessArgs', () => {
 
   it('returns input unchanged when no per-job flags are present', () => {
     expect(buildSubprocessArgs(['--workers', '4', '--braintrust'])).toEqual(['--workers', '4', '--braintrust']);
+  });
+});
+
+describe('resolveAgentType', () => {
+  it('uses --agent-type when given, whatever the model', () => {
+    expect(resolveAgentType('claude-sonnet-5', 'codex')).toBe('codex');
+    expect(resolveAgentType('gpt-5.6-sol', 'claude-code')).toBe('claude-code');
+  });
+
+  it('routes by model prefix otherwise', () => {
+    expect(resolveAgentType('claude-sonnet-5', undefined)).toBe('claude-code');
+    expect(resolveAgentType('gemini-3.8-flash', undefined)).toBe('gemini-cli');
+    expect(resolveAgentType('gpt-5.6-sol', undefined)).toBe('codex');
+    expect(resolveAgentType('some-other-model', undefined)).toBe(DEFAULT_AGENT_TYPE);
   });
 });

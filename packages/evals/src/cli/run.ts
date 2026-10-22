@@ -506,6 +506,30 @@ export function buildSubprocessArgs(argv: string[] = process.argv.slice(2)): str
 // ── Job routing ───────────────────────────────────────────────────────────────
 
 /**
+ * The agent runner for an agent job: `--agent-type` when given, otherwise routed by model
+ * prefix (claude-* → claude-code, gemini-* → gemini-cli, gpt-* → codex, else
+ * DEFAULT_AGENT_TYPE).
+ */
+export function resolveAgentType(model: string, agentType: AgentType | undefined): AgentType {
+  if (agentType) return agentType;
+  if (isClaudeModel(model)) return 'claude-code';
+  if (isGeminiModel(model)) return 'gemini-cli';
+  if (isGptModel(model)) return 'codex';
+  return DEFAULT_AGENT_TYPE;
+}
+
+/**
+ * The model recorded for a job whose runner only drives its own model family: the
+ * claude-code and codex runners record a model from another family as their sentinel
+ * (`'claude-code'` / `'codex'`). `undefined` when the model is recorded as given.
+ */
+function sentinelModelFor(agentType: AgentType, model: string): string | undefined {
+  if (agentType === 'claude-code' && !isClaudeModel(model)) return 'claude-code';
+  if (agentType === 'codex' && !isGptModel(model)) return 'codex';
+  return undefined;
+}
+
+/**
  * Builds the flat list of (evalCfg, model, mode, tools, agentType) tuples to run.
  *
  * Auto-routing rules for agent mode:
@@ -533,36 +557,19 @@ export function buildJobList(
           jobs.push([evalCfg, model, mode, [], agentType ?? DEFAULT_AGENT_TYPE]);
           continue;
         }
-        const effectiveAgentType: AgentType =
-          !agentType && isClaudeModel(model)
-            ? 'claude-code'
-            : !agentType && isGeminiModel(model)
-              ? 'gemini-cli'
-              : !agentType && isGptModel(model)
-                ? 'codex'
-                : (agentType ?? DEFAULT_AGENT_TYPE);
+        const effectiveAgentType = resolveAgentType(model, agentType);
         for (const jobTools of agentToolSets) {
-          if (effectiveAgentType === 'claude-code') {
-            if (isClaudeModel(model)) {
-              jobs.push([evalCfg, model, mode, jobTools, effectiveAgentType]);
-            } else {
-              const seenKey = `${evalCfg.id}|${jobTools.join(',')}`;
-              if (claudeCodeEvalsSeen.has(seenKey)) continue;
-              claudeCodeEvalsSeen.add(seenKey);
-              jobs.push([evalCfg, 'claude-code', mode, jobTools, effectiveAgentType]);
-            }
-          } else if (effectiveAgentType === 'codex') {
-            if (isGptModel(model)) {
-              jobs.push([evalCfg, model, mode, jobTools, effectiveAgentType]);
-            } else {
-              const seenKey = `${evalCfg.id}|${jobTools.join(',')}`;
-              if (codexEvalsSeen.has(seenKey)) continue;
-              codexEvalsSeen.add(seenKey);
-              jobs.push([evalCfg, 'codex', mode, jobTools, effectiveAgentType]);
-            }
-          } else {
+          const sentinel = sentinelModelFor(effectiveAgentType, model);
+          if (sentinel === undefined) {
             jobs.push([evalCfg, model, mode, jobTools, effectiveAgentType]);
+            continue;
           }
+          // One sentinel job per eval and tool set, however many other-family models were requested.
+          const seen = effectiveAgentType === 'claude-code' ? claudeCodeEvalsSeen : codexEvalsSeen;
+          const seenKey = `${evalCfg.id}|${jobTools.join(',')}`;
+          if (seen.has(seenKey)) continue;
+          seen.add(seenKey);
+          jobs.push([evalCfg, sentinel, mode, jobTools, effectiveAgentType]);
         }
       }
     }
@@ -689,8 +696,6 @@ export async function runCli(): Promise<void> {
     const settled = await Promise.allSettled(
       jobs.map(([evalCfg, model, mode, jobTools, jobAgentType]) =>
         subLimit(async () => {
-          const tempFile = join(frameworkRoot, `scores-tmp-${jobStem(evalCfg.id, model, mode, jobTools)}.json`);
-          tempFiles.push(tempFile);
           const jobArgs = [
             ...baseArgs,
             '--model',
@@ -701,6 +706,13 @@ export async function runCli(): Promise<void> {
             jobAgentType,
             ...(jobTools.length > 0 ? ['--tools', jobTools.join(',')] : []),
           ];
+          // Agent-phase subprocesses write artefacts, never a scores file (and reject --output).
+          if (phase === 'agent') {
+            await spawnEval(selfPath, evalCfg.id, jobArgs);
+            return;
+          }
+          const tempFile = join(frameworkRoot, `scores-tmp-${jobStem(evalCfg.id, model, mode, jobTools)}.json`);
+          tempFiles.push(tempFile);
           await spawnEval(selfPath, evalCfg.id, [...jobArgs, '--output', tempFile]);
         }),
       ),
@@ -872,24 +884,15 @@ function sameToolSet(a: string[], b: string[]): boolean {
 
 /**
  * The agent type and recorded model `buildJobList` gives an agent job requested with
- * `model` and `--agent-type`: auto-routing by model prefix, and the `claude-code` / `codex`
- * sentinel model for a model from another family. Kept in step with `buildJobList` by a test.
+ * `model` and `--agent-type`. Uses the same {@link resolveAgentType} and
+ * {@link sentinelModelFor} as `buildJobList`.
  */
 export function agentJobIdentity(
   model: string,
   agentType: AgentType | undefined,
 ): { agentType: AgentType; model: string } {
-  const effective: AgentType =
-    !agentType && isClaudeModel(model)
-      ? 'claude-code'
-      : !agentType && isGeminiModel(model)
-        ? 'gemini-cli'
-        : !agentType && isGptModel(model)
-          ? 'codex'
-          : (agentType ?? DEFAULT_AGENT_TYPE);
-  if (effective === 'claude-code' && !isClaudeModel(model)) return { agentType: effective, model: 'claude-code' };
-  if (effective === 'codex' && !isGptModel(model)) return { agentType: effective, model: 'codex' };
-  return { agentType: effective, model };
+  const effective = resolveAgentType(model, agentType);
+  return { agentType: effective, model: sentinelModelFor(effective, model) ?? model };
 }
 
 /** What artefact selection needs: the directory and its manifest. */

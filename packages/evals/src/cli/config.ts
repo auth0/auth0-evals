@@ -183,7 +183,7 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
   const phase = validatePhase(opts.phase as string | undefined);
   const artifactDir = opts.artifactDir as string | undefined;
   const sandbox = !(opts.dangerouslySkipSandbox as boolean);
-  validatePhaseOptions(phase, artifactDir, sandbox);
+  validatePhaseOptions(phase, artifactDir, sandbox, opts.output as string | undefined);
   const fromCli = (key: string): boolean => program.getOptionValueSource(key) === 'cli';
   const gradeFilters: GradeFilters = {
     ...(fromCli('model') ? { models } : {}),
