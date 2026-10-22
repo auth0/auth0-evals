@@ -28,6 +28,7 @@ export const DEFAULT_FRAMEWORK_CONFIG: Required<FrameworkConfig> = {
     model: '',
     maxTokens: JUDGE_DEFAULT_MAX_TOKENS,
     maxCodeChars: 32_768,
+    concurrency: 1,
   },
 
   workspace: {

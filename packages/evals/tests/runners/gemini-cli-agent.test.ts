@@ -43,8 +43,8 @@ vi.mock('@a0/evals-core', async () => ({
 const mockSpawn = vi.hoisted(() => vi.fn());
 vi.mock('node:child_process', () => ({ spawn: mockSpawn }));
 
-import { MAX_TURNS } from '@a0/evals-core';
-import { runGeminiCliAgent } from '../../src/runners/gemini-cli/agent.js';
+import { CLAUDE_CODE_TASK_TIMEOUT_MS, MAX_TURNS } from '@a0/evals-core';
+import { GEMINI_CLI_KILL_GRACE_MS, runGeminiCliAgent } from '../../src/runners/gemini-cli/agent.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -652,6 +652,127 @@ describe('status and final state', () => {
     const record = await runGeminiCliAgent(evalDef, workspace);
     expect(record.finalSummary).toBe('Done despite the 503.');
     expect(record.status).toBe('success');
+  });
+});
+
+// ── stopping the subprocess ────────────────────────────────────────────────
+
+// Gemini CLI has been seen ignoring SIGTERM and running on for 12 minutes past
+// the task timeout. These children model that: they ignore SIGTERM and only
+// exit on the signal named in `exitOn` (SIGKILL by default, null = never).
+describe('stopping the subprocess', () => {
+  type FakeChild = EventEmitter & {
+    stdout: Readable;
+    stderr: Readable;
+    kill: ReturnType<typeof vi.fn>;
+    /** Resolves on the first kill() call. */
+    killed: Promise<void>;
+  };
+
+  function makeStubbornChild(events: JsonlEvent[] = [], exitOn: NodeJS.Signals | null = 'SIGKILL'): FakeChild {
+    const child = new EventEmitter() as FakeChild;
+    child.stdout = new Readable({ read() {} });
+    child.stderr = new Readable({ read() {} });
+    let onKill!: () => void;
+    child.killed = new Promise((r) => (onKill = r));
+    child.kill = vi.fn((signal: NodeJS.Signals) => {
+      onKill();
+      if (signal === exitOn) closeChild(child);
+      return true;
+    });
+    setImmediate(() => {
+      for (const ev of events) child.stdout.push(JSON.stringify(ev) + '\n');
+    });
+    return child;
+  }
+
+  function closeChild(child: FakeChild) {
+    setImmediate(() => {
+      child.stdout.push(null);
+      child.stderr.push(null);
+      child.emit('close', null);
+    });
+  }
+
+  /** Starts a run on `child`; `spawned` resolves once the runner has spawned it. */
+  function startRun(child: FakeChild) {
+    let onSpawn!: () => void;
+    const spawned = new Promise<void>((r) => (onSpawn = r));
+    mockSpawn.mockImplementation(() => {
+      onSpawn();
+      return child;
+    });
+    return { run: runGeminiCliAgent(evalDef, workspace), spawned };
+  }
+
+  function turnEvents(count: number): JsonlEvent[] {
+    return Array.from({ length: count }, (_, i) => ({
+      type: 'message',
+      role: 'assistant',
+      content: `Turn ${i + 1}.`,
+      delta: false,
+    }));
+  }
+
+  // Fake only the timer functions so the 30-minute timeout and the grace period
+  // can be stepped through; setImmediate stays real for the stream plumbing.
+  beforeEach(() => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }));
+  afterEach(() => vi.useRealTimers());
+
+  it('sends SIGKILL when the CLI ignores SIGTERM after the task timeout', async () => {
+    const child = makeStubbornChild();
+    const { run, spawned } = startRun(child);
+    await spawned;
+
+    await vi.advanceTimersByTimeAsync(CLAUDE_CODE_TASK_TIMEOUT_MS);
+    expect(child.kill.mock.calls).toEqual([['SIGTERM']]);
+
+    await vi.advanceTimersByTimeAsync(GEMINI_CLI_KILL_GRACE_MS);
+    expect(child.kill.mock.calls).toEqual([['SIGTERM'], ['SIGKILL']]);
+
+    const record = await run;
+    expect(record.status).toBe('failure');
+    expect(record.providerErrors.some((e) => e.includes('task timeout'))).toBe(true);
+  });
+
+  it('does not send SIGKILL when the CLI exits within the grace period', async () => {
+    const child = makeStubbornChild([], 'SIGTERM');
+    const { run, spawned } = startRun(child);
+    await spawned;
+
+    await vi.advanceTimersByTimeAsync(CLAUDE_CODE_TASK_TIMEOUT_MS);
+    const record = await run;
+    await vi.advanceTimersByTimeAsync(GEMINI_CLI_KILL_GRACE_MS);
+
+    expect(child.kill.mock.calls).toEqual([['SIGTERM']]);
+    expect(record.status).toBe('failure');
+  });
+
+  it('sends SIGKILL when the CLI ignores SIGTERM after the turn limit', async () => {
+    const child = makeStubbornChild(turnEvents(MAX_TURNS));
+    const { run } = startRun(child);
+    await child.killed;
+    expect(child.kill.mock.calls).toEqual([['SIGTERM']]);
+
+    await vi.advanceTimersByTimeAsync(GEMINI_CLI_KILL_GRACE_MS);
+    expect(child.kill.mock.calls).toEqual([['SIGTERM'], ['SIGKILL']]);
+
+    const record = await run;
+    expect(record.providerErrors.some((e) => e.includes('turn limit'))).toBe(true);
+  });
+
+  it('escalates only once when both the turn limit and the task timeout fire', async () => {
+    const child = makeStubbornChild(turnEvents(MAX_TURNS), null);
+    const { run } = startRun(child);
+    await child.killed;
+
+    // The task timeout fires after the turn limit already started the
+    // escalation; it must not send a second SIGTERM or schedule another SIGKILL.
+    await vi.advanceTimersByTimeAsync(CLAUDE_CODE_TASK_TIMEOUT_MS + GEMINI_CLI_KILL_GRACE_MS);
+    expect(child.kill.mock.calls).toEqual([['SIGTERM'], ['SIGKILL']]);
+
+    closeChild(child);
+    await run;
   });
 });
 

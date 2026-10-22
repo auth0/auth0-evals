@@ -154,22 +154,39 @@ export async function runGraders(
     agentText: agentText ?? '',
   };
 
-  const results: GraderResult[] = [];
-  for (const g of active) {
+  const runOne = async (g: GraderDef): Promise<GraderResult> => {
     try {
-      results.push(await executeGrader(g, context));
+      return await executeGrader(g, context);
     } catch (err) {
-      results.push({
+      return {
         name: g.name,
         kind: g.kind,
         passed: false,
         detail: `Grader error [${g.name}/${g.kind}]: ${err instanceof Error ? err.message : String(err)}`,
         level: g.level,
-      });
+      };
     }
-  }
+  };
+
+  // Executors only read the shared context, so graders can run concurrently. Each worker
+  // takes the next index and writes its result to that slot, so output order matches the
+  // definitions whatever order the judges finish in. concurrency 1 is the sequential loop.
+  const concurrency = resolveConcurrency(config.judge.concurrency);
+  const results = new Array<GraderResult>(active.length);
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < active.length) {
+      const i = next++;
+      results[i] = await runOne(active[i]!);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, active.length) }, worker));
 
   return results;
+}
+
+function resolveConcurrency(value: number | undefined): number {
+  return value !== undefined && Number.isInteger(value) && value > 0 ? value : 1;
 }
 
 // ── Summary helpers ───────────────────────────────────────────────────────────

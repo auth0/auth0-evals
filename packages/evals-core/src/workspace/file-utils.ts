@@ -57,6 +57,25 @@ const defaultMaxFiles = DEFAULT_FRAMEWORK_CONFIG.workspace.maxListedFiles!;
  * @returns An array of relative file paths.
  */
 export function collectFiles(root: string, relativeTo: string, options?: CollectFilesOptions): string[] {
+  const { files, truncated, maxFiles } = listFiles(root, relativeTo, options);
+  return truncated ? [...files, `… (truncated at ${maxFiles} files)`] : files;
+}
+
+/** Result of {@link listFiles}: the same walk as {@link collectFiles}, with truncation as data. */
+export interface ListedFiles {
+  /** Sorted relative paths (never includes a truncation notice). */
+  files: string[];
+  /** True when the walk stopped at `maxFiles`; {@link collectFiles} then appends its notice. */
+  truncated: boolean;
+  /** The cap that applied. */
+  maxFiles: number;
+}
+
+/**
+ * The walk behind {@link collectFiles}, returning truncation as a flag instead of a
+ * notice entry, for callers that need the file list without parsing the notice.
+ */
+export function listFiles(root: string, relativeTo: string, options?: CollectFilesOptions): ListedFiles {
   const opts: CollectFilesOptions = options ?? {};
   const excludedDirs: Set<string> = opts.excludedDirs ?? defaultExcluded;
   const maxFiles: number = opts.maxFiles ?? defaultMaxFiles;
@@ -123,8 +142,5 @@ export function collectFiles(root: string, relativeTo: string, options?: Collect
 
   walk(root);
   files.sort();
-  if (truncated) {
-    files.push(`… (truncated at ${maxFiles} files)`);
-  }
-  return files;
+  return { files, truncated, maxFiles };
 }
