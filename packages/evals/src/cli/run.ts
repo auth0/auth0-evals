@@ -497,6 +497,10 @@ export function buildSubprocessArgs(argv: string[] = process.argv.slice(2)): str
         i++; // skip the paired value
         continue;
       }
+      // Commander also accepts `--flag=value`; strip that form too, or the child would get
+      // the parent's values on top of its own and fan out into further subprocesses.
+      const eq = arg.indexOf('=');
+      if (eq > 0 && VALUE_FLAGS.has(arg.slice(0, eq))) continue;
       stripped.push(arg);
     }
   }

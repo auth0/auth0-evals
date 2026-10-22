@@ -151,6 +151,34 @@ describe('buildSubprocessArgs', () => {
     expect(buildSubprocessArgs(['--agent-type', 'claude-code', '--workers', '4'])).toEqual(['--workers', '4']);
   });
 
+  it('strips the --flag=value form of every per-job flag', () => {
+    const argv = [
+      '--eval=react_quickstart',
+      '--model=gpt-5.4',
+      '--model=claude-sonnet-5',
+      '--mode=agent',
+      '--tools=skills,mcp',
+      '--agent-type=copilot',
+      '--output=scores.json',
+      '--workers=8',
+      '--config=eval.config.js',
+    ];
+    expect(buildSubprocessArgs(argv)).toEqual(['--workers=8', '--config=eval.config.js']);
+  });
+
+  it('leaves the child exactly one --model when the parent used the = form', () => {
+    const child = [...buildSubprocessArgs(['--model=a', '--model=b', '--phase', 'agent']), '--model', 'a'];
+    expect(child.filter((x) => x === '--model' || x.startsWith('--model='))).toEqual(['--model']);
+  });
+
+  it('does not strip flags that only share a prefix', () => {
+    expect(buildSubprocessArgs(['--models-file=x', '--evaluate', '--output-dir=y'])).toEqual([
+      '--models-file=x',
+      '--evaluate',
+      '--output-dir=y',
+    ]);
+  });
+
   it('strips multiple per-job flags and keeps the rest', () => {
     const argv = [
       '--eval',
