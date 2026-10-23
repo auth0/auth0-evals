@@ -1,4 +1,4 @@
-import { contains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
+import { notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
 // Barkbook already has its own password sign-in and session; the task puts Enterprise Connect in
 // front of it. Judges must not penalise valid placements of the email step or optional extras.

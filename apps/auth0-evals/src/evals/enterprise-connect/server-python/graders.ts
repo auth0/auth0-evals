@@ -1,4 +1,4 @@
-import { contains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
+import { notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
 // Verified surface of auth0-server-python, so judges do not flag real behaviour as hallucinated.
 const PY_SURFACE_CONTEXT =
