@@ -97,8 +97,10 @@ export function defineGraders() {
     // ── L4: Organization created ──────────────────────────────────────────
     // Native `orgs create --name`/`-n` (not a bare `orgs create --help` probe)
     // or the `organizations` passthrough, keyed on the requested identifier.
+    // The passthrough needs `--data` or an explicit `post` (stdin body) so a
+    // read-only lookup piped through `jq` — which exits 0 on no match — can't pass.
     ranCommandOneOf(
-      ['orgs create --name', 'orgs create -n', ['api', 'organizations', '--data']],
+      ['orgs create --name', 'orgs create -n', ['api', 'organizations', '--data'], ['api', 'post', 'organizations']],
       'Created the acme-corp organization',
       GraderLevel.L4,
       ['acme-corp'],
