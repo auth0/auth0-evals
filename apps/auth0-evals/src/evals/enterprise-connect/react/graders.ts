@@ -1,4 +1,4 @@
-import { contains, notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
+import { notContainsInSource, matches, judge, compiles, GraderLevel } from '@a0/evals-graders';
 
 const SPA_SURFACE_CONTEXT =
   'Enterprise Connect is a real, Early-Access feature of @auth0/auth0-react. It is switched on by the enterpriseConnect prop on Auth0Provider — a ' +
