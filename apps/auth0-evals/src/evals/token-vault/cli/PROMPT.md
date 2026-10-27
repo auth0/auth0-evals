@@ -16,7 +16,7 @@ We're adding a feature that reads each signed-in user's Google Calendar from our
 Using the Auth0 CLI only, set the tenant up so this exchange works:
 
 - the `google-oauth2` connection must keep users' Google tokens so they can be retrieved later,
-- "Barkbook Web" must be allowed to perform the exchange, without losing the sign-in and refresh capabilities it already has,
+- "Barkbook Web" must be allowed to perform the exchange, without losing any of the capabilities (grant types) it already has,
 - and the app's refresh-token settings must be compatible with this exchange.
 
 The Google Cloud console side is handled separately, and you do not need to set up Connected Accounts, the My Account API, or any application code — stop once the tenant is configured.
