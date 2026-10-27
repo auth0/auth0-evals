@@ -122,6 +122,8 @@ export function defineGraders() {
       GraderLevel.L4,
       ['acme-corp'],
     ),
+    // An update addresses the org by its runtime ID, so a substring can't tie
+    // "Acme Corp" to acme-corp here; the display-name trace judge below does.
     ranCommandOneOf(
       ['orgs create', 'orgs update', ...orgWriteRoutes('--data', 'post', 'POST', 'patch', 'PATCH')],
       'Set the organization display name to "Acme Corp"',
@@ -186,6 +188,12 @@ export function defineGraders() {
       'Does the integration client end up with the authorization code grant and without refresh_token, judging ' +
         'by the grant types actually sent to it (where `auth0 apps create --type regular` without --grants ' +
         'defaults to implicit, authorization_code, refresh_token and client_credentials)?',
+      GraderLevel.L4,
+      { includeCommandTrace: true, context: CLI_CONTEXT },
+    ),
+    judge(
+      'Does the acme-corp organization created in this run end up with the display name "Acme Corp", set either ' +
+        'when it was created or by a later update addressed to that same organization ID rather than another one?',
       GraderLevel.L4,
       { includeCommandTrace: true, context: CLI_CONTEXT },
     ),
