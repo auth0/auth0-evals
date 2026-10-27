@@ -43,12 +43,15 @@ export function defineGraders() {
 
     // ── L4: Read before write — grant_types is replaced, not merged ─────────
     // PATCHing grant_types with only the Token Vault grant drops the app's
-    // existing authorization_code / refresh_token grants, so the current list
-    // must be read first. `apps list --json` counts as a read — its JSON output
-    // carries each client's grant_types — but the plain table listing does not.
+    // existing grants (seeded: authorization_code, refresh_token,
+    // client_credentials), so the current list must be read first. `apps list` / `apps ls` count as a read: with `--json`
+    // the output carries each client's grant_types, and flags are often not
+    // adjacent (`apps list --query '{"name":"..."}' --json-compact`), so match
+    // the subcommand alone. Whether the grants were actually merged is checked
+    // by the holistic judge.
     ranCommandsInOrder(
       [
-        ['get clients', 'get "clients', "get 'clients", 'apps show', 'apps list --json', 'apps ls --json'],
+        ['get clients', 'get "clients', "get 'clients", 'apps show', 'apps list', 'apps ls'],
         ['apps update', 'patch clients', 'patch "clients', "patch 'clients"],
       ],
       'Read the application before patching grant_types (merge, not clobber)',
@@ -81,8 +84,9 @@ export function defineGraders() {
         '(1) enable Token Vault on the google-oauth2 connection by setting connected_accounts.active = true ' +
         '(auth0 connections update --data, or the connections Management API equivalent); ' +
         `(2) add the ${TOKEN_VAULT_GRANT} grant to the "Barkbook Web" application's grant_types while keeping ` +
-        'its existing authorization_code and refresh_token grants (reading the client first rather than ' +
-        'replacing grant_types with only the new grant); ' +
+        'every grant type the application already has — in this seeded tenant authorization_code, ' +
+        'refresh_token, and client_credentials — (reading the client first rather than replacing ' +
+        'grant_types with a list that drops any of them); ' +
         '(3) make the application\'s refresh tokens non-rotating (refresh_token.rotation_type = "non-rotating"), ' +
         'since the refresh-token exchange does not work with rotation — ' +
         'without creating Custom Token Exchange profiles or Actions, and using only the Auth0 CLI, ' +
