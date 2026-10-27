@@ -136,10 +136,10 @@ export function defineGraders() {
 
     // ── L3: Security ──────────────────────────────────────────────────────
     judge(
-      'Is the enterprise IdP session ended on EVERY logout path (each logout call passes federated: true' +
-        ', including any rejection or org-mismatch logout, if the app has one), so a later login cannot silently reuse the previous enterprise user?',
+      'Is the enterprise IdP session ended on every Auth0 SDK logout path (each Auth0 logout call passes federated: true' +
+        ', including any rejection or org-mismatch logout, if the app has one), so a later login cannot silently reuse the previous enterprise user? The existing password signOut() is not an Auth0 logout and is out of scope.',
       GraderLevel.L3,
-      { context: SPA_SURFACE_CONTEXT },
+      { context: SPA_SURFACE_CONTEXT + ' ' + FIXTURE_CONTEXT },
     ),
     judge(
       'Does the code treat isFederatedDomain purely as a routing hint (never as an authentication/authorization ' +

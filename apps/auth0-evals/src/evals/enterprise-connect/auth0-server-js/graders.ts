@@ -26,9 +26,12 @@ const FIXTURE_CONTEXT =
 export function defineGraders() {
   return [
     // ── L1: Required Enterprise Connect symbols present ───────────────────
+    // Keyed on the ServerClient value import: the scaffold's cookie handler
+    // already has an `import type { CookieHandler } from '@auth0/auth0-server-js'`, so
+    // type-only imports don't count.
     matches(
-      String.raw`(?:from\s*|import\s*|require\s*\(\s*)['"]@auth0/auth0-server-js(?:/[\w.-]+)*['"]`,
-      'Uses @auth0/auth0-server-js SDK',
+      String.raw`(?:import|const|let|var)\s*\{[^}]*\bServerClient\b[^}]*\}\s*(?:from\s*|=\s*require\s*\(\s*)['"]@auth0/auth0-server-js['"]`,
+      'Uses @auth0/auth0-server-js SDK (imports ServerClient)',
       GraderLevel.L1,
       { caseSensitive: true },
     ),

@@ -36,9 +36,14 @@ const FIXTURE_CONTEXT =
 export function defineGraders() {
   return [
     // ── L1: Required Enterprise Connect symbols present ───────────────────
-    matches(String.raw`(?:from|import)\s+auth0_server_python\b`, 'Uses the auth0-server-python SDK', GraderLevel.L1, {
-      caseSensitive: true,
-    }),
+    // Keyed on the ServerClient import: the scaffold's stores.py already imports
+    // TransactionData / TransactionStore from auth0_server_python.
+    matches(
+      String.raw`from\s+auth0_server_python(?:\.\w+)*\s+import\s+(?:\([^)]*|[^\n]*)\bServerClient\b`,
+      'Uses the auth0-server-python SDK (imports ServerClient)',
+      GraderLevel.L1,
+      { caseSensitive: true },
+    ),
     // Relay mode is a client-level flag on ServerClient.
     matches(
       String.raw`enterprise_connect\s*=\s*True`,

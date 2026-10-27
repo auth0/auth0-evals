@@ -14,6 +14,13 @@ import { ranCommand, ranCommandOneOf, notRanCommand, judge, GraderLevel } from '
 // --data` or the `auth0 api` Management passthrough. Each grader accepts both.
 const CLIENT_ROUTES = ['apps create', 'apps update', ['api', 'clients']];
 
+// The organizations path as its own token — preceded by a space, slash or quote —
+// so `enabled_organizations` in an sso-ticket body can't stand in for it. Each
+// route also needs a write marker so a read-back piped through `jq` can't pass.
+// `auth0 api` upper-cases the method, so `post` and `POST` are both accepted.
+const ORG_PATHS = [' organizations', '/organizations', '"organizations', "'organizations"];
+const orgWriteRoutes = (...markers: string[]) => ORG_PATHS.flatMap((path) => markers.map((m) => ['api', path, m]));
+
 // Shared judge context. Resource IDs only exist at runtime, so judges compare
 // IDs across commands rather than expecting literal values.
 const CLI_CONTEXT =
@@ -81,14 +88,21 @@ export function defineGraders() {
     // authorization_code, refresh_token and client_credentials, so an agent that
     // never mentions refresh tokens still hands the integration one. Paired with
     // the L2 refresh-token checks above, this pins the grants to what was asked.
+    // Every route is a write (`--grants`, `--data`, or an explicit post/patch) so a
+    // read-back like `apps show --json | jq .grant_types` can't pass.
     ranCommandOneOf(
       [
         ['apps create', '--grants'],
         ['apps create', '-g '],
         ['apps update', '--grants'],
         ['apps update', '-g '],
-        ['apps', 'grant_types'],
-        ['clients', 'grant_types'],
+        ['apps create', '--data', 'grant_types'],
+        ['apps update', '--data', 'grant_types'],
+        ['api', 'clients', '--data', 'grant_types'],
+        ['api', 'post', 'clients', 'grant_types'],
+        ['api', 'POST', 'clients', 'grant_types'],
+        ['api', 'patch', 'clients', 'grant_types'],
+        ['api', 'PATCH', 'clients', 'grant_types'],
       ],
       'Set the integration grant types explicitly instead of taking the CLI defaults',
       GraderLevel.L4,
@@ -99,14 +113,17 @@ export function defineGraders() {
     // or the `organizations` passthrough, keyed on the requested identifier.
     // The passthrough needs `--data` or an explicit `post` (stdin body) so a
     // read-only lookup piped through `jq` — which exits 0 on no match — can't pass.
+    // Both checks are anchored to the org create/update call (ORG_PATHS): the
+    // sso-ticket body carries enabled_organizations, acme-corp-sso and its own
+    // display_name "Acme Corp", which would otherwise satisfy them on its own.
     ranCommandOneOf(
-      ['orgs create --name', 'orgs create -n', ['api', 'organizations', '--data'], ['api', 'post', 'organizations']],
+      ['orgs create --name', 'orgs create -n', ...orgWriteRoutes('--data', 'post', 'POST')],
       'Created the acme-corp organization',
       GraderLevel.L4,
       ['acme-corp'],
     ),
     ranCommandOneOf(
-      ['orgs create', 'orgs update', 'organizations'],
+      ['orgs create', 'orgs update', ...orgWriteRoutes('--data', 'post', 'POST', 'patch', 'PATCH')],
       'Set the organization display name to "Acme Corp"',
       GraderLevel.L4,
       ['Acme Corp'],
