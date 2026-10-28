@@ -7,7 +7,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { collectFiles, logger, redactSecrets, REDACTION_MARKER } from '@a0/evals-core';
+import { listGradingFiles, logger, redactSecrets, REDACTION_MARKER } from '@a0/evals-core';
 import type { RunRecord, ToolCallRecord, ScoredResult, Recommendations, Recommendation } from '@a0/evals-core';
 import type { SkillFile } from './collect-skill-content.js';
 
@@ -35,8 +35,6 @@ const MAX_OUTPUT_TOKENS = 8192;
 const RUN_COMMAND_NAMES = new Set(['run_command', 'bash']);
 /** MCP tool calls are recorded as `mcp__<server>__<tool>`. */
 const MCP_TOOL_PREFIX = 'mcp__';
-/** Truncation placeholder emitted by collectFiles when the file list exceeds limits. */
-const TRUNCATION_SENTINEL = '\u2026';
 /** Request timeout in milliseconds. */
 const TIMEOUT_MS = 60_000;
 /** Files that may contain secrets — excluded from the LLM prompt. */
@@ -263,11 +261,10 @@ function buildPrompt(input: RecommendationInput): { system: string; user: string
       : '(no skills provided)';
 
   // Collect workspace files
-  const filePaths = collectFiles(workspace, workspace);
+  const filePaths = listGradingFiles(workspace).files;
   const workspaceContent: string[] = [];
   let totalChars = 0;
   for (const relPath of filePaths) {
-    if (relPath.startsWith(TRUNCATION_SENTINEL)) continue;
     const basename = relPath.split('/').pop() ?? relPath;
     if (SECRET_FILE_PATTERN.test(basename)) continue;
     try {

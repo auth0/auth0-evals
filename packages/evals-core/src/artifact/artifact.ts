@@ -13,11 +13,10 @@
  * directories as sensitive: do not publish or share them.
  *
  * Workspace snapshot rationale: every grading-time reader (graders engine, recommendations)
- * lists files through `collectFiles(workspace, workspace)` with default options. The snapshot
- * uses the same walk (`listFiles`, which reports truncation as a flag rather than a notice). The snapshot
- * copies exactly that list, so a restored directory yields an identical listing. If the
- * original listing was truncated at `maxFiles`, the restored directory holds exactly
- * `maxFiles` files and re-truncates identically.
+ * lists files through `listGradingFiles(workspace)`. The snapshot copies exactly that list,
+ * so a restored directory yields an identical listing. If the original listing was
+ * truncated at the file cap, the restored directory holds exactly the capped files and
+ * re-truncates identically.
  */
 
 import {
@@ -33,7 +32,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { listFiles } from '../workspace/file-utils.js';
+import { listGradingFiles } from '../graders/engine.js';
 import { logger } from '../utils/logger.js';
 import { resolveInside } from '../workspace/path-utils.js';
 import {
@@ -73,7 +72,7 @@ function snapshotWorkspace(
   workspace: string,
   destRoot: string,
 ): { files: string[]; skipped: string[]; truncated: boolean } {
-  const { files: candidates, truncated } = listFiles(workspace, workspace);
+  const { files: candidates, truncated } = listGradingFiles(workspace);
 
   mkdirSync(destRoot, { recursive: true });
   const srcReal = realpathSync(workspace);
