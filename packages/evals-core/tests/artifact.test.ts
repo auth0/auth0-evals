@@ -116,6 +116,7 @@ describe('run artefact', () => {
       mode: 'agent',
       agentType: 'claude-code',
       tools: ['skills'],
+      workspaceTruncated: false,
     });
     expect(Number.isNaN(Date.parse(art.manifest.createdAt))).toBe(false);
     // Nothing is redacted: graders need the raw trace.
@@ -239,8 +240,8 @@ describe('run artefact', () => {
       resolvedModel: 'm',
     });
     const restored = restoreArtifactWorkspace(readRunArtifact(dir));
-    const original = listGradingFiles(ws);
-    expect(listGradingFiles(restored)).toEqual(original);
+    const original = listGradingFiles(ws).files;
+    expect(listGradingFiles(restored).files).toEqual(original);
     // Engine-level view (what graders see) is identical too.
     expect(collectGraderFiles(restored)).toEqual(collectGraderFiles(ws));
     expect(original).toContain('.env');
@@ -251,7 +252,7 @@ describe('run artefact', () => {
     expect(original).not.toContain('CLAUDE.md');
     // Re-grading the same artefact twice works; restoring does not mutate it.
     expect(restoreArtifactWorkspace(readRunArtifact(dir))).toBe(restored);
-    expect(listGradingFiles(restored)).toEqual(original);
+    expect(listGradingFiles(restored).files).toEqual(original);
   });
 
   it('snapshots every source file when excluded dirs exceed the listing cap', () => {
@@ -263,7 +264,7 @@ describe('run artefact', () => {
     };
     for (let i = 0; i < 30; i++) put(`.claude/skills/s${i}.md`);
     for (let i = 0; i < 250; i++) put(`.output/server/chunks/c${i}.mjs`);
-    for (let i = 0; i < 230; i++) put(`app/f${String(i).padStart(3, '0')}.vue`);
+    for (let i = 0; i < 150; i++) put(`app/f${String(i).padStart(3, '0')}.vue`);
 
     const dir = join(tmp(), 'cap');
     writeRunArtifact(dir, {
@@ -275,9 +276,36 @@ describe('run artefact', () => {
       resolvedModel: 'm',
     });
     const art = readRunArtifact(dir);
-    expect(art.manifest.workspaceFiles).toHaveLength(230);
+    expect(art.manifest.workspaceTruncated).toBe(false);
+    expect(art.manifest.workspaceFiles).toHaveLength(150);
     expect(art.manifest.workspaceFiles!.every((f) => f.startsWith('app/'))).toBe(true);
     const restored = restoreArtifactWorkspace(art);
+    expect(collectGraderFiles(restored)).toEqual(collectGraderFiles(ws));
+  });
+
+  it('re-truncates identically when the source exceeds the file cap', () => {
+    const ws = tmp();
+    for (let i = 0; i < 230; i++) {
+      const p = join(ws, `d${i % 7}`, `f${String(i).padStart(3, '0')}.txt`);
+      mkdirSync(join(p, '..'), { recursive: true });
+      writeFileSync(p, `file ${i}`);
+    }
+    expect(listGradingFiles(ws)).toMatchObject({ truncated: true });
+
+    const dir = join(tmp(), 'trunc');
+    writeRunArtifact(dir, {
+      ...BASE,
+      kind: 'agent',
+      mode: 'agent',
+      workspace: ws,
+      record: makeRecord(),
+      resolvedModel: 'm',
+    });
+    const art = readRunArtifact(dir);
+    expect(art.manifest.workspaceTruncated).toBe(true);
+    expect(art.manifest.workspaceFiles).toHaveLength(200);
+    const restored = restoreArtifactWorkspace(art);
+    expect(listGradingFiles(restored).files).toEqual(listGradingFiles(ws).files);
     expect(collectGraderFiles(restored)).toEqual(collectGraderFiles(ws));
   });
 

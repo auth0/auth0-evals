@@ -261,7 +261,7 @@ function buildPrompt(input: RecommendationInput): { system: string; user: string
       : '(no skills provided)';
 
   // Collect workspace files
-  const filePaths = listGradingFiles(workspace);
+  const filePaths = listGradingFiles(workspace).files;
   const workspaceContent: string[] = [];
   let totalChars = 0;
   for (const relPath of filePaths) {

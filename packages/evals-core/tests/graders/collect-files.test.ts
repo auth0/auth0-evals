@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { collectFiles } from '../../src/graders/engine.js';
+import { collectFiles, listGradingFiles } from '../../src/graders/engine.js';
+import { logger } from '../../src/utils/logger.js';
 import { makeTmpDir } from '../tmp.js';
 
 const tmpDir = makeTmpDir('collect_');
@@ -42,5 +43,19 @@ describe('collectFiles', () => {
     writeFileSync(join(dir, 'android', 'app', 'build.gradle'), 'android {}');
 
     expect(Object.keys(collectFiles(dir))).toEqual(['android/app/build.gradle']);
+  });
+
+  it('caps the listing at 200 kept files and warns when it truncates', () => {
+    const dir = tmpDir();
+    for (let i = 0; i < 205; i++) writeFileSync(join(dir, `f${String(i).padStart(3, '0')}.ts`), '');
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    try {
+      const { files, truncated } = listGradingFiles(dir);
+      expect(truncated).toBe(true);
+      expect(files).toHaveLength(200);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('truncated at 200 files'));
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });

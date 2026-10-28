@@ -46,6 +46,8 @@ export interface ArtifactManifest {
    * after listing). Grading skips unreadable files too, so they are left out, not fatal.
    */
   workspaceSkipped?: string[];
+  /** Agent kind only: true when the original workspace listing hit the file cap. */
+  workspaceTruncated?: boolean;
 }
 
 /** `run.json` payload for the agent kind. */

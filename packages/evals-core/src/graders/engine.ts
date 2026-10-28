@@ -11,7 +11,8 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getFrameworkConfig } from '../config/framework-config.js';
 import { DEFAULT_FRAMEWORK_CONFIG } from '../config/defaults.js';
-import { collectFiles as collectFilePaths } from '../workspace/index.js';
+import { listFiles as listFilePaths } from '../workspace/index.js';
+import { logger } from '../utils/logger.js';
 import type { GraderDef, GraderResult, EventToolCall, CompileResult } from '@a0/evals-graders';
 import { GraderLevel } from '@a0/evals-graders';
 import { registerExecutor, executeGrader } from './executors/index.js';
@@ -81,20 +82,23 @@ const GRADING_EXCLUDED_DIRS = new Set([
 
 /**
  * Relative paths of every file grading reads: graders, the run-artefact snapshot and
- * recommendations all list through this. Excluded dirs are pruned during the walk and
- * the walk has no file cap. Filtering them out after a capped walk instead let build
- * output (e.g. `.output/` after `nuxt build`) and injected skills fill the cap before
- * the walk reached the agent's source, collapsing the corpus to a stray `.gitignore`.
+ * recommendations all list through this. Excluded dirs are pruned during the walk, so
+ * the file cap only counts files grading keeps. Filtering them out after a capped walk
+ * instead let build output (e.g. `.output/` after `nuxt build`) and injected skills fill
+ * the cap before the walk reached the agent's source, collapsing the corpus to a stray
+ * `.gitignore`. Hitting the cap is logged, since graders then miss files.
  */
-export function listGradingFiles(workspace: string): string[] {
-  return collectFilePaths(workspace, workspace, { excludedDirs: GRADING_EXCLUDED_DIRS, maxFiles: Infinity }).filter(
-    (relPath) => !EXCLUDED_EVAL_FILES.has(relPath),
-  );
+export function listGradingFiles(workspace: string): { files: string[]; truncated: boolean } {
+  const { files, truncated, maxFiles } = listFilePaths(workspace, workspace, { excludedDirs: GRADING_EXCLUDED_DIRS });
+  if (truncated) {
+    logger.warn(`[Graders] Workspace listing truncated at ${maxFiles} files; graders will not see the rest`);
+  }
+  return { files: files.filter((relPath) => !EXCLUDED_EVAL_FILES.has(relPath)), truncated };
 }
 
 export function collectFiles(workspace: string): Record<string, string> {
   const files: Record<string, string> = {};
-  for (const relPath of listGradingFiles(workspace)) {
+  for (const relPath of listGradingFiles(workspace).files) {
     try {
       files[relPath] = readFileSync(join(workspace, relPath), 'utf-8');
     } catch {

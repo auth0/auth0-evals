@@ -14,7 +14,9 @@
  *
  * Workspace snapshot rationale: every grading-time reader (graders engine, recommendations)
  * lists files through `listGradingFiles(workspace)`. The snapshot copies exactly that list,
- * so a restored directory yields an identical listing.
+ * so a restored directory yields an identical listing. If the original listing was
+ * truncated at the file cap, the restored directory holds exactly the capped files and
+ * re-truncates identically.
  */
 
 import {
@@ -59,14 +61,18 @@ function atomicWrite(path: string, data: string): void {
 
 /**
  * Copies the grading-visible files of `workspace` into `<destRoot>`, byte-exact.
- * Returns the copied list and the listed files that could not be copied.
+ * Returns the copied list, the listed files that could not be copied, and whether the
+ * original listing was truncated.
  *
  * A file that cannot be copied is skipped with a warning instead of failing the run:
  * grading under `--phase all` skips unreadable files the same way, so the graders' file
  * map is unchanged, and a finished (paid) agent run is not lost to one bad file.
  */
-function snapshotWorkspace(workspace: string, destRoot: string): { files: string[]; skipped: string[] } {
-  const candidates = listGradingFiles(workspace);
+function snapshotWorkspace(
+  workspace: string,
+  destRoot: string,
+): { files: string[]; skipped: string[]; truncated: boolean } {
+  const { files: candidates, truncated } = listGradingFiles(workspace);
 
   mkdirSync(destRoot, { recursive: true });
   const srcReal = realpathSync(workspace);
@@ -85,7 +91,7 @@ function snapshotWorkspace(workspace: string, destRoot: string): { files: string
       logger.warn(`[Artefact] Skipping workspace file ${rel}: ${e instanceof Error ? e.message : e}`);
     }
   }
-  return { files, skipped };
+  return { files, skipped, truncated };
 }
 
 /**
@@ -114,9 +120,10 @@ export function writeRunArtifact(dir: string, input: WriteRunArtifactInput): voi
 
   let run: AgentRunData | BaselineRunData | ErrorRunData;
   if (input.kind === 'agent') {
-    const { files, skipped } = snapshotWorkspace(input.workspace, join(dir, ARTIFACT_WORKSPACE_DIR));
+    const { files, skipped, truncated } = snapshotWorkspace(input.workspace, join(dir, ARTIFACT_WORKSPACE_DIR));
     manifest.workspaceFiles = files;
     if (skipped.length > 0) manifest.workspaceSkipped = skipped;
+    manifest.workspaceTruncated = truncated;
     run = {
       record: input.record,
       resolvedModel: input.resolvedModel,
