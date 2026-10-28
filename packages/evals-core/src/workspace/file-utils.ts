@@ -40,6 +40,8 @@ export function readWorkspaceFile(workspace: string, filePath: string): string {
 export interface CollectFilesOptions {
   /** Directory names to skip during traversal. Defaults to {@link DEFAULT_FRAMEWORK_CONFIG}.workspace.excludedDirs. */
   excludedDirs?: Set<string>;
+  /** Relative file paths to skip; skipped files do not count toward `maxFiles`. Defaults to none. */
+  excludedFiles?: Set<string>;
   /** Maximum number of files to return. Defaults to {@link DEFAULT_FRAMEWORK_CONFIG}.workspace.maxListedFiles. */
   maxFiles?: number;
 }
@@ -78,6 +80,7 @@ export interface ListedFiles {
 export function listFiles(root: string, relativeTo: string, options?: CollectFilesOptions): ListedFiles {
   const opts: CollectFilesOptions = options ?? {};
   const excludedDirs: Set<string> = opts.excludedDirs ?? defaultExcluded;
+  const excludedFiles: Set<string> = opts.excludedFiles ?? new Set();
   const maxFiles: number = opts.maxFiles ?? defaultMaxFiles;
 
   // Use realpathSync to resolve symlinks in the workspace root itself (e.g. /var -> /private/var on macOS)
@@ -90,6 +93,15 @@ export function listFiles(root: string, relativeTo: string, options?: CollectFil
 
   const files: string[] = [];
   let truncated = false;
+
+  function add(fullPath: string): void {
+    const relPath = relative(relativeTo, fullPath).replace(/\\/g, '/');
+    if (excludedFiles.has(relPath)) return;
+    files.push(relPath);
+    if (files.length >= maxFiles) {
+      truncated = true;
+    }
+  }
 
   function walk(dir: string): void {
     if (truncated) return;
@@ -109,10 +121,7 @@ export function listFiles(root: string, relativeTo: string, options?: CollectFil
         try {
           const realPath = realpathSync(fullPath);
           if (isPathInside(workspaceRoot, realPath) && statSync(fullPath).isFile()) {
-            files.push(relative(relativeTo, fullPath).replace(/\\/g, '/'));
-            if (files.length >= maxFiles) {
-              truncated = true;
-            }
+            add(fullPath);
           }
         } catch {
           // skip broken symlinks or files resolving outside workspace
@@ -128,10 +137,7 @@ export function listFiles(root: string, relativeTo: string, options?: CollectFil
         try {
           const realPath = realpathSync(fullPath);
           if (isPathInside(workspaceRoot, realPath)) {
-            files.push(relative(relativeTo, fullPath).replace(/\\/g, '/'));
-            if (files.length >= maxFiles) {
-              truncated = true;
-            }
+            add(fullPath);
           }
         } catch {
           // skip

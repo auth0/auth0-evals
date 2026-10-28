@@ -58,4 +58,13 @@ describe('collectFiles', () => {
       warnSpy.mockRestore();
     }
   });
+
+  it('does not count EXCLUDED_EVAL_FILES toward the cap', () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'AGENTS.md'), '');
+    for (let i = 0; i < 199; i++) writeFileSync(join(dir, `f${String(i).padStart(3, '0')}.ts`), '');
+
+    expect(listGradingFiles(dir)).toMatchObject({ truncated: false });
+    expect(listGradingFiles(dir).files).toHaveLength(199);
+  });
 });

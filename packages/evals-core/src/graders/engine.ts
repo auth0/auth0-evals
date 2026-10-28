@@ -89,11 +89,14 @@ const GRADING_EXCLUDED_DIRS = new Set([
  * `.gitignore`. Hitting the cap is logged, since graders then miss files.
  */
 export function listGradingFiles(workspace: string): { files: string[]; truncated: boolean } {
-  const { files, truncated, maxFiles } = listFilePaths(workspace, workspace, { excludedDirs: GRADING_EXCLUDED_DIRS });
+  const { files, truncated, maxFiles } = listFilePaths(workspace, workspace, {
+    excludedDirs: GRADING_EXCLUDED_DIRS,
+    excludedFiles: EXCLUDED_EVAL_FILES,
+  });
   if (truncated) {
     logger.warn(`[Graders] Workspace listing truncated at ${maxFiles} files; graders will not see the rest`);
   }
-  return { files: files.filter((relPath) => !EXCLUDED_EVAL_FILES.has(relPath)), truncated };
+  return { files, truncated };
 }
 
 export function collectFiles(workspace: string): Record<string, string> {
