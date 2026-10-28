@@ -13,11 +13,8 @@
  * directories as sensitive: do not publish or share them.
  *
  * Workspace snapshot rationale: every grading-time reader (graders engine, recommendations)
- * lists files through `collectFiles(workspace, workspace)` with default options. The snapshot
- * uses the same walk (`listFiles`, which reports truncation as a flag rather than a notice). The snapshot
- * copies exactly that list, so a restored directory yields an identical listing. If the
- * original listing was truncated at `maxFiles`, the restored directory holds exactly
- * `maxFiles` files and re-truncates identically.
+ * lists files through `listGradingFiles(workspace)`. The snapshot copies exactly that list,
+ * so a restored directory yields an identical listing.
  */
 
 import {
@@ -33,7 +30,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { listFiles } from '../workspace/file-utils.js';
+import { listGradingFiles } from '../graders/engine.js';
 import { logger } from '../utils/logger.js';
 import { resolveInside } from '../workspace/path-utils.js';
 import {
@@ -62,18 +59,14 @@ function atomicWrite(path: string, data: string): void {
 
 /**
  * Copies the grading-visible files of `workspace` into `<destRoot>`, byte-exact.
- * Returns the copied list, the listed files that could not be copied, and whether the
- * original listing was truncated.
+ * Returns the copied list and the listed files that could not be copied.
  *
  * A file that cannot be copied is skipped with a warning instead of failing the run:
  * grading under `--phase all` skips unreadable files the same way, so the graders' file
  * map is unchanged, and a finished (paid) agent run is not lost to one bad file.
  */
-function snapshotWorkspace(
-  workspace: string,
-  destRoot: string,
-): { files: string[]; skipped: string[]; truncated: boolean } {
-  const { files: candidates, truncated } = listFiles(workspace, workspace);
+function snapshotWorkspace(workspace: string, destRoot: string): { files: string[]; skipped: string[] } {
+  const candidates = listGradingFiles(workspace);
 
   mkdirSync(destRoot, { recursive: true });
   const srcReal = realpathSync(workspace);
@@ -92,7 +85,7 @@ function snapshotWorkspace(
       logger.warn(`[Artefact] Skipping workspace file ${rel}: ${e instanceof Error ? e.message : e}`);
     }
   }
-  return { files, skipped, truncated };
+  return { files, skipped };
 }
 
 /**
@@ -121,10 +114,9 @@ export function writeRunArtifact(dir: string, input: WriteRunArtifactInput): voi
 
   let run: AgentRunData | BaselineRunData | ErrorRunData;
   if (input.kind === 'agent') {
-    const { files, skipped, truncated } = snapshotWorkspace(input.workspace, join(dir, ARTIFACT_WORKSPACE_DIR));
+    const { files, skipped } = snapshotWorkspace(input.workspace, join(dir, ARTIFACT_WORKSPACE_DIR));
     manifest.workspaceFiles = files;
     if (skipped.length > 0) manifest.workspaceSkipped = skipped;
-    manifest.workspaceTruncated = truncated;
     run = {
       record: input.record,
       resolvedModel: input.resolvedModel,

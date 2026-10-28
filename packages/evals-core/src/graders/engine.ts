@@ -10,6 +10,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getFrameworkConfig } from '../config/framework-config.js';
+import { DEFAULT_FRAMEWORK_CONFIG } from '../config/defaults.js';
 import { collectFiles as collectFilePaths } from '../workspace/index.js';
 import type { GraderDef, GraderResult, EventToolCall, CompileResult } from '@a0/evals-graders';
 import { GraderLevel } from '@a0/evals-graders';
@@ -70,12 +71,27 @@ export const EXCLUDED_EVAL_FILES = new Set([
   'GEMINI.md',
 ]);
 
+const GRADING_EXCLUDED_DIRS = new Set([
+  ...(DEFAULT_FRAMEWORK_CONFIG.workspace.excludedDirs ?? []),
+  ...EXCLUDED_EVAL_DIRS,
+]);
+
+/**
+ * Relative paths of every file grading reads: graders, the run-artefact snapshot and
+ * recommendations all list through this. Excluded dirs are pruned during the walk and
+ * the walk has no file cap. Filtering them out after a capped walk instead let build
+ * output (e.g. `.output/` after `nuxt build`) and injected skills fill the cap before
+ * the walk reached the agent's source, collapsing the corpus to a stray `.gitignore`.
+ */
+export function listGradingFiles(workspace: string): string[] {
+  return collectFilePaths(workspace, workspace, { excludedDirs: GRADING_EXCLUDED_DIRS, maxFiles: Infinity }).filter(
+    (relPath) => !EXCLUDED_EVAL_FILES.has(relPath),
+  );
+}
+
 export function collectFiles(workspace: string): Record<string, string> {
   const files: Record<string, string> = {};
-  for (const relPath of collectFilePaths(workspace, workspace)) {
-    if (relPath.startsWith('…')) continue; // skip truncation notice
-    if (EXCLUDED_EVAL_FILES.has(relPath)) continue;
-    if ([...EXCLUDED_EVAL_DIRS].some((dir) => relPath.startsWith(dir + '/'))) continue;
+  for (const relPath of listGradingFiles(workspace)) {
     try {
       files[relPath] = readFileSync(join(workspace, relPath), 'utf-8');
     } catch {

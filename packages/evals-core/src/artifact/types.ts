@@ -39,15 +39,13 @@ export interface ArtifactManifest {
   agentType?: AgentType;
   /** ISO-8601 creation time. */
   createdAt: string;
-  /** Agent kind only: workspace files snapshotted under `workspace/`, as returned by `collectFiles`. */
+  /** Agent kind only: workspace files snapshotted under `workspace/`, as returned by `listGradingFiles`. */
   workspaceFiles?: string[];
   /**
    * Agent kind only: listed files that could not be copied (e.g. unreadable, or deleted
    * after listing). Grading skips unreadable files too, so they are left out, not fatal.
    */
   workspaceSkipped?: string[];
-  /** Agent kind only: true when the original workspace listing hit the file cap. */
-  workspaceTruncated?: boolean;
 }
 
 /** `run.json` payload for the agent kind. */

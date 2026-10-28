@@ -11,7 +11,7 @@ import {
   RUN_ARTIFACT_SCHEMA_VERSION,
 } from '../src/artifact/index.js';
 import { collectFiles, listFiles } from '../src/workspace/file-utils.js';
-import { collectFiles as collectGraderFiles } from '../src/graders/engine.js';
+import { collectFiles as collectGraderFiles, listGradingFiles } from '../src/graders/engine.js';
 import type { RunRecord } from '../src/types/scorer.js';
 
 const tmp = makeTmpDir('artifact_');
@@ -116,7 +116,6 @@ describe('run artefact', () => {
       mode: 'agent',
       agentType: 'claude-code',
       tools: ['skills'],
-      workspaceTruncated: false,
     });
     expect(Number.isNaN(Date.parse(art.manifest.createdAt))).toBe(false);
     // Nothing is redacted: graders need the raw trace.
@@ -240,32 +239,33 @@ describe('run artefact', () => {
       resolvedModel: 'm',
     });
     const restored = restoreArtifactWorkspace(readRunArtifact(dir));
-    const original = collectFiles(ws, ws);
-    expect(collectFiles(restored, restored)).toEqual(original);
+    const original = listGradingFiles(ws);
+    expect(listGradingFiles(restored)).toEqual(original);
     // Engine-level view (what graders see) is identical too.
     expect(collectGraderFiles(restored)).toEqual(collectGraderFiles(ws));
     expect(original).toContain('.env');
-    expect(original).toContain('.claude/skills/a/SKILL.md'); // walker keeps it; the engine filters it
+    expect(original).not.toContain('.claude/skills/a/SKILL.md');
     expect(original).not.toContain('node_modules/pkg/index.js');
-    expect(original).not.toContain('src/dist/x.js'); // the walker excludes `dist` at any depth
+    expect(original).not.toContain('src/dist/x.js'); // excluded dirs are pruned at any depth
     expect(original.some((f) => f.startsWith('.git/'))).toBe(false);
-    expect(Object.keys(collectGraderFiles(ws))).not.toContain('CLAUDE.md');
+    expect(original).not.toContain('CLAUDE.md');
     // Re-grading the same artefact twice works; restoring does not mutate it.
     expect(restoreArtifactWorkspace(readRunArtifact(dir))).toBe(restored);
-    expect(collectFiles(restored, restored)).toEqual(original);
+    expect(listGradingFiles(restored)).toEqual(original);
   });
 
-  it('re-truncates identically when the workspace exceeds the file cap', () => {
+  it('snapshots every source file when excluded dirs exceed the listing cap', () => {
+    // A Nuxt workspace after `nuxt build`: .claude/ and .output/ sort ahead of the source.
     const ws = tmp();
-    for (let i = 0; i < 230; i++) {
-      const p = join(ws, `d${i % 7}`, `f${String(i).padStart(3, '0')}.txt`);
-      mkdirSync(join(p, '..'), { recursive: true });
-      writeFileSync(p, `file ${i}`);
-    }
-    const original = collectFiles(ws, ws);
-    expect(original[original.length - 1]).toMatch(/truncated at 200 files/);
+    const put = (rel: string) => {
+      mkdirSync(join(ws, rel, '..'), { recursive: true });
+      writeFileSync(join(ws, rel), rel);
+    };
+    for (let i = 0; i < 30; i++) put(`.claude/skills/s${i}.md`);
+    for (let i = 0; i < 250; i++) put(`.output/server/chunks/c${i}.mjs`);
+    for (let i = 0; i < 230; i++) put(`app/f${String(i).padStart(3, '0')}.vue`);
 
-    const dir = join(tmp(), 'trunc');
+    const dir = join(tmp(), 'cap');
     writeRunArtifact(dir, {
       ...BASE,
       kind: 'agent',
@@ -275,10 +275,9 @@ describe('run artefact', () => {
       resolvedModel: 'm',
     });
     const art = readRunArtifact(dir);
-    expect(art.manifest.workspaceTruncated).toBe(true);
-    expect(art.manifest.workspaceFiles).toHaveLength(200);
-    const restored = restoreArtifactWorkspace(readRunArtifact(dir));
-    expect(collectFiles(restored, restored)).toEqual(original);
+    expect(art.manifest.workspaceFiles).toHaveLength(230);
+    expect(art.manifest.workspaceFiles!.every((f) => f.startsWith('app/'))).toBe(true);
+    const restored = restoreArtifactWorkspace(art);
     expect(collectGraderFiles(restored)).toEqual(collectGraderFiles(ws));
   });
 

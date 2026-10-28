@@ -306,7 +306,7 @@ describe('--phase all vs --phase agent + --phase grade', () => {
     const root = makeRoot(false);
     const split = await runSplitPath(root, makeRoot(true), []);
     const art = readRunArtifact(split.artifactDir);
-    expect(art.manifest.workspaceFiles).toEqual(['.env', 'CLAUDE.md', 'logo.bin', 'src/App.tsx', 'src/main.tsx']);
+    expect(art.manifest.workspaceFiles).toEqual(['.env', 'logo.bin', 'src/App.tsx', 'src/main.tsx']);
   });
 
   it('error path: a runner failure yields the same error result on both paths', async () => {
