@@ -32,4 +32,15 @@ describe('collectFiles', () => {
 
     expect(collectFiles(dir)).toEqual({ 'web/app.ts': 'x' });
   });
+
+  it('prunes Gradle output (.gradle/, build/) but keeps build.gradle', () => {
+    const dir = tmpDir();
+    mkdirSync(join(dir, '.gradle', 'caches'), { recursive: true });
+    mkdirSync(join(dir, 'android', 'app', 'build', 'intermediates'), { recursive: true });
+    writeFileSync(join(dir, '.gradle', 'caches', 'file.bin'), '');
+    writeFileSync(join(dir, 'android', 'app', 'build', 'intermediates', 'classes.dex'), '');
+    writeFileSync(join(dir, 'android', 'app', 'build.gradle'), 'android {}');
+
+    expect(Object.keys(collectFiles(dir))).toEqual(['android/app/build.gradle']);
+  });
 });

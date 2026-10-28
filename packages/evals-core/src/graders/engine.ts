@@ -61,6 +61,9 @@ export const EXCLUDED_EVAL_DIRS = new Set([
   '.build',
   '.angular',
   'out-tsc',
+  // Gradle output (e.g. `app/build`, `android/app/build` after `./gradlew build`)
+  'build',
+  '.gradle',
 ]);
 export const EXCLUDED_EVAL_FILES = new Set([
   'package-lock.json',
