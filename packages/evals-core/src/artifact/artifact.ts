@@ -255,9 +255,10 @@ export function findRunArtifacts(rootDir: string): string[] {
  * Grading reads it in place; callers must not mutate it. Verifies every file listed in the
  * manifest is present. Takes an artefact already read with {@link readRunArtifact}.
  *
- * A missing `workspace/` is recreated empty when the manifest lists no files: an agent that
- * wrote nothing grading-visible (CLI evals grade the command trace) leaves the directory
- * empty, and `actions/upload-artifact` does not upload empty directories.
+ * This function makes the only write to an artefact during grading: a missing `workspace/`
+ * is recreated empty when the manifest lists no files. An agent that wrote nothing
+ * grading-visible (CLI evals grade the command trace) leaves the directory empty, and
+ * `actions/upload-artifact` does not upload empty directories.
  */
 export function restoreArtifactWorkspace(artifact: RunArtifact): string {
   if (artifact.kind !== 'agent') {
