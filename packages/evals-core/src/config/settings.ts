@@ -7,8 +7,14 @@ export const MAX_TURNS = 100;
 export const BEDROCK_MODELS = ['claude-'];
 
 // Claude models that support output_config.effort to cap reasoning effort and reduce latency.
-// Supported here: Claude Sonnet 5, Opus 5, and Opus 4.5.
-export const CLAUDE_EFFORT_MODELS = new Set(['claude-sonnet-5', 'claude-opus-5', 'claude-opus-4-5']);
+// Supported here: Claude Sonnet 5.5, Opus 5.5, Sonnet 5, Opus 5, and Opus 4.5.
+export const CLAUDE_EFFORT_MODELS = new Set([
+  'claude-sonnet-5-5',
+  'claude-opus-5-5',
+  'claude-sonnet-5',
+  'claude-opus-5',
+  'claude-opus-4-5',
+]);
 
 // Model name prefixes that use the older functions/function_call API
 // instead of tools/tool_choice.

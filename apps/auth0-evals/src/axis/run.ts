@@ -9,7 +9,7 @@
  *
  * Usage:
  *   npm run axis
- *   npm run axis -- --eval react_quickstart --agent claude-code --model claude-sonnet-5
+ *   npm run axis -- --eval react_quickstart --agent claude-code --model claude-sonnet-5-5
  *   npm run axis -- --output /tmp/scores.json --debug
  */
 
@@ -41,14 +41,14 @@ loadDotenv({ path: join(APP_ROOT, '.env') });
 //   --eval react_quickstart          filter to one scenario (repeatable)
 //   --agent codex                    filter to one agent (repeatable)
 //   --workers 4                      parallel job limit
-//   --model claude-sonnet-5          override model for all configured agents
+//   --model claude-sonnet-5-5        override model for all configured agents
 //   --output /path/scores.json       where to write scores-axis.json (default: APP_ROOT)
 //   --debug                          capture raw adapter stdout for debugging
 //
 // Examples:
 //   npm run axis -- --eval react_quickstart
 //   npm run axis -- --eval react_quickstart --agent codex --workers 2
-//   npm run axis -- --agent claude-code --model claude-sonnet-5
+//   npm run axis -- --agent claude-code --model claude-sonnet-5-5
 const { values: flags } = parseArgs({
   args: process.argv.slice(2),
   options: {

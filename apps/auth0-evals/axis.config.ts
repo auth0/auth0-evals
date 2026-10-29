@@ -41,14 +41,14 @@ const agentFilter = agentValues.length > 0 ? new Set(agentValues) : null;
 const workersRaw = Number(process.env.AXIS_WORKERS);
 const workers = Number.isSafeInteger(workersRaw) && workersRaw > 0 ? workersRaw : undefined;
 
-// Optional: AXIS_MODEL=claude-sonnet-5 npm run axis  (override model for all agents)
+// Optional: AXIS_MODEL=claude-sonnet-5-5 npm run axis  (override model for all agents)
 const modelOverride = process.env.AXIS_MODEL?.trim() || undefined;
 
 // Route Claude models through the Bedrock proxy when explicitly requested.
 // Set CLAUDE_CODE_USE_BEDROCK_PROXY=1 to use full `global.anthropic.*` model IDs
 // (required by the Bedrock proxy); otherwise short aliases are used.
 const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY === '1';
-const CLAUDE_OPUS_5 = useBedrock ? 'global.anthropic.claude-opus-5' : 'claude-opus-5';
+const CLAUDE_OPUS_5_5 = useBedrock ? 'global.anthropic.claude-opus-5-5' : 'claude-opus-5-5';
 
 const evalConfigs = discoverEvals('src/evals', APP_ROOT).filter((cfg) => evalFilter === null || evalFilter.has(cfg.id));
 
@@ -98,14 +98,14 @@ const scenarios = evalConfigs.map((cfg) => {
 // Models match eval.config.js's known list so proxy aliases resolve correctly.
 // Override the default for all agents with --model (or AXIS_MODEL env var).
 const allAgents: AxisConfig['agents'] = [
-  { agent: 'claude-code', model: CLAUDE_OPUS_5 },
+  { agent: 'claude-code', model: CLAUDE_OPUS_5_5 },
   // codex 0.140+ removed --full-auto (the AXIS default) in favour of
   // --dangerously-bypass-approvals-and-sandbox for headless execution.
   // Proxy config is injected via the `codex` wrapper prepended to PATH by
   // apps/auth0-evals/src/axis/run.ts at startup.
   {
     agent: 'codex',
-    model: 'gpt-5.6-sol',
+    model: 'gpt-6.1-sol',
     flags: { 'full-auto': false, 'dangerously-bypass-approvals-and-sandbox': true },
   },
   { agent: 'gemini', model: 'gemini-3.1-pro-preview' },
@@ -139,7 +139,7 @@ export default {
     agents: [
       {
         agent: 'claude-code',
-        model: CLAUDE_OPUS_5,
+        model: CLAUDE_OPUS_5_5,
         flags: { disallowedTools: 'Bash,Read,Glob,Grep,WebFetch,WebSearch' },
       },
     ],
