@@ -325,6 +325,46 @@ describe('run artefact', () => {
     expect(() => restoreArtifactWorkspace(readRunArtifact(dir))).toThrow(/workspace file missing: src\/App.tsx/);
   });
 
+  it('restores an empty workspace whose directory was dropped in transit', () => {
+    // A CLI eval: the agent only ran commands, so the workspace holds nothing grading-visible.
+    const ws = tmp();
+    mkdirSync(join(ws, '.claude/skills/a'), { recursive: true });
+    writeFileSync(join(ws, '.claude/skills/a/SKILL.md'), 'injected');
+    writeFileSync(join(ws, 'CLAUDE.md'), 'guidance');
+    const dir = join(tmp(), 'empty');
+    writeRunArtifact(dir, {
+      ...BASE,
+      kind: 'agent',
+      mode: 'agent',
+      workspace: ws,
+      record: makeRecord(),
+      resolvedModel: 'm',
+    });
+    expect(readRunArtifact(dir).manifest.workspaceFiles).toEqual([]);
+    // actions/upload-artifact does not upload empty directories.
+    rmSync(join(dir, 'workspace'), { recursive: true });
+
+    const restored = restoreArtifactWorkspace(readRunArtifact(dir));
+    expect(listGradingFiles(restored).files).toEqual([]);
+    expect(restoreArtifactWorkspace(readRunArtifact(dir))).toBe(restored);
+  });
+
+  it('still rejects a missing workspace directory when the manifest lists files', () => {
+    const ws = makeWorkspace();
+    const dir = join(tmp(), 'no-ws');
+    writeRunArtifact(dir, {
+      ...BASE,
+      kind: 'agent',
+      mode: 'agent',
+      workspace: ws,
+      record: makeRecord(),
+      resolvedModel: 'm',
+    });
+    rmSync(join(dir, 'workspace'), { recursive: true });
+    expect(() => restoreArtifactWorkspace(readRunArtifact(dir))).toThrow(/workspace is missing/);
+    expect(existsSync(join(dir, 'workspace'))).toBe(false);
+  });
+
   // Root ignores file permissions, so the unreadable file would be copied anyway.
   it.skipIf(process.getuid?.() === 0)('skips an unreadable workspace file instead of failing the run', () => {
     const ws = makeWorkspace();
