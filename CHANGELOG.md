@@ -3,6 +3,7 @@
 ## [2.4.0](https://github.com/auth0/auth0-evals/tree/2.4.0) (2026-10-28)
 
 **Added**
+- fix(graders): stop build output from crowding source out of the grading corpus [\#409](https://github.com/auth0/auth0-evals/pull/409) ([frederikprijck](https://github.com/frederikprijck))
 - Feature evals: add evals for Token Vault [\#407](https://github.com/auth0/auth0-evals/pull/407) ([tanya732](https://github.com/tanya732))
 - feat(evals): Adds evals for SDKs supporting enterprise-connect [\#399](https://github.com/auth0/auth0-evals/pull/399) ([kailash-b](https://github.com/kailash-b))
 - feat(evals): Adds scaffolds for SDKs supporting enterprise-connect [\#398](https://github.com/auth0/auth0-evals/pull/398) ([kailash-b](https://github.com/kailash-b))
