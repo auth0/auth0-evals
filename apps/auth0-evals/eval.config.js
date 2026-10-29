@@ -80,8 +80,8 @@ export default {
   },
 
   judge: {
-    model: 'claude-opus-5',
-    // Headroom so a verbose judge still reaches its final yes/no line. Opus 5
+    model: 'claude-opus-5-5',
+    // Headroom so a verbose judge still reaches its final yes/no line. Opus 5.5
     // counts thinking against max_tokens; the judge disables thinking, but this
     // also covers proxies that ignore that flag.
     maxTokens: 4096,
@@ -138,15 +138,17 @@ export default {
 
   models: {
     // `known` is the set `--model all` expands to. Opus 4.5 is intentionally excluded
-    // here so `--model all` runs only Opus 5 among the Opus variants; the framework
+    // here so `--model all` runs only Opus 5.5 among the Opus variants; the framework
     // and `modelIds` map below still support it for explicit `--model` runs.
-    known: ['gpt-5.6-sol', 'gpt-5.6-luna', 'gpt-5.6-terra', 'claude-sonnet-5', 'claude-opus-5', 'claude-haiku-5-5', 'gemini-3.1-pro-preview', 'gemini-3.8-flash'],
-    default: 'gpt-5.6-sol',
+    known: ['gpt-6.1-sol', 'gpt-6-luna', 'gpt-6.1-terra', 'claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5', 'gemini-3.1-pro-preview', 'gemini-3.8-flash'],
+    default: 'gpt-6.1-sol',
     // Maps short model aliases to the IDs the active proxy expects.
     // Bedrock proxy needs full `global.anthropic.*` IDs; LiteLLM proxy serves
     // models under the alias itself, so the map is empty and aliases pass through.
     modelIds: useBedrock
       ? {
+          'claude-sonnet-5-5': 'global.anthropic.claude-sonnet-5-5',
+          'claude-opus-5-5': 'global.anthropic.claude-opus-5-5',
           'claude-sonnet-5': 'global.anthropic.claude-sonnet-5',
           'claude-opus-5': 'global.anthropic.claude-opus-5',
           'claude-opus-4-5': 'global.anthropic.claude-opus-4-5-20251101-v1:0',

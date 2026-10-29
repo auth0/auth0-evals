@@ -1,14 +1,36 @@
 import { logger } from '../utils/logger.js';
 
+// [input, output] USD per 1M tokens, grouped by series with the newest version first.
+// TODO: fill in the [0.0, 0.0] placeholders before merging — 0 reports those models as free.
 export const COST_TABLE: Record<string, [number, number]> = {
+  // GPT sol
+  'gpt-6.1-sol': [2.0, 10.0],
   'gpt-5.6-sol': [5.0, 30.0],
+
+  // GPT luna
+  'gpt-6-luna': [0.1, 0.5],
   'gpt-5.6-luna': [1.0, 6.0],
+
+  // GPT terra
+  'gpt-6.1-terra': [1.0, 5.0],
   'gpt-5.6-terra': [2.5, 15.0],
-  'claude-sonnet-5': [2.0, 10.0],
+
+  // Claude Opus
+  'claude-opus-5-5': [4.0, 20.0],
   'claude-opus-5': [5.0, 25.0],
-  'claude-haiku-4-5': [1.0, 5.0],
+
+  // Claude Sonnet
+  'claude-sonnet-5-5': [2.0, 10.0],
+  'claude-sonnet-5': [2.0, 10.0],
+
+  // Claude Haiku
   'claude-haiku-5-5': [0.1, 0.5],
+  'claude-haiku-4-5': [1.0, 5.0],
+
+  // Gemini Pro
   'gemini-3.1-pro-preview': [2.0, 12.0],
+
+  // Gemini Flash
   'gemini-3.8-flash': [0.75, 3.75],
 };
 
