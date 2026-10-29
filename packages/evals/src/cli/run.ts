@@ -389,7 +389,8 @@ export async function runAgentPhaseJob(
 
 /**
  * Grades one stored artefact into a JobResult, mirroring `runJob`'s result shapes
- * (including its catch-all `serialiseError`). The artefact is only read, never modified.
+ * (including its catch-all `serialiseError`). The artefact is only read, except that
+ * `restoreArtifactWorkspace` recreates an empty `workspace/` dropped in transit.
  */
 export async function gradeArtifact(
   artifact: RunArtifact,

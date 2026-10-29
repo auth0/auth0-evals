@@ -254,17 +254,26 @@ export function findRunArtifacts(rootDir: string): string[] {
  * Returns the absolute path of the artefact's `workspace/` directory, ready to grade against.
  * Grading reads it in place; callers must not mutate it. Verifies every file listed in the
  * manifest is present. Takes an artefact already read with {@link readRunArtifact}.
+ *
+ * This function makes the only write to an artefact during grading: a missing `workspace/`
+ * is recreated empty when the manifest lists no files. An agent that wrote nothing
+ * grading-visible (CLI evals grade the command trace) leaves the directory empty, and
+ * `actions/upload-artifact` does not upload empty directories.
  */
 export function restoreArtifactWorkspace(artifact: RunArtifact): string {
   if (artifact.kind !== 'agent') {
     throw new Error(`Run artefact ${artifact.dir} has kind '${artifact.kind}' and no workspace`);
   }
   const wsDir = join(artifact.dir, ARTIFACT_WORKSPACE_DIR);
+  const listed = artifact.manifest.workspaceFiles ?? [];
+  if (listed.length === 0 && !existsSync(wsDir)) {
+    mkdirSync(wsDir);
+  }
   if (!existsSync(wsDir) || !statSync(wsDir).isDirectory()) {
     throw new Error(`Invalid run artefact: ${wsDir} is missing`);
   }
   const wsReal = realpathSync(wsDir);
-  for (const rel of artifact.manifest.workspaceFiles ?? []) {
+  for (const rel of listed) {
     if (!existsSync(resolveInside(wsReal, rel))) {
       throw new Error(`Invalid run artefact: workspace file missing: ${rel}`);
     }
