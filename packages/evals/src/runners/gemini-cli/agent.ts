@@ -429,6 +429,8 @@ export async function runGeminiCliAgent(
             const inputTokens = (stats.input_tokens as number) ?? 0;
             const outputTokens = (stats.output_tokens as number) ?? 0;
             const cachedTokens = (stats.cached as number) ?? 0;
+            // TEMP: remove once we've confirmed the proxy returns cached counts
+            logger.info(`[GeminiCLI] raw stats: ${JSON.stringify(stats)}`);
             const durationMs = (stats.duration_ms as number) ?? 0;
             const totalToolCalls = (stats.tool_calls as number) ?? 0;
 
