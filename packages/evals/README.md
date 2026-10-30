@@ -199,6 +199,8 @@ The Claude Code runner uses `@anthropic-ai/claude-agent-sdk` and routes through 
 
 The Gemini CLI runner routes through the LLM proxy. Set `agents['gemini-cli'].proxy.baseUrl` in your `eval.config.js` to point at your proxy and ensure your API key is configured in `.env`.
 
+The Gemini CLI defaults every Gemini 3 model to `HIGH` thinking. The runner lowers this per model through `GEMINI_THINKING_LEVELS` in `runners/gemini-cli/agent.ts`, which writes a `modelConfigs.overrides` entry into `.gemini/settings.json`. `gemini-3.8-flash` runs at `MEDIUM`. Other models keep the CLI default.
+
 ## Scoring
 
 Agent-mode runs are scored across 8 dimensions, each 0–100, combined by weighted sum:
