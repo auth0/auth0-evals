@@ -35,7 +35,7 @@ npm run report
 
 # AXIS — run all evals across all agents
 npm run axis
-npm run axis -- --eval react_quickstart --agent claude-code --model claude-sonnet-5
+npm run axis -- --eval react_quickstart --agent claude-code --model claude-sonnet-5-5
 ```
 
 Full CLI flags and AXIS flags: see [`packages/evals/README.md`](packages/evals/README.md).
@@ -102,7 +102,7 @@ Use `notContainsInSource` (not `notContains`) when a value is allowed in config 
 | `notContains(needle)`                            | Substring must NOT appear in any workspace file. Same `source` option as `contains`. Add `{ ignoreComments: true }` to strip comments before matching (string literals kept), so a token mentioned only in a `//`/`#`/block comment doesn't trip an L2 check — also available on `contains` and `notContainsInSource`. |
 | `notContainsInSource(needle)`                    | Substring must NOT appear in source files (allowed in config). Supports `{ ignoreComments: true }` — see `notContains`.                         |
 | `matches(pattern)`                               | Regex match in any workspace file. Same `source` option as `contains`.                                                                         |
-| `judge(question, level?, options?)`              | LLM-as-judge yes/no — uses `claude-opus-5`. Must be phrased as a question whose correct answer is "yes"; throws unless a sentence ends in `?` and opens with a yes/no interrogative (is/are/does/did/can/should/must/…), because `yes` = pass and `no` = fail makes an assertion's "no" ambiguous. Options: `{ includeCommandTrace: true }` for CLI-only evals; `{ source: 'response' \| 'both' }` for MCP evals. |
+| `judge(question, level?, options?)`              | LLM-as-judge yes/no — uses `claude-opus-5-5`. Must be phrased as a question whose correct answer is "yes"; throws unless a sentence ends in `?` and opens with a yes/no interrogative (is/are/does/did/can/should/must/…), because `yes` = pass and `no` = fail makes an assertion's "no" ambiguous. Options: `{ includeCommandTrace: true }` for CLI-only evals; `{ source: 'response' \| 'both' }` for MCP evals. |
 | `ranCommand(command, args, description, level)`  | Agent ran a shell command containing `command` and all `args` — L4 or L5 required.                                                            |
 | `ranCommandWithFlags(command, flags, description, level)` | Agent ran a shell command containing `command` (or any of an array of commands) where each `[flag, value]` pair is bound (`flag` may be an array of alternative spellings, e.g. `['--callbacks', '--callback-url']`) — the value appears inside that flag's own argument (tolerant of `=`/space, quotes, comma-lists); pass `{ exactValue: true }` so the value must end its URL entry (no `/extra` suffix). Use instead of `ranCommand` when one value is a substring of another flag's value — L4 or L5 required. |
 | `ranCommandOneOf(commands, description, level, args?)` | Agent ran at least one command matching an entry in the list, and containing every `args` substring. An entry may itself be an array, requiring all its substrings in the same command — L4 or L5 required. |

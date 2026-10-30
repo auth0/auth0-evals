@@ -9,6 +9,6 @@ export {
   compileGuidance,
 } from './workspace.js';
 export type { SetupWorkspaceOptions, RunSetupCommandOptions, RunCompileCommandOptions } from './workspace.js';
-export { collectFiles, readWorkspaceFile } from './file-utils.js';
-export type { CollectFilesOptions } from './file-utils.js';
+export { collectFiles, listFiles, readWorkspaceFile } from './file-utils.js';
+export type { CollectFilesOptions, ListedFiles } from './file-utils.js';
 export { isPathInside, resolveInside, validatePathFormat } from './path-utils.js';

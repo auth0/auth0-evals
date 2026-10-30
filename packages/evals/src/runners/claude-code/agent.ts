@@ -39,6 +39,11 @@ import { ClaudeCodeTranslator } from './translator.js';
 // Module-level translator instance — all event processing uses this.
 const translator = new ClaudeCodeTranslator();
 
+/** Cache-read tokens per turn (included in TurnMetric.inputTokens), used by the no-`result` cost fallback. */
+const cacheReadTokens = new WeakMap<TurnMetric, number>();
+/** Cache reads bill at ~10% of the base input rate. */
+const CACHE_READ_PRICE_RATIO = 0.1;
+
 // ── Model alias mapping ───────────────────────────────────────────────────────
 
 function getKnownModelAliases(): Set<string> {
@@ -74,7 +79,7 @@ export interface ClaudeCodeRunOptions {
    * Claude model identifier to pass via `model` option.
    * When omitted the SDK uses its own default model.
    * Use the Anthropic model ID format (e.g. `claude-sonnet-4-5-20251101`) or
-   * a proxy alias (e.g. `claude-sonnet-5`) when routing through the proxy.
+   * a proxy alias (e.g. `claude-sonnet-5-5`) when routing through the proxy.
    */
   model?: string;
 }
@@ -194,6 +199,7 @@ export async function runClaudeCodeAgent(
   // Mutable turn state
   let turnNum = 0;
   let prevTurnEndTime = record.startTime;
+  let lastMessageId: string | undefined;
 
   try {
     const q = query({
@@ -210,27 +216,28 @@ export async function runClaudeCodeAgent(
         env: { ...filteredEnv(), ...claudeEnv, ...proxyEnv, ...env },
         mcpServers,
         settingSources: ['project'],
+        maxTurns: MAX_TURNS,
       },
     });
 
     for await (const message of q) {
-      const update = handleMessage(message, record, pending, turnNum, prevTurnEndTime);
-      if (update) {
-        turnNum = update.turnNum;
-        prevTurnEndTime = update.prevTurnEndTime;
-      }
-      if (turnNum >= MAX_TURNS) {
-        record.providerErrors.push(`turn limit: stopped after ${MAX_TURNS} turns`);
+      // Backstop in case the SDK counts turns differently: let the SDK's own
+      // `error_max_turns` result (which carries cost/usage) arrive first, and
+      // only abort once another assistant turn would exceed the limit. Frames
+      // that continue the current turn (same message.id) are not a new turn.
+      if (turnNum >= MAX_TURNS && message.type === 'assistant' && message.message.id !== lastMessageId) {
+        const limitError = turnLimitError();
+        if (!record.providerErrors.includes(limitError)) record.providerErrors.push(limitError);
         record.status = 'failure';
-        // The SDK result message never arrives after an abort, so estimate cost from turn tokens
-        record.costUsd = record.turnMetrics.reduce(
-          (sum, tm) => sum + estimateCost(record.model, tm.inputTokens, tm.outputTokens),
-          0,
-        );
-        distributeCost(record);
         logger.info(`[ClaudeCode] ✗ Turn limit reached (${MAX_TURNS}) — aborting`);
         abortController.abort();
         break;
+      }
+      const update = handleMessage(message, record, pending, turnNum, prevTurnEndTime, lastMessageId);
+      if (update) {
+        turnNum = update.turnNum;
+        prevTurnEndTime = update.prevTurnEndTime;
+        if (update.messageId !== undefined) lastMessageId = update.messageId;
       }
     }
   } catch (err: unknown) {
@@ -243,6 +250,19 @@ export async function runClaudeCodeAgent(
     }
   } finally {
     clearTimeout(taskTimeout);
+  }
+
+  // No `result` message (timeout / backstop abort): estimate cost from per-turn tokens
+  if (record.costUsd === 0 && record.turnMetrics.length > 0) {
+    let total = 0;
+    for (const tm of record.turnMetrics) {
+      // Cache reads bill at ~10% of the input rate; price them as such so cache-heavy runs aren't overstated.
+      const cacheRead = cacheReadTokens.get(tm) ?? 0;
+      const billableInput = tm.inputTokens - cacheRead * (1 - CACHE_READ_PRICE_RATIO);
+      tm.costUsd = estimateCost(record.model, billableInput, tm.outputTokens);
+      total += tm.costUsd;
+    }
+    record.costUsd = total;
   }
 
   // Drain any tool_use blocks that never received a result
@@ -299,6 +319,8 @@ export async function runClaudeCodeAgent(
 export interface TurnStateUpdate {
   turnNum: number;
   prevTurnEndTime: number;
+  /** message.id of the last assistant frame, used to merge streamed frames of one turn */
+  messageId?: string;
 }
 
 /**
@@ -311,6 +333,7 @@ export function handleMessage(
   pending: Map<string, { name: string; input: Record<string, unknown>; startTime: number }>,
   turnNum: number,
   prevTurnEndTime: number,
+  lastMessageId?: string,
 ): TurnStateUpdate | null {
   if (message.type === 'system') {
     const sys = message as SDKSystemMessage;
@@ -334,8 +357,7 @@ export function handleMessage(
     const turnInput =
       (usage?.input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0) + (usage?.cache_creation_input_tokens ?? 0);
     const turnOutput = usage?.output_tokens ?? 0;
-    record.inputTokens += turnInput;
-    record.outputTokens += turnOutput;
+    const turnCacheRead = usage?.cache_read_input_tokens ?? 0;
 
     // Register each tool_use block as pending; timing starts now
     for (const block of msg.content) {
@@ -343,6 +365,38 @@ export function handleMessage(
         pending.set(block.id, { name: block.name, input: block.input as Record<string, unknown>, startTime: now });
       }
     }
+
+    // The CLI emits one assistant frame per content block, all sharing the
+    // turn's message.id with non-final usage. Merge follow-up frames into the
+    // current turn so they are not counted (or costed) as extra turns.
+    const lastTurn = record.turnMetrics[record.turnMetrics.length - 1];
+    if (msg.id && msg.id === lastMessageId && lastTurn) {
+      record.inputTokens += turnInput - lastTurn.inputTokens;
+      record.outputTokens += turnOutput - lastTurn.outputTokens;
+      lastTurn.inputTokens = turnInput;
+      lastTurn.outputTokens = turnOutput;
+      cacheReadTokens.set(lastTurn, turnCacheRead);
+      const frameToolUseCount = msg.content.filter((b) => b.type === 'tool_use').length;
+      lastTurn.toolCallCount += frameToolUseCount;
+      if (frameToolUseCount > 0) {
+        lastTurn.finishReason = normaliseStopReason('tool_use');
+      } else if (msg.stop_reason && lastTurn.toolCallCount === 0) {
+        lastTurn.finishReason = normaliseStopReason(msg.stop_reason);
+      }
+      if (frameToolUseCount === 0 && (msg.stop_reason ?? 'end_turn') !== 'tool_use') {
+        const textContent = msg.content
+          .filter((b) => b.type === 'text')
+          .map((b) => b.text)
+          .join('\n');
+        if (textContent) {
+          record.finalSummary = textContent;
+        }
+      }
+      return { turnNum, prevTurnEndTime, messageId: msg.id };
+    }
+
+    record.inputTokens += turnInput;
+    record.outputTokens += turnOutput;
 
     // Infer stop reason
     const hasToolUse = msg.content.some((b) => b.type === 'tool_use');
@@ -370,13 +424,14 @@ export function handleMessage(
       costUsd: 0,
     };
     record.turnMetrics.push(turnMetric);
+    cacheReadTokens.set(turnMetric, turnCacheRead);
 
     logger.info(
       `[ClaudeCode] Turn ${nextTurnNum}: ${turnInput}in/${turnOutput}out tokens, ` +
         `${toolUseCount} tool(s), finish=${stopReason}`,
     );
 
-    return { turnNum: nextTurnNum, prevTurnEndTime };
+    return { turnNum: nextTurnNum, prevTurnEndTime, messageId: msg.id };
   }
 
   if (message.type === 'user') {
@@ -460,14 +515,28 @@ export function handleMessage(
     }
     record.costUsd = res.total_cost_usd ?? 0;
 
-    distributeCost(record);
+    if (record.costUsd > 0 && record.turnMetrics.length > 0) {
+      const rawCosts = record.turnMetrics.map((tm) => estimateCost(record.model, tm.inputTokens, tm.outputTokens));
+      const rawTotal = rawCosts.reduce((s, c) => s + c, 0);
+      const scale = rawTotal > 0 ? record.costUsd / rawTotal : 0;
+      for (let i = 0; i < record.turnMetrics.length; i++) {
+        const tm = record.turnMetrics[i] as TurnMetric;
+        const cost = rawCosts[i];
+        if (cost !== undefined) {
+          tm.costUsd = cost * scale;
+        }
+      }
+    }
 
     if (res.subtype === 'success' && !res.is_error) {
       record.status = 'success';
     } else {
       record.status = 'failure';
-      const message = ('result' in res ? res.result : undefined) || res.subtype;
-      record.providerErrors.push(message);
+      const message =
+        res.subtype === 'error_max_turns'
+          ? turnLimitError()
+          : ('result' in res ? res.result : undefined) || res.subtype;
+      if (!record.providerErrors.includes(message)) record.providerErrors.push(message);
     }
     return null;
   }
@@ -475,14 +544,8 @@ export function handleMessage(
   return null;
 }
 
-function distributeCost(record: RunRecord): void {
-  if (record.costUsd <= 0 || record.turnMetrics.length === 0) return;
-  const rawCosts = record.turnMetrics.map((tm) => estimateCost(record.model, tm.inputTokens, tm.outputTokens));
-  const rawTotal = rawCosts.reduce((s, c) => s + c, 0);
-  const scale = rawTotal > 0 ? record.costUsd / rawTotal : 0;
-  record.turnMetrics.forEach((tm, i) => {
-    tm.costUsd = (rawCosts[i] ?? 0) * scale;
-  });
+function turnLimitError(): string {
+  return `turn limit: stopped after ${MAX_TURNS} turns`;
 }
 
 // ── Stop-reason normaliser ────────────────────────────────────────────────────

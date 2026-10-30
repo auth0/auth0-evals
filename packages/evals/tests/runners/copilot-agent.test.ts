@@ -126,7 +126,7 @@ describe('COPILOT_MODEL_ID', () => {
 
 describe('COPILOT_DEFAULT_MODEL', () => {
   it('is gpt-5.6-sol', () => {
-    expect(COPILOT_DEFAULT_MODEL).toBe('gpt-5.6-sol');
+    expect(COPILOT_DEFAULT_MODEL).toBe('gpt-6.1-sol');
   });
 });
 

@@ -43,8 +43,8 @@ vi.mock('@a0/evals-core', async () => ({
 const mockSpawn = vi.hoisted(() => vi.fn());
 vi.mock('node:child_process', () => ({ spawn: mockSpawn }));
 
-import { MAX_TURNS } from '@a0/evals-core';
-import { runGeminiCliAgent } from '../../src/runners/gemini-cli/agent.js';
+import { CLAUDE_CODE_TASK_TIMEOUT_MS, MAX_TURNS } from '@a0/evals-core';
+import { GEMINI_CLI_KILL_GRACE_MS, runGeminiCliAgent } from '../../src/runners/gemini-cli/agent.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -504,9 +504,9 @@ describe('status and final state', () => {
     expect(record.providerErrors.some((e) => e.includes('spawn ENOENT'))).toBe(true);
   });
 
-  it('kills subprocess when MAX_TURNS is reached', async () => {
+  it('kills subprocess as a backstop once turns exceed MAX_TURNS', async () => {
     const events: JsonlEvent[] = [];
-    for (let i = 0; i < MAX_TURNS + 5; i++) {
+    for (let i = 0; i < MAX_TURNS + 1; i++) {
       events.push({ type: 'tool_use', tool_id: `t${i}`, tool_name: 'read_file', parameters: {} });
       events.push({ type: 'tool_result', tool_id: `t${i}`, status: 'success', output: 'ok' });
       events.push({ type: 'message', role: 'assistant', content: `Turn ${i + 1}.`, delta: false });
@@ -522,8 +522,54 @@ describe('status and final state', () => {
     expect(record.providerErrors.some((e) => e.includes('turn limit'))).toBe(true);
     // child.kill is mocked so the stream isn't actually stopped — turns may
     // exceed MAX_TURNS in the test. In production SIGTERM kills the process.
-    expect(record.turnMetrics.length).toBeGreaterThanOrEqual(MAX_TURNS);
+    expect(record.turnMetrics.length).toBeGreaterThan(MAX_TURNS);
     expect(child.kill).toHaveBeenCalledWith('SIGTERM');
+  });
+
+  it('does not kill at exactly MAX_TURNS — the CLI enforces its own limit first', async () => {
+    const events: JsonlEvent[] = [];
+    for (let i = 0; i < MAX_TURNS; i++) {
+      events.push({ type: 'message', role: 'assistant', content: `Turn ${i + 1}.`, delta: false });
+    }
+    events.push(resultEvent());
+
+    const child = makeChild(events);
+    mockSpawn.mockReturnValue(child);
+
+    const record = await runGeminiCliAgent(evalDef, workspace);
+    expect(child.kill).not.toHaveBeenCalled();
+    expect(record.providerErrors.some((e) => e.includes('turn limit'))).toBe(false);
+  });
+
+  // Gemini CLI emits this when model.maxSessionTurns is hit (handleMaxTurnsExceededError).
+  it('records tokens and one turn-limit error when the CLI stops at maxSessionTurns', async () => {
+    const events: JsonlEvent[] = [];
+    for (let i = 0; i < MAX_TURNS; i++) {
+      events.push({ type: 'tool_use', tool_id: `t${i}`, tool_name: 'read_file', parameters: {} });
+      events.push({ type: 'tool_result', tool_id: `t${i}`, status: 'success', output: 'ok' });
+      events.push({ type: 'message', role: 'assistant', content: `Turn ${i + 1}.`, delta: false });
+    }
+    events.push({
+      type: 'result',
+      status: 'error',
+      error: {
+        type: 'FatalTurnLimitedError',
+        message:
+          'Reached max session turns for this session. Increase the number of turns by specifying maxSessionTurns in settings.json.',
+      },
+      stats: { input_tokens: 1200, output_tokens: 300, duration_ms: 0, tool_calls: MAX_TURNS },
+    });
+
+    const child = makeChild(events, 53);
+    mockSpawn.mockReturnValue(child);
+
+    const record = await runGeminiCliAgent(evalDef, workspace);
+    expect(record.status).toBe('failure');
+    expect(record.inputTokens).toBe(1200);
+    expect(record.outputTokens).toBe(300);
+    expect(record.costUsd).toBeGreaterThan(0);
+    expect(record.providerErrors.filter((e) => e.includes('turn limit'))).toHaveLength(1);
+    expect(child.kill).not.toHaveBeenCalled();
   });
 
   it('endTime is always set after completion', async () => {
@@ -624,7 +670,7 @@ describe('status and final state', () => {
   // session holding an unresolved tool call would never hit the turn limit.
   it('still enforces MAX_TURNS while a tool call remains unresolved', async () => {
     const events: JsonlEvent[] = [{ type: 'tool_use', tool_id: 'held', tool_name: 'write_file', parameters: {} }];
-    for (let i = 0; i < MAX_TURNS + 3; i++) {
+    for (let i = 0; i < MAX_TURNS + 1; i++) {
       events.push({ type: 'message', role: 'assistant', content: `turn ${i}` });
     }
     const child = makeChild(events);
@@ -652,6 +698,127 @@ describe('status and final state', () => {
     const record = await runGeminiCliAgent(evalDef, workspace);
     expect(record.finalSummary).toBe('Done despite the 503.');
     expect(record.status).toBe('success');
+  });
+});
+
+// ── stopping the subprocess ────────────────────────────────────────────────
+
+// Gemini CLI has been seen ignoring SIGTERM and running on for 12 minutes past
+// the task timeout. These children model that: they ignore SIGTERM and only
+// exit on the signal named in `exitOn` (SIGKILL by default, null = never).
+describe('stopping the subprocess', () => {
+  type FakeChild = EventEmitter & {
+    stdout: Readable;
+    stderr: Readable;
+    kill: ReturnType<typeof vi.fn>;
+    /** Resolves on the first kill() call. */
+    killed: Promise<void>;
+  };
+
+  function makeStubbornChild(events: JsonlEvent[] = [], exitOn: NodeJS.Signals | null = 'SIGKILL'): FakeChild {
+    const child = new EventEmitter() as FakeChild;
+    child.stdout = new Readable({ read() {} });
+    child.stderr = new Readable({ read() {} });
+    let onKill!: () => void;
+    child.killed = new Promise((r) => (onKill = r));
+    child.kill = vi.fn((signal: NodeJS.Signals) => {
+      onKill();
+      if (signal === exitOn) closeChild(child);
+      return true;
+    });
+    setImmediate(() => {
+      for (const ev of events) child.stdout.push(JSON.stringify(ev) + '\n');
+    });
+    return child;
+  }
+
+  function closeChild(child: FakeChild) {
+    setImmediate(() => {
+      child.stdout.push(null);
+      child.stderr.push(null);
+      child.emit('close', null);
+    });
+  }
+
+  /** Starts a run on `child`; `spawned` resolves once the runner has spawned it. */
+  function startRun(child: FakeChild) {
+    let onSpawn!: () => void;
+    const spawned = new Promise<void>((r) => (onSpawn = r));
+    mockSpawn.mockImplementation(() => {
+      onSpawn();
+      return child;
+    });
+    return { run: runGeminiCliAgent(evalDef, workspace), spawned };
+  }
+
+  function turnEvents(count: number): JsonlEvent[] {
+    return Array.from({ length: count }, (_, i) => ({
+      type: 'message',
+      role: 'assistant',
+      content: `Turn ${i + 1}.`,
+      delta: false,
+    }));
+  }
+
+  // Fake only the timer functions so the 30-minute timeout and the grace period
+  // can be stepped through; setImmediate stays real for the stream plumbing.
+  beforeEach(() => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }));
+  afterEach(() => vi.useRealTimers());
+
+  it('sends SIGKILL when the CLI ignores SIGTERM after the task timeout', async () => {
+    const child = makeStubbornChild();
+    const { run, spawned } = startRun(child);
+    await spawned;
+
+    await vi.advanceTimersByTimeAsync(CLAUDE_CODE_TASK_TIMEOUT_MS);
+    expect(child.kill.mock.calls).toEqual([['SIGTERM']]);
+
+    await vi.advanceTimersByTimeAsync(GEMINI_CLI_KILL_GRACE_MS);
+    expect(child.kill.mock.calls).toEqual([['SIGTERM'], ['SIGKILL']]);
+
+    const record = await run;
+    expect(record.status).toBe('failure');
+    expect(record.providerErrors.some((e) => e.includes('task timeout'))).toBe(true);
+  });
+
+  it('does not send SIGKILL when the CLI exits within the grace period', async () => {
+    const child = makeStubbornChild([], 'SIGTERM');
+    const { run, spawned } = startRun(child);
+    await spawned;
+
+    await vi.advanceTimersByTimeAsync(CLAUDE_CODE_TASK_TIMEOUT_MS);
+    const record = await run;
+    await vi.advanceTimersByTimeAsync(GEMINI_CLI_KILL_GRACE_MS);
+
+    expect(child.kill.mock.calls).toEqual([['SIGTERM']]);
+    expect(record.status).toBe('failure');
+  });
+
+  it('sends SIGKILL when the CLI ignores SIGTERM after the turn limit', async () => {
+    const child = makeStubbornChild(turnEvents(MAX_TURNS + 1));
+    const { run } = startRun(child);
+    await child.killed;
+    expect(child.kill.mock.calls).toEqual([['SIGTERM']]);
+
+    await vi.advanceTimersByTimeAsync(GEMINI_CLI_KILL_GRACE_MS);
+    expect(child.kill.mock.calls).toEqual([['SIGTERM'], ['SIGKILL']]);
+
+    const record = await run;
+    expect(record.providerErrors.some((e) => e.includes('turn limit'))).toBe(true);
+  });
+
+  it('escalates only once when both the turn limit and the task timeout fire', async () => {
+    const child = makeStubbornChild(turnEvents(MAX_TURNS + 1), null);
+    const { run } = startRun(child);
+    await child.killed;
+
+    // The task timeout fires after the turn limit already started the
+    // escalation; it must not send a second SIGTERM or schedule another SIGKILL.
+    await vi.advanceTimersByTimeAsync(CLAUDE_CODE_TASK_TIMEOUT_MS + GEMINI_CLI_KILL_GRACE_MS);
+    expect(child.kill.mock.calls).toEqual([['SIGTERM'], ['SIGKILL']]);
+
+    closeChild(child);
+    await run;
   });
 });
 
@@ -684,6 +851,15 @@ describe('.gemini/settings.json', () => {
     const settings = readSettings();
     expect(settings.security).toEqual({ auth: { selectedType: 'gemini-api-key' } });
     expect(settings).not.toHaveProperty('mcpServers');
+  });
+
+  it('sets model.maxSessionTurns to MAX_TURNS so the CLI stops itself and reports stats', async () => {
+    mockSpawn.mockReturnValue(makeChild([resultEvent()]));
+
+    await runGeminiCliAgent(evalDef, tmpWorkspace, { tools: [] });
+
+    const settings = readSettings() as { model?: { maxSessionTurns?: number } };
+    expect(settings.model?.maxSessionTurns).toBe(MAX_TURNS);
   });
 
   it('registers HTTP MCP servers alongside the pinned auth type when MCP is enabled', async () => {

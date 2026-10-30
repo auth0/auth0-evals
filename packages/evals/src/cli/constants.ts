@@ -10,21 +10,26 @@ export type { AgentType, Mode } from '@a0/evals-core';
 
 /** Models known to work reliably across all eval modes. Used when `--model all` is passed. */
 export const KNOWN_WORKING_MODELS = [
-  'gpt-5.6-sol',
-  'gpt-5.6-luna',
-  'gpt-5.6-terra',
-  'claude-sonnet-5',
-  'claude-opus-5',
+  'gpt-6.1-sol',
+  'gpt-6-luna',
+  'gpt-6.1-terra',
+  'claude-sonnet-5-5',
+  'claude-opus-5-5',
   'claude-haiku-5-5',
   'gemini-3.1-pro-preview',
   'gemini-3.8-flash',
 ];
 
 /** Model used when no `--model` flag is provided. */
-export const DEFAULT_MODEL = 'gpt-5.6-sol';
+export const DEFAULT_MODEL = 'gpt-6.1-sol';
 
 /** Tool names accepted by the `--tools` flag (case-insensitive). */
 export const KNOWN_TOOLS = ['skills', 'mcp'];
+
+/** Values accepted by `--phase`. */
+export const KNOWN_PHASES = ['agent', 'grade', 'all'] as const;
+/** Run phase: `agent` (run model, write artefact), `grade` (grade stored artefacts), or `all`. */
+export type Phase = (typeof KNOWN_PHASES)[number];
 
 /** Agent runner used when no `--agent-type` flag is provided. */
 export const DEFAULT_AGENT_TYPE = 'copilot';

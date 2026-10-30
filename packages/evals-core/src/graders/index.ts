@@ -4,6 +4,7 @@ export {
   JUDGE_DEFAULT_MAX_TOKENS,
   passRate,
   collectFiles as collectGraderFiles,
+  listGradingFiles,
   walkFiles,
   EXCLUDED_EVAL_DIRS,
   EXCLUDED_EVAL_FILES,

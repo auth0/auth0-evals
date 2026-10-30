@@ -115,6 +115,7 @@ export type { EvalConfig, LoadEvalOptions } from './loader.js';
 
 // Discovery
 export { discoverEvals } from './discovery.js';
+export type { DiscoverEvalsOptions } from './discovery.js';
 
 // Serializers
 export {
@@ -158,6 +159,7 @@ export {
   JUDGE_DEFAULT_MAX_TOKENS,
   passRate,
   collectGraderFiles,
+  listGradingFiles,
   gradeText,
   BASELINE_LEVELS,
   AGENT_LEVELS,
@@ -186,3 +188,23 @@ export { SkillsManager, getSkillsManager, resetSkillsManager } from './runners/s
 
 // Recommendations types
 export type { Recommendation, Recommendations } from './recommendations/types.js';
+
+// Run artefacts (agent phase → grade phase hand-off)
+export {
+  writeRunArtifact,
+  readRunArtifact,
+  readRunArtifactManifest,
+  findRunArtifacts,
+  restoreArtifactWorkspace,
+  RUN_ARTIFACT_SCHEMA_VERSION,
+} from './artifact/index.js';
+export type {
+  ArtifactManifest,
+  ArtifactSkillFile,
+  AgentRunData,
+  BaselineRunData,
+  ErrorRunData,
+  RunArtifact,
+  RunArtifactKind,
+  WriteRunArtifactInput,
+} from './artifact/index.js';

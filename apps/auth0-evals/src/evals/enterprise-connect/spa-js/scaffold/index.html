@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Barkbook</title>
+  </head>
+  <body>
+    <main id="home" hidden>
+      <h1>Barkbook</h1>
+      <a href="/signin">Sign in</a> · <a href="/dashboard">Dashboard</a>
+    </main>
+
+    <main id="signin" hidden>
+      <h1>Sign in to Barkbook</h1>
+      <p id="signin-error" role="alert" hidden></p>
+      <form id="signin-form">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required />
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required />
+        <button type="submit">Sign in</button>
+      </form>
+    </main>
+
+    <main id="dashboard" hidden>
+      <h1>Welcome, <span id="user-name"></span></h1>
+      <p id="user-email"></p>
+      <button id="signout">Sign out</button>
+    </main>
+
+    <script type="module" src="/src/app.js"></script>
+  </body>
+</html>

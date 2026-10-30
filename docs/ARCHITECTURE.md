@@ -50,7 +50,7 @@ flowchart TB
         subgraph Grade["4 · Grade the code — @a0/evals-core"]
             direction TB
             Engine["Automated checks<br/>runGraders() · L1–L5"]
-            Judge["AI judge<br/>llmJudge() · claude-opus-5"]
+            Judge["AI judge<br/>llmJudge() · claude-opus-5-5"]
             Engine --> Judge
         end
 
@@ -360,6 +360,18 @@ Three properties of that step are worth stating, because each fixes a way the an
 - **Secrets are masked before anything leaves the machine.** Withholding `.env` is not enough for a CLI eval, where the credentials sit on the command line and in error bodies. `redactSecrets` (in `evals-core`) replaces credential *values* with `[REDACTED SECRET]` in the run trace, in MCP arguments, and in error text, and the same scrubber runs on the trace appended to an LLM judge. The value is replaced rather than the line dropped so a security grader still sees that a secret occupied that position. A judge prompt that checks for secret exposure must say **where** the marker counts as a violation, not treat every marker as one: the marker on the command that *creates* a resource is the harness masking a flag value on the way in, so a blanket "any marker fails" turns correct work into an automatic failure. Auth0 ids (`client_id`, `org_…`) stay readable, since a diagnosis that cannot name the resource is not a diagnosis.
 - **A failed analysis says so.** On a proxy error or an unparseable response the result comes back with an empty list *and* an `error` string, and the report renders the reason. An empty list with no explanation reads as "this run was clean", which is the opposite of what a 500 means.
 - **Findings stay attached to the run that produced them.** The report renders them inside each run's Recommendations panel, where the trace, graders, and metrics that produced them are one tab away, so a finding is read next to the evidence that produced it rather than as a free-floating claim.
+
+## Run phases and artefacts
+
+An agent job can be split so the model never runs next to the graders, and so stored outputs can be re-graded later:
+
+- `--phase all` (default): run the agent, grade, score and generate recommendations in one process.
+- `--phase agent --artifact-dir <dir>`: discovers and loads evals without `graders.ts`, runs the agent (setup, runner, compile command), then writes a self-contained **run artefact** to `<dir>/<eval>-<model>-<mode>[-<tools>]-<rand>/` and cleans up the workspace. Baseline jobs store the response text. A failed job stores an `error` artefact. No scores file is written; the process exits non-zero if any job errored.
+- `--phase grade --artifact-dir <dir>`: finds artefacts, loads each eval with its graders, runs graders against the artefact's workspace snapshot, scores, generates recommendations (using the stored skill files) and writes the same `JobResult` JSON as `all`. Artefacts are read-only (except that an empty `workspace/` dropped by the artefact upload is recreated), so the same artefact can be graded repeatedly. When several artefacts share an eval/model/mode/tools key (for example after re-running the agent phase into the same directory) only the newest (`createdAt`) is graded; the others are logged and skipped. `--eval`, and `--model`/`--mode`/`--tools`/`--agent-type` when passed explicitly, select the artefacts those flags would have produced as jobs (agent-type routing included, so `--agent-type claude-code --model gpt-…` finds the `claude-code` run; `--tools` and `--agent-type` apply to agent artefacts only). Only manifests are read for filtering, so a broken artefact outside the filters does not fail the phase. An explicit `--mode` names the output file as the `all` path would. Incomplete artefacts (no `manifest.json`) are skipped with a warning and never searched inside. `--braintrust` reports from the grade phase; the agent phase ignores it with a warning. Nothing is written when no artefact could be graded.
+
+Both partial phases require `--dangerously-skip-sandbox`; the Docker sandbox runs a whole job in one container and is not split.
+
+An artefact (`packages/evals-core/src/artifact/`, schema version 1) is a directory with `manifest.json` (written last, so its presence means the artefact is complete), `run.json` (the `RunRecord`, resolved model, compile result and skill files for agent jobs) and `workspace/` (agent jobs only). The workspace snapshot is a byte-exact copy of exactly the files `collectFiles(workspace, workspace)` returns (a file that cannot be copied is skipped with a warning and listed in `workspaceSkipped`, as grading skips unreadable files too), which is the single walker every grading-time reader uses, so the restored directory yields identical file lists (including the same truncation at the file cap). Artefacts are **not redacted**: graders need the raw trace and the agent's files, so treat them as sensitive. Redaction still happens when results are serialised.
 
 ## Sandbox — running untrusted agent code safely
 
