@@ -222,6 +222,12 @@ export async function runClaudeCodeAgent(
       if (turnNum >= MAX_TURNS) {
         record.providerErrors.push(`turn limit: stopped after ${MAX_TURNS} turns`);
         record.status = 'failure';
+        // The SDK result message never arrives after an abort, so estimate cost from turn tokens
+        record.costUsd = record.turnMetrics.reduce(
+          (sum, tm) => sum + estimateCost(record.model, tm.inputTokens, tm.outputTokens),
+          0,
+        );
+        distributeCost(record);
         logger.info(`[ClaudeCode] ✗ Turn limit reached (${MAX_TURNS}) — aborting`);
         abortController.abort();
         break;
@@ -454,18 +460,7 @@ export function handleMessage(
     }
     record.costUsd = res.total_cost_usd ?? 0;
 
-    if (record.costUsd > 0 && record.turnMetrics.length > 0) {
-      const rawCosts = record.turnMetrics.map((tm) => estimateCost(record.model, tm.inputTokens, tm.outputTokens));
-      const rawTotal = rawCosts.reduce((s, c) => s + c, 0);
-      const scale = rawTotal > 0 ? record.costUsd / rawTotal : 0;
-      for (let i = 0; i < record.turnMetrics.length; i++) {
-        const tm = record.turnMetrics[i] as TurnMetric;
-        const cost = rawCosts[i];
-        if (cost !== undefined) {
-          tm.costUsd = cost * scale;
-        }
-      }
-    }
+    distributeCost(record);
 
     if (res.subtype === 'success' && !res.is_error) {
       record.status = 'success';
@@ -478,6 +473,16 @@ export function handleMessage(
   }
 
   return null;
+}
+
+function distributeCost(record: RunRecord): void {
+  if (record.costUsd <= 0 || record.turnMetrics.length === 0) return;
+  const rawCosts = record.turnMetrics.map((tm) => estimateCost(record.model, tm.inputTokens, tm.outputTokens));
+  const rawTotal = rawCosts.reduce((s, c) => s + c, 0);
+  const scale = rawTotal > 0 ? record.costUsd / rawTotal : 0;
+  record.turnMetrics.forEach((tm, i) => {
+    tm.costUsd = (rawCosts[i] ?? 0) * scale;
+  });
 }
 
 // ── Stop-reason normaliser ────────────────────────────────────────────────────

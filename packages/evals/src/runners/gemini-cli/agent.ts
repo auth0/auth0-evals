@@ -428,6 +428,7 @@ export async function runGeminiCliAgent(
             const stats = (event.stats ?? {}) as Record<string, unknown>;
             const inputTokens = (stats.input_tokens as number) ?? 0;
             const outputTokens = (stats.output_tokens as number) ?? 0;
+            const cachedTokens = (stats.cached as number) ?? 0;
             const durationMs = (stats.duration_ms as number) ?? 0;
             const totalToolCalls = (stats.tool_calls as number) ?? 0;
 
@@ -462,7 +463,7 @@ export async function runGeminiCliAgent(
 
             record.inputTokens = inputTokens;
             record.outputTokens = outputTokens;
-            record.costUsd = estimateCost(model, inputTokens, outputTokens);
+            record.costUsd = estimateCost(model, inputTokens, outputTokens, cachedTokens);
 
             // Back-fill the last TurnMetric with authoritative stats.
             const last = record.turnMetrics[record.turnMetrics.length - 1];
@@ -474,7 +475,7 @@ export async function runGeminiCliAgent(
             }
 
             logger.info(
-              `[GeminiCLI] Turn ${turnNum}: ${inputTokens}in/${outputTokens}out tokens, ` +
+              `[GeminiCLI] Turn ${turnNum}: ${inputTokens}in (${cachedTokens} cached)/${outputTokens}out tokens, ` +
                 `${totalToolCalls} tool(s), cost=$${record.costUsd.toFixed(4)}`,
             );
             break;

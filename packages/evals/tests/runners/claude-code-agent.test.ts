@@ -858,6 +858,27 @@ describe('runClaudeCodeAgent', () => {
     expect(record.providerErrors.some((e) => e.includes('turn limit'))).toBe(true);
     expect(record.turnMetrics.length).toBe(MAX_TURNS);
   });
+
+  it('estimates cost from turn tokens when MAX_TURNS aborts before the result message', async () => {
+    const messages: SDKMessage[] = [];
+    for (let i = 0; i < MAX_TURNS + 5; i++) {
+      messages.push(
+        makeAssistantMsg({
+          content: [{ type: 'tool_use', id: `tu_${i}`, name: 'Bash', input: { command: 'echo hi' } }],
+        }) as SDKMessage,
+      );
+      messages.push(
+        makeUserMsg([{ type: 'tool_result', tool_use_id: `tu_${i}`, content: 'hi', is_error: false }]) as SDKMessage,
+      );
+    }
+
+    mockQuery.mockReturnValue(fakeQuery(messages));
+    const record = await runClaudeCodeAgent(evalDef, workspace);
+
+    expect(record.costUsd).toBeGreaterThan(0);
+    const turnTotal = record.turnMetrics.reduce((s, t) => s + t.costUsd, 0);
+    expect(turnTotal).toBeCloseTo(record.costUsd, 6);
+  });
 });
 
 // ── Proxy env injection ───────────────────────────────────────────────────────
