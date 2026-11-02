@@ -29,7 +29,7 @@ describe('estimateCost', () => {
   it('bills cached tokens at the cached rate, falling back to the input rate', () => {
     // 1M prompt tokens of which 400k cached: 600k * 2.0 + 400k * 0.2 = $1.28
     expect(estimateCost('gemini-3.1-pro-preview', 1_000_000, 0, 400_000)).toBeCloseTo(1.28, 6);
-    expect(estimateCost('gpt-5.6-sol', 1_000_000, 0, 400_000)).toBeCloseTo(5.0, 6);
+    expect(estimateCost('claude-opus-5', 1_000_000, 0, 400_000)).toBeCloseTo(5.0, 6);
   });
 
   it('returns 0 for zero tokens', () => {

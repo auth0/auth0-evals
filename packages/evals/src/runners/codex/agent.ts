@@ -333,11 +333,14 @@ function handleEvent(
       const turnEndTime = Date.now() / 1000;
       const inputTokens = ev.usage?.input_tokens ?? 0;
       const outputTokens = ev.usage?.output_tokens ?? 0;
+      const cachedTokens = ev.usage?.cached_input_tokens ?? 0;
+      // TEMP: remove once we've confirmed cached counts are reported
+      logger.info(`[Codex] raw usage: ${JSON.stringify(ev.usage)}`);
 
       record.inputTokens += inputTokens;
       record.outputTokens += outputTokens;
 
-      const turnCost = estimateCost(model, inputTokens, outputTokens);
+      const turnCost = estimateCost(model, inputTokens, outputTokens, cachedTokens);
       record.costUsd += turnCost;
 
       const tm: TurnMetric = {
@@ -352,7 +355,7 @@ function handleEvent(
       record.turnMetrics.push(tm);
 
       logger.info(
-        `[Codex] Turn ${ctx.turnNum}: ${inputTokens}in/${outputTokens}out tokens, ` +
+        `[Codex] Turn ${ctx.turnNum}: ${inputTokens}in (${cachedTokens} cached)/${outputTokens}out tokens, ` +
           `${ctx.turnToolCount} tool(s), cost=$${turnCost.toFixed(4)}`,
       );
       ctx.turnStartTime = turnEndTime;

@@ -255,11 +255,14 @@ export async function runCopilotAgent(
     const u = ev.data;
     const inputTokens = u.inputTokens ?? 0;
     const outputTokens = u.outputTokens ?? 0;
+    const cachedTokens = Math.min(u.cacheReadTokens ?? 0, inputTokens);
+    // TEMP: remove once we've confirmed whether inputTokens includes cached reads
+    logger.info(`[Copilot] raw usage: ${JSON.stringify(u)}`);
 
     record.inputTokens += inputTokens;
     record.outputTokens += outputTokens;
 
-    const callCost = estimateCost(record.model, inputTokens, outputTokens);
+    const callCost = estimateCost(record.model, inputTokens, outputTokens, cachedTokens);
     record.costUsd += callCost;
 
     // assistant.usage fires after assistant.message — backfill the latest TurnMetric
@@ -270,7 +273,7 @@ export async function runCopilotAgent(
       latest.outputTokens = outputTokens;
       latest.costUsd = callCost;
       logger.info(
-        `[Copilot] Turn ${latest.turn}: ${inputTokens}in/${outputTokens}out tokens, cost=$${callCost.toFixed(4)}`,
+        `[Copilot] Turn ${latest.turn}: ${inputTokens}in (${cachedTokens} cached)/${outputTokens}out tokens, cost=$${callCost.toFixed(4)}`,
       );
     }
   });
