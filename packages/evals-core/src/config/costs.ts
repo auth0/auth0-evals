@@ -35,6 +35,7 @@ export const COST_TABLE: Record<string, [number, number, number?]> = {
 
   // Gemini Flash
   'gemini-3.8-flash': [0.75, 3.75, 0.075],
+  'gemini-3-flash-preview': [0.5, 3.0, 0.05],
 };
 
 /** [input, output] USD per million tokens applied to models absent from COST_TABLE. */

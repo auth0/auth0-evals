@@ -527,7 +527,14 @@ export async function runGeminiCliAgent(
 
             record.inputTokens = inputTokens;
             record.outputTokens = outputTokens;
-            record.costUsd = estimateCost(model, inputTokens, outputTokens, cachedTokens);
+            // A session can call more than one model (e.g. an internal routing model), so price each one.
+            const perModel = Object.entries((stats.models ?? {}) as Record<string, Record<string, number>>);
+            record.costUsd = perModel.length
+              ? perModel.reduce(
+                  (sum, [m, s]) => sum + estimateCost(m, s.input_tokens ?? 0, s.output_tokens ?? 0, s.cached ?? 0),
+                  0,
+                )
+              : estimateCost(model, inputTokens, outputTokens, cachedTokens);
 
             // Back-fill the last TurnMetric with authoritative stats.
             const last = record.turnMetrics[record.turnMetrics.length - 1];

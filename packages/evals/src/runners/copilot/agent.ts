@@ -260,7 +260,8 @@ export async function runCopilotAgent(
     record.inputTokens += inputTokens;
     record.outputTokens += outputTokens;
 
-    const callCost = estimateCost(record.model, inputTokens, outputTokens, cachedTokens);
+    // Usage can arrive before session.tools_updated resolves record.model, so prefer the per-call model.
+    const callCost = estimateCost(u.model || record.model, inputTokens, outputTokens, cachedTokens);
     record.costUsd += callCost;
 
     // assistant.usage fires after assistant.message — backfill the latest TurnMetric
