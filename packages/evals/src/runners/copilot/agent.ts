@@ -256,8 +256,6 @@ export async function runCopilotAgent(
     const inputTokens = u.inputTokens ?? 0;
     const outputTokens = u.outputTokens ?? 0;
     const cachedTokens = Math.min(u.cacheReadTokens ?? 0, inputTokens);
-    // TEMP: remove once we've confirmed whether inputTokens includes cached reads
-    logger.info(`[Copilot] raw usage: ${JSON.stringify(u)}`);
 
     record.inputTokens += inputTokens;
     record.outputTokens += outputTokens;

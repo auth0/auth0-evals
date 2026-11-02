@@ -334,8 +334,6 @@ function handleEvent(
       const inputTokens = ev.usage?.input_tokens ?? 0;
       const outputTokens = ev.usage?.output_tokens ?? 0;
       const cachedTokens = ev.usage?.cached_input_tokens ?? 0;
-      // TEMP: remove once we've confirmed cached counts are reported
-      logger.info(`[Codex] raw usage: ${JSON.stringify(ev.usage)}`);
 
       record.inputTokens += inputTokens;
       record.outputTokens += outputTokens;
