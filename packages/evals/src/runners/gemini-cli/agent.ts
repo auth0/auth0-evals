@@ -57,6 +57,16 @@ export const GEMINI_CLI_DEFAULT_MODEL = 'gemini-3.1-pro-preview';
  */
 const GEMINI_AUTH_TYPE = 'gemini-api-key';
 
+/**
+ * Per-model thinking level, written as a `modelConfigs.overrides` entry in
+ * .gemini/settings.json. Gemini CLI defaults every Gemini 3 model to `HIGH`
+ * (the `chat-base-3` alias), which makes Flash burn a lot of tokens. Models
+ * not listed here keep the CLI default.
+ */
+export const GEMINI_THINKING_LEVELS: Record<string, string> = {
+  'gemini-3.8-flash': 'MEDIUM',
+};
+
 /** Reuse the Claude Code timeout budget. */
 const GEMINI_CLI_TIMEOUT_MS = CLAUDE_CODE_TASK_TIMEOUT_MS;
 
@@ -105,6 +115,11 @@ interface GeminiMcpServer {
   headers?: Record<string, string>;
 }
 
+interface GeminiModelConfigOverride {
+  match: { model: string };
+  modelConfig: { generateContentConfig: { thinkingConfig: { thinkingLevel: string } } };
+}
+
 interface GeminiMcpSettings {
   /** Names of the registered MCP servers. */
   serverNames: string[];
@@ -112,10 +127,11 @@ interface GeminiMcpSettings {
   bearerTokens: Record<string, string>;
 }
 
-async function writeGeminiSettings(workspace: string, includeMcp: boolean): Promise<GeminiMcpSettings> {
+async function writeGeminiSettings(workspace: string, includeMcp: boolean, model: string): Promise<GeminiMcpSettings> {
   const settings: {
     security: { auth: { selectedType: string } };
     model: { maxSessionTurns: number };
+    modelConfigs?: { overrides: GeminiModelConfigOverride[] };
     mcpServers?: Record<string, GeminiMcpServer>;
   } = {
     security: { auth: { selectedType: GEMINI_AUTH_TYPE } },
@@ -123,6 +139,13 @@ async function writeGeminiSettings(workspace: string, includeMcp: boolean): Prom
     // `result` event carrying token stats, which a SIGTERM kill never gets.
     model: { maxSessionTurns: MAX_TURNS },
   };
+
+  const thinkingLevel = GEMINI_THINKING_LEVELS[model];
+  if (thinkingLevel) {
+    settings.modelConfigs = {
+      overrides: [{ match: { model }, modelConfig: { generateContentConfig: { thinkingConfig: { thinkingLevel } } } }],
+    };
+  }
 
   const mcpServers: Record<string, GeminiMcpServer> = {};
   const bearerTokens: Record<string, string> = {};
@@ -221,6 +244,7 @@ export async function runGeminiCliAgent(
   const { serverNames: mcpNames, bearerTokens: mcpBearerTokens } = await writeGeminiSettings(
     workspace,
     tools.includes('mcp'),
+    model,
   );
   if (mcpNames.length > 0) logger.info(`[GeminiCLI] MCP: ${mcpNames.join(', ')}`);
   else if (tools.includes('mcp')) {
