@@ -862,6 +862,30 @@ describe('.gemini/settings.json', () => {
     expect(settings.model?.maxSessionTurns).toBe(MAX_TURNS);
   });
 
+  it('overrides the thinking level to MEDIUM for gemini-3.8-flash', async () => {
+    mockSpawn.mockReturnValue(makeChild([resultEvent()]));
+
+    await runGeminiCliAgent(evalDef, tmpWorkspace, { tools: [], model: 'gemini-3.8-flash' });
+
+    const settings = readSettings();
+    expect(settings.modelConfigs).toEqual({
+      overrides: [
+        {
+          match: { model: 'gemini-3.8-flash' },
+          modelConfig: { generateContentConfig: { thinkingConfig: { thinkingLevel: 'MEDIUM' } } },
+        },
+      ],
+    });
+  });
+
+  it('leaves the CLI default thinking level for models without an override', async () => {
+    mockSpawn.mockReturnValue(makeChild([resultEvent()]));
+
+    await runGeminiCliAgent(evalDef, tmpWorkspace, { tools: [], model: 'gemini-3.1-pro-preview' });
+
+    expect(readSettings()).not.toHaveProperty('modelConfigs');
+  });
+
   it('registers HTTP MCP servers alongside the pinned auth type when MCP is enabled', async () => {
     mockSpawn.mockReturnValue(makeChild([resultEvent()]));
 
