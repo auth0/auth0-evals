@@ -572,6 +572,35 @@ describe('status and final state', () => {
     expect(child.kill).not.toHaveBeenCalled();
   });
 
+  it('prices each model in stats.models at its own rate', async () => {
+    const child = makeChild(
+      [
+        {
+          type: 'result',
+          status: 'success',
+          stats: {
+            input_tokens: 1_100_000,
+            output_tokens: 0,
+            cached: 500_000,
+            duration_ms: 0,
+            tool_calls: 0,
+            models: {
+              'gemini-3.8-flash': { input_tokens: 1_000_000, output_tokens: 0, cached: 500_000 },
+              'gemini-3-flash-preview': { input_tokens: 100_000, output_tokens: 0, cached: 0 },
+            },
+          },
+        },
+      ],
+      0,
+    );
+    mockSpawn.mockReturnValue(child);
+
+    const record = await runGeminiCliAgent(evalDef, workspace, { model: 'gemini-3.8-flash' });
+    // flash: 500k * $0.75 + 500k * $0.075 = $0.4125; preview: 100k * $0.5 = $0.05
+    expect(record.costUsd).toBeCloseTo(0.4625, 6);
+    expect(record.inputTokens).toBe(1_100_000);
+  });
+
   it('endTime is always set after completion', async () => {
     mockSpawn.mockReturnValue(makeChild([], 1));
 
