@@ -299,6 +299,7 @@ async function gradeAgentRun(
     safeRecord,
     apiKey,
     skillFiles,
+    knownSecrets,
   );
 
   return redactKnownSecrets(
