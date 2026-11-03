@@ -16,6 +16,7 @@ apps/auth0-evals/src/evals/
     └── my-new-eval/
         ├── PROMPT.md      # required
         ├── graders.ts     # required
+        ├── fixture.ts     # optional – tenant fixture (seed, snapshot, cleanup); see CLI_WORKFLOW_EVALS.md
         └── scaffold/      # optional – starter files copied into the agent workspace
 ```
 

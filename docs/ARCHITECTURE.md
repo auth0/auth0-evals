@@ -11,7 +11,7 @@ The loop: run a realistic integration task across multiple agents and investment
 
 ## Architecture Diagram
 
-An `a0-eval run` expands into a job matrix (eval × model × mode × tools); each job walks the same six stages — **Kick off → Prepare → Run the agent → Grade → Score → Report** — fanning out under a `pLimit(workers)` gate (one subprocess and Docker sandbox per job) and converging at `mergeResults()`. Every box names the function behind it, so the diagram doubles as a call map. Colours mark the layer: control plane (`@a0/evals` + `@a0/evals-core`), execution plane (the runner + Auth0 tools it reads), data plane (the artifacts it leaves behind).
+An `a0-eval run` expands into a job matrix (eval × model × mode × tools); each job walks the same six stages — **Kick off → Prepare → Run the agent → Grade → Score → Report** — fanning out under a `pLimit(workers)` gate (one subprocess and Docker sandbox per job) and converging at `mergeResults()`. Every box names the function behind it, so the diagram doubles as a call map. Colours mark the layer: control plane (`@a0/evals` + `@a0/evals-core`), execution plane (the runner + Auth0 tools it reads), data plane (the artifacts it leaves behind). Evals that ship an optional `fixture.ts` also get a tenant fixture around the agent run: it seeds and takes a pre-run snapshot before the agent starts, takes a post-run snapshot after the agent exits, and always runs cleanup at the end (see [CLI_WORKFLOW_EVALS.md](CLI_WORKFLOW_EVALS.md)).
 
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': {

@@ -13,6 +13,10 @@ export type {
   CompileResult,
 } from './types.js';
 
+// Tenant fixtures
+export { defineFixture } from './fixture.js';
+export type { FixtureDef, FixtureContext, ManagementApi } from './fixture.js';
+
 // Grader factory functions
 export {
   contains,
