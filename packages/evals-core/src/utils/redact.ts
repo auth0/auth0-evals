@@ -185,7 +185,8 @@ function redactValue(value: unknown): unknown {
  * otherwise reach a published trace verbatim when the agent leaks it.
  */
 export function redactKnownSecrets<T>(value: T, secrets: readonly string[]): T {
-  const known = secrets.filter((s) => s.length > 0);
+  // Longest first, so a secret that contains another one is masked whole instead of leaving its tail.
+  const known = secrets.filter((s) => s.length > 0).sort((a, b) => b.length - a.length);
   if (known.length === 0) return value;
   const walk = (v: unknown): unknown => {
     if (typeof v === 'string') return known.reduce((out, s) => out.split(s).join(REDACTION_MARKER), v);
