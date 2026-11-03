@@ -229,11 +229,14 @@ async function executeAgentRun(
   tools: string[],
   apiKey: string,
   agentType: AgentType,
+  onAgentExit?: () => Promise<void>,
 ): Promise<AgentRunOutput> {
   const { runCompileCommand } = await import('@a0/evals-core');
   const runner = getRunner(agentType);
   const preparedEval = tools.includes('skills') ? await runner.prepareSkills(evalDef, workspace) : evalDef;
   const { record, resolvedModel } = await runner.run({ evalDef: preparedEval, workspace, model, tools, apiKey });
+  // Runs at the agent-exit boundary, before the compile command can touch the tenant.
+  await onAgentExit?.();
 
   const compileResult =
     evalDef.compileCommand !== undefined
@@ -388,26 +391,39 @@ async function runAgentJob(
     }
 
     // Local execution (--dangerously-skip-sandbox or baseline)
-    const run = await executeAgentRun(evalDef, workspace, model, tools, apiKey, agentType);
+    // Post-run tenant snapshot for tenant_state graders. Held in memory only. Taken as soon as
+    // the agent exits, so the compile command cannot change the state that gets graded. A failed
+    // snapshot must not discard the finished run: the file graders and the judge still give a
+    // signal, and tenant_state graders report that the state is unavailable.
+    const session = fixtureSession;
+    const secrets = session ? [...(verifierSecret ? [verifierSecret] : []), ...session.secrets] : [];
+    let post: unknown;
+    let stateError: string | undefined;
+    const run = await executeAgentRun(
+      evalDef,
+      workspace,
+      model,
+      tools,
+      apiKey,
+      agentType,
+      session
+        ? async () => {
+            try {
+              post = await session.snapshot();
+              logger.info(`  [Fixture] Post-run snapshot taken (run ${session.context.runId})`);
+            } catch (e) {
+              stateError = 'the post-run snapshot failed';
+              logger.warn(
+                `  [Fixture] Post-run snapshot failed (run ${session.context.runId}): ` +
+                  redactKnownSecrets(e instanceof Error ? e.message : String(e), secrets),
+              );
+            }
+          }
+        : undefined,
+    );
 
-    // Post-run tenant snapshot for tenant_state graders. Held in memory only.
     let fixtureGrading: FixtureGradingInput | undefined;
     if (fixtureSession) {
-      const secrets = [...(verifierSecret ? [verifierSecret] : []), ...fixtureSession.secrets];
-      // A failed snapshot must not discard the finished run. The file graders and the judge still
-      // give a signal, and tenant_state graders report that the state is unavailable.
-      let post: unknown;
-      let stateError: string | undefined;
-      try {
-        post = await fixtureSession.snapshot();
-        logger.info(`  [Fixture] Post-run snapshot taken (run ${fixtureSession.context.runId})`);
-      } catch (e) {
-        stateError = 'the post-run snapshot failed';
-        logger.warn(
-          `  [Fixture] Post-run snapshot failed (run ${fixtureSession.context.runId}): ` +
-            redactKnownSecrets(e instanceof Error ? e.message : String(e), secrets),
-        );
-      }
       fixtureGrading = {
         // Without a snapshot hook there is no state, so tenant_state graders say so instead of crashing.
         state:
