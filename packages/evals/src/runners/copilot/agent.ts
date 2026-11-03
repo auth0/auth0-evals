@@ -29,7 +29,7 @@ import {
   filteredEnv,
   mintMcpToken,
 } from '@a0/evals-core';
-import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/evals-core';
+import { agentPrompt, classifyActionType, classifyErrorCategory, detectRetry } from '@a0/evals-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
 import { CopilotCliTranslator } from './translator.js';
 
@@ -39,7 +39,7 @@ const translator = new CopilotCliTranslator();
 export const COPILOT_MODEL_ID = 'copilot';
 
 /** Default GPT model used when no explicit model is requested. */
-export const COPILOT_DEFAULT_MODEL = 'gpt-5.6-sol';
+export const COPILOT_DEFAULT_MODEL = 'gpt-6.1-sol';
 
 export interface CopilotRunOptions {
   /** Path to the `copilot` binary. Defaults to the bundled CLI from @github/copilot. */
@@ -255,11 +255,13 @@ export async function runCopilotAgent(
     const u = ev.data;
     const inputTokens = u.inputTokens ?? 0;
     const outputTokens = u.outputTokens ?? 0;
+    const cachedTokens = Math.min(u.cacheReadTokens ?? 0, inputTokens);
 
     record.inputTokens += inputTokens;
     record.outputTokens += outputTokens;
 
-    const callCost = estimateCost(record.model, inputTokens, outputTokens);
+    // Usage can arrive before session.tools_updated resolves record.model, so prefer the per-call model.
+    const callCost = estimateCost(u.model || record.model, inputTokens, outputTokens, cachedTokens);
     record.costUsd += callCost;
 
     // assistant.usage fires after assistant.message — backfill the latest TurnMetric
@@ -270,7 +272,7 @@ export async function runCopilotAgent(
       latest.outputTokens = outputTokens;
       latest.costUsd = callCost;
       logger.info(
-        `[Copilot] Turn ${latest.turn}: ${inputTokens}in/${outputTokens}out tokens, cost=$${callCost.toFixed(4)}`,
+        `[Copilot] Turn ${latest.turn}: ${inputTokens}in (${cachedTokens} cached)/${outputTokens}out tokens, cost=$${callCost.toFixed(4)}`,
       );
     }
   });
@@ -338,7 +340,7 @@ export async function runCopilotAgent(
   });
 
   try {
-    const lastMessage = await session.sendAndWait({ prompt: evalDef.userPrompt }, COPILOT_TASK_TIMEOUT_MS);
+    const lastMessage = await session.sendAndWait({ prompt: agentPrompt(evalDef) }, COPILOT_TASK_TIMEOUT_MS);
     if (lastMessage && !record.finalSummary) {
       record.finalSummary = lastMessage.data?.content ?? '';
     }

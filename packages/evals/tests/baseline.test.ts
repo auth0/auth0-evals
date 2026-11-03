@@ -42,17 +42,17 @@ function makeAiResponse(text = 'Here is the code.', inputTokens = 100, outputTok
 describe('estimateCost', () => {
   it('uses correct input price for known model', () => {
     const cost = estimateCost('gpt-5.6-sol', 1_000_000, 0);
-    expect(cost).toBe(5.0);
+    expect(cost).toBe(4.0);
   });
 
   it('uses correct output price for known model', () => {
     const cost = estimateCost('gpt-5.6-sol', 0, 1_000_000);
-    expect(cost).toBe(30.0);
+    expect(cost).toBe(20.0);
   });
 
   it('sums input and output costs', () => {
     const cost = estimateCost('gpt-5.6-sol', 1_000_000, 1_000_000);
-    expect(cost).toBe(35.0);
+    expect(cost).toBe(24.0);
   });
 
   it('prices another known model from COST_TABLE', () => {
@@ -121,7 +121,7 @@ describe('runBaseline', () => {
     mockGenerateText.mockResolvedValue(makeAiResponse('ok', 1_000_000, 0));
 
     const result = await runBaseline('key', 'gpt-5.6-sol', makeEvalDef());
-    expect(result.costUsd).toBe(5.0);
+    expect(result.costUsd).toBe(4.0);
   });
 
   it('status is success on happy path', async () => {

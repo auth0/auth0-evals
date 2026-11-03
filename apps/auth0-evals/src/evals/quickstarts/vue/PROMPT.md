@@ -6,11 +6,13 @@ setup_command: npm install
 compile_command: npm run build
 ---
 
-## Task
-Add Auth0 authentication to a Vue 3 application using the @auth0/auth0-vue SDK.
+## System
 
 Domain: dev-playground.us.auth0.com
 Client ID: playground_client_abc123xyz
+
+## Task
+Add Auth0 authentication to a Vue 3 application using the @auth0/auth0-vue SDK.
 
 Set up the Auth0 plugin, implement login and logout, display the authenticated user's name and profile picture, and protect a /profile route so only logged-in users can access it.
 

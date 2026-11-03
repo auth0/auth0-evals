@@ -12,10 +12,12 @@ import {
   KNOWN_WORKING_MODELS,
   DEFAULT_MODEL,
   KNOWN_AGENT_TYPES,
+  KNOWN_PHASES,
   LLM_API_KEY_ENV,
   parseToolsArg,
   type Mode,
   type AgentType,
+  type Phase,
 } from './constants.js';
 
 /** Valid meta-values accepted by `--mode` in addition to the concrete Mode values. */
@@ -124,4 +126,45 @@ export function validateAgentType(agentType: string | undefined): AgentType | un
     process.exit(1);
   }
   return agentType as AgentType | undefined;
+}
+
+/** Validates the `--phase` flag against KNOWN_PHASES. Defaults to `all`. */
+export function validatePhase(phase: string | undefined): Phase {
+  if (phase === undefined) return 'all';
+  if (!(KNOWN_PHASES as readonly string[]).includes(phase)) {
+    logger.error(`Invalid --phase: ${phase}. Choose from: ${KNOWN_PHASES.join(', ')}`);
+    process.exit(1);
+  }
+  return phase as Phase;
+}
+
+/**
+ * Validates flags that `--phase agent|grade` depends on: both require `--artifact-dir`
+ * and `--dangerously-skip-sandbox` (the Docker sandbox runs the whole job in one container
+ * and does not support the split). `--phase agent` rejects `--output`, because it writes
+ * artefacts and never a scores file. `--phase all` has no extra requirements.
+ */
+export function validatePhaseOptions(
+  phase: Phase,
+  artifactDir: string | undefined,
+  sandbox: boolean,
+  outputPath?: string,
+): void {
+  if (phase === 'all') return;
+  if (phase === 'agent' && outputPath !== undefined) {
+    logger.error(
+      '--output is not used by --phase agent (it writes run artefacts to --artifact-dir); pass --output to --phase grade.',
+    );
+    process.exit(1);
+  }
+  if (!artifactDir) {
+    logger.error(`--phase ${phase} requires --artifact-dir <dir>.`);
+    process.exit(1);
+  }
+  if (sandbox) {
+    logger.error(
+      `--phase ${phase} is not supported with the Docker sandbox. Pass --dangerously-skip-sandbox to run it on the host.`,
+    );
+    process.exit(1);
+  }
 }
