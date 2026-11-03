@@ -45,11 +45,11 @@ Snapshots stay in memory and are never written to the scores file, because a ten
 
 ### Rules
 
-- Name run-owned resources with `runId` so parallel runs do not collide on resources your `seed` creates. This does not isolate tenant-wide settings or anything the agent creates, and the agent is never told `runId`. Every job uses the same verifier tenant, so a pre/post comparison can pick up changes from another job running at the same time. Run fixture evals with `--workers 1` unless the fixture only touches resources it names with `runId`.
+- Name run-owned resources with `runId` so parallel runs do not collide on resources your `seed` creates. This does not isolate tenant-wide settings or anything the agent creates, and the agent is never told `runId`. Every job uses the same verifier tenant, so a pre/post comparison can pick up changes from another job running at the same time. Run fixture evals with `--workers 1` unless the complete fixture and agent workflow is isolated from shared tenant state.
 - Management API requests time out after 30 seconds. The client retries HTTP 429 for every method, and network errors, timeouts and 502/503/504 responses for GET, PUT and DELETE only, up to 3 times with backoff. POST and PATCH are not retried on those failures because a lost response after a successful write would duplicate or re-apply it, so a failed `seed` write fails the job.
 - `cleanup` runs in a `finally`, so it does not run if the process is hard-killed or interrupted. Name tenant resources with `runId` so leftovers from an aborted run can be found and removed.
 - Cleanup deletes only what this run created. If `seed` throws partway, `seeded` is empty when cleanup runs, so look run-owned resources up by `runId` too.
-- AXIS does not run fixtures and rejects fixture evals. Use `npm run evals`.
+- AXIS does not run fixtures and rejects fixture evals. Use `npm run evals`. `--phase agent` rejects them too, because the fixture session only wraps a full run.
 - Seed infrastructure, not answers. Do not create the resource the agent is being asked to produce.
 - Fixture files are not copied into the agent workspace, so the agent cannot read them.
 
