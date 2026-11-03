@@ -45,6 +45,8 @@ export interface GraderContext {
   agentText: string;
   /** Tenant snapshots from the eval's fixture — used by tenant_state graders. Undefined without a fixture. */
   fixtureState?: FixtureState;
+  /** Why `fixtureState` is missing when the post-run snapshot failed. Safe to persist. */
+  fixtureStateError?: string;
   /** Secrets the agent must never expose — used by secret_not_exposed graders. */
   secrets?: readonly string[];
 }

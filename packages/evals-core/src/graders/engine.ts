@@ -144,6 +144,8 @@ function combined(files: Record<string, string>): string {
 /** Fixture output for tenant_state and secret_not_exposed graders. Held in memory, never persisted. */
 export interface FixtureGradingInput {
   state?: FixtureState;
+  /** Why `state` is missing when the snapshot was attempted and failed. Short and secret-free, since it reaches the result. */
+  stateError?: string;
   secrets: readonly string[];
 }
 
@@ -190,6 +192,7 @@ export async function runGraders(
     compileResult,
     agentText: agentText ?? '',
     fixtureState: fixture?.state,
+    fixtureStateError: fixture?.stateError,
     secrets: fixture?.secrets,
   };
 

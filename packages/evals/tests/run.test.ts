@@ -374,6 +374,87 @@ describe('jobSubprocessEnv', () => {
   });
 });
 
+describe('spawnJobProcess', () => {
+  const tmp = makeTmpDir('spawn_job_');
+  let savedEnv: NodeJS.ProcessEnv;
+
+  beforeEach(() => {
+    savedEnv = { ...process.env };
+    for (const key of ['AUTH0_VERIFIER_DOMAIN', 'AUTH0_VERIFIER_CLIENT_ID', 'AUTH0_VERIFIER_CLIENT_SECRET']) {
+      delete process.env[key];
+    }
+    delete process.env.AUTH0_VERIFIER_CREDENTIALS_FILE;
+    process.env.AUTH0_VERIFIER_DOMAIN = 'test.auth0.com';
+    process.env.AUTH0_VERIFIER_CLIENT_ID = 'cid';
+    process.env.AUTH0_VERIFIER_CLIENT_SECRET = 'dummy-secret-value';
+  });
+
+  afterEach(() => {
+    process.env = savedEnv;
+    vi.resetModules();
+  });
+
+  function makeEval(withFixture: boolean): { evalCfg: EvalConfig; frameworkRoot: string } {
+    const frameworkRoot = tmp();
+    const path = 'src/evals/cli/sample_eval';
+    mkdirSync(join(frameworkRoot, path), { recursive: true });
+    writeFileSync(join(frameworkRoot, path, 'PROMPT.md'), '---\nid: sample_eval\n---\nPrompt\n');
+    if (withFixture) writeFileSync(join(frameworkRoot, path, 'fixture.ts'), 'export default {};\n');
+    return { evalCfg: { id: 'sample_eval', category: 'cli', path } as EvalConfig, frameworkRoot };
+  }
+
+  async function freshModule() {
+    vi.resetModules();
+    return import('../src/cli/run.js');
+  }
+
+  it('hands a fixture job its credentials file and removes it after the child exits', async () => {
+    const { spawnJobProcess } = await freshModule();
+    const { evalCfg, frameworkRoot } = makeEval(true);
+    let file = '';
+    let existedDuringSpawn = false;
+    const spawn = vi.fn(async (_self: string, _id: string, _args: string[], env?: NodeJS.ProcessEnv) => {
+      file = env?.AUTH0_VERIFIER_CREDENTIALS_FILE ?? '';
+      existedDuringSpawn = existsSync(file);
+    });
+
+    await spawnJobProcess(spawn, '/self.js', evalCfg, 'agent', frameworkRoot, ['--x']);
+
+    expect(spawn).toHaveBeenCalledWith('/self.js', 'sample_eval', ['--x'], expect.any(Object));
+    expect(file).not.toBe('');
+    expect(existedDuringSpawn).toBe(true);
+    expect(existsSync(file)).toBe(false);
+    expect(existsSync(dirname(file))).toBe(false);
+  });
+
+  it('removes the credentials file when the child fails', async () => {
+    const { spawnJobProcess } = await freshModule();
+    const { evalCfg, frameworkRoot } = makeEval(true);
+    let file = '';
+    const spawn = vi.fn(async (_self: string, _id: string, _args: string[], env?: NodeJS.ProcessEnv) => {
+      file = env?.AUTH0_VERIFIER_CREDENTIALS_FILE ?? '';
+      throw new Error('child exited with code 1');
+    });
+
+    await expect(spawnJobProcess(spawn, '/self.js', evalCfg, 'agent', frameworkRoot, [])).rejects.toThrow(
+      'child exited with code 1',
+    );
+
+    expect(file).not.toBe('');
+    expect(existsSync(dirname(file))).toBe(false);
+  });
+
+  it('passes no env override for an eval without a fixture', async () => {
+    const { spawnJobProcess } = await freshModule();
+    const { evalCfg, frameworkRoot } = makeEval(false);
+    const spawn = vi.fn(async () => {});
+
+    await spawnJobProcess(spawn, '/self.js', evalCfg, 'agent', frameworkRoot, ['--x']);
+
+    expect(spawn).toHaveBeenCalledWith('/self.js', 'sample_eval', ['--x'], undefined);
+  });
+});
+
 describe('resolveAgentType', () => {
   it('uses --agent-type when given, whatever the model', () => {
     expect(resolveAgentType('claude-sonnet-5', 'codex')).toBe('codex');

@@ -143,16 +143,22 @@ describe('runAgentJob tenant fixture wiring', () => {
     expect(mocks.close).toHaveBeenCalledTimes(1);
   });
 
-  it('closes the fixture session when the post-run snapshot rejects', async () => {
+  it('keeps grading and closes the fixture session when the post-run snapshot rejects', async () => {
     setCredentials();
+    mocks.evalDef.graders = [{ kind: 'tenant_state' }];
+    mocks.evalDef.fixture = { snapshot: vi.fn() };
     mocks.snapshot.mockRejectedValue(new Error('snapshot failed'));
     const run = await freshRunJob();
 
     const result = await run();
 
-    expect(result.status).toBe('error');
+    expect(result.status).not.toBe('error');
     expect(mocks.snapshot).toHaveBeenCalledTimes(1);
     expect(mocks.close).toHaveBeenCalledTimes(1);
+    expect(mocks.runGraders).toHaveBeenCalledTimes(1);
+    const fixtureGrading = mocks.runGraders.mock.calls[0]![9] as { state?: unknown; stateError?: string };
+    expect(fixtureGrading.state).toBeUndefined();
+    expect(fixtureGrading.stateError).toBe('the post-run snapshot failed');
   });
 
   it('closes the fixture session when the compile command throws', async () => {

@@ -1730,6 +1730,28 @@ describe('runGraders - fixture graders', () => {
     expect(results[1]!.detail).toContain('fixture');
   });
 
+  it('reports a failed snapshot to tenant_state graders while other graders still run', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'app.ts'), 'Auth0Provider');
+    const predicate = vi.fn(() => true);
+    const results = await runGraders(
+      [contains('Auth0Provider', GraderLevel.L1), tenantState('state ok', GraderLevel.L4, predicate)],
+      dir,
+      'unused',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { stateError: 'the post-run snapshot failed', secrets: [] },
+    );
+    expect(results[0]!.passed).toBe(true);
+    expect(results[1]!.passed).toBe(false);
+    expect(results[1]!.detail).toBe('Tenant state unavailable: the post-run snapshot failed');
+    expect(predicate).not.toHaveBeenCalled();
+  });
+
   it('reports a throwing predicate without leaking its message', async () => {
     const dir = tmpDir();
     const results = await runGraders(

@@ -310,6 +310,26 @@ async function gradeAgentRun(
   );
 }
 
+/**
+ * Spawns one job subprocess. An agent job with a fixture gets a single-use credentials file,
+ * which is always removed afterwards, including when the child fails or never read it.
+ */
+export async function spawnJobProcess(
+  spawn: typeof spawnEval,
+  selfPath: string,
+  evalCfg: EvalConfig,
+  mode: Mode,
+  frameworkRoot: string,
+  args: string[],
+): Promise<void> {
+  const { env, tempDir } = jobSubprocessEnv(evalCfg, mode, frameworkRoot);
+  try {
+    await spawn(selfPath, evalCfg.id, args, env);
+  } finally {
+    if (tempDir) rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 async function runAgentJob(
   evalDef: EvalDefinition,
   model: string,
@@ -372,14 +392,29 @@ async function runAgentJob(
     // Post-run tenant snapshot for tenant_state graders. Held in memory only.
     let fixtureGrading: FixtureGradingInput | undefined;
     if (fixtureSession) {
-      const post = await fixtureSession.snapshot();
-      logger.info(`  [Fixture] Post-run snapshot taken (run ${fixtureSession.context.runId})`);
+      const secrets = [...(verifierSecret ? [verifierSecret] : []), ...fixtureSession.secrets];
+      // A failed snapshot must not discard the finished run. The file graders and the judge still
+      // give a signal, and tenant_state graders report that the state is unavailable.
+      let post: unknown;
+      let stateError: string | undefined;
+      try {
+        post = await fixtureSession.snapshot();
+        logger.info(`  [Fixture] Post-run snapshot taken (run ${fixtureSession.context.runId})`);
+      } catch (e) {
+        stateError = 'the post-run snapshot failed';
+        logger.warn(
+          `  [Fixture] Post-run snapshot failed (run ${fixtureSession.context.runId}): ` +
+            redactKnownSecrets(e instanceof Error ? e.message : String(e), secrets),
+        );
+      }
       fixtureGrading = {
         // Without a snapshot hook there is no state, so tenant_state graders say so instead of crashing.
-        state: evalDef.fixture?.snapshot
-          ? { pre: fixtureSession.pre, post, seeded: fixtureSession.context.seeded }
-          : undefined,
-        secrets: [...(verifierSecret ? [verifierSecret] : []), ...fixtureSession.secrets],
+        state:
+          evalDef.fixture?.snapshot && !stateError
+            ? { pre: fixtureSession.pre, post, seeded: fixtureSession.context.seeded }
+            : undefined,
+        stateError,
+        secrets,
       };
     }
 
@@ -848,12 +883,7 @@ export async function runCli(): Promise<void> {
           }
           const tempFile = join(frameworkRoot, `scores-tmp-${jobStem(evalCfg.id, model, mode, jobTools)}.json`);
           tempFiles.push(tempFile);
-          const { env, tempDir } = jobSubprocessEnv(evalCfg, mode, frameworkRoot);
-          try {
-            await spawnEval(selfPath, evalCfg.id, [...jobArgs, '--output', tempFile], env);
-          } finally {
-            if (tempDir) rmSync(tempDir, { recursive: true, force: true });
-          }
+          await spawnJobProcess(spawnEval, selfPath, evalCfg, mode, frameworkRoot, [...jobArgs, '--output', tempFile]);
         }),
       ),
     );

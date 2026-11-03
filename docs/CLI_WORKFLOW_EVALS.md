@@ -38,7 +38,7 @@ export default defineFixture({
 
 1. `seed` runs first, then the pre-run `snapshot`, both before the agent starts.
 2. The agent runs.
-3. The post-run `snapshot` runs after the agent exits.
+3. The post-run `snapshot` runs after the agent exits. If it fails, the failure is logged and the run is still graded. The file graders and the judge give their usual result, and `tenantState` graders fail with "Tenant state unavailable".
 4. `cleanup` always runs in a `finally`. Cleanup errors are logged, not thrown. If `seed` or the pre-run snapshot fails, cleanup still runs and the job errors.
 
 Snapshots stay in memory and are never written to the scores file, because a tenant read can include client secrets.

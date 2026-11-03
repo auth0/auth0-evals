@@ -69,6 +69,17 @@ describe('tenantStateExecutor', () => {
     expect(predicate).not.toHaveBeenCalled();
   });
 
+  it('says the snapshot failed, without calling the predicate, when a state error is given', async () => {
+    const predicate = vi.fn(() => true);
+    const r = await tenantStateExecutor.execute(
+      def(predicate),
+      makeCtx({ fixtureStateError: 'the post-run snapshot failed' }),
+    );
+    expect(r.passed).toBe(false);
+    expect(r.detail).toBe('Tenant state unavailable: the post-run snapshot failed');
+    expect(predicate).not.toHaveBeenCalled();
+  });
+
   it('fails when the predicate is missing', async () => {
     const r = await tenantStateExecutor.execute(def(undefined), makeCtx({ fixtureState: state }));
     expect(r.passed).toBe(false);
