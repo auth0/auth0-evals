@@ -155,6 +155,25 @@ describe('runAgentJob tenant fixture wiring', () => {
     expect(mocks.close).toHaveBeenCalledTimes(1);
   });
 
+  it('takes the post-run snapshot before the compile command runs', async () => {
+    setCredentials();
+    mocks.evalDef.compileCommand = 'npm run build';
+    mocks.snapshot.mockImplementation(async () => {
+      mocks.order.push('snapshot');
+      return undefined;
+    });
+    mocks.runCompileCommand.mockImplementation(() => {
+      mocks.order.push('compile');
+      return undefined;
+    });
+    const run = await freshRunJob();
+
+    await run();
+
+    expect(mocks.order.indexOf('snapshot')).toBeGreaterThanOrEqual(0);
+    expect(mocks.order.indexOf('snapshot')).toBeLessThan(mocks.order.indexOf('compile'));
+  });
+
   it('closes the fixture session when the compile command throws', async () => {
     setCredentials();
     mocks.evalDef.compileCommand = 'npm run build';
