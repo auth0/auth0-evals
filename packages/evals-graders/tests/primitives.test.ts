@@ -607,6 +607,25 @@ describe('ranCommandOneOf predicate', () => {
     ]);
     expect(def.name).toBe('ran one of [auth0 orgs create | (api post + organizations) with [acme]]');
   });
+
+  it('folds a write-TOOL payload into a --data @file command only when resolveWriteRefs is set', () => {
+    const body = evt({
+      name: 'write_file',
+      args: { path: '/tmp/connection_patch.json', content: '{"connected_accounts":{"active":true}}' },
+    });
+    const apply = evt({
+      name: 'run_command',
+      args: { command: 'auth0 connections update con_abc --data @/tmp/connection_patch.json' },
+    });
+    const routes = [['connections update', 'connected_accounts']];
+    expect(run(ranCommandOneOf(routes, undefined, GraderLevel.L4, ['active', 'true']), [body, apply])).toBe(false);
+    expect(
+      run(ranCommandOneOf(routes, undefined, GraderLevel.L4, ['active', 'true'], { resolveWriteRefs: true }), [
+        body,
+        apply,
+      ]),
+    ).toBe(true);
+  });
 });
 
 // ── wroteFile (predicate) ───────────────────────────────────────────────────

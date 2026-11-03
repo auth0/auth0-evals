@@ -1,4 +1,4 @@
-import { ranCommand, ranCommandsInOrder, notRanCommand, judge, GraderLevel } from '@a0/evals-graders';
+import { ranCommand, ranCommandOneOf, ranCommandsInOrder, notRanCommand, judge, GraderLevel } from '@a0/evals-graders';
 
 // A goal-only CLI eval run against a live, throwaway tenant the `auth0` CLI is
 // already logged into, with the "Barkbook Web" app and a `google-oauth2`
@@ -59,11 +59,18 @@ export function defineGraders() {
     ),
 
     // ── L4: Turn Token Vault on for the Google connection ───────────────────
-    ranCommand(
-      'connections',
-      ['connected_accounts', 'true'],
+    // Only a write counts. A read such as
+    // `auth0 api get connections/<id> --query 'fields=connected_accounts&include_fields=true'`
+    // carries every needle of a bare `connections` + `connected_accounts` + `true`
+    // match, so the route must be an update or PATCH and the body must set `active`.
+    ranCommandOneOf(
+      [
+        ['connections update', 'connected_accounts'],
+        ['patch', 'connections', 'connected_accounts'],
+      ],
       'Enabled Token Vault (connected_accounts.active) on the google-oauth2 connection',
       GraderLevel.L4,
+      ['active', 'true'],
       { resolveWriteRefs: true },
     ),
 

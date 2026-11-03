@@ -398,23 +398,26 @@ export function notRanCommand(command: string, description: string | undefined, 
  *
  * @param commands - Alternative routes; a nested array requires every substring in it
  * @param args - Optional arg(s) that must also appear in the matching command
+ * @param options - `resolveWriteRefs` folds `--data @file` payloads into the command, as in `ranCommand`
  */
 export function ranCommandOneOf(
   commands: Array<string | string[]>,
   description: string | undefined,
   level: EventGraderLevel,
   args?: string | string[],
+  options: { resolveWriteRefs?: boolean } = {},
 ): GraderDef {
   validateEventLevel(level, 'ranCommandOneOf');
   const argList = args ? (Array.isArray(args) ? args : [args]) : [];
   const routeLabel = commands.map((c) => (Array.isArray(c) ? `(${c.join(' + ')})` : c)).join(' | ');
   const label = argList.length > 0 ? `${routeLabel} with [${argList.join(', ')}]` : routeLabel;
+  const { resolveWriteRefs } = options;
   return {
     kind: 'event',
     name: description ?? `ran one of [${label}]`,
     level,
     predicate: (toolCalls: EventToolCall[]) =>
-      getRunCommands(toolCalls).some(
+      getRunCommands(toolCalls, { resolveWriteRefs }).some(
         (cmd) =>
           commands.some((c) => (Array.isArray(c) ? c.every((part) => cmd.includes(part)) : cmd.includes(c))) &&
           argList.every((arg) => cmd.includes(arg)),
