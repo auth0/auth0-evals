@@ -41,15 +41,24 @@ export const COST_TABLE: Record<string, [number, number, number?]> = {
   'gemini-3-flash-preview': [0.5, 3.0, 0.05],
 };
 
+/**
+ * Higher rates for requests whose prompt (cached tokens included) exceeds `threshold`; the whole request is billed at
+ * them. Only Haiku 5.5 has such a tier; the other Claude models bill the full context window at standard rates.
+ */
+const LONG_CONTEXT_COST_TABLE: Record<string, { threshold: number; pricing: [number, number, number] }> = {
+  'claude-haiku-5-5': { threshold: 100_000, pricing: [0.5, 2.5, 0.05] },
+};
+
 /** [input, output] USD per million tokens applied to models absent from COST_TABLE. */
 export const DEFAULT_PRICING: [number, number] = [1.0, 5.0];
 
 // Models already warned about, so the fallback-pricing notice fires once per model.
 const warnedUnknownModels = new Set<string>();
 
-/** inputTokens is the total prompt size; cachedTokens is the cached subset of it. */
+/** inputTokens is the total prompt size of one request; cachedTokens is the cached subset of it. */
 export function estimateCost(model: string, inputTokens: number, outputTokens: number, cachedTokens = 0): number {
-  const pricing = COST_TABLE[model];
+  const longContext = LONG_CONTEXT_COST_TABLE[model];
+  const pricing = longContext && inputTokens > longContext.threshold ? longContext.pricing : COST_TABLE[model];
   if (!pricing && !warnedUnknownModels.has(model)) {
     warnedUnknownModels.add(model);
     logger.warn(

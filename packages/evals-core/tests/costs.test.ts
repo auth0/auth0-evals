@@ -34,6 +34,15 @@ describe('estimateCost', () => {
     expect(estimateCost('no-such-model', 1_000_000, 0, 400_000)).toBeCloseTo(DEFAULT_PRICING[0], 6);
   });
 
+  it('bills a claude-haiku-5-5 request over 100k prompt tokens at the long-context rates', () => {
+    // at the threshold: standard $0.10 in / $0.50 out
+    expect(estimateCost('claude-haiku-5-5', 100_000, 1_000_000)).toBeCloseTo(0.01 + 0.5, 6);
+    // just over, cached tokens count towards the threshold: 50k * $0.50 + 50.001k * $0.05 + 1M * $2.50 per 1M
+    expect(estimateCost('claude-haiku-5-5', 100_001, 1_000_000, 50_001)).toBeCloseTo(0.025 + 0.0025 + 2.5, 4);
+    // other Claude models have no long-context tier
+    expect(estimateCost('claude-sonnet-5', 500_000, 0)).toBeCloseTo(1.0, 6);
+  });
+
   it('returns 0 for zero tokens', () => {
     expect(estimateCost('gpt-5.6-sol', 0, 0)).toBe(0);
   });
