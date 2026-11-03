@@ -229,11 +229,14 @@ async function executeAgentRun(
   tools: string[],
   apiKey: string,
   agentType: AgentType,
+  onAgentExit?: () => Promise<void>,
 ): Promise<AgentRunOutput> {
   const { runCompileCommand } = await import('@a0/evals-core');
   const runner = getRunner(agentType);
   const preparedEval = tools.includes('skills') ? await runner.prepareSkills(evalDef, workspace) : evalDef;
   const { record, resolvedModel } = await runner.run({ evalDef: preparedEval, workspace, model, tools, apiKey });
+  // Runs at the agent-exit boundary, before the compile command can touch the tenant.
+  await onAgentExit?.();
 
   const compileResult =
     evalDef.compileCommand !== undefined
@@ -368,13 +371,27 @@ async function runAgentJob(
     }
 
     // Local execution (--dangerously-skip-sandbox or baseline)
-    const run = await executeAgentRun(evalDef, workspace, model, tools, apiKey, agentType);
+    // Post-run tenant snapshot for tenant_state graders. Held in memory only. Taken as soon as
+    // the agent exits, so the compile command cannot change the state that gets graded.
+    let post: unknown;
+    const session = fixtureSession;
+    const run = await executeAgentRun(
+      evalDef,
+      workspace,
+      model,
+      tools,
+      apiKey,
+      agentType,
+      session
+        ? async () => {
+            post = await session.snapshot();
+            logger.info(`  [Fixture] Post-run snapshot taken (run ${session.context.runId})`);
+          }
+        : undefined,
+    );
 
-    // Post-run tenant snapshot for tenant_state graders. Held in memory only.
     let fixtureGrading: FixtureGradingInput | undefined;
     if (fixtureSession) {
-      const post = await fixtureSession.snapshot();
-      logger.info(`  [Fixture] Post-run snapshot taken (run ${fixtureSession.context.runId})`);
       fixtureGrading = {
         // Without a snapshot hook there is no state, so tenant_state graders say so instead of crashing.
         state: evalDef.fixture?.snapshot
