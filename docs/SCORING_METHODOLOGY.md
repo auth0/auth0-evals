@@ -40,7 +40,9 @@ Bands are uneven on purpose: 15 points per band A→C, 20 for D, 40 for F.
 
 **Exceptions (deliberate, not missing evidence, leave as-is):** Docs Quality's "no lookups → 100." A baseline run's missing L4/L5 (mode filter, not the eval's own definition).
 
-General rule — covers any dimension, any future eval shape (Terraform-only, MCP-reply-only), not a CLI special case.
+General rule — covers any dimension and any future eval shape (Terraform-only, MCP-reply-only), with one CLI exception.
+
+**CLI exception (Security):** for a `cli` eval with no L3 grader, the Security weight moves to Correctness instead of renormalizing across the remaining dimensions, so Security is not reported as an automatic 100. A `cli` eval that registers an L3 grader, such as `secretNotExposed`, keeps the Security weight, so a leaked credential lowers the score. Hallucination (L2) keeps its weight for `cli` evals, because CLI agents can still invent commands or flags.
 
 ## Dimension weights
 
