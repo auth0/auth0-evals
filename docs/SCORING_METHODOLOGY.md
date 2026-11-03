@@ -34,7 +34,7 @@ Bands are uneven on purpose: 15 points per band A→C, 20 for D, 40 for F.
 
 ## Dimension applicability
 
-**Problem:** a CLI-only eval registers no L2/L3 grader (no files to check). `scoreFromGraders` returns 100 anyway, indistinguishable from an eval that ran the checks and passed. `scoreCorrectness` has the mirror bug — an empty relevant-grader set scores 0, not "no signal."
+**Problem:** a CLI-only eval usually registers no L2/L3 grader (no files to check), although a fixture-backed one can register an L3 grader such as `secretNotExposed`. `scoreFromGraders` returns 100 anyway, indistinguishable from an eval that ran the checks and passed. `scoreCorrectness` has the mirror bug — an empty relevant-grader set scores 0, not "no signal."
 
 **Rule:** a dimension is applicable only if the eval registers a grader for it, decided at load time. Inapplicable → excluded from the weighted sum, remaining weights renormalize to 1.0 (drop Hallucination+Security → Correctness's 25% becomes ~33%). Report shows N/A, not a number.
 
