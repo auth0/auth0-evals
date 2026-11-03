@@ -15,6 +15,8 @@ export interface EvalDefinition {
   category: string;
   path: string;
   baselineSystemPrompt: string;
+  /** The eval's own `## System` text (no default SDK instruction); undefined when absent. Prepended to the task for agent runners. */
+  systemContext?: string;
   userPrompt: string;
   graders: GraderDef[];
   scaffold: Record<string, string>;

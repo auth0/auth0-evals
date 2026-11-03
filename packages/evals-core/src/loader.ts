@@ -32,6 +32,11 @@ export interface EvalConfig {
 export interface LoadEvalOptions {
   /** Default baseline system prompt when no `## System` section is found. */
   defaultBaselineSystemPrompt?: string;
+  /**
+   * When true, no graders file is looked up or imported and `graders` is `[]`.
+   * Used by the agent phase so the model's run never needs grader files on disk.
+   */
+  skipGraders?: boolean;
 }
 
 const FALLBACK_BASELINE_PROMPT =
@@ -48,13 +53,19 @@ export async function loadEval(
   }
 
   const defaultBaselinePrompt = options?.defaultBaselineSystemPrompt ?? FALLBACK_BASELINE_PROMPT;
-  const { baselineSystemPrompt, userPrompt, meta } = parsePromptMd(join(evalPath, 'PROMPT.md'), defaultBaselinePrompt);
+  const { baselineSystemPrompt, systemContext, userPrompt, meta } = parsePromptMd(
+    join(evalPath, 'PROMPT.md'),
+    defaultBaselinePrompt,
+  );
 
-  const distRelPath = evalConfig.path.replace(/^src\//, '');
-  const distGradersPath = join(frameworkRoot, 'dist', distRelPath, 'graders.js');
-  const srcGradersPath = join(evalPath, 'graders.ts');
-  const gradersPath = existsSync(distGradersPath) ? distGradersPath : srcGradersPath;
-  const graders = await loadGraders(gradersPath);
+  let graders: GraderDef[] = [];
+  if (!options?.skipGraders) {
+    const distRelPath = evalConfig.path.replace(/^src\//, '');
+    const distGradersPath = join(frameworkRoot, 'dist', distRelPath, 'graders.js');
+    const srcGradersPath = join(evalPath, 'graders.ts');
+    const gradersPath = existsSync(distGradersPath) ? distGradersPath : srcGradersPath;
+    graders = await loadGraders(gradersPath);
+  }
   const fixturePath = resolveFixturePath(evalConfig, frameworkRoot);
   const fixture = fixturePath ? await loadFixture(fixturePath) : undefined;
   const scaffoldDir = resolveScaffoldFromMeta(meta.scaffold, evalPath, frameworkRoot);
@@ -76,6 +87,7 @@ export async function loadEval(
     category: evalConfig.category ?? meta.category ?? '',
     path: evalPath,
     baselineSystemPrompt,
+    systemContext,
     userPrompt,
     graders,
     scaffold,
@@ -100,6 +112,7 @@ function parsePromptMd(
   defaultBaselinePrompt: string,
 ): {
   baselineSystemPrompt: string;
+  systemContext: string | undefined;
   userPrompt: string;
   meta: Record<string, string>;
 } {
@@ -113,10 +126,11 @@ function parsePromptMd(
   const systemMatch = body.match(/^## System\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
   const taskMatch = body.match(/^## Task\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
 
-  const baselineSystemPrompt = systemMatch?.[1] ? systemMatch[1].trim() : defaultBaselinePrompt;
+  const evalSystem = systemMatch?.[1]?.trim();
+  const baselineSystemPrompt = evalSystem ? `${evalSystem}\n\n${defaultBaselinePrompt}` : defaultBaselinePrompt;
   const userPrompt = taskMatch?.[1] ? taskMatch[1].trim() : body.trim();
 
-  return { baselineSystemPrompt, userPrompt, meta };
+  return { baselineSystemPrompt, systemContext: evalSystem || undefined, userPrompt, meta };
 }
 
 // ── graders.ts dynamic import ─────────────────────────────────────────────────

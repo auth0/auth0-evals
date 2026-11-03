@@ -41,7 +41,7 @@ import {
   mcpBearerTokenEnvVar,
   unwrapMcpContent,
 } from '@a0/evals-core';
-import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/evals-core';
+import { agentPrompt, classifyActionType, classifyErrorCategory, detectRetry } from '@a0/evals-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
 import { CodexTranslator, detectReadOnlyFileRead } from './translator.js';
 
@@ -51,7 +51,7 @@ const translator = new CodexTranslator();
 export const CODEX_MODEL_ID = 'codex';
 
 /** Default model for the Codex CLI runner. */
-export const CODEX_DEFAULT_MODEL = 'gpt-5.6-sol';
+export const CODEX_DEFAULT_MODEL = 'gpt-6.1-sol';
 
 /**
  * Writes Codex config.toml to configure a custom proxy provider.
@@ -333,11 +333,12 @@ function handleEvent(
       const turnEndTime = Date.now() / 1000;
       const inputTokens = ev.usage?.input_tokens ?? 0;
       const outputTokens = ev.usage?.output_tokens ?? 0;
+      const cachedTokens = ev.usage?.cached_input_tokens ?? 0;
 
       record.inputTokens += inputTokens;
       record.outputTokens += outputTokens;
 
-      const turnCost = estimateCost(model, inputTokens, outputTokens);
+      const turnCost = estimateCost(model, inputTokens, outputTokens, cachedTokens);
       record.costUsd += turnCost;
 
       const tm: TurnMetric = {
@@ -352,7 +353,7 @@ function handleEvent(
       record.turnMetrics.push(tm);
 
       logger.info(
-        `[Codex] Turn ${ctx.turnNum}: ${inputTokens}in/${outputTokens}out tokens, ` +
+        `[Codex] Turn ${ctx.turnNum}: ${inputTokens}in (${cachedTokens} cached)/${outputTokens}out tokens, ` +
           `${ctx.turnToolCount} tool(s), cost=$${turnCost.toFixed(4)}`,
       );
       ctx.turnStartTime = turnEndTime;
@@ -588,7 +589,7 @@ export async function runCodexAgent(
 
   // Prepend a short action directive because reasoning models often output a
   // planning message before calling tools.
-  const execPrompt = `Start immediately — use shell commands and file writes to complete the task. Do not explain your plan first.\n\n${evalDef.userPrompt}`;
+  const execPrompt = `Start immediately — use shell commands and file writes to complete the task. Do not explain your plan first.\n\n${agentPrompt(evalDef)}`;
 
   try {
     const thread = codex.startThread(threadOptions);
