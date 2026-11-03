@@ -201,9 +201,32 @@ describe('loadEval - system prompt', () => {
 
     expect(result.baselineSystemPrompt).toContain('Generic system prompt');
   });
+
+  it('always appends the standing SDK instruction to a ## System section', async () => {
+    makeEvalDir(tmpBase, '## System\nDomain: dev.example.com\n\n## Task\nDo the task.\n');
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.baselineSystemPrompt).toContain('Domain: dev.example.com');
+    expect(result.baselineSystemPrompt).toContain('official Auth0 SDK');
+  });
 });
 
 // ── Scaffold loading tests ────────────────────────────────────────────────────
+
+describe('loadEval - systemContext', () => {
+  it('is the ## System text without the standing SDK instruction', async () => {
+    makeEvalDir(tmpBase, '## System\nDomain: dev.example.com\n\n## Task\nDo the task.\n');
+    const def = await loadEval(EVAL_CONFIG, tmpBase);
+    expect(def.systemContext).toBe('Domain: dev.example.com');
+  });
+
+  it('is undefined when there is no ## System section', async () => {
+    makeEvalDir(tmpBase, '## Task\nDo the task.\n');
+    const def = await loadEval(EVAL_CONFIG, tmpBase);
+    expect(def.systemContext).toBeUndefined();
+  });
+});
 
 describe('loadEval - scaffold loading', () => {
   it('loads scaffold files', async () => {
@@ -389,6 +412,32 @@ export function defineGraders() {
     expect(err).toBeInstanceOf(EvalConfigError);
     expect((err as EvalConfigError).message).toContain('graders.ts missing defineGraders()');
     expect((err as EvalConfigError).message).toContain(evalDir);
+  });
+});
+
+describe('loadEval - skipGraders', () => {
+  it('returns no graders and does not require a graders file', async () => {
+    const evalDir = join(tmpBase, 'my_eval');
+    mkdirSync(evalDir, { recursive: true });
+    writeFileSync(join(evalDir, 'PROMPT.md'), MINIMAL_PROMPT);
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase, { skipGraders: true });
+    expect(result.graders).toEqual([]);
+    expect(result.userPrompt).toBe('Do the task.');
+  });
+
+  it('does not import graders.ts even when it would throw on import', async () => {
+    makeEvalDir(tmpBase, MINIMAL_PROMPT, "throw new Error('graders must not be imported');\n");
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase, { skipGraders: true });
+    expect(result.graders).toEqual([]);
+    await expect(loadEval(EVAL_CONFIG, tmpBase)).rejects.toThrow();
+  });
+
+  it('still loads graders by default', async () => {
+    makeEvalDir(tmpBase);
+    const result = await loadEval(EVAL_CONFIG, tmpBase, { skipGraders: false });
+    expect(result.graders).toHaveLength(1);
   });
 });
 
