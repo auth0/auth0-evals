@@ -538,6 +538,30 @@ describe('generateRecommendations', () => {
     expect(body.messages[1].content).toContain('Add Auth0 login');
   });
 
+  it('masks registered secrets in workspace files before they reach the LLM', async () => {
+    const { generateRecommendations } = await import('../src/recommendations/generator.js');
+    const dir = tmpDir();
+    mkdirSync(join(dir, 'src'));
+    const secret = 'tenant-secret-value-123';
+    writeFileSync(join(dir, 'src', 'App.tsx'), `const key = "${secret}";\n`);
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: JSON.stringify({ recommendations: [], summary: '' }) } }],
+      }),
+    });
+    globalThis.fetch = fetchMock;
+
+    await generateRecommendations({ ...makeInput(dir), knownSecrets: [secret] });
+
+    const body = fetchMock.mock.calls[0]![1].body as string;
+    // The file must be in the prompt, otherwise the secret check passes for the wrong reason.
+    expect(body).toContain('App.tsx');
+    expect(body).not.toContain(secret);
+    expect(body).toContain('REDACTED');
+  });
+
   it('reports the reason on network failure', async () => {
     const { generateRecommendations } = await import('../src/recommendations/generator.js');
     const dir = tmpDir();
