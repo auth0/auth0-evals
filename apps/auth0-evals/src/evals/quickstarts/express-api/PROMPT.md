@@ -6,11 +6,13 @@ setup_command: npm install
 compile_command: node --check server.js
 ---
 
-## Task
-Protect my Express.js API with Auth0.
+## System
 
 Domain: dev-barkbook.us.auth0.com
 Audience: https://api.barkbook.com
+
+## Task
+Protect my Express.js API with Auth0.
 
 I need these routes:
 - GET /api/messages — requires `read:messages` scope

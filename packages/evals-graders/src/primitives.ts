@@ -305,8 +305,16 @@ function escapeRegExp(literal: string): string {
  * A known long flag also matches its short alias (e.g. `-c` for `--callbacks`),
  * so a correct command using short forms is not scored as a structural failure.
  *
- * @param command - Substring that must appear in the executed command
- * @param flags - `[flag, value]` pairs; every value must appear inside its flag's argument
+ * @param command - Substring that must appear in the executed command; an array
+ *   accepts any one of several alternative commands (e.g. `['apps create', 'qs setup']`)
+ * @param flags - `[flag, value]` pairs; every value must appear inside its flag's argument.
+ *   A flag may be an array of alternative spellings (e.g. `['--callbacks', '--callback-url']`)
+ *   when the accepted commands name the same option differently.
+ * @param description - Grader name
+ * @param level - Grader level (L4 or L5)
+ * @param options - `exactValue`: when true, the value must end its URL entry (an optional single
+ *   trailing `/` is allowed, followed by end of argument, `,`, whitespace, or a quote), so
+ *   `localhost:3000` no longer matches `localhost:3000/callback`. Default is substring matching.
  */
 // Known short aliases for auth0 CLI long flags, so a value set via the short
 // form (e.g. `-c http://localhost:3000`) still matches its long-flag binding.
@@ -320,31 +328,39 @@ const SHORT_FLAG_ALIASES: Record<string, string> = {
 };
 
 export function ranCommandWithFlags(
-  command: string,
-  flags: Array<[string, string]>,
+  command: string | string[],
+  flags: Array<[string | string[], string]>,
   description: string | undefined,
   level: EventGraderLevel,
+  options: { exactValue?: boolean } = {},
 ): GraderDef {
   validateEventLevel(level, 'ranCommandWithFlags');
-  const bindings = flags.map(([flag, value]) => {
-    const alias = SHORT_FLAG_ALIASES[flag];
-    const flagPattern = alias ? `(?:${escapeRegExp(flag)}|${escapeRegExp(alias)})` : escapeRegExp(flag);
+  const { exactValue = false } = options;
+  const commandList = Array.isArray(command) ? command : [command];
+  const bindings = flags.map(([flagSpec, value]) => {
+    const names = (Array.isArray(flagSpec) ? flagSpec : [flagSpec]).flatMap((f) =>
+      SHORT_FLAG_ALIASES[f] ? [f, SHORT_FLAG_ALIASES[f]] : [f],
+    );
+    const flagPattern = `(?:${names.map(escapeRegExp).join('|')})`;
     return {
-      flag,
+      flag: Array.isArray(flagSpec) ? flagSpec.join('|') : flagSpec,
       value,
       // <flag><sep><non-space run><value> — the [^\s]* keeps the match inside the
       // flag's own argument so a value belonging to a later flag can't satisfy it.
       // Long flag or its known short alias may carry the value.
-      re: new RegExp(`${flagPattern}[=\\s]+[^\\s]*${escapeRegExp(value)}`),
+      // exactValue additionally requires the value to end the URL entry.
+      re: new RegExp(`${flagPattern}[=\\s]+[^\\s]*${escapeRegExp(value)}${exactValue ? `/?(?=$|[,\\s'"])` : ''}`),
     };
   });
   const label = bindings.map((b) => `${b.flag}=${b.value}`).join(', ');
   return {
     kind: 'event',
-    name: description ?? `ran command '${command}' with [${label}]`,
+    name: description ?? `ran command '${commandList.join(' | ')}' with [${label}]`,
     level,
     predicate: (toolCalls: EventToolCall[]) =>
-      getRunCommands(toolCalls).some((cmd) => cmd.includes(command) && bindings.every((b) => b.re.test(cmd))),
+      getRunCommands(toolCalls).some(
+        (cmd) => commandList.some((c) => cmd.includes(c)) && bindings.every((b) => b.re.test(cmd)),
+      ),
   };
 }
 

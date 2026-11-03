@@ -10,7 +10,9 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getFrameworkConfig } from '../config/framework-config.js';
-import { collectFiles as collectFilePaths } from '../workspace/index.js';
+import { DEFAULT_FRAMEWORK_CONFIG } from '../config/defaults.js';
+import { listFiles as listFilePaths } from '../workspace/index.js';
+import { logger } from '../utils/logger.js';
 import type { GraderDef, GraderResult, EventToolCall, CompileResult } from '@a0/evals-graders';
 import { GraderLevel } from '@a0/evals-graders';
 import { registerExecutor, executeGrader } from './executors/index.js';
@@ -60,6 +62,9 @@ export const EXCLUDED_EVAL_DIRS = new Set([
   '.build',
   '.angular',
   'out-tsc',
+  // Gradle output (e.g. `app/build`, `android/app/build` after `./gradlew build`)
+  'build',
+  '.gradle',
 ]);
 export const EXCLUDED_EVAL_FILES = new Set([
   'package-lock.json',
@@ -70,12 +75,33 @@ export const EXCLUDED_EVAL_FILES = new Set([
   'GEMINI.md',
 ]);
 
+const GRADING_EXCLUDED_DIRS = new Set([
+  ...(DEFAULT_FRAMEWORK_CONFIG.workspace.excludedDirs ?? []),
+  ...EXCLUDED_EVAL_DIRS,
+]);
+
+/**
+ * Relative paths of every file grading reads: graders, the run-artefact snapshot and
+ * recommendations all list through this. Excluded dirs are pruned during the walk, so
+ * the file cap only counts files grading keeps. Filtering them out after a capped walk
+ * instead let build output (e.g. `.output/` after `nuxt build`) and injected skills fill
+ * the cap before the walk reached the agent's source, collapsing the corpus to a stray
+ * `.gitignore`. Hitting the cap is logged, since graders then miss files.
+ */
+export function listGradingFiles(workspace: string): { files: string[]; truncated: boolean } {
+  const { files, truncated, maxFiles } = listFilePaths(workspace, workspace, {
+    excludedDirs: GRADING_EXCLUDED_DIRS,
+    excludedFiles: EXCLUDED_EVAL_FILES,
+  });
+  if (truncated) {
+    logger.warn(`[Graders] Workspace listing truncated at ${maxFiles} files; graders will not see the rest`);
+  }
+  return { files, truncated };
+}
+
 export function collectFiles(workspace: string): Record<string, string> {
   const files: Record<string, string> = {};
-  for (const relPath of collectFilePaths(workspace, workspace)) {
-    if (relPath.startsWith('…')) continue; // skip truncation notice
-    if (EXCLUDED_EVAL_FILES.has(relPath)) continue;
-    if ([...EXCLUDED_EVAL_DIRS].some((dir) => relPath.startsWith(dir + '/'))) continue;
+  for (const relPath of listGradingFiles(workspace).files) {
     try {
       files[relPath] = readFileSync(join(workspace, relPath), 'utf-8');
     } catch {
@@ -154,22 +180,39 @@ export async function runGraders(
     agentText: agentText ?? '',
   };
 
-  const results: GraderResult[] = [];
-  for (const g of active) {
+  const runOne = async (g: GraderDef): Promise<GraderResult> => {
     try {
-      results.push(await executeGrader(g, context));
+      return await executeGrader(g, context);
     } catch (err) {
-      results.push({
+      return {
         name: g.name,
         kind: g.kind,
         passed: false,
         detail: `Grader error [${g.name}/${g.kind}]: ${err instanceof Error ? err.message : String(err)}`,
         level: g.level,
-      });
+      };
     }
-  }
+  };
+
+  // Executors only read the shared context, so graders can run concurrently. Each worker
+  // takes the next index and writes its result to that slot, so output order matches the
+  // definitions whatever order the judges finish in. concurrency 1 is the sequential loop.
+  const concurrency = resolveConcurrency(config.judge.concurrency);
+  const results = new Array<GraderResult>(active.length);
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < active.length) {
+      const i = next++;
+      results[i] = await runOne(active[i]!);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, active.length) }, worker));
 
   return results;
+}
+
+function resolveConcurrency(value: number | undefined): number {
+  return value !== undefined && Number.isInteger(value) && value > 0 ? value : 1;
 }
 
 // ── Summary helpers ───────────────────────────────────────────────────────────

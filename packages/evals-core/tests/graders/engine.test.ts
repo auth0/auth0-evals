@@ -569,6 +569,30 @@ describe('llmJudge', () => {
     expect(passed).toBe(true);
   });
 
+  it.each([
+    ['**yes**', true],
+    ['**No**', false],
+    ['`yes`', true],
+    ['> no.', false],
+  ])('parses a markdown-wrapped verdict %s', async (verdict, expected) => {
+    vi.stubGlobal('fetch', mockFetchResponse(`The relay flow is wired correctly.\n\n${verdict}`));
+    const { passed } = await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
+    expect(passed).toBe(expected);
+  });
+
+  it('still rejects a markdown-wrapped non-verdict', async () => {
+    vi.stubGlobal('fetch', mockFetchResponse('**yesterday**'));
+    await expect(
+      llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' }),
+    ).rejects.toThrow('unexpected verdict');
+  });
+
   it('fails when no verdict has trailing explanation', async () => {
     vi.stubGlobal('fetch', mockFetchResponse('The provider is missing.\n\nno, the provider is missing.'));
     const { passed, detail } = await llmJudge({

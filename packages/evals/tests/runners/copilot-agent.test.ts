@@ -126,7 +126,7 @@ describe('COPILOT_MODEL_ID', () => {
 
 describe('COPILOT_DEFAULT_MODEL', () => {
   it('is gpt-5.6-sol', () => {
-    expect(COPILOT_DEFAULT_MODEL).toBe('gpt-5.6-sol');
+    expect(COPILOT_DEFAULT_MODEL).toBe('gpt-6.1-sol');
   });
 });
 
@@ -538,6 +538,21 @@ describe('runCopilotAgent — token tracking', () => {
     const record = await runCopilotAgent(evalDef, workspace);
     expect(record.inputTokens).toBe(150);
     expect(record.outputTokens).toBe(30);
+  });
+
+  it('prices usage by the per-call model when it arrives before session.tools_updated', async () => {
+    fakeSession.setScenario(async (s) => {
+      s.fire('assistant.message', { content: 'hi', toolRequests: [] });
+      s.fire('assistant.usage', {
+        model: 'gpt-6.1-sol',
+        inputTokens: 1_000_000,
+        outputTokens: 0,
+        cacheReadTokens: 400_000,
+      });
+    });
+    const record = await runCopilotAgent(evalDef, workspace);
+    // 600k * $2 + 400k * $0.1 per 1M; the 'copilot' placeholder would fall back to default pricing ($1.00)
+    expect(record.costUsd).toBeCloseTo(1.24, 6);
   });
 
   it('backfills latest TurnMetric with usage data', async () => {

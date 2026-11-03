@@ -7,6 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { EvalConfig } from '@a0/evals-core';
+import { makeTmpDir } from './tmp.js';
 
 const mocks = vi.hoisted(() => ({
   order: [] as string[],
@@ -76,6 +77,7 @@ function errorOf(result: unknown): string {
 }
 
 describe('runAgentJob tenant fixture wiring', () => {
+  const tmp = makeTmpDir('fixture_phase_');
   let savedEnv: NodeJS.ProcessEnv;
 
   function setCredentials(): void {
@@ -209,5 +211,27 @@ describe('runAgentJob tenant fixture wiring', () => {
     expect(mocks.openFixture).toHaveBeenCalledTimes(1);
     expect(mocks.snapshot).toHaveBeenCalledTimes(1);
     expect(mocks.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a fixture eval in the agent phase before creating a workspace', async () => {
+    setCredentials();
+    vi.resetModules();
+    const { runAgentPhaseJob } = await import('../src/cli/run.js');
+
+    const ok = await runAgentPhaseJob(
+      EVAL_CFG,
+      'claude-sonnet-5',
+      'agent',
+      [],
+      'key',
+      false,
+      'claude-code',
+      '/tmp/root',
+      tmp(),
+    );
+
+    expect(ok).toBe(false);
+    expect(mocks.setupWorkspace).not.toHaveBeenCalled();
+    expect(mocks.openFixture).not.toHaveBeenCalled();
   });
 });

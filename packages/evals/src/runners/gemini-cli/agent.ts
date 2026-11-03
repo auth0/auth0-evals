@@ -32,7 +32,7 @@ import {
   mintMcpToken,
   mcpBearerTokenEnvVar,
 } from '@a0/evals-core';
-import { classifyActionType, classifyErrorCategory, detectRetry } from '@a0/evals-core';
+import { agentPrompt, classifyActionType, classifyErrorCategory, detectRetry } from '@a0/evals-core';
 import { LLM_API_KEY_ENV } from '../../cli/constants.js';
 import { GeminiCliTranslator } from './translator.js';
 
@@ -57,8 +57,25 @@ export const GEMINI_CLI_DEFAULT_MODEL = 'gemini-3.1-pro-preview';
  */
 const GEMINI_AUTH_TYPE = 'gemini-api-key';
 
+/**
+ * Per-model thinking level, written as a `modelConfigs.overrides` entry in
+ * .gemini/settings.json. Gemini CLI defaults every Gemini 3 model to `HIGH`
+ * (the `chat-base-3` alias), which makes Flash burn a lot of tokens. Models
+ * not listed here keep the CLI default.
+ */
+export const GEMINI_THINKING_LEVELS: Record<string, string> = {
+  'gemini-3.8-flash': 'MEDIUM',
+};
+
 /** Reuse the Claude Code timeout budget. */
 const GEMINI_CLI_TIMEOUT_MS = CLAUDE_CODE_TASK_TIMEOUT_MS;
+
+/**
+ * How long a stopped Gemini CLI process gets to exit after SIGTERM before it is
+ * sent SIGKILL. The CLI has been seen ignoring SIGTERM and carrying on with the
+ * task after the task timeout fired, so SIGTERM alone does not bound the run.
+ */
+export const GEMINI_CLI_KILL_GRACE_MS = 10_000;
 
 /**
  * Detects a Gemini CLI command auto-cancellation notice in tool output. The CLI
@@ -98,6 +115,11 @@ interface GeminiMcpServer {
   headers?: Record<string, string>;
 }
 
+interface GeminiModelConfigOverride {
+  match: { model: string };
+  modelConfig: { generateContentConfig: { thinkingConfig: { thinkingLevel: string } } };
+}
+
 interface GeminiMcpSettings {
   /** Names of the registered MCP servers. */
   serverNames: string[];
@@ -105,13 +127,25 @@ interface GeminiMcpSettings {
   bearerTokens: Record<string, string>;
 }
 
-async function writeGeminiSettings(workspace: string, includeMcp: boolean): Promise<GeminiMcpSettings> {
+async function writeGeminiSettings(workspace: string, includeMcp: boolean, model: string): Promise<GeminiMcpSettings> {
   const settings: {
     security: { auth: { selectedType: string } };
+    model: { maxSessionTurns: number };
+    modelConfigs?: { overrides: GeminiModelConfigOverride[] };
     mcpServers?: Record<string, GeminiMcpServer>;
   } = {
     security: { auth: { selectedType: GEMINI_AUTH_TYPE } },
+    // Let the CLI enforce the turn limit itself: it then emits a final
+    // `result` event carrying token stats, which a SIGTERM kill never gets.
+    model: { maxSessionTurns: MAX_TURNS },
   };
+
+  const thinkingLevel = GEMINI_THINKING_LEVELS[model];
+  if (thinkingLevel) {
+    settings.modelConfigs = {
+      overrides: [{ match: { model }, modelConfig: { generateContentConfig: { thinkingConfig: { thinkingLevel } } } }],
+    };
+  }
 
   const mcpServers: Record<string, GeminiMcpServer> = {};
   const bearerTokens: Record<string, string> = {};
@@ -210,6 +244,7 @@ export async function runGeminiCliAgent(
   const { serverNames: mcpNames, bearerTokens: mcpBearerTokens } = await writeGeminiSettings(
     workspace,
     tools.includes('mcp'),
+    model,
   );
   if (mcpNames.length > 0) logger.info(`[GeminiCLI] MCP: ${mcpNames.join(', ')}`);
   else if (tools.includes('mcp')) {
@@ -222,7 +257,7 @@ export async function runGeminiCliAgent(
   // Trust only this workspace so YOLO mode isn't overridden in CI/headless environments.
   const trustedFoldersPath = writeTrustedFolders(workspace);
 
-  const args: string[] = ['-p', evalDef.userPrompt, '--approval-mode', 'yolo', '-o', 'stream-json', '-m', model];
+  const args: string[] = ['-p', agentPrompt(evalDef), '--approval-mode', 'yolo', '-o', 'stream-json', '-m', model];
 
   const geminiEnv: Record<string, string> = {
     ...filteredEnv(),
@@ -267,11 +302,24 @@ export async function runGeminiCliAgent(
   return new Promise<RunRecord>((resolve) => {
     const child = spawn('gemini', args, { cwd: workspace, env: geminiEnv });
 
+    // Ask the CLI to stop with SIGTERM, then force it with SIGKILL if it is still
+    // running after the grace period. Idempotent: the timeout and the turn limit
+    // can both fire, but only the first call starts the escalation.
+    let forceKill: NodeJS.Timeout | undefined;
+    const stopChild = () => {
+      if (forceKill) return;
+      child.kill('SIGTERM');
+      forceKill = setTimeout(() => {
+        logger.info(`[GeminiCLI] ✗ Still running ${GEMINI_CLI_KILL_GRACE_MS / 1000}s after SIGTERM — sending SIGKILL`);
+        child.kill('SIGKILL');
+      }, GEMINI_CLI_KILL_GRACE_MS);
+    };
+
     const taskTimeout = setTimeout(() => {
       record.providerErrors.push(`task timeout after ${GEMINI_CLI_TIMEOUT_MS / 1000}s`);
       record.status = 'failure';
       logger.info(`[GeminiCLI] ✗ Task timeout — killing`);
-      child.kill('SIGTERM');
+      stopChild();
     }, GEMINI_CLI_TIMEOUT_MS);
 
     const stderrChunks: Buffer[] = [];
@@ -406,12 +454,15 @@ export async function runGeminiCliAgent(
                 turnStartTime = turnEndTime;
                 logger.info(`[GeminiCLI] Turn ${turnNum}: ${turnToolCount} tool(s)`);
                 turnToolCount = 0;
-                if (!turnLimitReached && turnNum >= MAX_TURNS) {
+                // Backstop only: the CLI enforces maxSessionTurns itself and
+                // emits a stats-bearing `result`, so kill only once our count
+                // has gone past the limit without that happening.
+                if (!turnLimitReached && turnNum > MAX_TURNS) {
                   turnLimitReached = true;
                   record.providerErrors.push(`turn limit: stopped after ${MAX_TURNS} turns`);
                   record.status = 'failure';
-                  logger.info(`[GeminiCLI] ✗ Turn limit reached (${MAX_TURNS}) — killing`);
-                  child.kill('SIGTERM');
+                  logger.info(`[GeminiCLI] ✗ Turn limit exceeded (${MAX_TURNS}) — killing`);
+                  stopChild();
                 }
               }
             }
@@ -428,6 +479,7 @@ export async function runGeminiCliAgent(
             const stats = (event.stats ?? {}) as Record<string, unknown>;
             const inputTokens = (stats.input_tokens as number) ?? 0;
             const outputTokens = (stats.output_tokens as number) ?? 0;
+            const cachedTokens = (stats.cached as number) ?? 0;
             const durationMs = (stats.duration_ms as number) ?? 0;
             const totalToolCalls = (stats.tool_calls as number) ?? 0;
 
@@ -451,18 +503,38 @@ export async function runGeminiCliAgent(
               record.turnMetrics.push(tm);
               turnToolCount = 0;
 
-              if (!turnLimitReached && turnNum >= MAX_TURNS) {
+              if (!turnLimitReached && turnNum > MAX_TURNS) {
                 turnLimitReached = true;
                 record.providerErrors.push(`turn limit: stopped after ${MAX_TURNS} turns`);
                 record.status = 'failure';
-                logger.info(`[GeminiCLI] ✗ Turn limit reached (${MAX_TURNS}) — killing`);
-                child.kill('SIGTERM');
+                logger.info(`[GeminiCLI] ✗ Turn limit exceeded (${MAX_TURNS}) — killing`);
+                stopChild();
               }
+            }
+
+            // The CLI stopped itself at model.maxSessionTurns: it emits
+            // status:"error" with a FatalTurnLimitedError, plus the token stats
+            // recorded below.
+            const resultError = (event.error ?? {}) as Record<string, unknown>;
+            if (event.status === 'error' && resultError.type === 'FatalTurnLimitedError') {
+              if (!turnLimitReached) {
+                turnLimitReached = true;
+                record.providerErrors.push(`turn limit: stopped after ${MAX_TURNS} turns`);
+                logger.info(`[GeminiCLI] ✗ Turn limit reached (${MAX_TURNS}) — CLI stopped`);
+              }
+              record.status = 'failure';
             }
 
             record.inputTokens = inputTokens;
             record.outputTokens = outputTokens;
-            record.costUsd = estimateCost(model, inputTokens, outputTokens);
+            // A session can call more than one model (e.g. an internal routing model), so price each one.
+            const perModel = Object.entries((stats.models ?? {}) as Record<string, Record<string, number>>);
+            record.costUsd = perModel.length
+              ? perModel.reduce(
+                  (sum, [m, s]) => sum + estimateCost(m, s.input_tokens ?? 0, s.output_tokens ?? 0, s.cached ?? 0),
+                  0,
+                )
+              : estimateCost(model, inputTokens, outputTokens, cachedTokens);
 
             // Back-fill the last TurnMetric with authoritative stats.
             const last = record.turnMetrics[record.turnMetrics.length - 1];
@@ -474,7 +546,7 @@ export async function runGeminiCliAgent(
             }
 
             logger.info(
-              `[GeminiCLI] Turn ${turnNum}: ${inputTokens}in/${outputTokens}out tokens, ` +
+              `[GeminiCLI] Turn ${turnNum}: ${inputTokens}in (${cachedTokens} cached)/${outputTokens}out tokens, ` +
                 `${totalToolCalls} tool(s), cost=$${record.costUsd.toFixed(4)}`,
             );
             break;
@@ -485,6 +557,7 @@ export async function runGeminiCliAgent(
 
     child.on('close', (code) => {
       clearTimeout(taskTimeout);
+      clearTimeout(forceKill);
 
       // A timeout or hard exit can end the process with no result event at all,
       // leaving the streamed reply buffered. Commit it before the status checks
@@ -546,6 +619,7 @@ export async function runGeminiCliAgent(
 
     child.on('error', (err) => {
       clearTimeout(taskTimeout);
+      clearTimeout(forceKill);
       record.providerErrors.push(`spawn error: ${err.message}`);
       record.status = 'failure';
       record.endTime = Date.now() / 1000;

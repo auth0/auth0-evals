@@ -361,3 +361,78 @@ describe('extractConfigPath', () => {
     expect(extractConfigPath(argv('--config=/abs/path/eval.config.js'))).toBe('/abs/path/eval.config.js');
   });
 });
+
+// ── --phase / --artifact-dir ─────────────────────────────────────────────────
+
+describe('parseRunConfig — --phase and --artifact-dir', () => {
+  it('defaults to phase all with no artifact dir', () => {
+    const cfg = parse('--eval', VALID_EVAL_ID);
+    expect(cfg.phase).toBe('all');
+    expect(cfg.artifactDir).toBeUndefined();
+    expect(cfg.sandbox).toBe(true);
+  });
+
+  it('phase all needs neither --artifact-dir nor --dangerously-skip-sandbox', () => {
+    expect(() => parse('--phase', 'all')).not.toThrow();
+  });
+
+  it('accepts --phase agent with --artifact-dir and --dangerously-skip-sandbox', () => {
+    const cfg = parse('--phase', 'agent', '--artifact-dir', 'out/art', '--dangerously-skip-sandbox');
+    expect(cfg.phase).toBe('agent');
+    expect(cfg.artifactDir).toBe('out/art');
+    expect(cfg.sandbox).toBe(false);
+  });
+
+  it('accepts --phase grade with --artifact-dir and --dangerously-skip-sandbox', () => {
+    const cfg = parse('--phase', 'grade', '--artifact-dir', 'out/art', '--dangerously-skip-sandbox');
+    expect(cfg.phase).toBe('grade');
+  });
+
+  it('rejects an unknown phase', () => {
+    expect(() => parse('--phase', 'bogus')).toThrow('process.exit(1)');
+  });
+
+  it.each(['agent', 'grade'])('rejects --phase %s without --artifact-dir', (phase) => {
+    expect(() => parse('--phase', phase, '--dangerously-skip-sandbox')).toThrow('process.exit(1)');
+  });
+
+  it.each(['agent', 'grade'])('rejects --phase %s with the Docker sandbox', (phase) => {
+    expect(() => parse('--phase', phase, '--artifact-dir', 'out/art')).toThrow('process.exit(1)');
+  });
+
+  it('rejects --output with --phase agent, which never writes a scores file', () => {
+    expect(() =>
+      parse('--phase', 'agent', '--artifact-dir', 'out/art', '--dangerously-skip-sandbox', '--output', 's.json'),
+    ).toThrow('process.exit(1)');
+  });
+
+  it('accepts --output with --phase grade', () => {
+    const cfg = parse(
+      '--phase',
+      'grade',
+      '--artifact-dir',
+      'out/art',
+      '--dangerously-skip-sandbox',
+      '--output',
+      's.json',
+    );
+    expect(cfg.outputPath).toBe('s.json');
+  });
+});
+
+describe('parseRunConfig — grade filters', () => {
+  const GRADE = ['--phase', 'grade', '--artifact-dir', 'out/art', '--dangerously-skip-sandbox'];
+
+  it('sets no filters when only defaults apply (--mode and --model have defaults)', () => {
+    expect(parse(...GRADE).gradeFilters).toEqual({});
+  });
+
+  it('records only the flags passed on the command line, with resolved values', () => {
+    const cfg = parse(...GRADE, '--mode', 'agent', '--tools', 'skills,mcp', '--agent-type', 'codex');
+    expect(cfg.gradeFilters).toEqual({ modes: ['agent'], tools: ['mcp', 'skills'], agentType: 'codex' });
+  });
+
+  it('records explicit models', () => {
+    expect(parse(...GRADE, '--model', 'gpt-5.6-sol').gradeFilters).toEqual({ models: ['gpt-5.6-sol'] });
+  });
+});
