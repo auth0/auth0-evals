@@ -177,3 +177,69 @@ describe('discoverEvals', () => {
     expect(result[0]!.name).toBe('CRLF Eval');
   });
 });
+
+describe('discoverEvals - requireGraders option', () => {
+  function makePromptOnly(base: string, rel: string, id: string): void {
+    const dir = join(base, 'src/evals', rel);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'PROMPT.md'), `---\nid: ${id}\n---\n\n## Task\nDo it.\n`);
+  }
+
+  it('ignores PROMPT.md-only dirs by default and with requireGraders: true', () => {
+    const root = createTmpDir();
+    makeEval(root, 'cat', 'full', '---\nid: full_eval\n---\n\n## Task\nx\n');
+    makePromptOnly(root, 'cat/prompt_only', 'prompt_only_eval');
+    expect(discoverEvals('src/evals', root).map((e) => e.id)).toEqual(['full_eval']);
+    expect(discoverEvals('src/evals', root, { requireGraders: true }).map((e) => e.id)).toEqual(['full_eval']);
+  });
+
+  it('counts PROMPT.md-only dirs when requireGraders is false', () => {
+    const root = createTmpDir();
+    makeEval(root, 'cat', 'full', '---\nid: full_eval\n---\n\n## Task\nx\n');
+    makePromptOnly(root, 'cat/prompt_only', 'prompt_only_eval');
+    const found = discoverEvals('src/evals', root, { requireGraders: false });
+    expect(found.map((e) => e.id)).toEqual(['full_eval', 'prompt_only_eval']);
+    expect(found[1]).toMatchObject({ category: 'cat', path: 'src/evals/cat/prompt_only' });
+  });
+
+  it('yields the same set as the default when every eval has graders', () => {
+    const root = createTmpDir();
+    makeEval(root, 'cat', 'a', '---\nid: eval_a\n---\n\n## Task\nx\n');
+    makeEval(root, 'cat', 'b', '---\nid: eval_b\n---\n\n## Task\nx\n');
+    expect(discoverEvals('src/evals', root, { requireGraders: false })).toEqual(discoverEvals('src/evals', root));
+  });
+
+  it('still skips scaffold, node_modules and dot dirs', () => {
+    const root = createTmpDir();
+    makePromptOnly(root, 'cat/e1/scaffold/inner', 'in_scaffold');
+    makePromptOnly(root, 'cat/node_modules/x', 'in_node_modules');
+    makePromptOnly(root, 'cat/.hidden/x', 'in_hidden');
+    expect(discoverEvals('src/evals', root, { requireGraders: false })).toEqual([]);
+  });
+
+  it('keeps the same depth limit', () => {
+    const root = createTmpDir();
+    makePromptOnly(root, 'a/b/c', 'ok_eval');
+    makePromptOnly(root, 'x/y/z/w', 'too_deep_eval');
+    expect(discoverEvals('src/evals', root, { requireGraders: false }).map((e) => e.id)).toEqual(['ok_eval']);
+  });
+
+  it('skips a PROMPT.md with a missing or invalid id instead of failing discovery', () => {
+    const root = createTmpDir();
+    makeEval(root, 'cat', 'full', '---\nid: full_eval\n---\n\n## Task\nx\n');
+    const tpl = join(root, 'src/evals/cat/template');
+    mkdirSync(tpl, { recursive: true });
+    writeFileSync(join(tpl, 'PROMPT.md'), '---\nid: <your-eval-id>\n---\n\n## Task\nTODO\n');
+    const noId = join(root, 'src/evals/cat/no_id');
+    mkdirSync(noId, { recursive: true });
+    writeFileSync(join(noId, 'PROMPT.md'), '## Task\nTODO\n');
+    expect(discoverEvals('src/evals', root, { requireGraders: false }).map((e) => e.id)).toEqual(['full_eval']);
+  });
+
+  it('still fails on an invalid id in a directory that has graders.ts', () => {
+    const root = createTmpDir();
+    makeEval(root, 'cat', 'bad', '---\nid: Bad-Id\n---\n\n## Task\nx\n');
+    expect(() => discoverEvals('src/evals', root, { requireGraders: false })).toThrow(/Invalid eval id/);
+    expect(() => discoverEvals('src/evals', root)).toThrow(/Invalid eval id/);
+  });
+});

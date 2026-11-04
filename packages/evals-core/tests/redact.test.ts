@@ -328,6 +328,20 @@ describe('redactKnownSecrets', () => {
     expect(redactKnownSecrets('text', ['', ''])).toBe('text');
   });
 
+  it.each([
+    ['shorter secret listed first', ['abcdefgh', 'abcdefgh-tail99']],
+    ['longer secret listed first', ['abcdefgh-tail99', 'abcdefgh']],
+  ])('masks a secret that contains another secret whole (%s)', (_name, secrets) => {
+    expect(redactKnownSecrets('token abcdefgh-tail99 end', secrets)).toBe(`token ${M} end`);
+    expect(redactKnownSecrets({ a: ['abcdefgh-tail99 and abcdefgh'] }, secrets)).toEqual({ a: [`${M} and ${M}`] });
+  });
+
+  it("does not reorder the caller's secrets list", () => {
+    const secrets = ['abcdefgh', 'abcdefgh-tail99'];
+    redactKnownSecrets('abcdefgh-tail99', secrets);
+    expect(secrets).toEqual(['abcdefgh', 'abcdefgh-tail99']);
+  });
+
   it('ignores empty-string entries alongside real secrets', () => {
     expect(redactKnownSecrets('a hunter2-secret b', ['', 'hunter2-secret'])).toBe(`a ${M} b`);
   });

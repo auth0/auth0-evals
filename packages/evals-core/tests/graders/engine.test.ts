@@ -19,12 +19,14 @@ import {
   tenantState,
   secretNotExposed,
   GraderLevel,
+  type GraderDef,
   type GraderResult,
   type EventToolCall,
   type CompileResult,
 } from '@a0/evals-graders';
 import { setFrameworkConfig } from '../../src/config/framework-config.js';
 import type { FrameworkConfig } from '../../src/config/framework.js';
+import { registerExecutor } from '../../src/graders/executors/index.js';
 
 const TEST_CONFIG: Required<FrameworkConfig> = {
   evalsDir: 'src/evals',
@@ -569,6 +571,30 @@ describe('llmJudge', () => {
       baseUrl: 'http://test',
     });
     expect(passed).toBe(true);
+  });
+
+  it.each([
+    ['**yes**', true],
+    ['**No**', false],
+    ['`yes`', true],
+    ['> no.', false],
+  ])('parses a markdown-wrapped verdict %s', async (verdict, expected) => {
+    vi.stubGlobal('fetch', mockFetchResponse(`The relay flow is wired correctly.\n\n${verdict}`));
+    const { passed } = await llmJudge({
+      question: 'question',
+      code: 'code',
+      apiKey: 'key',
+      model: 'model',
+      baseUrl: 'http://test',
+    });
+    expect(passed).toBe(expected);
+  });
+
+  it('still rejects a markdown-wrapped non-verdict', async () => {
+    vi.stubGlobal('fetch', mockFetchResponse('**yesterday**'));
+    await expect(
+      llmJudge({ question: 'question', code: 'code', apiKey: 'key', model: 'model', baseUrl: 'http://test' }),
+    ).rejects.toThrow('unexpected verdict');
   });
 
   it('fails when no verdict has trailing explanation', async () => {
@@ -1769,5 +1795,39 @@ describe('runGraders - fixture graders', () => {
     const results = await runGraders([secretNotExposed()], tmpDir(), 'unused');
     expect(results[0]!.passed).toBe(false);
     expect(results[0]!.detail).toContain('No secrets');
+  });
+
+  it('hands fixture state and secrets only to fixture graders, not to other executors', async () => {
+    const seen: Array<{ fixtureState: unknown; secrets: unknown }> = [];
+    registerExecutor({
+      kind: 'probe_fixture_scope',
+      async execute(def, context) {
+        seen.push({ fixtureState: context.fixtureState, secrets: context.secrets });
+        return { name: def.name, kind: def.kind, passed: true, detail: 'probed', level: def.level };
+      },
+    });
+    const probe: GraderDef = { kind: 'probe_fixture_scope', name: 'probe' };
+    const predicate = vi.fn(() => true);
+
+    const results = await runGraders(
+      [probe, tenantState('state ok', GraderLevel.L4, predicate), secretNotExposed()],
+      tmpDir(),
+      'unused',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      'all good',
+      { state, secrets: ['some-secret-value'] },
+    );
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.fixtureState).toBeUndefined();
+    expect(seen[0]!.secrets).toBeUndefined();
+    // The fixture graders in the same run still receive the data.
+    expect(predicate.mock.calls[0]![0]).toBe(state);
+    expect(results[1]!.passed).toBe(true);
+    expect(results[2]!.passed).toBe(true);
   });
 });

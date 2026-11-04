@@ -148,12 +148,16 @@ async function replayScript(
   script: ReplayScript,
 ): Promise<{ results: GraderResult[]; failedSteps: string[] }> {
   const workspace = setupWorkspace(evalDef.scaffold);
-  const session = await openFixture(evalDef.fixture!, { mgmt: createManagementClient(credentials), workspace });
+  const session = await openFixture(evalDef.fixture!, {
+    mgmt: createManagementClient(credentials),
+    workspace,
+    extraSecrets: [credentials.clientSecret],
+  });
   try {
     if (evalDef.setupCommand) runSetupCommand(workspace, evalDef.setupCommand);
     const env = { ...process.env, RUN_ID: session.context.runId, ...seededEnv(session.context.seeded) };
     const toolCalls = runSteps(script.steps, workspace, env);
-    const secrets = [credentials.clientSecret, ...session.secrets];
+    const { secrets } = session.gradingInput();
     // A failing step usually means a broken script, not a grader verdict, so surface its output (redacted).
     const failedSteps = toolCalls.flatMap((tc, i) =>
       tc.causedError
@@ -164,7 +168,7 @@ async function replayScript(
       evalDef.compileCommand !== undefined
         ? runCompileCommand(workspace, evalDef.compileCommand, { setupCommand: evalDef.setupCommand })
         : undefined;
-    const post = await session.snapshot();
+    await session.capturePost();
     // Judges need an LLM, so replay grades only the deterministic graders.
     const graders = evalDef.graders.filter((g) => g.kind !== 'judge');
     const results = await runGraders(
@@ -177,10 +181,7 @@ async function replayScript(
       toolCalls,
       compileResult,
       '',
-      {
-        state: evalDef.fixture!.snapshot ? { pre: session.pre, post, seeded: session.context.seeded } : undefined,
-        secrets,
-      },
+      session.gradingInput(),
     );
     return { results, failedSteps };
   } finally {

@@ -94,6 +94,11 @@ export interface JudgeConfig {
   maxTokens?: number;
   /** Maximum characters of combined source code sent to the judge. */
   maxCodeChars?: number;
+  /**
+   * Maximum graders run at once within one job. Default 1 (sequential). Raising it
+   * runs LLM judges in parallel; every concurrent job multiplies the load on the proxy.
+   */
+  concurrency?: number;
 }
 
 export interface ModelsConfig {

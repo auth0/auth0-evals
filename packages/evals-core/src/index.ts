@@ -51,6 +51,9 @@ export type { Logger } from './utils/logger.js';
 export { withRetry, isTransientLlmError } from './utils/retry.js';
 export type { RetryOptions } from './utils/retry.js';
 
+// Agent prompt
+export { agentPrompt } from './utils/agent-prompt.js';
+
 // Redaction
 export { redactSecrets, redactArgs, redactKnownSecrets, REDACTION_MARKER } from './utils/redact.js';
 
@@ -120,6 +123,7 @@ export type { FixtureSession, OpenFixtureOptions } from './fixture/lifecycle.js'
 
 // Discovery
 export { discoverEvals } from './discovery.js';
+export type { DiscoverEvalsOptions } from './discovery.js';
 
 // Serializers
 export {
@@ -163,6 +167,7 @@ export {
   JUDGE_DEFAULT_MAX_TOKENS,
   passRate,
   collectGraderFiles,
+  listGradingFiles,
   gradeText,
   BASELINE_LEVELS,
   AGENT_LEVELS,
@@ -171,7 +176,6 @@ export {
   getExecutor,
   executeGrader,
 } from './graders/index.js';
-export type { FixtureGradingInput } from './graders/index.js';
 
 export type { GraderContext, GraderExecutor } from './graders/index.js';
 export type { CompileResult } from '@a0/evals-graders';
@@ -192,3 +196,23 @@ export { SkillsManager, getSkillsManager, resetSkillsManager } from './runners/s
 
 // Recommendations types
 export type { Recommendation, Recommendations } from './recommendations/types.js';
+
+// Run artefacts (agent phase → grade phase hand-off)
+export {
+  writeRunArtifact,
+  readRunArtifact,
+  readRunArtifactManifest,
+  findRunArtifacts,
+  restoreArtifactWorkspace,
+  RUN_ARTIFACT_SCHEMA_VERSION,
+} from './artifact/index.js';
+export type {
+  ArtifactManifest,
+  ArtifactSkillFile,
+  AgentRunData,
+  BaselineRunData,
+  ErrorRunData,
+  RunArtifact,
+  RunArtifactKind,
+  WriteRunArtifactInput,
+} from './artifact/index.js';

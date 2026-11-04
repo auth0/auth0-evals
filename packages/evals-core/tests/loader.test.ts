@@ -201,9 +201,32 @@ describe('loadEval - system prompt', () => {
 
     expect(result.baselineSystemPrompt).toContain('Generic system prompt');
   });
+
+  it('always appends the standing SDK instruction to a ## System section', async () => {
+    makeEvalDir(tmpBase, '## System\nDomain: dev.example.com\n\n## Task\nDo the task.\n');
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect(result.baselineSystemPrompt).toContain('Domain: dev.example.com');
+    expect(result.baselineSystemPrompt).toContain('official Auth0 SDK');
+  });
 });
 
 // ── Scaffold loading tests ────────────────────────────────────────────────────
+
+describe('loadEval - systemContext', () => {
+  it('is the ## System text without the standing SDK instruction', async () => {
+    makeEvalDir(tmpBase, '## System\nDomain: dev.example.com\n\n## Task\nDo the task.\n');
+    const def = await loadEval(EVAL_CONFIG, tmpBase);
+    expect(def.systemContext).toBe('Domain: dev.example.com');
+  });
+
+  it('is undefined when there is no ## System section', async () => {
+    makeEvalDir(tmpBase, '## Task\nDo the task.\n');
+    const def = await loadEval(EVAL_CONFIG, tmpBase);
+    expect(def.systemContext).toBeUndefined();
+  });
+});
 
 describe('loadEval - scaffold loading', () => {
   it('loads scaffold files', async () => {
@@ -392,6 +415,32 @@ export function defineGraders() {
   });
 });
 
+describe('loadEval - skipGraders', () => {
+  it('returns no graders and does not require a graders file', async () => {
+    const evalDir = join(tmpBase, 'my_eval');
+    mkdirSync(evalDir, { recursive: true });
+    writeFileSync(join(evalDir, 'PROMPT.md'), MINIMAL_PROMPT);
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase, { skipGraders: true });
+    expect(result.graders).toEqual([]);
+    expect(result.userPrompt).toBe('Do the task.');
+  });
+
+  it('does not import graders.ts even when it would throw on import', async () => {
+    makeEvalDir(tmpBase, MINIMAL_PROMPT, "throw new Error('graders must not be imported');\n");
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase, { skipGraders: true });
+    expect(result.graders).toEqual([]);
+    await expect(loadEval(EVAL_CONFIG, tmpBase)).rejects.toThrow();
+  });
+
+  it('still loads graders by default', async () => {
+    makeEvalDir(tmpBase);
+    const result = await loadEval(EVAL_CONFIG, tmpBase, { skipGraders: false });
+    expect(result.graders).toHaveLength(1);
+  });
+});
+
 // ── Integration tests ─────────────────────────────────────────────────────────
 
 describe('loadEval - integration', () => {
@@ -456,6 +505,54 @@ describe('loadEval - fixture.ts', () => {
     const err = await loadEval(EVAL_CONFIG, tmpBase).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(EvalConfigError);
     expect((err as Error).message).toContain('cleanup');
+  });
+});
+
+describe('loadEval - fixture graders need a fixture.ts', () => {
+  const FIXTURE_TS = 'export default { seed: async () => ({ a: 1 }) };\n';
+  const gradersUsing = (call: string, names: string) => `import { ${names}, GraderLevel } from '${GRADERS_ABS_PATH}';
+export function defineGraders() {
+  return [${call}];
+}
+`;
+  const TENANT_STATE = gradersUsing("tenantState('state ok', GraderLevel.L4, () => true)", 'tenantState');
+  const SECRET_NOT_EXPOSED = gradersUsing('secretNotExposed()', 'secretNotExposed');
+
+  it.each([
+    ['tenantState', TENANT_STATE],
+    ['secretNotExposed', SECRET_NOT_EXPOSED],
+  ])('rejects a %s grader when there is no fixture.ts', async (_name, graders) => {
+    makeEvalDir(tmpBase, MINIMAL_PROMPT, graders);
+    const err = await loadEval(EVAL_CONFIG, tmpBase).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(EvalConfigError);
+    expect((err as Error).message).toContain('fixture.ts');
+  });
+
+  it.each([
+    ['tenantState', TENANT_STATE],
+    ['secretNotExposed', SECRET_NOT_EXPOSED],
+  ])('loads a %s grader when fixture.ts exists', async (_name, graders) => {
+    const evalDir = makeEvalDir(tmpBase, MINIMAL_PROMPT, graders);
+    writeFileSync(join(evalDir, 'fixture.ts'), FIXTURE_TS);
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+    expect(result.graders).toHaveLength(1);
+    expect(result.fixture).toBeDefined();
+  });
+
+  it('loads graders without fixture kinds when there is no fixture.ts', async () => {
+    makeEvalDir(tmpBase);
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+    expect(result.graders).toHaveLength(1);
+    expect(result.fixture).toBeUndefined();
+  });
+
+  it.each([
+    ['tenantState', TENANT_STATE],
+    ['secretNotExposed', SECRET_NOT_EXPOSED],
+  ])('does not check %s graders when skipGraders is set', async (_name, graders) => {
+    makeEvalDir(tmpBase, MINIMAL_PROMPT, graders);
+    const result = await loadEval(EVAL_CONFIG, tmpBase, { skipGraders: true });
+    expect(result.graders).toEqual([]);
   });
 });
 

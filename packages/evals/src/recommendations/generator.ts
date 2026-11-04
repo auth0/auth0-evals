@@ -7,7 +7,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { collectFiles, logger, redactSecrets, REDACTION_MARKER } from '@a0/evals-core';
+import { listGradingFiles, logger, redactSecrets, REDACTION_MARKER } from '@a0/evals-core';
 import type { RunRecord, ToolCallRecord, ScoredResult, Recommendations, Recommendation } from '@a0/evals-core';
 import type { SkillFile } from './collect-skill-content.js';
 
@@ -35,8 +35,6 @@ const MAX_OUTPUT_TOKENS = 8192;
 const RUN_COMMAND_NAMES = new Set(['run_command', 'bash']);
 /** MCP tool calls are recorded as `mcp__<server>__<tool>`. */
 const MCP_TOOL_PREFIX = 'mcp__';
-/** Truncation placeholder emitted by collectFiles when the file list exceeds limits. */
-const TRUNCATION_SENTINEL = '\u2026';
 /** Request timeout in milliseconds. */
 const TIMEOUT_MS = 60_000;
 /** Files that may contain secrets — excluded from the LLM prompt. */
@@ -68,6 +66,11 @@ export interface RecommendationInput {
    * otherwise gets cut off mid-file at whatever sorts first.
    */
   skillFiles?: SkillFile[];
+  /**
+   * Masks fixture-known secrets in workspace file contents, which the prompt sends in full
+   * and which the run-level masking does not cover. Defaults to identity.
+   */
+  redact?: (text: string) => string;
   /** API key for the LLM endpoint. */
   apiKey: string;
   /** Base URL for the LLM proxy. */
@@ -249,7 +252,7 @@ function buildSkillSection(skillFiles: SkillFile[], record: RunRecord): string {
 // ── Prompt construction ───────────────────────────────────────────────────────
 
 function buildPrompt(input: RecommendationInput): { system: string; user: string } {
-  const { evalId, userPrompt, workspace, scored, record, skillContent, skillFiles, tools } = input;
+  const { evalId, userPrompt, workspace, scored, record, skillContent, skillFiles, tools, redact = (t) => t } = input;
 
   const skillsInContext = tools.includes('skills');
   const mcpInContext = tools.includes('mcp');
@@ -263,15 +266,16 @@ function buildPrompt(input: RecommendationInput): { system: string; user: string
       : '(no skills provided)';
 
   // Collect workspace files
-  const filePaths = collectFiles(workspace, workspace);
+  const filePaths = listGradingFiles(workspace).files;
   const workspaceContent: string[] = [];
   let totalChars = 0;
   for (const relPath of filePaths) {
-    if (relPath.startsWith(TRUNCATION_SENTINEL)) continue;
     const basename = relPath.split('/').pop() ?? relPath;
     if (SECRET_FILE_PATTERN.test(basename)) continue;
     try {
-      const content = readFileSync(join(workspace, relPath), 'utf-8');
+      // Redact the raw text before the length check and before escaping, so an exact
+      // match is never broken up by escaping and the budget counts what is sent.
+      const content = redact(readFileSync(join(workspace, relPath), 'utf-8'));
       if (totalChars + content.length > MAX_WORKSPACE_CHARS) break;
       workspaceContent.push(`<workspace_file path="${relPath}">\n${escapeForXml(content)}\n</workspace_file>`);
       totalChars += content.length;

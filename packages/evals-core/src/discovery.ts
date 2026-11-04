@@ -10,6 +10,12 @@ import { logger } from './utils/logger.js';
 import { parseFrontmatter } from './utils/frontmatter.js';
 import type { EvalConfig } from './loader.js';
 
+/** Options for {@link discoverEvals}. */
+export interface DiscoverEvalsOptions {
+  /** Require a sibling `graders.ts` for a directory to count as an eval. Default `true`. */
+  requireGraders?: boolean;
+}
+
 /**
  * Recursively discovers eval directories under {@link evalsDir}.
  *
@@ -20,17 +26,20 @@ import type { EvalConfig } from './loader.js';
  *
  * @param evalsDir - Relative path to the evals directory (e.g. `'src/evals'`).
  * @param frameworkRoot - Absolute path to the project root.
+ * @param options.requireGraders - Default `true`. When `false`, a directory with only
+ *   `PROMPT.md` counts as an eval (used by the agent phase, which must not need grader files).
  * @returns Discovered eval configs, sorted by `id`.
  * @throws {EvalConfigError} When `evalsDir` does not exist or is not a directory.
  */
-export function discoverEvals(evalsDir: string, frameworkRoot: string): EvalConfig[] {
+export function discoverEvals(evalsDir: string, frameworkRoot: string, options?: DiscoverEvalsOptions): EvalConfig[] {
+  const requireGraders = options?.requireGraders ?? true;
   const absEvalsDir = join(frameworkRoot, evalsDir);
   if (!existsSync(absEvalsDir) || !statSync(absEvalsDir).isDirectory()) {
     throw new EvalConfigError(`evalsDir not found or not a directory: ${absEvalsDir}`, absEvalsDir);
   }
 
   const results: EvalConfig[] = [];
-  findEvalDirs(absEvalsDir, frameworkRoot, results, 0);
+  findEvalDirs(absEvalsDir, frameworkRoot, results, 0, requireGraders);
 
   // Validate no duplicate IDs
   const seen = new Map<string, string>();
@@ -58,12 +67,31 @@ const MAX_DEPTH = 3;
  * Recursively walks directories looking for eval dirs (containing PROMPT.md + graders.ts).
  * Stops at {@link MAX_DEPTH} levels below evalsDir.
  */
-function findEvalDirs(dir: string, frameworkRoot: string, results: EvalConfig[], depth: number): void {
+function findEvalDirs(
+  dir: string,
+  frameworkRoot: string,
+  results: EvalConfig[],
+  depth: number,
+  requireGraders: boolean,
+): void {
   const promptPath = join(dir, 'PROMPT.md');
   const gradersPath = join(dir, 'graders.ts');
 
-  if (existsSync(promptPath) && existsSync(gradersPath)) {
-    results.push(buildEvalConfig(promptPath, dir, frameworkRoot));
+  if (existsSync(promptPath) && (!requireGraders || existsSync(gradersPath))) {
+    if (requireGraders || existsSync(gradersPath)) {
+      results.push(buildEvalConfig(promptPath, dir, frameworkRoot));
+    } else {
+      // Without graders.ts we cannot tell an eval from a stray or template PROMPT.md,
+      // which the default discovery never parses. Skip invalid ones instead of failing
+      // every job; a directory the grade phase does not know still surfaces as an error
+      // result there.
+      try {
+        results.push(buildEvalConfig(promptPath, dir, frameworkRoot));
+      } catch (e) {
+        if (!(e instanceof EvalConfigError)) throw e;
+        logger.warn(`[Discovery] Skipping ${relative(frameworkRoot, dir)}: ${e.message}`);
+      }
+    }
     // Don't recurse into eval dirs — they shouldn't contain nested evals
     return;
   }
@@ -78,7 +106,7 @@ function findEvalDirs(dir: string, frameworkRoot: string, results: EvalConfig[],
       entry.name !== 'node_modules' &&
       entry.name !== 'scaffold'
     ) {
-      findEvalDirs(join(dir, entry.name), frameworkRoot, results, depth + 1);
+      findEvalDirs(join(dir, entry.name), frameworkRoot, results, depth + 1, requireGraders);
     }
   }
 }

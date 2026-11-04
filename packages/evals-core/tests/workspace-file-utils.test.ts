@@ -88,6 +88,16 @@ describe('collectFiles — exclusion', () => {
     const files = collectFiles(dir, dir, { excludedDirs: new Set(['vendor']) });
     expect(files).toContain('src/app.ts');
   });
+
+  it('skips excludedFiles by relative path without counting them toward maxFiles', () => {
+    const dir = tmpDir();
+    mkdirSync(join(dir, 'docs'));
+    writeFileSync(join(dir, 'AGENTS.md'), '');
+    writeFileSync(join(dir, 'docs/AGENTS.md'), '');
+    writeFileSync(join(dir, 'a.ts'), '');
+    const files = collectFiles(dir, dir, { excludedFiles: new Set(['AGENTS.md']), maxFiles: 3 });
+    expect(files).toEqual(['a.ts', 'docs/AGENTS.md']);
+  });
 });
 
 // ── Truncation ────────────────────────────────────────────────────────────────
