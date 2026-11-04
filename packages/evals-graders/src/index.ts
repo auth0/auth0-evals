@@ -16,7 +16,7 @@ export type {
 } from './types.js';
 
 // Tenant fixtures
-export { defineFixture } from './fixture.js';
+export { defineFixture, MIN_SECRET_LENGTH } from './fixture.js';
 export type { FixtureDef, FixtureContext, ManagementApi } from './fixture.js';
 
 // Grader factory functions

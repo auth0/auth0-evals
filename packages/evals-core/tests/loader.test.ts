@@ -508,6 +508,54 @@ describe('loadEval - fixture.ts', () => {
   });
 });
 
+describe('loadEval - fixture graders need a fixture.ts', () => {
+  const FIXTURE_TS = 'export default { seed: async () => ({ a: 1 }) };\n';
+  const gradersUsing = (call: string, names: string) => `import { ${names}, GraderLevel } from '${GRADERS_ABS_PATH}';
+export function defineGraders() {
+  return [${call}];
+}
+`;
+  const TENANT_STATE = gradersUsing("tenantState('state ok', GraderLevel.L4, () => true)", 'tenantState');
+  const SECRET_NOT_EXPOSED = gradersUsing('secretNotExposed()', 'secretNotExposed');
+
+  it.each([
+    ['tenantState', TENANT_STATE],
+    ['secretNotExposed', SECRET_NOT_EXPOSED],
+  ])('rejects a %s grader when there is no fixture.ts', async (_name, graders) => {
+    makeEvalDir(tmpBase, MINIMAL_PROMPT, graders);
+    const err = await loadEval(EVAL_CONFIG, tmpBase).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(EvalConfigError);
+    expect((err as Error).message).toContain('fixture.ts');
+  });
+
+  it.each([
+    ['tenantState', TENANT_STATE],
+    ['secretNotExposed', SECRET_NOT_EXPOSED],
+  ])('loads a %s grader when fixture.ts exists', async (_name, graders) => {
+    const evalDir = makeEvalDir(tmpBase, MINIMAL_PROMPT, graders);
+    writeFileSync(join(evalDir, 'fixture.ts'), FIXTURE_TS);
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+    expect(result.graders).toHaveLength(1);
+    expect(result.fixture).toBeDefined();
+  });
+
+  it('loads graders without fixture kinds when there is no fixture.ts', async () => {
+    makeEvalDir(tmpBase);
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+    expect(result.graders).toHaveLength(1);
+    expect(result.fixture).toBeUndefined();
+  });
+
+  it.each([
+    ['tenantState', TENANT_STATE],
+    ['secretNotExposed', SECRET_NOT_EXPOSED],
+  ])('does not check %s graders when skipGraders is set', async (_name, graders) => {
+    makeEvalDir(tmpBase, MINIMAL_PROMPT, graders);
+    const result = await loadEval(EVAL_CONFIG, tmpBase, { skipGraders: true });
+    expect(result.graders).toEqual([]);
+  });
+});
+
 describe('resolveFixturePath', () => {
   const makeRoot = makeTmpDir('fixture_path_');
   let root: string;

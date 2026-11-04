@@ -77,7 +77,7 @@ import type {
   ArtifactManifest,
   RunArtifact,
   VerifierCredentials,
-  FixtureGradingInput,
+  FixtureSession,
 } from '@a0/evals-core';
 
 import { parseRunConfig, extractConfigPath } from './config.js';
@@ -246,6 +246,9 @@ async function executeAgentRun(
   return { record, resolvedModel, compileResult };
 }
 
+/** Fixture state and secrets handed to the graders. Held in memory, never persisted. */
+type FixtureGrading = ReturnType<FixtureSession['gradingInput']>;
+
 /**
  * Grade half: graders, scoring, recommendations, serialisation. Reads the workspace only
  * through the file walkers, so it works on a restored artefact workspace as well. Must run
@@ -261,7 +264,7 @@ async function gradeAgentRun(
   apiKey: string,
   agentType: AgentType,
   skillFiles?: ArtifactSkillFile[],
-  fixtureGrading?: FixtureGradingInput,
+  fixtureGrading?: FixtureGrading,
 ): Promise<JobResult> {
   const { generateRunRecommendations } = await import('../recommendations/index.js');
   const { record, resolvedModel, compileResult } = run;
@@ -287,6 +290,7 @@ async function gradeAgentRun(
   // Mask fixture-known secrets by exact value in everything that leaves this job:
   // the analyst prompt, the recommendations, and the persisted result.
   const knownSecrets = fixtureGrading?.secrets ?? [];
+  const redact = (text: string): string => redactKnownSecrets(text, knownSecrets);
   const safeRecord = redactKnownSecrets(record, knownSecrets);
   const safeScored = redactKnownSecrets(scored, knownSecrets);
 
@@ -302,7 +306,7 @@ async function gradeAgentRun(
     safeRecord,
     apiKey,
     skillFiles,
-    knownSecrets,
+    redact,
   );
 
   return redactKnownSecrets(
@@ -349,7 +353,6 @@ async function runAgentJob(
 
   const workspace = await prepareAgentWorkspace(evalDef, agentType);
   let fixtureSession: Awaited<ReturnType<typeof openFixture>> | undefined;
-  let verifierSecret: string | undefined;
   try {
     if (evalDef.fixture) {
       // Fixture hooks run in this process with the verifier credential. The docker
@@ -365,8 +368,11 @@ async function runAgentJob(
             `(${VERIFIER_ENV.file}, or ${VERIFIER_ENV.domain} + ${VERIFIER_ENV.clientId} + ${VERIFIER_ENV.clientSecret})`,
         );
       }
-      verifierSecret = credentials.clientSecret;
-      fixtureSession = await openFixture(evalDef.fixture, { mgmt: createManagementClient(credentials), workspace });
+      fixtureSession = await openFixture(evalDef.fixture, {
+        mgmt: createManagementClient(credentials),
+        workspace,
+        extraSecrets: [credentials.clientSecret],
+      });
     }
 
     if (!sandbox && evalDef.setupCommand) {
@@ -393,12 +399,9 @@ async function runAgentJob(
     // Local execution (--dangerously-skip-sandbox or baseline)
     // Post-run tenant snapshot for tenant_state graders. Held in memory only. Taken as soon as
     // the agent exits, so the compile command cannot change the state that gets graded. A failed
-    // snapshot must not discard the finished run: the file graders and the judge still give a
-    // signal, and tenant_state graders report that the state is unavailable.
+    // snapshot must not discard the finished run: the session records it, the file graders and the
+    // judge still give a signal, and tenant_state graders report that the state is unavailable.
     const session = fixtureSession;
-    const secrets = session ? [...(verifierSecret ? [verifierSecret] : []), ...session.secrets] : [];
-    let post: unknown;
-    let stateError: string | undefined;
     const run = await executeAgentRun(
       evalDef,
       workspace,
@@ -406,34 +409,10 @@ async function runAgentJob(
       tools,
       apiKey,
       agentType,
-      session
-        ? async () => {
-            try {
-              post = await session.snapshot();
-              logger.info(`  [Fixture] Post-run snapshot taken (run ${session.context.runId})`);
-            } catch (e) {
-              stateError = 'the post-run snapshot failed';
-              logger.warn(
-                `  [Fixture] Post-run snapshot failed (run ${session.context.runId}): ` +
-                  redactKnownSecrets(e instanceof Error ? e.message : String(e), secrets),
-              );
-            }
-          }
-        : undefined,
+      session ? () => session.capturePost() : undefined,
     );
 
-    let fixtureGrading: FixtureGradingInput | undefined;
-    if (fixtureSession) {
-      fixtureGrading = {
-        // Without a snapshot hook there is no state, so tenant_state graders say so instead of crashing.
-        state:
-          evalDef.fixture?.snapshot && !stateError
-            ? { pre: fixtureSession.pre, post, seeded: fixtureSession.context.seeded }
-            : undefined,
-        stateError,
-        secrets,
-      };
-    }
+    const fixtureGrading = fixtureSession?.gradingInput();
 
     return await gradeAgentRun(evalDef, workspace, run, tools, apiKey, agentType, undefined, fixtureGrading);
   } finally {

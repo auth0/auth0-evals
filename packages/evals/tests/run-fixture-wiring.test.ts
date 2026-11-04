@@ -26,7 +26,8 @@ const mocks = vi.hoisted(() => ({
   runGraders: vi.fn(),
   serialiseAgent: vi.fn(),
   close: vi.fn(),
-  snapshot: vi.fn(),
+  capturePost: vi.fn(),
+  gradingInput: vi.fn(),
   runnerRun: vi.fn(),
 }));
 
@@ -103,10 +104,12 @@ describe('runAgentJob tenant fixture wiring', () => {
     mocks.close.mockImplementation(async () => {
       mocks.order.push('close');
     });
-    mocks.snapshot.mockResolvedValue(undefined);
+    mocks.capturePost.mockResolvedValue(undefined);
+    mocks.gradingInput.mockReturnValue({ state: undefined, secrets: [] });
     mocks.openFixture.mockImplementation(async () => ({
       close: mocks.close,
-      snapshot: mocks.snapshot,
+      capturePost: mocks.capturePost,
+      gradingInput: mocks.gradingInput,
       pre: undefined,
       secrets: [],
       context: { runId: 'rid', seeded: {} },
@@ -143,17 +146,22 @@ describe('runAgentJob tenant fixture wiring', () => {
     expect(mocks.close).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps grading and closes the fixture session when the post-run snapshot rejects', async () => {
+  it('keeps grading and closes the fixture session when the post-run snapshot failed', async () => {
     setCredentials();
     mocks.evalDef.graders = [{ kind: 'tenant_state' }];
     mocks.evalDef.fixture = { snapshot: vi.fn() };
-    mocks.snapshot.mockRejectedValue(new Error('snapshot failed'));
+    // The session absorbs a failed snapshot and reports it through the grading input.
+    mocks.gradingInput.mockReturnValue({
+      state: undefined,
+      stateError: 'the post-run snapshot failed',
+      secrets: [],
+    });
     const run = await freshRunJob();
 
     const result = await run();
 
     expect(result.status).not.toBe('error');
-    expect(mocks.snapshot).toHaveBeenCalledTimes(1);
+    expect(mocks.capturePost).toHaveBeenCalledTimes(1);
     expect(mocks.close).toHaveBeenCalledTimes(1);
     expect(mocks.runGraders).toHaveBeenCalledTimes(1);
     const fixtureGrading = mocks.runGraders.mock.calls[0]![9] as { state?: unknown; stateError?: string };
@@ -164,9 +172,8 @@ describe('runAgentJob tenant fixture wiring', () => {
   it('takes the post-run snapshot before the compile command runs', async () => {
     setCredentials();
     mocks.evalDef.compileCommand = 'npm run build';
-    mocks.snapshot.mockImplementation(async () => {
+    mocks.capturePost.mockImplementation(async () => {
       mocks.order.push('snapshot');
-      return undefined;
     });
     mocks.runCompileCommand.mockImplementation(() => {
       mocks.order.push('compile');
@@ -235,8 +242,20 @@ describe('runAgentJob tenant fixture wiring', () => {
 
     expect(result.status).not.toBe('error');
     expect(mocks.openFixture).toHaveBeenCalledTimes(1);
-    expect(mocks.snapshot).toHaveBeenCalledTimes(1);
+    expect(mocks.capturePost).toHaveBeenCalledTimes(1);
     expect(mocks.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes the verifier client secret to openFixture as an extra secret', async () => {
+    setCredentials();
+    const run = await freshRunJob();
+
+    await run();
+
+    expect(mocks.openFixture).toHaveBeenCalledWith(
+      mocks.evalDef.fixture,
+      expect.objectContaining({ extraSecrets: ['dummy-secret-value'] }),
+    );
   });
 
   it('refuses a fixture eval in the agent phase before creating a workspace', async () => {

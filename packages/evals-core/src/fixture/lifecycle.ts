@@ -1,20 +1,21 @@
 /**
  * Tenant fixture lifecycle — runs an eval's fixture hooks around the agent.
  *
- *   openFixture()      seed → pre-run snapshot        (before the agent starts)
- *   session.snapshot() post-run snapshot              (after the agent exits)
- *   session.close()    cleanup, always, never throws  (in a `finally`)
+ *   openFixture()          seed → pre-run snapshot        (before the agent starts)
+ *   session.capturePost()  post-run snapshot              (after the agent exits)
+ *   session.gradingInput() state and secrets for graders  (after capturePost)
+ *   session.close()        cleanup, always, never throws  (in a `finally`)
  *
  * Snapshots are held in memory for graders and are never persisted: a tenant
  * read can include client secrets.
  */
 
 import { randomBytes } from 'node:crypto';
+import { MIN_SECRET_LENGTH } from '@a0/evals-graders';
 import type { FixtureContext, FixtureDef, ManagementApi } from '@a0/evals-graders';
+import type { FixtureGradingInput } from '../graders/engine.js';
 import { logger } from '../utils/logger.js';
-
-/** Shorter values would match ordinary words in replies and code, failing `secretNotExposed` for no reason. */
-const MIN_SECRET_LENGTH = 8;
+import { redactKnownSecrets } from '../utils/redact.js';
 
 export interface OpenFixtureOptions {
   /** Verifier-backed client. Never shared with the agent. */
@@ -22,6 +23,8 @@ export interface OpenFixtureOptions {
   workspace: string;
   /** Override for tests; defaults to 8 random hex chars. */
   runId?: string;
+  /** Credentials the verifier uses, always treated as known secrets alongside values registered with `ctx.registerSecret`. */
+  extraSecrets?: readonly string[];
 }
 
 export interface FixtureSession {
@@ -30,8 +33,14 @@ export interface FixtureSession {
   readonly secrets: readonly string[];
   /** Snapshot taken after seeding, before the agent starts. `undefined` when the fixture has no `snapshot` hook. */
   readonly pre: unknown;
-  /** Takes the post-run snapshot. */
-  snapshot(): Promise<unknown>;
+  /**
+   * Takes the post-run snapshot and keeps it in the session. No-op when the fixture has no `snapshot` hook.
+   * A failed snapshot never throws, because it must not discard the finished run: it is logged with known
+   * secrets masked, and `gradingInput` then reports the state as unavailable.
+   */
+  capturePost(): Promise<void>;
+  /** State and secrets for the graders. Call after `capturePost`. */
+  gradingInput(): FixtureGradingInput;
   /** Runs `cleanup` once. Errors are logged, not thrown, so they never mask the run result. */
   close(): Promise<void>;
 }
@@ -80,11 +89,33 @@ export async function openFixture(def: FixtureDef, options: OpenFixtureOptions):
     throw e;
   }
 
+  let post: unknown;
+  let stateError: string | undefined;
+  const knownSecrets = (): string[] => [...(options.extraSecrets ?? []), ...secrets];
   return {
     context,
     secrets,
     pre,
-    snapshot: async () => (def.snapshot ? def.snapshot(context) : undefined),
+    capturePost: async () => {
+      if (!def.snapshot) return;
+      try {
+        post = await def.snapshot(context);
+        logger.info(`  [Fixture] Post-run snapshot taken (run ${context.runId})`);
+      } catch (e) {
+        // The reason stays generic because it reaches the persisted result. The log line is for the operator.
+        stateError = 'the post-run snapshot failed';
+        logger.warn(
+          `  [Fixture] Post-run snapshot failed (run ${context.runId}): ` +
+            redactKnownSecrets(e instanceof Error ? e.message : String(e), knownSecrets()),
+        );
+      }
+    },
+    gradingInput: () => ({
+      // Without a snapshot hook, or after a failed one, there is no state, so tenant_state graders say so instead of crashing.
+      state: def.snapshot && !stateError ? { pre, post, seeded: context.seeded } : undefined,
+      stateError,
+      secrets: knownSecrets(),
+    }),
     close,
   };
 }

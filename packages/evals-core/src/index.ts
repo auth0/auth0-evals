@@ -176,7 +176,6 @@ export {
   getExecutor,
   executeGrader,
 } from './graders/index.js';
-export type { FixtureGradingInput } from './graders/index.js';
 
 export type { GraderContext, GraderExecutor } from './graders/index.js';
 export type { CompileResult } from '@a0/evals-graders';
