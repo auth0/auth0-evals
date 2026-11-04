@@ -148,7 +148,7 @@ function combined(files: Record<string, string>): string {
  */
 export interface FixtureGradingInput {
   state?: FixtureState;
-  /** Why `state` is missing after a failed snapshot. Short and secret free. */
+  /** Why `state` is missing when the snapshot was attempted and failed. Short and secret-free, since it reaches the result. */
   stateError?: string;
   secrets: readonly string[];
   /** Precomputed by the agent phase. When set, `secrets` may be empty. */
@@ -208,6 +208,7 @@ export async function runGraders(
         ? {
             ...context,
             fixtureState: fixture?.state,
+            fixtureStateError: fixture?.stateError,
             secrets: fixture?.secrets,
             secretExposure: fixture?.exposure,
           }

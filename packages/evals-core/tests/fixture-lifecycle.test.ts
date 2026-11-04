@@ -2,9 +2,10 @@
  * Tests for src/fixture/lifecycle.ts
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { FixtureContext, FixtureDef, ManagementApi } from '@a0/evals-graders';
 import { openFixture } from '../src/fixture/lifecycle.js';
+import { logger } from '../src/utils/logger.js';
 
 vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -247,16 +248,56 @@ describe('openFixture', () => {
     });
   });
 
-  it('capturePost() rejects when the snapshot hook throws', async () => {
-    const err = new Error('post boom');
+  describe('a failed post-run snapshot', () => {
+    // The first snapshot call is the pre-run one, so only the second (post-run) call throws.
+    const failingOnPost = (message: string): FixtureDef =>
+      ({
+        seed: async () => ({ id: 'seeded-1' }),
+        snapshot: vi.fn(async () => {
+          if (++calls > 1) throw new Error(message);
+          return { n: 1 };
+        }),
+      }) as unknown as FixtureDef;
     let calls = 0;
-    const def = {
-      snapshot: async () => {
-        if (++calls > 1) throw err;
-        return {};
-      },
-    } as unknown as FixtureDef;
-    const session = await openFixture(def, opts());
-    await expect(session.capturePost()).rejects.toBe(err);
+
+    beforeEach(() => {
+      calls = 0;
+      vi.mocked(logger.warn).mockClear();
+    });
+
+    it('does not throw, and reports the state as unavailable with a generic reason', async () => {
+      const session = await openFixture(failingOnPost('post boom'), opts());
+      await expect(session.capturePost()).resolves.toBeUndefined();
+      const input = session.gradingInput();
+      expect(input.state).toBeUndefined();
+      expect(input.stateError).toBe('the post-run snapshot failed');
+      expect(input.stateError).not.toContain('post boom');
+    });
+
+    it('masks known secrets in the warning it logs', async () => {
+      const session = await openFixture(failingOnPost('request failed for verifier-secret-value'), {
+        ...opts(),
+        extraSecrets: ['verifier-secret-value'],
+      });
+      await session.capturePost();
+      const logged = vi
+        .mocked(logger.warn)
+        .mock.calls.map((c) => String(c[0]))
+        .join('\n');
+      expect(logged).toContain('Post-run snapshot failed');
+      expect(logged).not.toContain('verifier-secret-value');
+    });
+
+    it('still returns the secrets, so the exposure grader keeps working', async () => {
+      const session = await openFixture(failingOnPost('boom'), { ...opts(), extraSecrets: ['verifier-secret-value'] });
+      await session.capturePost();
+      expect(session.gradingInput().secrets).toEqual(['verifier-secret-value']);
+    });
+
+    it('has no stateError after a successful snapshot', async () => {
+      const session = await openFixture({ snapshot: async () => ({}) } as unknown as FixtureDef, opts());
+      await session.capturePost();
+      expect(session.gradingInput().stateError).toBeUndefined();
+    });
   });
 });

@@ -16,6 +16,7 @@ import { MIN_SECRET_LENGTH } from '@a0/evals-graders';
 import type { FixtureContext, FixtureDef, ManagementApi } from '@a0/evals-graders';
 import type { FixtureGradingInput } from '../graders/engine.js';
 import { logger } from '../utils/logger.js';
+import { redactKnownSecrets } from '../utils/redact.js';
 
 export interface OpenFixtureOptions {
   /** Verifier-backed client. Never shared with the agent. */
@@ -33,7 +34,11 @@ export interface FixtureSession {
   readonly secrets: readonly string[];
   /** Snapshot taken after seeding, before the agent starts. `undefined` when the fixture has no `snapshot` hook. */
   readonly pre: unknown;
-  /** Takes the post-run snapshot and keeps it in the session. No-op when the fixture has no `snapshot` hook. */
+  /**
+   * Takes the post-run snapshot and keeps it in the session. No-op when the fixture has no `snapshot` hook.
+   * A failed snapshot never throws, because it must not discard the finished run: it is logged with known
+   * secrets masked, and `gradingInput` then reports the state as unavailable.
+   */
   capturePost(): Promise<void>;
   /** State and secrets for the graders. State needs `capturePost` first, secrets are available at any time. */
   gradingInput(): FixtureGradingInput;
@@ -86,17 +91,31 @@ export async function openFixture(def: FixtureDef, options: OpenFixtureOptions):
   }
 
   let post: unknown;
+  let stateError: string | undefined;
+  const knownSecrets = (): string[] => [...(options.extraSecrets ?? []), ...secrets];
   return {
     context,
     secrets,
     pre,
     capturePost: async () => {
-      if (def.snapshot) post = await def.snapshot(context);
+      if (!def.snapshot) return;
+      try {
+        post = await def.snapshot(context);
+        logger.info(`  [Fixture] Post-run snapshot taken (run ${context.runId})`);
+      } catch (e) {
+        // The reason stays generic because it reaches the persisted result. The log line is for the operator.
+        stateError = 'the post-run snapshot failed';
+        logger.warn(
+          `  [Fixture] Post-run snapshot failed (run ${context.runId}): ` +
+            redactKnownSecrets(e instanceof Error ? e.message : String(e), knownSecrets()),
+        );
+      }
     },
     gradingInput: () => ({
-      // Without a snapshot hook there is no state, so tenant_state graders say so instead of crashing.
-      state: def.snapshot ? { pre, post, seeded: context.seeded } : undefined,
-      secrets: [...(options.extraSecrets ?? []), ...secrets],
+      // Without a snapshot hook, or after a failed one, there is no state, so tenant_state graders say so instead of crashing.
+      state: def.snapshot && !stateError ? { pre, post, seeded: context.seeded } : undefined,
+      stateError,
+      secrets: knownSecrets(),
     }),
     close,
   };

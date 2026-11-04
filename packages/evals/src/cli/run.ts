@@ -298,10 +298,8 @@ async function openFixtureForRun(
  */
 function fixtureSnapshotHook(session: FixtureSession | undefined): (() => Promise<void>) | undefined {
   if (!session) return undefined;
-  return async () => {
-    await session.capturePost();
-    logger.info(`  [Fixture] Post-run snapshot taken (run ${session.context.runId})`);
-  };
+  // The session logs success and records a failure itself, so a failed snapshot does not discard the run.
+  return () => session.capturePost();
 }
 
 /**
@@ -408,6 +406,26 @@ async function gradeAgentRun(
   );
 }
 
+/**
+ * Spawns one job subprocess. An agent job with a fixture gets a single-use credentials file,
+ * which is always removed afterwards, including when the child fails or never read it.
+ */
+export async function spawnJobProcess(
+  spawn: typeof spawnEval,
+  selfPath: string,
+  evalCfg: EvalConfig,
+  mode: Mode,
+  frameworkRoot: string,
+  args: string[],
+): Promise<void> {
+  const { env, tempDir } = jobSubprocessEnv(evalCfg, mode, frameworkRoot);
+  try {
+    await spawn(selfPath, evalCfg.id, args, env);
+  } finally {
+    if (tempDir) rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 async function runAgentJob(
   evalDef: EvalDefinition,
   model: string,
@@ -448,6 +466,10 @@ async function runAgentJob(
     }
 
     // Local execution (--dangerously-skip-sandbox or baseline)
+    // Post-run tenant snapshot for tenant_state graders. Held in memory only. Taken as soon as
+    // the agent exits, so the compile command cannot change the state that gets graded. A failed
+    // snapshot must not discard the finished run: the session records it, the file graders and the
+    // judge still give a signal, and tenant_state graders report that the state is unavailable.
     const run = await executeAgentRun(
       evalDef,
       workspace,
@@ -939,19 +961,14 @@ export async function runCli(): Promise<void> {
             jobAgentType,
             ...(jobTools.length > 0 ? ['--tools', jobTools.join(',')] : []),
           ];
-          const { env, tempDir } = jobSubprocessEnv(evalCfg, mode, frameworkRoot);
-          try {
-            // Agent-phase subprocesses write artefacts, never a scores file (and reject --output).
-            if (phase === 'agent') {
-              await spawnEval(selfPath, evalCfg.id, jobArgs, env);
-              return;
-            }
-            const tempFile = join(frameworkRoot, `scores-tmp-${jobStem(evalCfg.id, model, mode, jobTools)}.json`);
-            tempFiles.push(tempFile);
-            await spawnEval(selfPath, evalCfg.id, [...jobArgs, '--output', tempFile], env);
-          } finally {
-            if (tempDir) rmSync(tempDir, { recursive: true, force: true });
+          // Agent-phase subprocesses write artefacts, never a scores file (and reject --output).
+          if (phase === 'agent') {
+            await spawnJobProcess(spawnEval, selfPath, evalCfg, mode, frameworkRoot, jobArgs);
+            return;
           }
+          const tempFile = join(frameworkRoot, `scores-tmp-${jobStem(evalCfg.id, model, mode, jobTools)}.json`);
+          tempFiles.push(tempFile);
+          await spawnJobProcess(spawnEval, selfPath, evalCfg, mode, frameworkRoot, [...jobArgs, '--output', tempFile]);
         }),
       ),
     );

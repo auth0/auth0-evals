@@ -24,7 +24,11 @@ export const tenantStateExecutor: GraderExecutor = {
 
     if (!def.statePredicate) return fail('tenant_state grader missing predicate function');
     if (ctx.fixtureState === undefined) {
-      return fail('No tenant state available (eval has no fixture.ts with a snapshot hook?)');
+      return fail(
+        ctx.fixtureStateError
+          ? `Tenant state unavailable: ${ctx.fixtureStateError}`
+          : 'No tenant state available (eval has no fixture.ts with a snapshot hook?)',
+      );
     }
 
     let outcome: boolean | string;

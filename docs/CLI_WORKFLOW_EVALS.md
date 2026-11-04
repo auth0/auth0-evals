@@ -38,7 +38,7 @@ export default defineFixture({
 
 1. `seed` runs first, then the pre-run `snapshot`, both before the agent starts.
 2. The agent runs.
-3. The post-run `snapshot` runs as soon as the agent exits, before the compile command, so the compile command cannot change the state that gets graded.
+3. The post-run `snapshot` runs as soon as the agent exits, before the compile command, so the compile command cannot change the state that gets graded. If it fails, the failure is logged and the run is still graded. The file graders and the judge give their usual result, and `tenantState` graders fail with "Tenant state unavailable".
 4. `cleanup` always runs in a `finally`. Cleanup errors are logged, not thrown. If `seed` or the pre-run snapshot fails, cleanup still runs and the job errors.
 
 Snapshots stay in memory during a run. In a two-phase run the agent phase also stores them in the run artefact, masked (see [Two-phase runs with fixtures](#two-phase-runs-with-fixtures)). They are never written to the scores file, because a tenant read can include client secrets.
@@ -103,10 +103,10 @@ Before it writes the artefact, the agent phase looks for every known secret (the
 
 The artefact's `run.json` gets an optional `fixture` block:
 
-- `state`: the masked pre-run and post-run snapshots and the seeded values. `tenantState` predicates run on this in the grade phase.
+- `state`: the masked pre-run and post-run snapshots and the seeded values. `tenantState` predicates run on this in the grade phase. It is missing when the post-run snapshot failed, and `stateError` then says why.
 - `exposure`: how many secrets were checked, and the locations where one appeared, such as `tool call 2 output` or `file src/app.ts`. It never holds a value. `secretNotExposed` reads this in the grade phase. With nothing checked, it fails with "No secrets known for this run".
 
-If the post-run snapshot throws, the agent job fails and writes an `error` artefact, so no grade runs on a partial state.
+If the post-run snapshot fails, the agent phase still writes the artefact. The `fixture` block then carries `stateError` and no `state`, the file graders and the judge give their usual result, and `tenantState` graders fail with "Tenant state unavailable".
 
 What this means in practice:
 
