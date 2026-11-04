@@ -143,6 +143,39 @@ describe('redactSecrets — keeps what a diagnosis needs', () => {
   });
 });
 
+describe('redactSecrets — markdown emphasis after a credential word', () => {
+  it.each([
+    ['bold label ending in a credential word', '**Email first, then password:** I turned on identifier-first'],
+    ['bare emphasis marks', 'password:**'],
+    ['emphasis marks after a space', 'password: ** next'],
+    ['underscore emphasis', 'the token:__ was rotated'],
+  ])('keeps text that has no value to mask — %s', (_label, line) => {
+    // Regression: the bare value branch matched `**` and replaced it, so a reply came
+    // out as `password:[REDACTED SECRET] I turned on identifier-first`. A credential
+    // always holds a letter or a digit, so punctuation alone is never a value.
+    expect(redactSecrets(line)).toBe(line);
+  });
+
+  it.each([
+    ['password: hunter2', `password: ${REDACTION_MARKER}`],
+    ['password:hunter2', `password:${REDACTION_MARKER}`],
+    ['PASSWORD=abc123def', `PASSWORD=${REDACTION_MARKER}`],
+    ['--client-secret abc123', `--client-secret ${REDACTION_MARKER}`],
+    ['--password=s3cret!x', `--password=${REDACTION_MARKER}`],
+    ['"client_secret": "abc"', `"client_secret": ${REDACTION_MARKER}`],
+    ['Authorization: Bearer abc.def', `Authorization: Bearer ${REDACTION_MARKER}`],
+    ['password:**hunter2**', `password:${REDACTION_MARKER}`],
+    ['password: "**"', `password: ${REDACTION_MARKER}`],
+  ])('still masks a value — %s', (line, expected) => {
+    expect(redactSecrets(line)).toBe(expected);
+  });
+
+  it('still keeps a numeric value and a following flag', () => {
+    expect(redactSecrets('token = 401')).toBe('token = 401');
+    expect(redactSecrets('--token --json')).toBe('--token --json');
+  });
+});
+
 describe('redactSecrets — value-shaped secrets with no name attached', () => {
   it('masks a PEM private key block whole', () => {
     const pem = '-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA1234\nabcd\n-----END RSA PRIVATE KEY-----';
