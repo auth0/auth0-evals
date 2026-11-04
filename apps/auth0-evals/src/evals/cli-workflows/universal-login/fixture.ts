@@ -140,28 +140,48 @@ const pick = (obj: Record<string, unknown>, keys: readonly string[]) =>
 
 async function restore(mgmt: ManagementApi, saved: Saved): Promise<void> {
   // Each step is attempted even if another fails, so one bad write does not
-  // leave the rest of the tenant changed.
-  const steps: Array<() => Promise<unknown>> = [
-    () => mgmt.patch('prompts', saved.prompts),
-    ...SCREENS.map((s) => () => putText(mgmt, s, saved.text[s])),
-    async () => {
-      const current = await readTheme(mgmt);
-      if (saved.theme) {
-        const body = { ...saved.theme };
-        delete body.themeId;
-        // The agent may have deleted and re-created the theme, so target whatever is there now.
-        if (current) await mgmt.patch(`branding/themes/${String(current.themeId)}`, body);
-        else await mgmt.post('branding/themes', body);
-      } else if (current) {
-        await mgmt.delete(`branding/themes/${String(current.themeId)}`);
-      }
-    },
-    () => mgmt.patch('branding', saved.branding),
-    () => mgmt.patch('tenants/settings', saved.tenant),
+  // leave the rest of the tenant changed. Steps are named so a failure says which
+  // setting was not put back.
+  const steps: Array<[string, () => Promise<unknown>]> = [
+    ['prompts', () => mgmt.patch('prompts', saved.prompts)],
+    ...SCREENS.map((s): [string, () => Promise<unknown>] => [
+      `custom text ${s}`,
+      () => putText(mgmt, s, saved.text[s]),
+    ]),
+    [
+      'theme',
+      async () => {
+        const current = await readTheme(mgmt);
+        if (saved.theme) {
+          const body = { ...saved.theme };
+          delete body.themeId;
+          // The agent may have deleted and re-created the theme, so target whatever is there now.
+          if (current) await mgmt.patch(`branding/themes/${String(current.themeId)}`, body);
+          else await mgmt.post('branding/themes', body);
+        } else if (current) {
+          await mgmt.delete(`branding/themes/${String(current.themeId)}`);
+        }
+      },
+    ],
+    ['classic branding', () => mgmt.patch('branding', saved.branding)],
+    ['tenant settings', () => mgmt.patch('tenants/settings', saved.tenant)],
   ];
-  const results = await Promise.allSettled(steps.map((s) => s()));
-  const failed = results.filter((r) => r.status === 'rejected').length;
-  if (failed > 0) throw new Error(`${failed} restore writes failed`);
+  const results = await Promise.all(
+    steps.map(async ([name, run]) => {
+      try {
+        await run();
+        return undefined;
+      } catch (e) {
+        // Only the HTTP status is reported. The full error can quote a request body.
+        const status = /\b[45]\d\d\b/.exec(String(e))?.[0];
+        return status ? `${name} (${status})` : name;
+      }
+    }),
+  );
+  const failures = results.filter((f): f is string => f !== undefined);
+  if (failures.length > 0) {
+    throw new Error(`${failures.length} restore writes failed: ${failures.join(', ')}`);
+  }
 }
 
 export default defineFixture({
