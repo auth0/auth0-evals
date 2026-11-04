@@ -18,6 +18,12 @@
       "passThroughEnv": ["*"],
       "outputLogs": "new-only"
     },
+    "replay": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "passThroughEnv": ["*"],
+      "outputLogs": "new-only"
+    },
     "test": {
       "dependsOn": ["build"],
       "outputLogs": "new-only"

@@ -24,6 +24,8 @@
  *                 agent/grade require --artifact-dir and --dangerously-skip-sandbox.
  *   --artifact-dir     Directory run artefacts are written to (agent) or read from (grade).
  *                      Artefacts hold unredacted traces and agent-written files: treat as sensitive.
+ *                      Fixture evals are the exception, because known secrets are masked before
+ *                      writing (see sealFixtureRun).
  */
 
 import { rmSync } from 'node:fs';
@@ -64,6 +66,10 @@ import {
   readRunArtifactManifest,
   findRunArtifacts,
   restoreArtifactWorkspace,
+  collectGraderFiles,
+  sealFixtureData,
+  fixtureGradingFromArtifact,
+  maskWorkspaceSecrets,
 } from '@a0/evals-core';
 import type {
   EvalConfig,
@@ -78,6 +84,7 @@ import type {
   RunArtifact,
   VerifierCredentials,
   FixtureSession,
+  FixtureArtifactData,
 } from '@a0/evals-core';
 
 import { parseRunConfig, extractConfigPath } from './config.js';
@@ -246,8 +253,88 @@ async function executeAgentRun(
   return { record, resolvedModel, compileResult };
 }
 
-/** Fixture state and secrets handed to the graders. Held in memory, never persisted. */
+/**
+ * Fixture state and secrets handed to the graders. Held in memory while the agent job runs.
+ * The agent phase persists only a masked copy (see `sealFixtureRun`), so a grade job rebuilds
+ * this from the artefact with no secret values.
+ */
 type FixtureGrading = ReturnType<FixtureSession['gradingInput']>;
+
+/**
+ * Opens the tenant fixture for an eval that has one, or returns `undefined` when it has none.
+ * Shared by the combined path and the agent phase so the sandbox guard, the credential check and
+ * the secrets handed to the session cannot drift apart.
+ */
+async function openFixtureForRun(
+  evalDef: EvalDefinition,
+  workspace: string,
+  sandbox: boolean,
+): Promise<FixtureSession | undefined> {
+  if (!evalDef.fixture) return undefined;
+  const { openFixture, createManagementClient } = await import('@a0/evals-core');
+  // Fixture hooks run in this process with the verifier credential. The docker
+  // path grades inside the container, which would need that credential too, so
+  // fixtures are local-only until grading moves to the host.
+  if (sandbox) {
+    throw new Error(`${evalDef.id} has a tenant fixture; run it with --dangerously-skip-sandbox`);
+  }
+  const credentials = getVerifierCredentials();
+  if (!credentials) {
+    throw new Error(
+      `${evalDef.id} has a tenant fixture but no verifier credential is set ` +
+        `(${VERIFIER_ENV.file}, or ${VERIFIER_ENV.domain} + ${VERIFIER_ENV.clientId} + ${VERIFIER_ENV.clientSecret})`,
+    );
+  }
+  return openFixture(evalDef.fixture, {
+    mgmt: createManagementClient(credentials),
+    workspace,
+    extraSecrets: [credentials.clientSecret],
+  });
+}
+
+/**
+ * Post-run tenant snapshot for tenant_state graders. Taken as soon as the agent exits, so the
+ * compile command cannot change the state that gets graded.
+ */
+function fixtureSnapshotHook(session: FixtureSession | undefined): (() => Promise<void>) | undefined {
+  if (!session) return undefined;
+  return async () => {
+    await session.capturePost();
+    logger.info(`  [Fixture] Post-run snapshot taken (run ${session.context.runId})`);
+  };
+}
+
+/**
+ * Agent phase, after the agent exited: works out what the fixture graders need and removes every
+ * known secret from what gets stored. The order matters. The secret scan reads the evidence
+ * before anything is masked, then the workspace files, the record and the compile result are
+ * masked, so the artefact holds no secret value and the grade job needs none.
+ */
+function sealFixtureRun(
+  session: FixtureSession,
+  workspace: string,
+  run: AgentRunOutput,
+): { run: AgentRunOutput; fixture: FixtureArtifactData } {
+  const grading = session.gradingInput();
+  // The same evidence `gradeAgentRun` hands to `runGraders`.
+  const fixture = sealFixtureData(grading, {
+    toolCalls: run.record.toolCalls,
+    agentText: run.record.finalSummary ?? '',
+    files: collectGraderFiles(workspace),
+  });
+  const rewritten = maskWorkspaceSecrets(workspace, grading.secrets);
+  if (rewritten > 0) {
+    logger.info(`  [Fixture] Masked known secrets in ${rewritten} workspace file(s) before saving the artefact`);
+  }
+  return {
+    run: {
+      ...run,
+      record: redactKnownSecrets(run.record, grading.secrets),
+      compileResult: redactKnownSecrets(run.compileResult, grading.secrets),
+    },
+    fixture,
+  };
+}
 
 /**
  * Grade half: graders, scoring, recommendations, serialisation. Reads the workspace only
@@ -288,7 +375,10 @@ async function gradeAgentRun(
 
   const scored = score(record, graderResults, getFrameworkConfig().scoring);
   // Mask fixture-known secrets by exact value in everything that leaves this job:
-  // the analyst prompt, the recommendations, and the persisted result.
+  // the analyst prompt, the recommendations, and the persisted result. The graders above
+  // keep the unmasked record, because the exposure check has to see a leak. Serialising
+  // takes the masked copies so a secret is replaced before the trace is truncated, where a
+  // cut through the middle of it would leave a prefix that no exact match can find.
   const knownSecrets = fixtureGrading?.secrets ?? [];
   const redact = (text: string): string => redactKnownSecrets(text, knownSecrets);
   const safeRecord = redactKnownSecrets(record, knownSecrets);
@@ -311,7 +401,7 @@ async function gradeAgentRun(
 
   return redactKnownSecrets(
     {
-      ...serialiseAgent(evalDef, record, scored, graderResults, resolvedModel, 'agent', tools, recommendations),
+      ...serialiseAgent(evalDef, safeRecord, safeScored, graderResults, resolvedModel, 'agent', tools, recommendations),
       agent_type: agentType,
     },
     knownSecrets,
@@ -328,32 +418,13 @@ async function runAgentJob(
   agentType: AgentType,
   sandbox: boolean,
 ): Promise<JobResult> {
-  const { runSetupCommand, cleanupWorkspace, openFixture, createManagementClient } = await import('@a0/evals-core');
+  const { runSetupCommand, cleanupWorkspace } = await import('@a0/evals-core');
   await initRunners();
 
   const workspace = await prepareAgentWorkspace(evalDef, agentType);
-  let fixtureSession: Awaited<ReturnType<typeof openFixture>> | undefined;
+  let fixtureSession: FixtureSession | undefined;
   try {
-    if (evalDef.fixture) {
-      // Fixture hooks run in this process with the verifier credential. The docker
-      // path grades inside the container, which would need that credential too, so
-      // fixtures are local-only until grading moves to the host.
-      if (sandbox) {
-        throw new Error(`${evalDef.id} has a tenant fixture; run it with --dangerously-skip-sandbox`);
-      }
-      const credentials = getVerifierCredentials();
-      if (!credentials) {
-        throw new Error(
-          `${evalDef.id} has a tenant fixture but no verifier credential is set ` +
-            `(${VERIFIER_ENV.file}, or ${VERIFIER_ENV.domain} + ${VERIFIER_ENV.clientId} + ${VERIFIER_ENV.clientSecret})`,
-        );
-      }
-      fixtureSession = await openFixture(evalDef.fixture, {
-        mgmt: createManagementClient(credentials),
-        workspace,
-        extraSecrets: [credentials.clientSecret],
-      });
-    }
+    fixtureSession = await openFixtureForRun(evalDef, workspace, sandbox);
 
     if (!sandbox && evalDef.setupCommand) {
       runSetupCommand(workspace, evalDef.setupCommand);
@@ -377,9 +448,6 @@ async function runAgentJob(
     }
 
     // Local execution (--dangerously-skip-sandbox or baseline)
-    // Post-run tenant snapshot for tenant_state graders. Held in memory only. Taken as soon as
-    // the agent exits, so the compile command cannot change the state that gets graded.
-    const session = fixtureSession;
     const run = await executeAgentRun(
       evalDef,
       workspace,
@@ -387,12 +455,7 @@ async function runAgentJob(
       tools,
       apiKey,
       agentType,
-      session
-        ? async () => {
-            await session.capturePost();
-            logger.info(`  [Fixture] Post-run snapshot taken (run ${session.context.runId})`);
-          }
-        : undefined,
+      fixtureSnapshotHook(fixtureSession),
     );
 
     const fixtureGrading = fixtureSession?.gradingInput();
@@ -447,6 +510,8 @@ export async function runAgentPhaseJob(
   };
 
   let workspace: string | undefined;
+  // Declared here so the catch block can mask known secrets out of the error text.
+  let fixtureSession: FixtureSession | undefined;
   try {
     const evalDef = await loadEval(evalConfig, frameworkRoot, { skipGraders: true });
     if (mode === 'baseline') {
@@ -459,29 +524,44 @@ export async function runAgentPhaseJob(
         responseText: result.responseText,
       });
     } else if (mode === 'agent') {
-      // The fixture session (seed, snapshots, cleanup) lives in `runAgentJob`. Running the
-      // agent alone would skip it and leave the tenant unseeded, so refuse instead.
-      if (evalDef.fixture) {
-        throw new Error(`${evalDef.id} has a tenant fixture; fixtures are not supported with --phase agent`);
-      }
       const { runSetupCommand } = await import('@a0/evals-core');
       const { resolveSkillFiles } = await import('../recommendations/index.js');
       await initRunners();
       workspace = await prepareAgentWorkspace(evalDef, agentType);
-      if (evalDef.setupCommand) {
-        runSetupCommand(workspace, evalDef.setupCommand);
+      // The fixture hooks are loaded even with `skipGraders` (only graders.ts is skipped). Fixture
+      // evals need --dangerously-skip-sandbox for the phase flags anyway, so the sandbox guard is off.
+      try {
+        fixtureSession = await openFixtureForRun(evalDef, workspace, false);
+        if (evalDef.setupCommand) {
+          runSetupCommand(workspace, evalDef.setupCommand);
+        }
+        const executed = await executeAgentRun(
+          evalDef,
+          workspace,
+          model,
+          tools,
+          apiKey,
+          agentType,
+          fixtureSnapshotHook(fixtureSession),
+        );
+        // With a fixture, secrets are scanned for and masked before anything is written. The grade
+        // job has no tenant and no secrets, so it works from the sealed fixture block.
+        const sealed = fixtureSession ? sealFixtureRun(fixtureSession, workspace, executed) : undefined;
+        const run = sealed?.run ?? executed;
+        writeRunArtifact(artifactPath, {
+          ...common,
+          kind: 'agent',
+          mode: 'agent',
+          workspace,
+          record: run.record,
+          resolvedModel: run.resolvedModel,
+          compileResult: run.compileResult,
+          skillFiles: resolveSkillFiles(evalDef, tools),
+          ...(sealed ? { fixture: sealed.fixture } : {}),
+        });
+      } finally {
+        await fixtureSession?.close();
       }
-      const run = await executeAgentRun(evalDef, workspace, model, tools, apiKey, agentType);
-      writeRunArtifact(artifactPath, {
-        ...common,
-        kind: 'agent',
-        mode: 'agent',
-        workspace,
-        record: run.record,
-        resolvedModel: run.resolvedModel,
-        compileResult: run.compileResult,
-        skillFiles: resolveSkillFiles(evalDef, tools),
-      });
     } else {
       throw new UnknownModeError(mode);
     }
@@ -490,8 +570,10 @@ export async function runAgentPhaseJob(
   } catch (e) {
     const errorMsg = String(e);
     logger.error(`  ✗ [${evalConfig.id}] ${model} - ERROR: ${errorMsg.slice(0, 100)}`);
+    // The session is closed by now, but gradingInput() only returns the in-memory arrays.
+    const storedError = fixtureSession ? redactKnownSecrets(errorMsg, fixtureSession.gradingInput().secrets) : errorMsg;
     try {
-      writeRunArtifact(artifactPath, { ...common, kind: 'error', mode, error: errorMsg });
+      writeRunArtifact(artifactPath, { ...common, kind: 'error', mode, error: storedError });
     } catch (writeErr) {
       logger.error(`  [${evalConfig.id}] Failed to write error artefact: ${writeErr}`);
     }
@@ -544,7 +626,8 @@ export async function gradeArtifact(
       return serialiseBaseline(evalDef, result, graderResults, responseText);
     }
     const workspace = restoreArtifactWorkspace(artifact);
-    const { record, resolvedModel, compileResult, skillFiles } = artifact.run;
+    const { record, resolvedModel, compileResult, skillFiles, fixture } = artifact.run;
+    // The grade job has no tenant and no secrets: it grades the state and exposure the agent phase stored.
     return await gradeAgentRun(
       evalDef,
       workspace,
@@ -553,6 +636,7 @@ export async function gradeArtifact(
       apiKey,
       agentType,
       skillFiles,
+      fixture ? fixtureGradingFromArtifact(fixture) : undefined,
     );
   } catch (e) {
     const errorMsg = String(e);
@@ -855,15 +939,15 @@ export async function runCli(): Promise<void> {
             jobAgentType,
             ...(jobTools.length > 0 ? ['--tools', jobTools.join(',')] : []),
           ];
-          // Agent-phase subprocesses write artefacts, never a scores file (and reject --output).
-          if (phase === 'agent') {
-            await spawnEval(selfPath, evalCfg.id, jobArgs);
-            return;
-          }
-          const tempFile = join(frameworkRoot, `scores-tmp-${jobStem(evalCfg.id, model, mode, jobTools)}.json`);
-          tempFiles.push(tempFile);
           const { env, tempDir } = jobSubprocessEnv(evalCfg, mode, frameworkRoot);
           try {
+            // Agent-phase subprocesses write artefacts, never a scores file (and reject --output).
+            if (phase === 'agent') {
+              await spawnEval(selfPath, evalCfg.id, jobArgs, env);
+              return;
+            }
+            const tempFile = join(frameworkRoot, `scores-tmp-${jobStem(evalCfg.id, model, mode, jobTools)}.json`);
+            tempFiles.push(tempFile);
             await spawnEval(selfPath, evalCfg.id, [...jobArgs, '--output', tempFile], env);
           } finally {
             if (tempDir) rmSync(tempDir, { recursive: true, force: true });

@@ -13,6 +13,7 @@ import {
 import { collectFiles, listFiles } from '../src/workspace/file-utils.js';
 import { collectFiles as collectGraderFiles, listGradingFiles } from '../src/graders/engine.js';
 import type { RunRecord } from '../src/types/scorer.js';
+import type { FixtureArtifactData } from '../src/fixture/artifact-data.js';
 
 const tmp = makeTmpDir('artifact_');
 
@@ -148,6 +149,73 @@ describe('run artefact', () => {
     const e = readRunArtifact(err);
     expect(e.kind === 'error' && e.run).toEqual({ error: 'Error: bad' });
     expect(e.manifest.agentType).toBe('codex');
+  });
+
+  describe('fixture block', () => {
+    const agentInput = (ws: string, fixture?: FixtureArtifactData) =>
+      ({
+        ...BASE,
+        kind: 'agent',
+        mode: 'agent',
+        workspace: ws,
+        record: makeRecord(),
+        resolvedModel: 'm',
+        ...(fixture !== undefined ? { fixture } : {}),
+      }) as const;
+
+    it('round-trips a fixture block', () => {
+      const dir = join(tmp(), 'f');
+      const fixture: FixtureArtifactData = {
+        state: { pre: { n: 1 }, post: { n: '[REDACTED SECRET]' }, seeded: { id: 'abc' } },
+        stateError: 'post-run snapshot failed',
+        exposure: { checked: 2, locations: ['tool call 1 output', 'final reply'] },
+      };
+      writeRunArtifact(dir, agentInput(makeWorkspace(), fixture));
+      const art = readRunArtifact(dir);
+      if (art.kind !== 'agent') throw new Error('unreachable');
+      expect(art.run.fixture).toEqual(fixture);
+    });
+
+    it('reads an agent artefact that has no fixture block', () => {
+      const dir = join(tmp(), 'nf');
+      writeRunArtifact(dir, agentInput(makeWorkspace()));
+      expect('fixture' in JSON.parse(readFileSync(join(dir, 'run.json'), 'utf-8'))).toBe(false);
+      const art = readRunArtifact(dir);
+      if (art.kind !== 'agent') throw new Error('unreachable');
+      expect(art.run.fixture).toBeUndefined();
+    });
+
+    const malformed: Array<[string, unknown]> = [
+      ['a fixture that is not an object', 'oops'],
+      ['a missing exposure', { state: {} }],
+      ['an exposure that is not an object', { exposure: 'none' }],
+      ['a non-numeric checked', { exposure: { checked: '2', locations: [] } }],
+      ['locations that are not an array', { exposure: { checked: 1, locations: 'final reply' } }],
+      ['locations with a non-string entry', { exposure: { checked: 1, locations: [3] } }],
+      ['a stateError that is not a string', { stateError: 5, exposure: { checked: 1, locations: [] } }],
+    ];
+
+    it.each(malformed)('rejects %s', (_label, fixture) => {
+      const dir = join(tmp(), 'bad');
+      writeRunArtifact(dir, agentInput(makeWorkspace()));
+      const runPath = join(dir, 'run.json');
+      const run = JSON.parse(readFileSync(runPath, 'utf-8')) as Record<string, unknown>;
+      writeFileSync(runPath, JSON.stringify({ ...run, fixture }));
+      expect(() => readRunArtifact(dir)).toThrow(`Invalid run artefact: ${runPath} has a malformed fixture block`);
+    });
+
+    it('stores the block as given, so a caller that masked it keeps the secret out of run.json', () => {
+      const dir = join(tmp(), 'masked');
+      const sentinel = 'sentinel-secret-value-777';
+      const fixture: FixtureArtifactData = {
+        state: { pre: {}, post: { token: '[REDACTED SECRET]' }, seeded: {} },
+        exposure: { checked: 1, locations: ['final reply'] },
+      };
+      writeRunArtifact(dir, agentInput(makeWorkspace(), fixture));
+      const text = readFileSync(join(dir, 'run.json'), 'utf-8');
+      expect(text).not.toContain(sentinel);
+      expect(JSON.parse(text).fixture).toEqual(fixture);
+    });
   });
 
   it('rejects unknown schema versions, kinds and missing manifests', () => {

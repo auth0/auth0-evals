@@ -9,6 +9,8 @@
     "evals": "a0-eval",
     "prereport": "npm run build",
     "report": "a0-eval report",
+    "prereplay": "npm run build",
+    "replay": "a0-eval replay",
     "preaxis": "npm run build",
     "axis": "node dist/axis/run.js"
   },

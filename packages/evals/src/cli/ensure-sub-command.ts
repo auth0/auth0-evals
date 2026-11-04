@@ -1,4 +1,4 @@
-const SUB_COMMANDS = new Set(['run', 'report']);
+const SUB_COMMANDS = new Set(['run', 'report', 'replay']);
 const HELP_FLAGS = new Set(['--help', '-h']);
 
 /**
