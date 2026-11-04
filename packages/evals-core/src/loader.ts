@@ -68,6 +68,12 @@ export async function loadEval(
   }
   const fixturePath = resolveFixturePath(evalConfig, frameworkRoot);
   const fixture = fixturePath ? await loadFixture(fixturePath) : undefined;
+  if (!fixture && needsFixture(graders)) {
+    throw new EvalConfigError(
+      'tenantState and secretNotExposed graders need a fixture.ts in the eval directory',
+      evalPath,
+    );
+  }
   const scaffoldDir = resolveScaffoldFromMeta(meta.scaffold, evalPath, frameworkRoot);
   const scaffold = loadScaffold(scaffoldDir);
 
@@ -146,6 +152,11 @@ async function loadGraders(gradersPath: string): Promise<GraderDef[]> {
   }
 
   return mod.defineGraders();
+}
+
+/** True when any grader reads tenant snapshots or secrets, which only exist with a fixture. */
+function needsFixture(graders: GraderDef[]): boolean {
+  return graders.some((g) => g.kind === 'tenant_state' || g.kind === 'secret_not_exposed');
 }
 
 // ── fixture.ts dynamic import ─────────────────────────────────────────────────

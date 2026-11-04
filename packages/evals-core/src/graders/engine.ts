@@ -147,6 +147,9 @@ export interface FixtureGradingInput {
   secrets: readonly string[];
 }
 
+// Only these executors may read tenant snapshots or secrets, so other executors (the LLM judge, custom ones) never see them.
+const FIXTURE_GRADER_KINDS = new Set(['tenant_state', 'secret_not_exposed']);
+
 export async function runGraders(
   graderDefs: GraderDef[],
   workspace: string,
@@ -189,13 +192,14 @@ export async function runGraders(
     toolCalls,
     compileResult,
     agentText: agentText ?? '',
-    fixtureState: fixture?.state,
-    secrets: fixture?.secrets,
   };
 
   const runOne = async (g: GraderDef): Promise<GraderResult> => {
     try {
-      return await executeGrader(g, context);
+      const graderContext = FIXTURE_GRADER_KINDS.has(g.kind)
+        ? { ...context, fixtureState: fixture?.state, secrets: fixture?.secrets }
+        : context;
+      return await executeGrader(g, graderContext);
     } catch (err) {
       return {
         name: g.name,

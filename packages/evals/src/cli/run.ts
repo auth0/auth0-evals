@@ -77,7 +77,7 @@ import type {
   ArtifactManifest,
   RunArtifact,
   VerifierCredentials,
-  FixtureGradingInput,
+  FixtureSession,
 } from '@a0/evals-core';
 
 import { parseRunConfig, extractConfigPath } from './config.js';
@@ -246,6 +246,9 @@ async function executeAgentRun(
   return { record, resolvedModel, compileResult };
 }
 
+/** Fixture state and secrets handed to the graders. Held in memory, never persisted. */
+type FixtureGrading = ReturnType<FixtureSession['gradingInput']>;
+
 /**
  * Grade half: graders, scoring, recommendations, serialisation. Reads the workspace only
  * through the file walkers, so it works on a restored artefact workspace as well. Must run
@@ -261,7 +264,7 @@ async function gradeAgentRun(
   apiKey: string,
   agentType: AgentType,
   skillFiles?: ArtifactSkillFile[],
-  fixtureGrading?: FixtureGradingInput,
+  fixtureGrading?: FixtureGrading,
 ): Promise<JobResult> {
   const { generateRunRecommendations } = await import('../recommendations/index.js');
   const { record, resolvedModel, compileResult } = run;
@@ -287,6 +290,7 @@ async function gradeAgentRun(
   // Mask fixture-known secrets by exact value in everything that leaves this job:
   // the analyst prompt, the recommendations, and the persisted result.
   const knownSecrets = fixtureGrading?.secrets ?? [];
+  const redact = (text: string): string => redactKnownSecrets(text, knownSecrets);
   const safeRecord = redactKnownSecrets(record, knownSecrets);
   const safeScored = redactKnownSecrets(scored, knownSecrets);
 
@@ -302,7 +306,7 @@ async function gradeAgentRun(
     safeRecord,
     apiKey,
     skillFiles,
-    knownSecrets,
+    redact,
   );
 
   return redactKnownSecrets(
@@ -329,7 +333,6 @@ async function runAgentJob(
 
   const workspace = await prepareAgentWorkspace(evalDef, agentType);
   let fixtureSession: Awaited<ReturnType<typeof openFixture>> | undefined;
-  let verifierSecret: string | undefined;
   try {
     if (evalDef.fixture) {
       // Fixture hooks run in this process with the verifier credential. The docker
@@ -345,8 +348,11 @@ async function runAgentJob(
             `(${VERIFIER_ENV.file}, or ${VERIFIER_ENV.domain} + ${VERIFIER_ENV.clientId} + ${VERIFIER_ENV.clientSecret})`,
         );
       }
-      verifierSecret = credentials.clientSecret;
-      fixtureSession = await openFixture(evalDef.fixture, { mgmt: createManagementClient(credentials), workspace });
+      fixtureSession = await openFixture(evalDef.fixture, {
+        mgmt: createManagementClient(credentials),
+        workspace,
+        extraSecrets: [credentials.clientSecret],
+      });
     }
 
     if (!sandbox && evalDef.setupCommand) {
@@ -373,7 +379,6 @@ async function runAgentJob(
     // Local execution (--dangerously-skip-sandbox or baseline)
     // Post-run tenant snapshot for tenant_state graders. Held in memory only. Taken as soon as
     // the agent exits, so the compile command cannot change the state that gets graded.
-    let post: unknown;
     const session = fixtureSession;
     const run = await executeAgentRun(
       evalDef,
@@ -384,22 +389,13 @@ async function runAgentJob(
       agentType,
       session
         ? async () => {
-            post = await session.snapshot();
+            await session.capturePost();
             logger.info(`  [Fixture] Post-run snapshot taken (run ${session.context.runId})`);
           }
         : undefined,
     );
 
-    let fixtureGrading: FixtureGradingInput | undefined;
-    if (fixtureSession) {
-      fixtureGrading = {
-        // Without a snapshot hook there is no state, so tenant_state graders say so instead of crashing.
-        state: evalDef.fixture?.snapshot
-          ? { pre: fixtureSession.pre, post, seeded: fixtureSession.context.seeded }
-          : undefined,
-        secrets: [...(verifierSecret ? [verifierSecret] : []), ...fixtureSession.secrets],
-      };
-    }
+    const fixtureGrading = fixtureSession?.gradingInput();
 
     return await gradeAgentRun(evalDef, workspace, run, tools, apiKey, agentType, undefined, fixtureGrading);
   } finally {

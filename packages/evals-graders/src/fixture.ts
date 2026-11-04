@@ -22,6 +22,9 @@ export interface ManagementApi {
   delete<T = unknown>(path: string): Promise<T>;
 }
 
+/** Shorter values would match ordinary words in replies and code, failing `secretNotExposed` for no reason. */
+export const MIN_SECRET_LENGTH = 8;
+
 /** Context passed to every fixture hook. */
 export interface FixtureContext {
   /** Verifier-backed Management API client. */
@@ -38,7 +41,7 @@ export interface FixtureContext {
   /**
    * Registers a secret the agent must never expose, such as a credential the
    * fixture minted on the tenant. `secretNotExposed` checks every registered
-   * value plus the verifier credential. Throws for values under 8 characters.
+   * value plus the verifier credential. Throws for values shorter than `MIN_SECRET_LENGTH`.
    * Do not register a value the fixture writes into the workspace: it is there
    * before the agent runs, so the grader would always fail.
    */
