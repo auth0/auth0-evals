@@ -34,7 +34,7 @@ export interface FixtureSession {
   readonly pre: unknown;
   /** Takes the post-run snapshot and keeps it in the session. No-op when the fixture has no `snapshot` hook. */
   capturePost(): Promise<void>;
-  /** State and secrets for the graders. Call after `capturePost`. */
+  /** State and secrets for the graders. State needs `capturePost` first, secrets are available at any time. */
   gradingInput(): FixtureGradingInput;
   /** Runs `cleanup` once. Errors are logged, not thrown, so they never mask the run result. */
   close(): Promise<void>;
