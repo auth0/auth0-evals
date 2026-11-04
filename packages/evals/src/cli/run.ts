@@ -375,7 +375,10 @@ async function gradeAgentRun(
 
   const scored = score(record, graderResults, getFrameworkConfig().scoring);
   // Mask fixture-known secrets by exact value in everything that leaves this job:
-  // the analyst prompt, the recommendations, and the persisted result.
+  // the analyst prompt, the recommendations, and the persisted result. The graders above
+  // keep the unmasked record, because the exposure check has to see a leak. Serialising
+  // takes the masked copies so a secret is replaced before the trace is truncated, where a
+  // cut through the middle of it would leave a prefix that no exact match can find.
   const knownSecrets = fixtureGrading?.secrets ?? [];
   const redact = (text: string): string => redactKnownSecrets(text, knownSecrets);
   const safeRecord = redactKnownSecrets(record, knownSecrets);
@@ -398,7 +401,7 @@ async function gradeAgentRun(
 
   return redactKnownSecrets(
     {
-      ...serialiseAgent(evalDef, record, scored, graderResults, resolvedModel, 'agent', tools, recommendations),
+      ...serialiseAgent(evalDef, safeRecord, safeScored, graderResults, resolvedModel, 'agent', tools, recommendations),
       agent_type: agentType,
     },
     knownSecrets,

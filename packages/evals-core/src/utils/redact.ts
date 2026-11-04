@@ -57,8 +57,16 @@ const SECRET_NAME = 'secret|token|password|passwd|api[_-]?key|apikey|private[_-]
  * the guard the first of those renders as `No token = [REDACTED SECRET] Valid…`,
  * losing the status code and the sentence break, and a reader is told a secret was
  * exposed where none was.
+ *
+ * A bare value also has to contain at least one letter or digit, because a credential
+ * always does. Markdown emphasis after a credential word is the case this protects:
+ * in `**Email first, then password:** I turned on identifier-first` the closing `**`
+ * is not a value, and without the guard it was replaced, leaving
+ * `password:[REDACTED SECRET] I turned on…`. A token such as `**hunter2**` still has
+ * letters and digits, so it is masked whole. The guard applies to the bare branch
+ * only, since a quoted value is a value whatever it holds.
  */
-const VALUE = `(?!\\[REDACTED|--|\\d+\\b)(?:"[^"]*"|'[^']*'|[^\\s,;&|)}\\]]+)`;
+const VALUE = `(?!\\[REDACTED|--|\\d+\\b)(?:"[^"]*"|'[^']*'|(?=[^\\s,;&|)}\\]]*[A-Za-z0-9])[^\\s,;&|)}\\]]+)`;
 
 /**
  * An argument key that names a credential outright, for the structured case where
