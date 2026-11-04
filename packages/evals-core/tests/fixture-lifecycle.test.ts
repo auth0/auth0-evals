@@ -39,7 +39,7 @@ describe('openFixture', () => {
     expect(session.context.runId).toMatch(/^[0-9a-f]{8}$/);
   });
 
-  it('runs seed before the pre snapshot and snapshot() calls the hook again', async () => {
+  it('runs seed before the pre snapshot and capturePost() calls the hook again', async () => {
     const calls: string[] = [];
     let n = 0;
     const def = {
@@ -57,15 +57,14 @@ describe('openFixture', () => {
     expect(calls).toEqual(['seed', 'snapshot']);
     expect(session.pre).toEqual({ n: 1 });
 
-    const post = await session.snapshot();
-    expect(post).toEqual({ n: 2 });
+    await session.capturePost();
     expect(def.snapshot).toHaveBeenCalledTimes(2);
   });
 
-  it('has undefined pre and snapshot() resolves undefined without a snapshot hook', async () => {
+  it('has undefined pre and capturePost() resolves without a snapshot hook', async () => {
     const session = await openFixture({ seed: async () => ({}) } as FixtureDef, opts());
     expect(session.pre).toBeUndefined();
-    await expect(session.snapshot()).resolves.toBeUndefined();
+    await expect(session.capturePost()).resolves.toBeUndefined();
   });
 
   it('runs cleanup once and rethrows the original error when seed throws', async () => {
@@ -136,7 +135,7 @@ describe('openFixture', () => {
     } as unknown as FixtureDef;
 
     const session = await openFixture(def, o);
-    await session.snapshot();
+    await session.capturePost();
     await session.close();
 
     expect(seen.seed.seeded).toEqual({});
@@ -204,5 +203,60 @@ describe('openFixture', () => {
     } as unknown as FixtureDef;
     await expect(openFixture(def, opts())).rejects.toThrow(/at least 8/);
     expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  describe('gradingInput', () => {
+    it('returns pre, post and seeded after capturePost', async () => {
+      let n = 0;
+      const def = {
+        seed: async () => ({ id: 'seeded-1' }),
+        snapshot: async () => ({ n: ++n }),
+      } as unknown as FixtureDef;
+      const session = await openFixture(def, opts());
+      await session.capturePost();
+      expect(session.gradingInput().state).toEqual({ pre: { n: 1 }, post: { n: 2 }, seeded: { id: 'seeded-1' } });
+    });
+
+    it('has undefined state without a snapshot hook', async () => {
+      const session = await openFixture({ seed: async () => ({}) } as FixtureDef, opts());
+      await session.capturePost();
+      expect(session.gradingInput().state).toBeUndefined();
+    });
+
+    it('lists extraSecrets first and registered secrets after them', async () => {
+      const def = {
+        seed: async (ctx: FixtureContext) => {
+          ctx.registerSecret('registered-one');
+          ctx.registerSecret('registered-two');
+          return {};
+        },
+      } as unknown as FixtureDef;
+      const session = await openFixture(def, { ...opts(), extraSecrets: ['verifier-secret'] });
+      expect(session.gradingInput().secrets).toEqual(['verifier-secret', 'registered-one', 'registered-two']);
+      expect(session.secrets).toEqual(['registered-one', 'registered-two']);
+    });
+
+    it('includes extraSecrets even when nothing was registered', async () => {
+      const session = await openFixture({} as FixtureDef, { ...opts(), extraSecrets: ['verifier-secret'] });
+      expect(session.gradingInput().secrets).toEqual(['verifier-secret']);
+    });
+
+    it('has no secrets without extraSecrets or registrations', async () => {
+      const session = await openFixture({} as FixtureDef, opts());
+      expect(session.gradingInput().secrets).toEqual([]);
+    });
+  });
+
+  it('capturePost() rejects when the snapshot hook throws', async () => {
+    const err = new Error('post boom');
+    let calls = 0;
+    const def = {
+      snapshot: async () => {
+        if (++calls > 1) throw err;
+        return {};
+      },
+    } as unknown as FixtureDef;
+    const session = await openFixture(def, opts());
+    await expect(session.capturePost()).rejects.toBe(err);
   });
 });

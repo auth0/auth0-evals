@@ -7,7 +7,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { listGradingFiles, logger, redactKnownSecrets, redactSecrets, REDACTION_MARKER } from '@a0/evals-core';
+import { listGradingFiles, logger, redactSecrets, REDACTION_MARKER } from '@a0/evals-core';
 import type { RunRecord, ToolCallRecord, ScoredResult, Recommendations, Recommendation } from '@a0/evals-core';
 import type { SkillFile } from './collect-skill-content.js';
 
@@ -67,10 +67,10 @@ export interface RecommendationInput {
    */
   skillFiles?: SkillFile[];
   /**
-   * Exact values the fixture registered as secrets. They are masked in workspace file
-   * contents, which the prompt sends in full and which the run-level masking does not cover.
+   * Masks fixture-known secrets in workspace file contents, which the prompt sends in full
+   * and which the run-level masking does not cover. Defaults to identity.
    */
-  knownSecrets?: readonly string[];
+  redact?: (text: string) => string;
   /** API key for the LLM endpoint. */
   apiKey: string;
   /** Base URL for the LLM proxy. */
@@ -252,7 +252,7 @@ function buildSkillSection(skillFiles: SkillFile[], record: RunRecord): string {
 // ── Prompt construction ───────────────────────────────────────────────────────
 
 function buildPrompt(input: RecommendationInput): { system: string; user: string } {
-  const { evalId, userPrompt, workspace, scored, record, skillContent, skillFiles, tools, knownSecrets = [] } = input;
+  const { evalId, userPrompt, workspace, scored, record, skillContent, skillFiles, tools, redact = (t) => t } = input;
 
   const skillsInContext = tools.includes('skills');
   const mcpInContext = tools.includes('mcp');
@@ -275,7 +275,7 @@ function buildPrompt(input: RecommendationInput): { system: string; user: string
     try {
       // Redact the raw text before the length check and before escaping, so an exact
       // match is never broken up by escaping and the budget counts what is sent.
-      const content = redactKnownSecrets(readFileSync(join(workspace, relPath), 'utf-8'), knownSecrets);
+      const content = redact(readFileSync(join(workspace, relPath), 'utf-8'));
       if (totalChars + content.length > MAX_WORKSPACE_CHARS) break;
       workspaceContent.push(`<workspace_file path="${relPath}">\n${escapeForXml(content)}\n</workspace_file>`);
       totalChars += content.length;

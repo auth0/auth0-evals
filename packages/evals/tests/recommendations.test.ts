@@ -5,6 +5,7 @@ import { makeTmpDir } from './tmp.js';
 import './setup-config.js';
 import { collectSkillContent, collectSkillFiles } from '../src/recommendations/collect-skill-content.js';
 import type { RecommendationInput } from '../src/recommendations/generator.js';
+import { redactKnownSecrets } from '@a0/evals-core';
 import type { RunRecord, ScoredResult } from '@a0/evals-core';
 
 const tmpDir = makeTmpDir('recommendations_test_');
@@ -553,13 +554,35 @@ describe('generateRecommendations', () => {
     });
     globalThis.fetch = fetchMock;
 
-    await generateRecommendations({ ...makeInput(dir), knownSecrets: [secret] });
+    await generateRecommendations({ ...makeInput(dir), redact: (text) => redactKnownSecrets(text, [secret]) });
 
     const body = fetchMock.mock.calls[0]![1].body as string;
     // The file must be in the prompt, otherwise the secret check passes for the wrong reason.
     expect(body).toContain('App.tsx');
     expect(body).not.toContain(secret);
     expect(body).toContain('REDACTED');
+  });
+
+  it('sends workspace file contents unchanged when no redact function is given', async () => {
+    const { generateRecommendations } = await import('../src/recommendations/generator.js');
+    const dir = tmpDir();
+    mkdirSync(join(dir, 'src'));
+    const value = 'tenant-secret-value-123';
+    writeFileSync(join(dir, 'src', 'App.tsx'), `const key = "${value}";\n`);
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: JSON.stringify({ recommendations: [], summary: '' }) } }],
+      }),
+    });
+    globalThis.fetch = fetchMock;
+
+    await generateRecommendations(makeInput(dir));
+
+    const body = fetchMock.mock.calls[0]![1].body as string;
+    expect(body).toContain('App.tsx');
+    expect(body).toContain(value);
   });
 
   it('reports the reason on network failure', async () => {
