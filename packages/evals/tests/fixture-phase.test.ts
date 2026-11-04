@@ -151,6 +151,39 @@ function installRunner(leak: boolean): void {
   };
 }
 
+/**
+ * The agent leaks a known secret where the serialised trace is cut. The command carries it at
+ * character 20 of a 40 character narrative argument, and the tool output carries it at character
+ * 280 of a 300 character result preview, so each cut lands in the middle of the unmasked secret.
+ */
+const CUT_COMMAND = `echo ${'word '.repeat(3)}${CLIENT_SECRET}`;
+const CUT_OUTPUT = `${'x '.repeat(140)}${CLIENT_SECRET} trailing text`;
+
+function installCutRunner(): void {
+  hoisted.runner.run = async (params: unknown) => {
+    const { workspace } = params as { workspace: string };
+    mkdirSync(join(workspace, 'src'), { recursive: true });
+    writeFileSync(join(workspace, 'src/app.ts'), 'export {};\n');
+    const record: RunRecord = {
+      taskName: EVAL_ID,
+      model: MODEL,
+      sessionId: 'fixed-session',
+      startTime: 100,
+      endTime: 160.5,
+      toolCalls: [toolCall(CUT_COMMAND, CUT_OUTPUT)],
+      turnMetrics: [],
+      providerErrors: [],
+      inputTokens: 10,
+      outputTokens: 5,
+      costUsd: 0.01,
+      status: 'success',
+      finalSummary: 'Connected.',
+      workspace,
+    };
+    return { record, resolvedModel: 'claude-sonnet-5-resolved' };
+  };
+}
+
 function stubFetch(): void {
   vi.stubGlobal(
     'fetch',
@@ -180,11 +213,6 @@ function graderSummary(result: JobResult): Array<{ name: string; passed: boolean
   if (result.status === 'error' || !('graders' in result))
     throw new Error(`unexpected result: ${JSON.stringify(result)}`);
   return result.graders.map((g) => ({ name: g.name, passed: g.passed, detail: g.detail }));
-}
-
-/** The result without the per-call `resultSizeBytes`, which depends on whether a secret was masked first. */
-function withoutSizes(result: JobResult): unknown {
-  return JSON.parse(JSON.stringify(result, (key, value) => (key === 'resultSizeBytes' ? undefined : value)));
 }
 
 /** Every file under `dir`, recursively, as absolute paths. */
@@ -329,11 +357,32 @@ describe('--phase all vs --phase agent + --phase grade for a fixture eval', () =
     expect(all.status).not.toBe('error');
     expect(split.status).not.toBe('error');
     expect(graderSummary(split)).toEqual(graderSummary(all));
-    // The trace byte sizes are measured before masking on the combined path and after it on the
-    // split path, so they differ for a leaked secret. Everything else must be identical.
-    expect(withoutSizes(split)).toEqual(withoutSizes(all));
+    expect(split).toEqual(all);
     const secretGrader = graderSummary(split).find((g) => g.name.startsWith('No credential'));
     expect(secretGrader?.passed).toBe(!leak);
+  });
+
+  it('masks a known secret before the trace is truncated, as the split path does', async () => {
+    installCutRunner();
+    const root = makeRoot();
+
+    const all = await runJob(evalConfig, MODEL, 'agent', [], 'key', false, AGENT_TYPE, root, false);
+    const { artifactDir } = await agentPhase(root);
+    const split = await gradePhase(artifactDir, root);
+
+    for (const result of [all, split]) {
+      if (result.status === 'error' || !('session_trace' in result))
+        throw new Error(`unexpected result: ${JSON.stringify(result)}`);
+      const [step] = result.session_trace;
+      // Masking after the cut used to leave the first 20 characters of the secret in both fields.
+      expect(step!.narrative).not.toContain('verifier-client-secr');
+      expect(step!.narrative).not.toContain('verif');
+      expect(step!.narrative).toContain('word [REDACTED SECRET]');
+      expect(step!.resultPreview).not.toContain('verifier-client-secr');
+      expect(step!.resultPreview).not.toContain('verif');
+      expect(step!.resultPreview).toContain('x [REDACTED SECRET] tr');
+    }
+    expect(split).toEqual(all);
   });
 
   it('loads the fixture in the agent phase even though graders.ts is gone', async () => {
