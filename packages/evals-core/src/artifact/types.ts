@@ -2,8 +2,12 @@ import type { CompileResult } from '@a0/evals-graders';
 import type { AgentType } from '../types/agents.js';
 import type { RunRecord } from '../types/scorer.js';
 import type { BaselineResult } from '../serializers.js';
+import type { FixtureArtifactData } from '../fixture/artifact-data.js';
 
-/** Current on-disk schema version of a run artefact. Bump on any incompatible change. */
+/**
+ * Current on-disk schema version of a run artefact. Bump on any incompatible change.
+ * Adding an optional field (such as `AgentRunData.fixture`) is compatible and keeps version 1.
+ */
 export const RUN_ARTIFACT_SCHEMA_VERSION = 1;
 
 /** Name of the manifest file; its presence marks an artefact directory as complete. */
@@ -56,6 +60,11 @@ export interface AgentRunData {
   resolvedModel: string;
   compileResult?: CompileResult;
   skillFiles?: ArtifactSkillFile[];
+  /**
+   * Tenant fixture data for evals with a fixture. Values of known secrets are never stored:
+   * the snapshots are masked and the exposure only lists locations.
+   */
+  fixture?: FixtureArtifactData;
 }
 
 /** `run.json` payload for the baseline kind. */

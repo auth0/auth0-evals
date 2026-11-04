@@ -1820,11 +1820,15 @@ describe('runGraders - fixture graders', () => {
   });
 
   it('hands fixture state and secrets only to fixture graders, not to other executors', async () => {
-    const seen: Array<{ fixtureState: unknown; secrets: unknown }> = [];
+    const seen: Array<{ fixtureState: unknown; secrets: unknown; secretExposure: unknown }> = [];
     registerExecutor({
       kind: 'probe_fixture_scope',
       async execute(def, context) {
-        seen.push({ fixtureState: context.fixtureState, secrets: context.secrets });
+        seen.push({
+          fixtureState: context.fixtureState,
+          secrets: context.secrets,
+          secretExposure: context.secretExposure,
+        });
         return { name: def.name, kind: def.kind, passed: true, detail: 'probed', level: def.level };
       },
     });
@@ -1847,9 +1851,39 @@ describe('runGraders - fixture graders', () => {
     expect(seen).toHaveLength(1);
     expect(seen[0]!.fixtureState).toBeUndefined();
     expect(seen[0]!.secrets).toBeUndefined();
+    expect(seen[0]!.secretExposure).toBeUndefined();
     // The fixture graders in the same run still receive the data.
     expect(predicate.mock.calls[0]![0]).toBe(state);
     expect(results[1]!.passed).toBe(true);
     expect(results[2]!.passed).toBe(true);
+  });
+
+  it('hands a precomputed exposure to secret_not_exposed and not to other executors', async () => {
+    const seen: unknown[] = [];
+    registerExecutor({
+      kind: 'probe_exposure_scope',
+      async execute(def, context) {
+        seen.push(context.secretExposure);
+        return { name: def.name, kind: def.kind, passed: true, detail: 'probed', level: def.level };
+      },
+    });
+    const probe: GraderDef = { kind: 'probe_exposure_scope', name: 'probe' };
+
+    const leaked = await runGraders(
+      [probe, secretNotExposed()],
+      tmpDir(),
+      'unused',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      'all good',
+      { secrets: [], exposure: { checked: 1, locations: ['final reply'] } },
+    );
+
+    expect(seen).toEqual([undefined]);
+    expect(leaked[1]!.passed).toBe(false);
+    expect(leaked[1]!.detail).toBe('Secret exposed in final reply');
   });
 });

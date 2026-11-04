@@ -38,10 +38,10 @@ export default defineFixture({
 
 1. `seed` runs first, then the pre-run `snapshot`, both before the agent starts.
 2. The agent runs.
-3. The post-run `snapshot` runs after the agent exits. If it fails, the failure is logged and the run is still graded. The file graders and the judge give their usual result, and `tenantState` graders fail with "Tenant state unavailable".
+3. The post-run `snapshot` runs as soon as the agent exits, before the compile command, so the compile command cannot change the state that gets graded. If it fails, the failure is logged and the run is still graded. The file graders and the judge give their usual result, and `tenantState` graders fail with "Tenant state unavailable".
 4. `cleanup` always runs in a `finally`. Cleanup errors are logged, not thrown. If `seed` or the pre-run snapshot fails, cleanup still runs and the job errors.
 
-Snapshots stay in memory and are never written to the scores file, because a tenant read can include client secrets.
+Snapshots stay in memory during a run. In a two-phase run the agent phase also stores them in the run artefact, masked (see [Two-phase runs with fixtures](#two-phase-runs-with-fixtures)). They are never written to the scores file, because a tenant read can include client secrets.
 
 ### Rules
 
@@ -49,7 +49,7 @@ Snapshots stay in memory and are never written to the scores file, because a ten
 - Management API requests time out after 30 seconds. The client retries HTTP 429 for every method, and network errors, timeouts and 502/503/504 responses for GET, PUT and DELETE only, up to 3 times with backoff. POST and PATCH are not retried on those failures because a lost response after a successful write would duplicate or re-apply it, so a failed `seed` write fails the job.
 - `cleanup` runs in a `finally`, so it does not run if the process is hard-killed or interrupted. Name tenant resources with `runId` so leftovers from an aborted run can be found and removed.
 - Cleanup deletes only what this run created. If `seed` throws partway, `seeded` is empty when cleanup runs, so look run-owned resources up by `runId` too.
-- AXIS does not run fixtures and rejects fixture evals. Use `npm run evals`. `--phase agent` rejects them too, because the fixture session only wraps a full run.
+- AXIS does not run fixtures and rejects fixture evals. Use `npm run evals`. Fixture evals also run in the two-phase pipeline (`--phase agent`, then `--phase grade`), as described in [Two-phase runs with fixtures](#two-phase-runs-with-fixtures).
 - Seed infrastructure, not answers. Do not create the resource the agent is being asked to produce.
 - Fixture files are not copied into the agent workspace, so the agent cannot read them.
 
@@ -78,7 +78,7 @@ export function defineGraders() {
 }
 ```
 
-`tenantState(description, level, predicate)` requires L4 or L5. The predicate receives `{ pre, post, seeded }` and returns `true` to pass, `false` to fail, or a string to fail with that reason. The reason is persisted in the scores file, so never put secrets or raw snapshots in it. The snapshots themselves are never persisted. The grader needs a fixture with a `snapshot` hook, and fails without one. If the predicate throws, the grader fails with a generic message, so an assertion error that quotes snapshot values is never persisted.
+`tenantState(description, level, predicate)` requires L4 or L5. The predicate receives `{ pre, post, seeded }` and returns `true` to pass, `false` to fail, or a string to fail with that reason. The reason is persisted in the scores file, so never put secrets or raw snapshots in it. The snapshots themselves are never written to the scores file. The run artefact keeps a masked copy, so a grade phase can run the same predicates. The grader needs a fixture with a `snapshot` hook, and fails without one. If the predicate throws, the grader fails with a generic message, so an assertion error that quotes snapshot values is never persisted.
 
 `secretNotExposed(description?)` is an L3 check. CLI evals normally move the Security weight to Correctness, but an eval with an L3 grader keeps it, so a leak lowers the score. It always looks for the verifier credential, and also for any value the fixture registers with `ctx.registerSecret(value)` inside its hooks (for example a secret minted on the tenant during `seed`). Registered values must be at least 8 characters, and must not be written into the workspace by the fixture, because they would be there before the agent runs and the grader would always fail. It searches tool call arguments and output, the agent's final reply, and workspace files. The failure detail says where the value was found, never the value itself. It fails when no secret is known, because the check would otherwise pass without testing anything. Every known secret is also masked by exact value in the persisted result and in the recommendations prompt.
 
@@ -94,6 +94,27 @@ Use a dedicated M2M client for the verifier, on a dev tenant, with only the Mana
 - **CI:** set `AUTH0_VERIFIER_CREDENTIALS_FILE` to a JSON file containing `{ "domain", "client_id", "client_secret" }`. The path is consumed: the file is deleted after it is read, so do not point it at a file you want to keep. If the delete fails (for example on a read-only mount), the run logs a warning and continues.
 
 The credential is read once at startup, and every `AUTH0_VERIFIER_*` variable is then removed from the process environment, so setup and compile commands never inherit it. Only an agent job whose eval has a fixture gets its own single-use `0600` credentials file. A partial or invalid verifier config fails only those jobs. The file option exists because on Linux a process running as the same user can read a parent's `/proc/<pid>/environ`.
+
+## Two-phase runs with fixtures
+
+Fixture evals also run in the two-phase pipeline (`--phase agent`, then `--phase grade`). Only the agent phase opens the fixture, so only that job holds the tenant and the verifier credential. It runs the whole lifecycle: seed, pre-run snapshot, the agent, post-run snapshot and cleanup. It loads `fixture.ts` but skips `graders.ts`. The grade phase never opens the fixture and needs no verifier credential.
+
+Before it writes the artefact, the agent phase looks for every known secret (the verifier client secret and any value registered with `ctx.registerSecret`) in tool call arguments and output, the final reply and the workspace files. It records only where a secret appeared, then masks the exact secret values out of the workspace files, the run record and the compile result.
+
+The artefact's `run.json` gets an optional `fixture` block:
+
+- `state`: the masked pre-run and post-run snapshots and the seeded values. `tenantState` predicates run on this in the grade phase. It is missing when the post-run snapshot failed, and `stateError` then says why.
+- `exposure`: how many secrets were checked, and the locations where one appeared, such as `tool call 2 output` or `file src/app.ts`. It never holds a value. `secretNotExposed` reads this in the grade phase. With nothing checked, it fails with "No secrets known for this run".
+
+If the post-run snapshot fails, the agent phase still writes the artefact. The `fixture` block then carries `stateError` and no `state`, the file graders and the judge give their usual result, and `tenantState` graders fail with "Tenant state unavailable".
+
+What this means in practice:
+
+- Snapshots are now stored in the artefact. They are masked, but the artefact is still sensitive, so handle it like any other artefact. The scores file still never holds them.
+- Content graders in the grade phase read workspace files where known secret values are replaced with `[REDACTED SECRET]`.
+- Masking matches exact values only. A transformed secret, such as a base64 copy, is neither masked nor detected, the same as in the combined path.
+- Both partial phases need `--dangerously-skip-sandbox`. Only the agent phase needs a verifier credential.
+- `--phase all`, `npm run replay` and AXIS work as before.
 
 ## Replaying scripted solutions
 

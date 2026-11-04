@@ -25,6 +25,7 @@ import { eventExecutor } from './executors/event.js';
 import { compileExecutor } from './executors/compile.js';
 import { tenantStateExecutor } from './executors/tenant-state.js';
 import { secretNotExposedExecutor } from './executors/secret-not-exposed.js';
+import type { SecretExposure } from './secret-exposure.js';
 
 import { JUDGE_DEFAULT_MAX_TOKENS } from './llm-judge.js';
 
@@ -141,12 +142,17 @@ function combined(files: Record<string, string>): string {
 
 // ── Runner ────────────────────────────────────────────────────────────────────
 
-/** Fixture output for tenant_state and secret_not_exposed graders. Held in memory, never persisted. */
+/**
+ * Fixture output for tenant_state and secret_not_exposed graders. The agent job builds it in memory.
+ * In a two-phase run the grade job rebuilds it from the sealed artefact block, with `secrets` empty.
+ */
 export interface FixtureGradingInput {
   state?: FixtureState;
   /** Why `state` is missing when the snapshot was attempted and failed. Short and secret-free, since it reaches the result. */
   stateError?: string;
   secrets: readonly string[];
+  /** Precomputed by the agent phase. When set, `secrets` may be empty. */
+  exposure?: SecretExposure;
 }
 
 // Only these executors may read tenant snapshots or secrets, so other executors (the LLM judge, custom ones) never see them.
@@ -204,6 +210,7 @@ export async function runGraders(
             fixtureState: fixture?.state,
             fixtureStateError: fixture?.stateError,
             secrets: fixture?.secrets,
+            secretExposure: fixture?.exposure,
           }
         : context;
       return await executeGrader(g, graderContext);

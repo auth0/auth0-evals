@@ -6,8 +6,9 @@
  *   session.gradingInput() state and secrets for graders  (after capturePost)
  *   session.close()        cleanup, always, never throws  (in a `finally`)
  *
- * Snapshots are held in memory for graders and are never persisted: a tenant
- * read can include client secrets.
+ * Snapshots are held in memory for graders. They are persisted only masked, in the
+ * run artefact of the agent phase (see artifact-data.ts), and never in the scores
+ * file: a tenant read can include client secrets.
  */
 
 import { randomBytes } from 'node:crypto';

@@ -10,7 +10,8 @@
  * SECURITY: artefacts contain the UNREDACTED trace (tool args and results) and every
  * file the agent wrote (including e.g. `.env`). Graders need the raw trace, so nothing
  * is redacted here — redaction happens later, in the serialisers. Treat artefact
- * directories as sensitive: do not publish or share them.
+ * directories as sensitive: do not publish or share them. The one exception is the
+ * `fixture` block of run.json, which the caller masks before writing (see sealFixtureData).
  *
  * Workspace snapshot rationale: every grading-time reader (graders engine, recommendations)
  * lists files through `listGradingFiles(workspace)`. The snapshot copies exactly that list,
@@ -129,6 +130,7 @@ export function writeRunArtifact(dir: string, input: WriteRunArtifactInput): voi
       resolvedModel: input.resolvedModel,
       ...(input.compileResult !== undefined ? { compileResult: input.compileResult } : {}),
       ...(input.skillFiles !== undefined ? { skillFiles: input.skillFiles } : {}),
+      ...(input.fixture !== undefined ? { fixture: input.fixture } : {}),
     };
   } else if (input.kind === 'baseline') {
     run = { result: input.result, responseText: input.responseText };
@@ -152,6 +154,16 @@ function readJson(path: string, what: string): unknown {
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/** Checks the parts of a fixture block that grading relies on; `state` is not deeply validated. */
+function isFixtureBlock(v: unknown): boolean {
+  if (!isObject(v)) return false;
+  const exposure = v.exposure;
+  if (!isObject(exposure)) return false;
+  if (typeof exposure.checked !== 'number') return false;
+  if (!Array.isArray(exposure.locations) || !exposure.locations.every((l) => typeof l === 'string')) return false;
+  return v.stateError === undefined || typeof v.stateError === 'string';
 }
 
 /**
@@ -200,6 +212,9 @@ export function readRunArtifact(dir: string): RunArtifact {
   if (kind === 'agent') {
     if (!isObject(run.record) || typeof run.resolvedModel !== 'string') {
       throw new Error(`Invalid run artefact: ${runPath} lacks record/resolvedModel for kind 'agent'`);
+    }
+    if (run.fixture !== undefined && !isFixtureBlock(run.fixture)) {
+      throw new Error(`Invalid run artefact: ${runPath} has a malformed fixture block`);
     }
     return { dir, kind, manifest: m, run: run as unknown as AgentRunData };
   }
