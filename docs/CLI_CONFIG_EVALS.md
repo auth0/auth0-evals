@@ -45,7 +45,7 @@ MFA so it is required for users.
 - **Signals the eval runner** to stand up a throwaway tenant and pre-authenticate the `auth0` CLI to it before the agent starts (the framework loader itself doesn't provision anything — it only reads the field).
 - **Drives context injection**: the matching entry in `cliContext` (in `eval.config.js`) is appended to the agent's native context file (`CLAUDE.md` / `AGENTS.md` / …). This is how the "you're on an already-authenticated live tenant — don't re-login, don't hardcode or look up domain/client-id/secret, stay non-interactive, never print secrets" platform guidance reaches the agent.
 
-> Use `provision` + `cliContext` instead of a `## System` section. `## System` only feeds **baseline** mode and never reaches the agent, which is the mode these evals target.
+> Use `provision` + `cliContext` instead of a `## System` section. `## System` is for per-eval config (credentials, `.env` setup) rather than CLI/platform context, which belongs in `cliContext`.
 
 ### 2. `graders.ts` — event graders + a trace-aware judge
 

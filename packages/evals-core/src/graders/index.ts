@@ -4,13 +4,13 @@ export {
   JUDGE_DEFAULT_MAX_TOKENS,
   passRate,
   collectFiles as collectGraderFiles,
+  listGradingFiles,
   walkFiles,
   EXCLUDED_EVAL_DIRS,
   EXCLUDED_EVAL_FILES,
 } from './engine.js';
 
 export type { LlmJudgeOptions } from './llm-judge.js';
-export type { FixtureGradingInput } from './engine.js';
 
 export { extractCodeBlocks, gradeText } from './grade-text.js';
 

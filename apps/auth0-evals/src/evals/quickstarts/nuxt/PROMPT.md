@@ -6,12 +6,14 @@ setup_command: npm install
 compile_command: npm run build
 ---
 
-## Task
-Add Auth0 authentication to a Nuxt application using the @auth0/auth0-nuxt SDK.
+## System
 
 Domain: dev-playground.us.auth0.com
 Client ID: playground_client_abc123xyz
 Client Secret: playground_secret_def456uvw
+
+## Task
+Add Auth0 authentication to a Nuxt application using the @auth0/auth0-nuxt SDK.
 
 Set up the Auth0 module in nuxt.config.ts, implement login and logout, display the authenticated user's name and profile picture, and protect a /profile route so only logged-in users can access it.
 

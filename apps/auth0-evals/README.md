@@ -69,6 +69,7 @@ See [`@a0/evals` CLI docs](../../packages/evals/) for the full list of flags and
 | `spa_js_organizations`    | organizations | Add Auth0 Organizations (org-scoped login, invitation acceptance, org_id read-back) to a vanilla JS SPA using `@auth0/auth0-spa-js` |
 | `organizations_cli` | organizations | Set up B2B organization login on a live tenant using the Auth0 CLI - create an org, enable a connection with auto-membership, and require org login on the SPA |
 | `universal_login_change_cli` | cli-workflows | Update the Universal Login experience on a live tenant using the Auth0 CLI - turn on identifier-first, change the email screen heading, and set the theme button color while keeping every other setting |
+| `token_vault_cli` | token-vault | Set up Token Vault on a live tenant using the Auth0 CLI - enable it on the Google connection, add the Token Vault grant to the app without dropping existing grants, and make refresh tokens non-rotating |
 
 ## Configuration
 
