@@ -39,7 +39,7 @@ export interface FixtureSession {
    * secrets masked, and `gradingInput` then reports the state as unavailable.
    */
   capturePost(): Promise<void>;
-  /** State and secrets for the graders. Call after `capturePost`. */
+  /** State and secrets for the graders. State needs `capturePost` first, secrets are available at any time. */
   gradingInput(): FixtureGradingInput;
   /** Runs `cleanup` once. Errors are logged, not thrown, so they never mask the run result. */
   close(): Promise<void>;
