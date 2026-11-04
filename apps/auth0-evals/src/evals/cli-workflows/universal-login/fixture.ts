@@ -138,6 +138,19 @@ async function readTheme(mgmt: ManagementApi): Promise<Record<string, unknown> |
 const pick = (obj: Record<string, unknown>, keys: readonly string[]) =>
   Object.fromEntries(keys.filter((k) => obj[k] !== undefined).map((k) => [k, obj[k]]));
 
+/**
+ * Puts back only the saved fields whose value on the tenant now differs, and writes nothing when
+ * none do. Re-sending a field the run never touched is not harmless: a fresh tenant can hold an
+ * empty or null value that the API then refuses, which failed the whole write with a 400.
+ */
+async function restoreChanged(mgmt: ManagementApi, path: string, saved: Record<string, unknown>): Promise<void> {
+  const current = await mgmt.get<Record<string, unknown>>(path);
+  const changed = Object.fromEntries(
+    Object.entries(saved).filter(([key, value]) => JSON.stringify(current[key]) !== JSON.stringify(value)),
+  );
+  if (Object.keys(changed).length > 0) await mgmt.patch(path, changed);
+}
+
 async function restore(mgmt: ManagementApi, saved: Saved): Promise<void> {
   // Each step is attempted even if another fails, so one bad write does not
   // leave the rest of the tenant changed. Steps are named so a failure says which
@@ -163,8 +176,8 @@ async function restore(mgmt: ManagementApi, saved: Saved): Promise<void> {
         }
       },
     ],
-    ['classic branding', () => mgmt.patch('branding', saved.branding)],
-    ['tenant settings', () => mgmt.patch('tenants/settings', saved.tenant)],
+    ['classic branding', () => restoreChanged(mgmt, 'branding', saved.branding)],
+    ['tenant settings', () => restoreChanged(mgmt, 'tenants/settings', saved.tenant)],
   ];
   const results = await Promise.all(
     steps.map(async ([name, run]) => {
