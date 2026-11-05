@@ -508,6 +508,94 @@ describe('ranCommandWithFlags predicate', () => {
       'event-based graders only support',
     );
   });
+
+  describe('--data JSON payloads', () => {
+    const cmd = (command: string, causedError = false) => [
+      evt({ name: 'run_command', args: { command }, causedError }),
+    ];
+    const pretty = `auth0 apps create --json --data '{
+  "name": "Quickstart Native",
+  "callbacks": ["com.example.quickstart://callback"],
+  "allowed_logout_urls": ["com.example.quickstart://callback"]
+}'`;
+
+    it('binds a pretty-printed callbacks and allowed_logout_urls value', () => {
+      const cb = ranCommandWithFlags(
+        'apps create',
+        [['--callbacks', 'com.example.quickstart://callback']],
+        undefined,
+        GraderLevel.L4,
+      );
+      const lo = ranCommandWithFlags(
+        'apps create',
+        [['--logout-urls', 'com.example.quickstart://callback']],
+        undefined,
+        GraderLevel.L4,
+      );
+      expect(run(cb, cmd(pretty))).toBe(true);
+      expect(run(lo, cmd(pretty))).toBe(true);
+    });
+
+    it('binds compact and backslash-escaped JSON', () => {
+      const def = ranCommandWithFlags(
+        'apps create',
+        [['--callbacks', 'http://localhost:3000/callback']],
+        undefined,
+        GraderLevel.L4,
+      );
+      expect(run(def, cmd(`auth0 apps create --data '{"callbacks":["http://localhost:3000/callback"]}'`))).toBe(true);
+      expect(
+        run(def, cmd(`bash -lc "auth0 apps create --data '{\\"callbacks\\":[\\"http://localhost:3000/callback\\"]}'"`)),
+      ).toBe(true);
+    });
+
+    it('does not let a value under a different key satisfy the binding', () => {
+      const def = ranCommandWithFlags(
+        'apps create',
+        [['--callbacks', 'http://localhost:3000/callback']],
+        undefined,
+        GraderLevel.L4,
+      );
+      expect(
+        run(
+          def,
+          cmd(
+            `auth0 apps create --data '{"callbacks":["http://other"],"allowed_logout_urls":["http://localhost:3000/callback"]}'`,
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it('applies exactValue to JSON entries', () => {
+      const def = ranCommandWithFlags('apps create', [['--logout-urls', 'localhost:3000']], undefined, GraderLevel.L4, {
+        exactValue: true,
+      });
+      expect(run(def, cmd(`auth0 apps create --data '{"allowed_logout_urls":["http://localhost:3000"]}'`))).toBe(true);
+      expect(
+        run(def, cmd(`auth0 apps create --data '{"allowed_logout_urls":["http://localhost:3000/callback"]}'`)),
+      ).toBe(false);
+    });
+
+    it('binds --web-origins via web_origins', () => {
+      const def = ranCommandWithFlags(
+        'apps create',
+        [['--web-origins', 'http://localhost:3000']],
+        undefined,
+        GraderLevel.L4,
+      );
+      expect(run(def, cmd(`auth0 apps create --data '{"web_origins": ["http://localhost:3000"]}'`))).toBe(true);
+    });
+
+    it('does not count a failed --data command', () => {
+      const def = ranCommandWithFlags(
+        'apps create',
+        [['--callbacks', 'com.example.quickstart://callback']],
+        undefined,
+        GraderLevel.L4,
+      );
+      expect(run(def, cmd(pretty, true))).toBe(false);
+    });
+  });
 });
 
 // ── notRanCommand (predicate) ────────────────────────────────────────────────

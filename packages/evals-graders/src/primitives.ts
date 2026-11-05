@@ -306,6 +306,8 @@ function escapeRegExp(literal: string): string {
  * value may sit anywhere inside the flag's single whitespace-delimited argument.
  * A known long flag also matches its short alias (e.g. `-c` for `--callbacks`),
  * so a correct command using short forms is not scored as a structural failure.
+ * A value inside the matching field of a structured `--data` JSON payload (e.g. `"callbacks": [...]`
+ * for `--callbacks`) also binds, in pretty-printed, compact, or backslash-escaped form.
  *
  * @param command - Substring that must appear in the executed command; an array
  *   accepts any one of several alternative commands (e.g. `['apps create', 'qs setup']`)
@@ -329,6 +331,15 @@ const SHORT_FLAG_ALIASES: Record<string, string> = {
   '--type': '-t',
 };
 
+// Structured `--data` payloads name the Management API field instead of the flag,
+// so a value inside that field's JSON array binds the same as the flag form.
+const FLAG_JSON_KEYS: Record<string, string> = {
+  '--callbacks': 'callbacks',
+  '--logout-urls': 'allowed_logout_urls',
+  '--web-origins': 'web_origins',
+  '--origins': 'allowed_origins',
+};
+
 export function ranCommandWithFlags(
   command: string | string[],
   flags: Array<[string | string[], string]>,
@@ -344,6 +355,16 @@ export function ranCommandWithFlags(
       SHORT_FLAG_ALIASES[f] ? [f, SHORT_FLAG_ALIASES[f]] : [f],
     );
     const flagPattern = `(?:${names.map(escapeRegExp).join('|')})`;
+    const flagRe = new RegExp(
+      `${flagPattern}[=\\s]+[^\\s]*${escapeRegExp(value)}${exactValue ? `/?(?=$|[,\\s'"])` : ''}`,
+    );
+    const jsonKeys = names.flatMap((n) => (FLAG_JSON_KEYS[n] ? [FLAG_JSON_KEYS[n]] : []));
+    // "<key>": [ ...<value> — [^\]]* stays inside that key's array so a value under another key can't satisfy it.
+    const jsonRe = jsonKeys.length
+      ? new RegExp(
+          `\\\\?"(?:${jsonKeys.map(escapeRegExp).join('|')})\\\\?"\\s*:\\s*\\[[^\\]]*${escapeRegExp(value)}${exactValue ? `/?\\\\?"` : ''}`,
+        )
+      : undefined;
     return {
       flag: Array.isArray(flagSpec) ? flagSpec.join('|') : flagSpec,
       value,
@@ -351,7 +372,7 @@ export function ranCommandWithFlags(
       // flag's own argument so a value belonging to a later flag can't satisfy it.
       // Long flag or its known short alias may carry the value.
       // exactValue additionally requires the value to end the URL entry.
-      re: new RegExp(`${flagPattern}[=\\s]+[^\\s]*${escapeRegExp(value)}${exactValue ? `/?(?=$|[,\\s'"])` : ''}`),
+      test: (cmd: string) => flagRe.test(cmd) || (jsonRe?.test(cmd) ?? false),
     };
   });
   const label = bindings.map((b) => `${b.flag}=${b.value}`).join(', ');
@@ -361,7 +382,7 @@ export function ranCommandWithFlags(
     level,
     predicate: (toolCalls: EventToolCall[]) =>
       getRunCommands(toolCalls).some(
-        (cmd) => commandList.some((c) => cmd.includes(c)) && bindings.every((b) => b.re.test(cmd)),
+        (cmd) => commandList.some((c) => cmd.includes(c)) && bindings.every((b) => b.test(cmd)),
       ),
   };
 }
