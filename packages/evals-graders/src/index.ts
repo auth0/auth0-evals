@@ -11,10 +11,12 @@ export type {
   EventGraderLevel,
   NotRanCommandLevel,
   CompileResult,
+  FixtureState,
+  TenantStateLevel,
 } from './types.js';
 
 // Tenant fixtures
-export { defineFixture } from './fixture.js';
+export { defineFixture, MIN_SECRET_LENGTH } from './fixture.js';
 export type { FixtureDef, FixtureContext, ManagementApi } from './fixture.js';
 
 // Grader factory functions
@@ -33,4 +35,6 @@ export {
   compiles,
   calledTool,
   calledToolOneOf,
+  tenantState,
+  secretNotExposed,
 } from './primitives.js';

@@ -107,6 +107,9 @@ Graders define the acceptance criteria. Export a single `defineGraders()` functi
 | `compiles(description, level)` | Framework runs the eval's `compile_command` against the workspace after the agent finishes and passes/fails on its exit code — level required (L4 or L5). Decoupled from whether the agent ran the build itself, so output that compiles passes even if the agent never ran the build. Requires `compile_command` in frontmatter, or the grader fails. |
 | `calledTool(toolName, description, level)` | Agent invoked an MCP tool whose name contains the substring (trace-based; L4/L5 only) |
 | `calledToolOneOf(toolNames, description, level)` | Agent invoked at least one of the named MCP tools (trace-based; L4/L5 only) |
+| `notRanCommand(command, description, level)` | Agent did NOT run a shell command containing the substring (trace-based; L2 only) |
+| `tenantState(description, level, predicate)` | Predicate over the tenant state a `fixture.ts` snapshotted before and after the run (`{ pre, post, seeded }`). Returns `true`, `false`, or a failure reason string. Requires a fixture with a `snapshot` hook; L4/L5 only. See [CLI_WORKFLOW_EVALS.md](./CLI_WORKFLOW_EVALS.md) |
+| `secretNotExposed(description?)` | The verifier credential and any `ctx.registerSecret` values do not appear in the trace, final reply, or workspace files (L3). See [CLI_WORKFLOW_EVALS.md](./CLI_WORKFLOW_EVALS.md) |
 
 The `options` parameter accepts:
 

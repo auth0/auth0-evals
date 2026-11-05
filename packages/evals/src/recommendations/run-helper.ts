@@ -45,6 +45,7 @@ export async function generateRunRecommendations(
   record: RunRecord,
   apiKey: string,
   skillFilesOverride?: SkillFile[],
+  redact?: (text: string) => string,
 ): Promise<Recommendations> {
   const config = getFrameworkConfig();
 
@@ -63,6 +64,7 @@ export async function generateRunRecommendations(
     record,
     skillContent: '',
     skillFiles,
+    redact,
     apiKey,
     baseUrl: config.proxy.baseUrl,
     judgeModel: config.judge.model ?? 'claude-sonnet-4-5',

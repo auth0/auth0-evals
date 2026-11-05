@@ -5,7 +5,7 @@
  * kinds to executors and dispatches grader evaluation through them.
  */
 
-import type { GraderDef, GraderResult, EventToolCall, CompileResult } from '@a0/evals-graders';
+import type { GraderDef, GraderResult, EventToolCall, CompileResult, FixtureState } from '@a0/evals-graders';
 
 /**
  * Context passed to every executor. Each executor uses what it needs:
@@ -43,6 +43,10 @@ export interface GraderContext {
   compileResult?: CompileResult;
   /** Final reply text from the agent. Empty string in baseline mode or when no reply was captured. */
   agentText: string;
+  /** Tenant snapshots from the eval's fixture — used by tenant_state graders. Undefined without a fixture. */
+  fixtureState?: FixtureState;
+  /** Secrets the agent must never expose — used by secret_not_exposed graders. */
+  secrets?: readonly string[];
 }
 
 /**

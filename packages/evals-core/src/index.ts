@@ -55,7 +55,7 @@ export type { RetryOptions } from './utils/retry.js';
 export { agentPrompt } from './utils/agent-prompt.js';
 
 // Redaction
-export { redactSecrets, redactArgs, REDACTION_MARKER } from './utils/redact.js';
+export { redactSecrets, redactArgs, redactKnownSecrets, REDACTION_MARKER } from './utils/redact.js';
 
 // Costs
 export { estimateCost } from './config/costs.js';

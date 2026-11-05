@@ -13,7 +13,7 @@ import { getFrameworkConfig } from '../config/framework-config.js';
 import { DEFAULT_FRAMEWORK_CONFIG } from '../config/defaults.js';
 import { listFiles as listFilePaths } from '../workspace/index.js';
 import { logger } from '../utils/logger.js';
-import type { GraderDef, GraderResult, EventToolCall, CompileResult } from '@a0/evals-graders';
+import type { GraderDef, GraderResult, EventToolCall, CompileResult, FixtureState } from '@a0/evals-graders';
 import { GraderLevel } from '@a0/evals-graders';
 import { registerExecutor, executeGrader } from './executors/index.js';
 import { containsExecutor } from './executors/contains.js';
@@ -23,6 +23,8 @@ import { matchesExecutor } from './executors/matches.js';
 import { llmJudgeExecutor } from './executors/llm-judge.js';
 import { eventExecutor } from './executors/event.js';
 import { compileExecutor } from './executors/compile.js';
+import { tenantStateExecutor } from './executors/tenant-state.js';
+import { secretNotExposedExecutor } from './executors/secret-not-exposed.js';
 
 import { JUDGE_DEFAULT_MAX_TOKENS } from './llm-judge.js';
 
@@ -38,6 +40,8 @@ registerExecutor(matchesExecutor);
 registerExecutor(llmJudgeExecutor);
 registerExecutor(eventExecutor);
 registerExecutor(compileExecutor);
+registerExecutor(tenantStateExecutor);
+registerExecutor(secretNotExposedExecutor);
 
 // ── Workspace helpers ─────────────────────────────────────────────────────────
 
@@ -137,6 +141,15 @@ function combined(files: Record<string, string>): string {
 
 // ── Runner ────────────────────────────────────────────────────────────────────
 
+/** Fixture output for tenant_state and secret_not_exposed graders. Held in memory, never persisted. */
+export interface FixtureGradingInput {
+  state?: FixtureState;
+  secrets: readonly string[];
+}
+
+// Only these executors may read tenant snapshots or secrets, so other executors (the LLM judge, custom ones) never see them.
+const FIXTURE_GRADER_KINDS = new Set(['tenant_state', 'secret_not_exposed']);
+
 export async function runGraders(
   graderDefs: GraderDef[],
   workspace: string,
@@ -147,6 +160,7 @@ export async function runGraders(
   toolCalls?: EventToolCall[],
   compileResult?: CompileResult,
   agentText?: string,
+  fixture?: FixtureGradingInput,
 ): Promise<GraderResult[]> {
   const config = getFrameworkConfig();
   const resolvedJudgeModel = judgeModel ?? config.judge.model ?? '';
@@ -157,7 +171,7 @@ export async function runGraders(
     ? graderDefs.filter((g) => g.level === undefined || allowedLevels.has(g.level))
     : graderDefs;
 
-  const hasTextGraders = active.some((g) => g.kind !== 'event');
+  const hasTextGraders = active.some((g) => g.kind !== 'event' && g.kind !== 'tenant_state');
   const files = hasTextGraders ? collectFiles(workspace) : {};
   const combinedText = hasTextGraders ? combined(files) : '';
   const combinedLower = hasTextGraders ? combinedText.toLowerCase() : '';
@@ -182,7 +196,10 @@ export async function runGraders(
 
   const runOne = async (g: GraderDef): Promise<GraderResult> => {
     try {
-      return await executeGrader(g, context);
+      const graderContext = FIXTURE_GRADER_KINDS.has(g.kind)
+        ? { ...context, fixtureState: fixture?.state, secrets: fixture?.secrets }
+        : context;
+      return await executeGrader(g, graderContext);
     } catch (err) {
       return {
         name: g.name,

@@ -419,6 +419,22 @@ describe('score - CLI weight redistribution', () => {
     expect(getDim(result, 'Correctness').weight).toBeCloseTo(0.35, 5);
   });
 
+  it('CLI eval with an L3 grader keeps Security weight, so a leak lowers the score', () => {
+    const dir = tmpDir();
+    const record = makeRecord({ workspace: dir, evalType: 'cli' });
+    record.toolCalls = [makeToolCall('run_command', 1, { args: { command: 'auth0 apps list' } })];
+    const graders = (passed: boolean): GraderResult[] => [
+      { name: 'l4-pass', kind: 'tenantState', passed: true, detail: '', level: GraderLevel.L4 },
+      { name: 'secret', kind: 'secretNotExposed', passed, detail: '', level: GraderLevel.L3 },
+    ];
+    const clean = score(record, graders(true));
+    const leaked = score(record, graders(false));
+    expect(getDim(clean, 'Security').weight).toBeCloseTo(0.1, 5);
+    expect(getDim(clean, 'Correctness').weight).toBeCloseTo(0.25, 5);
+    expect(getDim(leaked, 'Security').rawScore).toBe(0);
+    expect(leaked.overallScore).toBeLessThan(clean.overallScore);
+  });
+
   it('SDK eval: default weights unchanged', () => {
     const dir = tmpDir();
     const record = makeRecord({ workspace: dir, evalType: 'sdk' });

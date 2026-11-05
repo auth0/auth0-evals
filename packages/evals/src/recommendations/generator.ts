@@ -66,6 +66,11 @@ export interface RecommendationInput {
    * otherwise gets cut off mid-file at whatever sorts first.
    */
   skillFiles?: SkillFile[];
+  /**
+   * Masks fixture-known secrets in workspace file contents, which the prompt sends in full
+   * and which the run-level masking does not cover. Defaults to identity.
+   */
+  redact?: (text: string) => string;
   /** API key for the LLM endpoint. */
   apiKey: string;
   /** Base URL for the LLM proxy. */
@@ -247,7 +252,7 @@ function buildSkillSection(skillFiles: SkillFile[], record: RunRecord): string {
 // ── Prompt construction ───────────────────────────────────────────────────────
 
 function buildPrompt(input: RecommendationInput): { system: string; user: string } {
-  const { evalId, userPrompt, workspace, scored, record, skillContent, skillFiles, tools } = input;
+  const { evalId, userPrompt, workspace, scored, record, skillContent, skillFiles, tools, redact = (t) => t } = input;
 
   const skillsInContext = tools.includes('skills');
   const mcpInContext = tools.includes('mcp');
@@ -268,7 +273,9 @@ function buildPrompt(input: RecommendationInput): { system: string; user: string
     const basename = relPath.split('/').pop() ?? relPath;
     if (SECRET_FILE_PATTERN.test(basename)) continue;
     try {
-      const content = readFileSync(join(workspace, relPath), 'utf-8');
+      // Redact the raw text before the length check and before escaping, so an exact
+      // match is never broken up by escaping and the budget counts what is sent.
+      const content = redact(readFileSync(join(workspace, relPath), 'utf-8'));
       if (totalChars + content.length > MAX_WORKSPACE_CHARS) break;
       workspaceContent.push(`<workspace_file path="${relPath}">\n${escapeForXml(content)}\n</workspace_file>`);
       totalChars += content.length;

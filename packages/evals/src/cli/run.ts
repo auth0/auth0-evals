@@ -58,6 +58,7 @@ import {
   writeVerifierCredentialsFile,
   resolveFixturePath,
   VERIFIER_ENV,
+  redactKnownSecrets,
   writeRunArtifact,
   readRunArtifact,
   readRunArtifactManifest,
@@ -76,6 +77,7 @@ import type {
   ArtifactManifest,
   RunArtifact,
   VerifierCredentials,
+  FixtureSession,
 } from '@a0/evals-core';
 
 import { parseRunConfig, extractConfigPath } from './config.js';
@@ -227,11 +229,14 @@ async function executeAgentRun(
   tools: string[],
   apiKey: string,
   agentType: AgentType,
+  onAgentExit?: () => Promise<void>,
 ): Promise<AgentRunOutput> {
   const { runCompileCommand } = await import('@a0/evals-core');
   const runner = getRunner(agentType);
   const preparedEval = tools.includes('skills') ? await runner.prepareSkills(evalDef, workspace) : evalDef;
   const { record, resolvedModel } = await runner.run({ evalDef: preparedEval, workspace, model, tools, apiKey });
+  // Runs at the agent-exit boundary, before the compile command can touch the tenant.
+  await onAgentExit?.();
 
   const compileResult =
     evalDef.compileCommand !== undefined
@@ -240,6 +245,9 @@ async function executeAgentRun(
 
   return { record, resolvedModel, compileResult };
 }
+
+/** Fixture state and secrets handed to the graders. Held in memory, never persisted. */
+type FixtureGrading = ReturnType<FixtureSession['gradingInput']>;
 
 /**
  * Grade half: graders, scoring, recommendations, serialisation. Reads the workspace only
@@ -256,6 +264,7 @@ async function gradeAgentRun(
   apiKey: string,
   agentType: AgentType,
   skillFiles?: ArtifactSkillFile[],
+  fixtureGrading?: FixtureGrading,
 ): Promise<JobResult> {
   const { generateRunRecommendations } = await import('../recommendations/index.js');
   const { record, resolvedModel, compileResult } = run;
@@ -273,10 +282,17 @@ async function gradeAgentRun(
       record.toolCalls,
       compileResult,
       record.finalSummary,
+      fixtureGrading,
     );
   }
 
   const scored = score(record, graderResults, getFrameworkConfig().scoring);
+  // Mask fixture-known secrets by exact value in everything that leaves this job:
+  // the analyst prompt, the recommendations, and the persisted result.
+  const knownSecrets = fixtureGrading?.secrets ?? [];
+  const redact = (text: string): string => redactKnownSecrets(text, knownSecrets);
+  const safeRecord = redactKnownSecrets(record, knownSecrets);
+  const safeScored = redactKnownSecrets(scored, knownSecrets);
 
   // Generate recommendations for every agent job — including the no-tools control
   // run, whose clean-room result is the best evidence for a grader defect. Must
@@ -286,16 +302,20 @@ async function gradeAgentRun(
     resolvedModel,
     tools,
     workspace,
-    scored,
-    record,
+    safeScored,
+    safeRecord,
     apiKey,
     skillFiles,
+    redact,
   );
 
-  return {
-    ...serialiseAgent(evalDef, record, scored, graderResults, resolvedModel, 'agent', tools, recommendations),
-    agent_type: agentType,
-  };
+  return redactKnownSecrets(
+    {
+      ...serialiseAgent(evalDef, record, scored, graderResults, resolvedModel, 'agent', tools, recommendations),
+      agent_type: agentType,
+    },
+    knownSecrets,
+  );
 }
 
 async function runAgentJob(
@@ -328,7 +348,11 @@ async function runAgentJob(
             `(${VERIFIER_ENV.file}, or ${VERIFIER_ENV.domain} + ${VERIFIER_ENV.clientId} + ${VERIFIER_ENV.clientSecret})`,
         );
       }
-      fixtureSession = await openFixture(evalDef.fixture, { mgmt: createManagementClient(credentials), workspace });
+      fixtureSession = await openFixture(evalDef.fixture, {
+        mgmt: createManagementClient(credentials),
+        workspace,
+        extraSecrets: [credentials.clientSecret],
+      });
     }
 
     if (!sandbox && evalDef.setupCommand) {
@@ -353,15 +377,27 @@ async function runAgentJob(
     }
 
     // Local execution (--dangerously-skip-sandbox or baseline)
-    const run = await executeAgentRun(evalDef, workspace, model, tools, apiKey, agentType);
+    // Post-run tenant snapshot for tenant_state graders. Held in memory only. Taken as soon as
+    // the agent exits, so the compile command cannot change the state that gets graded.
+    const session = fixtureSession;
+    const run = await executeAgentRun(
+      evalDef,
+      workspace,
+      model,
+      tools,
+      apiKey,
+      agentType,
+      session
+        ? async () => {
+            await session.capturePost();
+            logger.info(`  [Fixture] Post-run snapshot taken (run ${session.context.runId})`);
+          }
+        : undefined,
+    );
 
-    // Post-run tenant snapshot. Held in memory only; graders consume it in a follow-up.
-    if (fixtureSession) {
-      await fixtureSession.snapshot();
-      logger.info(`  [Fixture] Post-run snapshot taken (run ${fixtureSession.context.runId})`);
-    }
+    const fixtureGrading = fixtureSession?.gradingInput();
 
-    return await gradeAgentRun(evalDef, workspace, run, tools, apiKey, agentType);
+    return await gradeAgentRun(evalDef, workspace, run, tools, apiKey, agentType, undefined, fixtureGrading);
   } finally {
     await fixtureSession?.close();
     if (!keepWorkspace) {
@@ -665,6 +701,25 @@ export function buildJobList(
   return jobs;
 }
 
+/**
+ * Removes baseline jobs for evals with a tenant fixture. Baseline never seeds a
+ * tenant or runs a CLI, so those jobs could only fail their fixture graders.
+ */
+export function dropBaselineFixtureJobs(
+  jobs: Array<[EvalConfig, string, Mode, string[], AgentType]>,
+  frameworkRoot: string,
+): Array<[EvalConfig, string, Mode, string[], AgentType]> {
+  const skipped = new Set<string>();
+  const kept = jobs.filter(([evalCfg, , mode]) => {
+    if (mode !== 'baseline' || !resolveFixturePath(evalCfg, frameworkRoot)) return true;
+    skipped.add(evalCfg.id);
+    return false;
+  });
+  for (const id of skipped)
+    logger.info(`[Fixture] Skipping baseline for ${id}: tenant fixture evals run in agent mode only`);
+  return kept;
+}
+
 // ── Main CLI entry point ──────────────────────────────────────────────────────
 
 export async function runCli(): Promise<void> {
@@ -762,7 +817,11 @@ export async function runCli(): Promise<void> {
     return;
   }
 
-  const jobs = buildJobList(registry, models, modes, tools, agentType);
+  const jobs = dropBaselineFixtureJobs(buildJobList(registry, models, modes, tools, agentType), frameworkRoot);
+  if (jobs.length === 0) {
+    logger.warn('No jobs to run: tenant fixture evals run in agent mode only.');
+    return;
+  }
 
   if (phase === 'agent' && braintrust) {
     logger.warn('[Braintrust] --braintrust is ignored in the agent phase (no results yet); pass it to --phase grade.');
