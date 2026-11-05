@@ -18,6 +18,14 @@ updates:
       include: scope
     labels:
       - "dependencies"
+    # Codex 0.166.0 stalls on the model stream ("idle timeout waiting for SSE")
+    # in CI, which the runner scores as provider errors. Hold at 0.155.x until
+    # openai/codex#59561 / #59377 are resolved, then drop this ignore.
+    ignore:
+      - dependency-name: "@openai/codex"
+        versions: [">=0.156.0"]
+      - dependency-name: "@openai/codex-sdk"
+        versions: [">=0.156.0"]
     groups:
       # Keep the Codex CLI and its SDK in lockstep — the SDK spawns the codex
       # binary it pins, so bumping one without the other has no effect.
