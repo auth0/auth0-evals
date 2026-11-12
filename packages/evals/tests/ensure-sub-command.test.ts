@@ -12,6 +12,11 @@ describe('ensureSubCommand', () => {
     expect(ensureSubCommand(argv)).toEqual(argv);
   });
 
+  it('passes through when "replay" sub-command is present', () => {
+    const argv = ['node', 'bin.js', 'replay', '--eval', 'foo'];
+    expect(ensureSubCommand(argv)).toEqual(argv);
+  });
+
   it('inserts "run" when first arg is a flag', () => {
     const argv = ['node', 'bin.js', '--eval', 'foo', '--model', 'gpt-5.4'];
     expect(ensureSubCommand(argv)).toEqual(['node', 'bin.js', 'run', '--eval', 'foo', '--model', 'gpt-5.4']);

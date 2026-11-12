@@ -148,12 +148,14 @@ async function replayScript(
   script: ReplayScript,
 ): Promise<{ results: GraderResult[]; failedSteps: string[] }> {
   const workspace = setupWorkspace(evalDef.scaffold);
-  const session = await openFixture(evalDef.fixture!, {
-    mgmt: createManagementClient(credentials),
-    workspace,
-    extraSecrets: [credentials.clientSecret],
-  });
+  let session: Awaited<ReturnType<typeof openFixture>> | undefined;
   try {
+    // Opened inside the try so a failing seed or snapshot still removes the workspace.
+    session = await openFixture(evalDef.fixture!, {
+      mgmt: createManagementClient(credentials),
+      workspace,
+      extraSecrets: [credentials.clientSecret],
+    });
     if (evalDef.setupCommand) runSetupCommand(workspace, evalDef.setupCommand);
     const env = { ...process.env, RUN_ID: session.context.runId, ...seededEnv(session.context.seeded) };
     const toolCalls = runSteps(script.steps, workspace, env);
@@ -185,7 +187,7 @@ async function replayScript(
     );
     return { results, failedSteps };
   } finally {
-    await session.close();
+    await session?.close();
     cleanupWorkspace(workspace);
   }
 }
