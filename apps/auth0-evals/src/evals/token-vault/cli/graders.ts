@@ -59,9 +59,12 @@ export function defineGraders() {
     ),
 
     // ── L4: Turn Token Vault on for the Google connection ───────────────────
+    // Requires `active` as well as `connected_accounts` and `true`: with only the
+    // latter, a read-only `auth0 api get connections/<id> -q fields=...,connected_accounts,...
+    // -q include_fields=true` satisfied the check (`include_fields=true` supplied the "true").
     ranCommand(
       'connections',
-      ['connected_accounts', 'true'],
+      ['connected_accounts', 'active', 'true'],
       'Enabled Token Vault (connected_accounts.active) on the google-oauth2 connection',
       GraderLevel.L4,
       { resolveWriteRefs: true },

@@ -45,18 +45,28 @@ export function defineGraders() {
     ),
 
     // ── L4: Application configured to require organization login ──────────
-    // Accept either route: the native `auth0 apps update` (which has no
-    // dedicated org flags, so the field rides in its `--data` JSON body) or the
-    // `auth0 api patch clients` passthrough. Keying only on `clients` failed the
-    // correct native `apps update` form, since that command never contains it.
-    // Quote the value: the bare substring `require` also appears inside
-    // `organization_require_behavior`, so it would pass even when
-    // organization_usage is `allow`/`deny`. `"require"` only matches the value.
+    // Accept every valid route to the same end state:
+    //   - the dedicated `--organization-usage require` flag on `auth0 apps update`
+    //     (auth0-cli v1.37.0+; earlier CLIs had no such flag, so this was missed),
+    //   - the field in an `apps update --data` JSON body,
+    //   - the `auth0 api patch clients` passthrough.
+    // Each entry binds the value to its own key/flag: the bare substring `require`
+    // also appears inside `organization_require_behavior` / `--organization-require-behavior`,
+    // so it would pass even when organization_usage is `allow`/`deny`. The escaped
+    // `\"require\"` form is what a `bash -lc "..."` wrapper produces.
     ranCommandOneOf(
-      ['apps update', 'clients'],
+      [
+        ['apps update', 'organization-usage require'],
+        ['apps update', 'organization-usage=require'],
+        ['apps update', 'organization-usage "require"'],
+        ['apps update', "organization-usage 'require'"],
+        ['apps update', 'organization_usage', '"require"'],
+        ['apps update', 'organization_usage', '\\"require\\"'],
+        ['clients', 'organization_usage', '"require"'],
+        ['clients', 'organization_usage', '\\"require\\"'],
+      ],
       'Configured application with organization_usage set to require',
       GraderLevel.L4,
-      ['organization_usage', '"require"'],
     ),
 
     // ── L4: The acme-corp organization created before connections enabled ──
@@ -70,13 +80,17 @@ export function defineGraders() {
     ),
 
     // ── L5: Correct pre-login prompt behavior set ─────────────────────────
-    // Same routes as organization_usage above: native `apps update --data` or
-    // the `clients` passthrough.
+    // Same routes as organization_usage above: the `--organization-require-behavior`
+    // flag, an `apps update --data` JSON body, or the `clients` passthrough.
     ranCommandOneOf(
-      ['apps update', 'clients'],
+      [
+        ['apps update', 'organization-require-behavior pre_login_prompt'],
+        ['apps update', 'organization-require-behavior=pre_login_prompt'],
+        ['apps update', 'organization_require_behavior', 'pre_login_prompt'],
+        ['clients', 'organization_require_behavior', 'pre_login_prompt'],
+      ],
       'Set organization_require_behavior to pre_login_prompt',
       GraderLevel.L5,
-      ['organization_require_behavior', 'pre_login_prompt'],
     ),
 
     // ── Holistic judge (no level - always runs) ───────────────────────────
