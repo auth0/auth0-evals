@@ -11,7 +11,7 @@ The loop: run a realistic integration task across multiple agents and investment
 
 ## Architecture Diagram
 
-An `a0-eval run` expands into a job matrix (eval × model × mode × tools); each job walks the same six stages — **Kick off → Prepare → Run the agent → Grade → Score → Report** — fanning out under a `pLimit(workers)` gate (one subprocess and Docker sandbox per job) and converging at `mergeResults()`. Every box names the function behind it, so the diagram doubles as a call map. Colours mark the layer: control plane (`@a0/evals` + `@a0/evals-core`), execution plane (the runner + Auth0 tools it reads), data plane (the artifacts it leaves behind). Evals that ship an optional `fixture.ts` also get a tenant fixture around the agent run: it seeds and takes a pre-run snapshot before the agent starts, takes a post-run snapshot after the agent exits, and always runs cleanup at the end (see [CLI_WORKFLOW_EVALS.md](CLI_WORKFLOW_EVALS.md)).
+An `a0-eval run` expands into a job matrix (eval × model × mode × tools); each job walks the same six stages — **Kick off → Prepare → Run the agent → Grade → Score → Report** — fanning out under a `pLimit(workers)` gate (one subprocess and Docker sandbox per job) and converging at `mergeResults()`. Every box names the function behind it, so the diagram doubles as a call map. Colours mark the layer: control plane (`@a0/evals` + `@a0/evals-core`), execution plane (the runner + Auth0 tools it reads), data plane (the artifacts it leaves behind). Evals that ship an optional `fixture.ts` also get a tenant fixture around the agent run: it seeds and takes a pre-run snapshot before the agent starts, takes a post-run snapshot after the agent exits, and always runs cleanup at the end. In the two-phase pipeline the same lifecycle runs inside the agent phase, and the masked snapshots reach the grade phase through the run artefact (see [CLI_WORKFLOW_EVALS.md](CLI_WORKFLOW_EVALS.md)).
 
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': {
@@ -366,12 +366,63 @@ Three properties of that step are worth stating, because each fixes a way the an
 An agent job can be split so the model never runs next to the graders, and so stored outputs can be re-graded later:
 
 - `--phase all` (default): run the agent, grade, score and generate recommendations in one process.
-- `--phase agent --artifact-dir <dir>`: discovers and loads evals without `graders.ts`, runs the agent (setup, runner, compile command), then writes a self-contained **run artefact** to `<dir>/<eval>-<model>-<mode>[-<tools>]-<rand>/` and cleans up the workspace. Baseline jobs store the response text. A failed job stores an `error` artefact. No scores file is written; the process exits non-zero if any job errored.
-- `--phase grade --artifact-dir <dir>`: finds artefacts, loads each eval with its graders, runs graders against the artefact's workspace snapshot, scores, generates recommendations (using the stored skill files) and writes the same `JobResult` JSON as `all`. Artefacts are read-only (except that an empty `workspace/` dropped by the artefact upload is recreated), so the same artefact can be graded repeatedly. When several artefacts share an eval/model/mode/tools key (for example after re-running the agent phase into the same directory) only the newest (`createdAt`) is graded; the others are logged and skipped. `--eval`, and `--model`/`--mode`/`--tools`/`--agent-type` when passed explicitly, select the artefacts those flags would have produced as jobs (agent-type routing included, so `--agent-type claude-code --model gpt-…` finds the `claude-code` run; `--tools` and `--agent-type` apply to agent artefacts only). Only manifests are read for filtering, so a broken artefact outside the filters does not fail the phase. An explicit `--mode` names the output file as the `all` path would. Incomplete artefacts (no `manifest.json`) are skipped with a warning and never searched inside. `--braintrust` reports from the grade phase; the agent phase ignores it with a warning. Nothing is written when no artefact could be graded.
+- `--phase agent --artifact-dir <dir>`: discovers and loads evals without `graders.ts`, runs the agent (setup, runner, compile command), then writes a self-contained **run artefact** to `<dir>/<eval>-<model>-<mode>[-<tools>]-<rand>/` and cleans up the workspace. Baseline jobs store the response text. A fixture eval also runs its fixture lifecycle in this phase (seed and pre-run snapshot before the agent, post-run snapshot as soon as the agent exits, cleanup at the end). Before the artefact is written, it scans for the known secrets and masks their values (see [Two-phase runs with fixtures](CLI_WORKFLOW_EVALS.md#two-phase-runs-with-fixtures)). A failed job stores an `error` artefact. No scores file is written; the process exits non-zero if any job errored.
+- `--phase grade --artifact-dir <dir>`: finds artefacts, loads each eval with its graders, runs graders against the artefact's workspace snapshot and, for a fixture eval, the stored `fixture` block (no tenant or secret is needed), scores, generates recommendations (using the stored skill files) and writes the same `JobResult` JSON as `all`. Artefacts are read-only (except that an empty `workspace/` dropped by the artefact upload is recreated), so the same artefact can be graded repeatedly. When several artefacts share an eval/model/mode/tools key (for example after re-running the agent phase into the same directory) only the newest (`createdAt`) is graded; the others are logged and skipped. `--eval`, and `--model`/`--mode`/`--tools`/`--agent-type` when passed explicitly, select the artefacts those flags would have produced as jobs (agent-type routing included, so `--agent-type claude-code --model gpt-…` finds the `claude-code` run; `--tools` and `--agent-type` apply to agent artefacts only). Only manifests are read for filtering, so a broken artefact outside the filters does not fail the phase. An explicit `--mode` names the output file as the `all` path would. Incomplete artefacts (no `manifest.json`) are skipped with a warning and never searched inside. `--braintrust` reports from the grade phase; the agent phase ignores it with a warning. Nothing is written when no artefact could be graded.
 
 Both partial phases require `--dangerously-skip-sandbox`; the Docker sandbox runs a whole job in one container and is not split.
 
-An artefact (`packages/evals-core/src/artifact/`, schema version 1) is a directory with `manifest.json` (written last, so its presence means the artefact is complete), `run.json` (the `RunRecord`, resolved model, compile result and skill files for agent jobs) and `workspace/` (agent jobs only). The workspace snapshot is a byte-exact copy of exactly the files `collectFiles(workspace, workspace)` returns (a file that cannot be copied is skipped with a warning and listed in `workspaceSkipped`, as grading skips unreadable files too), which is the single walker every grading-time reader uses, so the restored directory yields identical file lists (including the same truncation at the file cap). Artefacts are **not redacted**: graders need the raw trace and the agent's files, so treat them as sensitive. Redaction still happens when results are serialised.
+For a fixture eval, the agent phase writes the masked fixture data into the artefact and the grade phase reads it back, with no tenant access and no secret values:
+
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': {
+  'fontFamily':'ui-sans-serif, system-ui, sans-serif',
+  'fontSize':'15px',
+  'lineColor':'#495057','primaryTextColor':'#1A1A2E'
+}}}%%
+flowchart LR
+    subgraph AgentPhase["Agent phase, --phase agent (has tenant and verifier credential)"]
+        direction TB
+        Open["Seed and pre-run snapshot<br/>openFixtureForRun()"]
+        Agent["Run the agent<br/>executeAgentRun()"]
+        Post["Post-run snapshot<br/>capturePost(), before compile"]
+        Compile["Compile command"]
+        Seal["Scan for known secrets and mask values<br/>sealFixtureRun()"]
+        Write["Write run artefact<br/>writeRunArtifact()"]
+        Close["Cleanup in finally<br/>close()"]
+        Open --> Agent --> Post --> Compile --> Seal --> Write --> Close
+    end
+
+    subgraph Artefact["Run artefact (sensitive, masked fixture data)"]
+        direction TB
+        Run[("run.json<br/>record, compile result, fixture block")]
+        WS[("workspace/ with secrets masked")]
+    end
+
+    subgraph GradePhase["Grade phase, --phase grade (no tenant, no secrets)"]
+        direction TB
+        Restore["Restore workspace<br/>restoreArtifactWorkspace()"]
+        Rebuild["Rebuild fixture input<br/>fixtureGradingFromArtifact()"]
+        Grade["Run graders<br/>tenantState on stored state, secretNotExposed on stored exposure"]
+        Restore --> Rebuild --> Grade
+    end
+
+    Write ==> Run
+    Write ==> WS
+    Run ==> Rebuild
+    WS ==> Restore
+
+    classDef control fill:#E7F0FF,stroke:#4C6EF5,color:#1A1A2E;
+    classDef work    fill:#FFE8CC,stroke:#E8590C,color:#1A1A2E;
+    classDef data    fill:#D3F9D8,stroke:#2F9E44,color:#1A1A2E;
+
+    class Open,Post,Close,Restore,Rebuild,Grade control;
+    class Agent,Compile,Seal,Write work;
+    class Run,WS data;
+    classDef cluster fill:#FFFDF2,stroke:#E9D8A6,color:#5C4A1A;
+    class AgentPhase,Artefact,GradePhase cluster;
+```
+
+An artefact (`packages/evals-core/src/artifact/`, schema version 1) is a directory with `manifest.json` (written last, so its presence means the artefact is complete), `run.json` (the `RunRecord`, resolved model, compile result and skill files for agent jobs, plus an optional `fixture` block for fixture evals with the masked snapshots and the secret exposure report) and `workspace/` (agent jobs only). The workspace snapshot is a byte-exact copy of exactly the files `collectFiles(workspace, workspace)` returns (a file that cannot be copied is skipped with a warning and listed in `workspaceSkipped`, as grading skips unreadable files too), which is the single walker every grading-time reader uses, so the restored directory yields identical file lists (including the same truncation at the file cap). Artefacts are **not redacted**, with one exception: for a fixture eval, the agent phase masks the exact values of known secrets in the run record, the compile result and the workspace files before it writes them. Graders need the raw trace and the agent's files, so treat artefacts as sensitive. Redaction still happens when results are serialised.
 
 ## Sandbox — running untrusted agent code safely
 

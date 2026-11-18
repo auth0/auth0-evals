@@ -12,6 +12,7 @@
     "evals": "turbo run evals --",
     "run": "turbo run evals --",
     "report": "turbo run report --",
+    "replay": "turbo run replay --",
     "test": "turbo run test",
     "test:ci": "turbo run test:ci",
     "lint": "turbo run lint",

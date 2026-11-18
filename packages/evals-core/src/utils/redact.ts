@@ -57,8 +57,16 @@ const SECRET_NAME = 'secret|token|password|passwd|api[_-]?key|apikey|private[_-]
  * the guard the first of those renders as `No token = [REDACTED SECRET] Valid…`,
  * losing the status code and the sentence break, and a reader is told a secret was
  * exposed where none was.
+ *
+ * A bare value cannot be only emphasis marks (`*`, `_`, `~`) followed by a separator or the end,
+ * because that is markdown, not a credential. Markdown emphasis after a credential word is the
+ * case this protects: in `**Email first, then password:** I turned on identifier-first` the
+ * closing `**` is not a value, and without the guard it was replaced, leaving
+ * `password:[REDACTED SECRET] I turned on…`. A token such as `**hunter2**`, or a password made
+ * only of other punctuation such as `!@#$%`, is still a value and is masked whole. The guard applies to the bare branch
+ * only, since a quoted value is a value whatever it holds.
  */
-const VALUE = `(?!\\[REDACTED|--|\\d+\\b)(?:"[^"]*"|'[^']*'|[^\\s,;&|)}\\]]+)`;
+const VALUE = `(?!\\[REDACTED|--|\\d+\\b)(?:"[^"]*"|'[^']*'|(?![*_~]+(?:[\\s,;&|)}\\]]|$))[^\\s,;&|)}\\]]+)`;
 
 /**
  * An argument key that names a credential outright, for the structured case where
@@ -178,6 +186,12 @@ function redactValue(value: unknown): unknown {
   return value;
 }
 
+/** A plain object or a null-prototype one (`Object.create(null)`), which JSON-like data can be. */
+function isPlainObject(v: object): boolean {
+  const proto = Object.getPrototypeOf(v);
+  return proto === Object.prototype || proto === null;
+}
+
 /**
  * Replaces every exact occurrence of a known secret in any string inside `value`,
  * recursing through arrays and plain objects. Pattern redaction only recognises
@@ -191,8 +205,10 @@ export function redactKnownSecrets<T>(value: T, secrets: readonly string[]): T {
   const walk = (v: unknown): unknown => {
     if (typeof v === 'string') return known.reduce((out, s) => out.split(s).join(REDACTION_MARKER), v);
     if (Array.isArray(v)) return v.map(walk);
-    if (v !== null && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype) {
-      return Object.fromEntries(Object.entries(v).map(([k, inner]) => [k, walk(inner)]));
+    if (v !== null && typeof v === 'object' && isPlainObject(v)) {
+      // Keys are masked too. Two keys that differ only in the secret collapse into one, which loses
+      // data but never leaks.
+      return Object.fromEntries(Object.entries(v).map(([k, inner]) => [walk(k) as string, walk(inner)]));
     }
     return v;
   };

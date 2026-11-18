@@ -120,6 +120,8 @@ export { readVerifierCredentials, writeVerifierCredentialsFile, VERIFIER_ENV } f
 export type { VerifierCredentials } from './fixture/credentials.js';
 export { openFixture } from './fixture/lifecycle.js';
 export type { FixtureSession, OpenFixtureOptions } from './fixture/lifecycle.js';
+export { sealFixtureData, fixtureGradingFromArtifact, maskWorkspaceSecrets } from './fixture/artifact-data.js';
+export type { FixtureArtifactData } from './fixture/artifact-data.js';
 
 // Discovery
 export { discoverEvals } from './discovery.js';
@@ -178,6 +180,8 @@ export {
 } from './graders/index.js';
 
 export type { GraderContext, GraderExecutor } from './graders/index.js';
+export { findSecretExposure, describeExposure } from './graders/index.js';
+export type { SecretExposure, SecretEvidence } from './graders/index.js';
 export type { CompileResult } from '@a0/evals-graders';
 
 // Mode

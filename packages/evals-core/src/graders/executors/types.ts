@@ -6,6 +6,7 @@
  */
 
 import type { GraderDef, GraderResult, EventToolCall, CompileResult, FixtureState } from '@a0/evals-graders';
+import type { SecretExposure } from '../secret-exposure.js';
 
 /**
  * Context passed to every executor. Each executor uses what it needs:
@@ -47,6 +48,11 @@ export interface GraderContext {
   fixtureState?: FixtureState;
   /** Secrets the agent must never expose — used by secret_not_exposed graders. */
   secrets?: readonly string[];
+  /**
+   * Exposure the agent phase already worked out, used when raw secrets are not available
+   * (grade phase from an artefact). Takes precedence over `secrets`.
+   */
+  secretExposure?: SecretExposure;
 }
 
 /**

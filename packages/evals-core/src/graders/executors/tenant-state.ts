@@ -2,8 +2,9 @@
  * Grader executor: tenant_state
  *
  * Evaluates a predicate over the tenant snapshots the eval's fixture took
- * before and after the agent ran. The snapshots never leave memory; only the
- * predicate's pass/fail and its optional reason reach the result.
+ * before and after the agent ran. The snapshots reach the grader from memory in a
+ * combined run, or from the masked artefact block in a grade phase run. They never
+ * reach the scores file; only the predicate's pass/fail and its optional reason do.
  */
 
 import type { GraderDef, GraderResult } from '@a0/evals-graders';

@@ -143,6 +143,41 @@ describe('redactSecrets — keeps what a diagnosis needs', () => {
   });
 });
 
+describe('redactSecrets — markdown emphasis after a credential word', () => {
+  it.each([
+    ['bold label ending in a credential word', '**Email first, then password:** I turned on identifier-first'],
+    ['bare emphasis marks', 'password:**'],
+    ['emphasis marks after a space', 'password: ** next'],
+    ['underscore emphasis', 'the token:__ was rotated'],
+  ])('keeps text that has no value to mask — %s', (_label, line) => {
+    // Regression: the bare value branch matched `**` and replaced it, so a reply came
+    // out as `password:[REDACTED SECRET] I turned on identifier-first`. A value made only of
+    // emphasis marks is markdown, not a credential.
+    expect(redactSecrets(line)).toBe(line);
+  });
+
+  it.each([
+    ['password: hunter2', `password: ${REDACTION_MARKER}`],
+    ['password:hunter2', `password:${REDACTION_MARKER}`],
+    ['PASSWORD=abc123def', `PASSWORD=${REDACTION_MARKER}`],
+    ['--client-secret abc123', `--client-secret ${REDACTION_MARKER}`],
+    ['--password=s3cret!x', `--password=${REDACTION_MARKER}`],
+    ['"client_secret": "abc"', `"client_secret": ${REDACTION_MARKER}`],
+    ['Authorization: Bearer abc.def', `Authorization: Bearer ${REDACTION_MARKER}`],
+    ['password:**hunter2**', `password:${REDACTION_MARKER}`],
+    ['password: "**"', `password: ${REDACTION_MARKER}`],
+    ['password: !!!!!!!!', `password: ${REDACTION_MARKER}`],
+    ['PASSWORD=!@#$%', `PASSWORD=${REDACTION_MARKER}`],
+  ])('still masks a value — %s', (line, expected) => {
+    expect(redactSecrets(line)).toBe(expected);
+  });
+
+  it('still keeps a numeric value and a following flag', () => {
+    expect(redactSecrets('token = 401')).toBe('token = 401');
+    expect(redactSecrets('--token --json')).toBe('--token --json');
+  });
+});
+
 describe('redactSecrets — value-shaped secrets with no name attached', () => {
   it('masks a PEM private key block whole', () => {
     const pem = '-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA1234\nabcd\n-----END RSA PRIVATE KEY-----';
@@ -294,6 +329,27 @@ describe('redactKnownSecrets', () => {
       b: ['x', { c: `pre ${M} post` }],
       d: { e: [[M]] },
     });
+  });
+
+  it('masks a secret used as an object key, at any depth', () => {
+    const input = { 'hunter2-secret': 1, nested: { list: [{ 'id-hunter2-secret': true }] }, ok: 2 };
+    const out = redactKnownSecrets(input, ['hunter2-secret']);
+    expect(out).toEqual({ [M]: 1, nested: { list: [{ [`id-${M}`]: true }] }, ok: 2 });
+    expect(JSON.stringify(out)).not.toContain('hunter2-secret');
+  });
+
+  it('masks a secret inside a null-prototype object, keys included', () => {
+    const input = Object.create(null) as Record<string, unknown>;
+    input['hunter2-secret'] = 'token=hunter2-secret';
+    input.nested = Object.assign(Object.create(null), { v: ['hunter2-secret'] });
+    const out = JSON.stringify(redactKnownSecrets(input, ['hunter2-secret']));
+    expect(out).not.toContain('hunter2-secret');
+    expect(out).toContain(M);
+  });
+
+  it('leaves ordinary keys unchanged', () => {
+    const input = { 'client-id': 1, nested: { appId: 'abc' } };
+    expect(redactKnownSecrets(input, ['hunter2-secret'])).toEqual(input);
   });
 
   it('replaces multiple occurrences and multiple secrets', () => {

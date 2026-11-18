@@ -30,6 +30,9 @@ npm run evals -- --eval react_quickstart --mode agent --tools mcp,skills
 npm run evals -- --mode all --model all --workers 8
 npm run evals -- --eval react_quickstart --mode agent --keep-workspace
 
+# Grade scripted reference and mutant solutions for a tenant fixture eval (no LLM)
+npm run replay -- --eval <id>
+
 # Generate HTML report
 npm run report
 

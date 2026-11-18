@@ -372,6 +372,87 @@ describe('jobSubprocessEnv', () => {
 
     expect(jobSubprocessEnv(evalCfg, 'agent', frameworkRoot)).toEqual({});
   });
+
+  describe('prepareJobSubprocessEnv with a partial verifier config', () => {
+    // Only the domain is set, which is an invalid config.
+    function setPartialCredentials(): void {
+      clearCredentials();
+      process.env.AUTH0_VERIFIER_DOMAIN = 'test.auth0.com';
+    }
+
+    it('writes an error artefact for the job in the agent phase, then rethrows', async () => {
+      setPartialCredentials();
+      const { prepareJobSubprocessEnv } = await freshModule();
+      const { readRunArtifact, findRunArtifacts } = await import('@a0/evals-core');
+      const { evalCfg, frameworkRoot } = makeEval(true);
+      const artifactDir = tmp();
+
+      expect(() =>
+        prepareJobSubprocessEnv(
+          evalCfg,
+          'claude-sonnet-5',
+          'agent',
+          [],
+          'claude-code',
+          'agent',
+          artifactDir,
+          frameworkRoot,
+        ),
+      ).toThrow(/AUTH0_VERIFIER/);
+
+      const dirs = findRunArtifacts(artifactDir);
+      expect(dirs).toHaveLength(1);
+      const artifact = readRunArtifact(dirs[0]!);
+      expect(artifact.kind).toBe('error');
+      if (artifact.kind !== 'error') return;
+      expect(artifact.run.error).toMatch(/AUTH0_VERIFIER/);
+      expect(artifact.manifest).toMatchObject({ evalId: 'sample_eval', model: 'claude-sonnet-5', mode: 'agent' });
+    });
+
+    it('writes nothing outside the agent phase, and still rethrows', async () => {
+      setPartialCredentials();
+      const { prepareJobSubprocessEnv } = await freshModule();
+      const { findRunArtifacts } = await import('@a0/evals-core');
+      const { evalCfg, frameworkRoot } = makeEval(true);
+      const artifactDir = tmp();
+
+      expect(() =>
+        prepareJobSubprocessEnv(
+          evalCfg,
+          'claude-sonnet-5',
+          'agent',
+          [],
+          'claude-code',
+          'all',
+          artifactDir,
+          frameworkRoot,
+        ),
+      ).toThrow(/AUTH0_VERIFIER/);
+      expect(findRunArtifacts(artifactDir)).toHaveLength(0);
+    });
+
+    it('does not write an error artefact for an eval without a fixture', async () => {
+      setPartialCredentials();
+      const { prepareJobSubprocessEnv } = await freshModule();
+      const { findRunArtifacts } = await import('@a0/evals-core');
+      const { evalCfg, frameworkRoot } = makeEval(false);
+      const artifactDir = tmp();
+
+      expect(
+        prepareJobSubprocessEnv(
+          evalCfg,
+          'claude-sonnet-5',
+          'agent',
+          [],
+          'claude-code',
+          'agent',
+          artifactDir,
+          frameworkRoot,
+        ),
+      ).toEqual({});
+      expect(findRunArtifacts(artifactDir)).toHaveLength(0);
+    });
+  });
 });
 
 describe('resolveAgentType', () => {

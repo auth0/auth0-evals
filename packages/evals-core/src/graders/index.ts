@@ -12,6 +12,9 @@ export {
 
 export type { LlmJudgeOptions } from './llm-judge.js';
 
+export { findSecretExposure, describeExposure } from './secret-exposure.js';
+export type { SecretExposure, SecretEvidence } from './secret-exposure.js';
+
 export { extractCodeBlocks, gradeText } from './grade-text.js';
 
 export { BASELINE_LEVELS, AGENT_LEVELS, AGENT_MCP_LEVELS } from './levels.js';
