@@ -113,6 +113,8 @@ What this means in practice:
 - Snapshots are now stored in the artefact. They are masked, but the artefact is still sensitive, so handle it like any other artefact. The scores file still never holds them.
 - Content graders in the grade phase read workspace files where known secret values are replaced with `[REDACTED SECRET]`.
 - Masking matches exact values only. A transformed secret, such as a base64 copy, is neither masked nor detected, the same as in the combined path.
+- A workspace file or folder whose path contains a known secret fails the agent job with an error that does not quote the path, because the artefact lists every path and a path cannot be masked.
+- A fixture error that quotes a known secret, including a failure while opening the fixture, is masked before it is logged or stored.
 - Both partial phases need `--dangerously-skip-sandbox`. Only the agent phase needs a verifier credential.
 - `--phase all`, `npm run replay` and AXIS work as before.
 

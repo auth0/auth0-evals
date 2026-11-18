@@ -33,12 +33,14 @@ const mocks = vi.hoisted(() => ({
   capturePost: vi.fn(),
   runnerRun: vi.fn(),
   failNextWrite: false,
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
 const actualCore = await vi.importActual<typeof import('@a0/evals-core')>('@a0/evals-core');
 
 vi.mock('@a0/evals-core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@a0/evals-core')>()),
+  logger: mocks.logger,
   loadEval: mocks.loadEval,
   setupWorkspace: mocks.setupWorkspace,
   writeAgentGuidance: mocks.writeAgentGuidance,
@@ -425,6 +427,10 @@ describe('runAgentPhaseJob tenant fixture wiring', () => {
     if (stored.kind !== 'error') throw new Error('expected an error artefact');
     expect(stored.run.error).toContain('request failed with [REDACTED SECRET] in the header');
     expect(stored.run.error).not.toContain('dummy-secret-value');
+    // The log line must be masked too, not only the stored error.
+    const logText = mocks.logger.error.mock.calls.flat().join('\n');
+    expect(logText).toContain('request failed with [REDACTED SECRET]');
+    expect(logText).not.toContain('dummy-secret-value');
   });
 
   it('closes the fixture session when the compile command throws', async () => {

@@ -569,9 +569,10 @@ export async function runAgentPhaseJob(
     return true;
   } catch (e) {
     const errorMsg = String(e);
-    logger.error(`  ✗ [${evalConfig.id}] ${model} - ERROR: ${errorMsg.slice(0, 100)}`);
     // The session is closed by now, but gradingInput() only returns the in-memory arrays.
+    // Mask before logging, so the log and the stored error both stay free of known secrets.
     const storedError = fixtureSession ? redactKnownSecrets(errorMsg, fixtureSession.gradingInput().secrets) : errorMsg;
+    logger.error(`  ✗ [${evalConfig.id}] ${model} - ERROR: ${storedError.slice(0, 100)}`);
     try {
       writeRunArtifact(artifactPath, { ...common, kind: 'error', mode, error: storedError });
     } catch (writeErr) {

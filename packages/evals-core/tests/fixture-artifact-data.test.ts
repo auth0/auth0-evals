@@ -147,6 +147,26 @@ describe('maskWorkspaceSecrets', () => {
     expect(maskWorkspaceSecrets(ws, ['not-in-any-file-999'])).toBe(0);
   });
 
+  it.each([
+    ['a file name', `${SECRET}.txt`],
+    ['a directory name', `${SECRET}/index.ts`],
+  ])('fails closed when %s holds a secret, rewrites nothing and never quotes the path', (_label, rel) => {
+    const ws = tmp();
+    put(ws, rel, 'clean content');
+    put(ws, 'src/a.ts', `const s = '${SECRET}';`);
+
+    let thrown: Error | undefined;
+    try {
+      maskWorkspaceSecrets(ws, [SECRET]);
+    } catch (e) {
+      thrown = e as Error;
+    }
+
+    expect(thrown?.message).toContain('file path contains a known secret');
+    expect(thrown?.message).not.toContain(SECRET);
+    expect(readFileSync(join(ws, 'src/a.ts'), 'utf-8')).toBe(`const s = '${SECRET}';`);
+  });
+
   it('masks overlapping secrets longest first so no tail is left behind', () => {
     const ws = tmp();
     const short = 'abc-secret-core';

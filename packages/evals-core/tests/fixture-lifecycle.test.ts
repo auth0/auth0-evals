@@ -81,6 +81,42 @@ describe('openFixture', () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ['a secret registered by seed', 'registered-secret-12345', undefined],
+    ['an extra secret (the verifier credential)', 'verifier-secret-67890', ['verifier-secret-67890']],
+  ])('masks %s in the error when seed throws, and still runs cleanup', async (_label, secret, extraSecrets) => {
+    const cleanup = vi.fn(async () => {});
+    const def = {
+      seed: async (ctx: FixtureContext) => {
+        ctx.registerSecret('registered-secret-12345');
+        const e = new TypeError(`request failed with ${secret} in the header`);
+        throw e;
+      },
+      cleanup,
+    } as unknown as FixtureDef;
+
+    const err = await openFixture(def, { ...opts(), extraSecrets }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(Error);
+    const { name, message } = err as Error;
+    expect(message).toBe('request failed with [REDACTED SECRET] in the header');
+    expect(message).not.toContain(secret);
+    expect(name).toBe('TypeError');
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('masks a secret thrown as a non-Error value', async () => {
+    const def = {
+      seed: async (ctx: FixtureContext) => {
+        ctx.registerSecret('registered-secret-12345');
+        throw 'bad value registered-secret-12345';
+      },
+    } as unknown as FixtureDef;
+
+    const err = await openFixture(def, opts()).catch((e: unknown) => e);
+    expect((err as Error).message).toBe('bad value [REDACTED SECRET]');
+  });
+
   it('runs cleanup and rejects when the pre snapshot throws', async () => {
     const err = new Error('snap boom');
     const cleanup = vi.fn(async () => {});

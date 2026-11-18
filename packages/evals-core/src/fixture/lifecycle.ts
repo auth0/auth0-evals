@@ -16,6 +16,7 @@ import { MIN_SECRET_LENGTH } from '@a0/evals-graders';
 import type { FixtureContext, FixtureDef, ManagementApi } from '@a0/evals-graders';
 import type { FixtureGradingInput } from '../graders/engine.js';
 import { logger } from '../utils/logger.js';
+import { redactKnownSecrets } from '../utils/redact.js';
 
 export interface OpenFixtureOptions {
   /** Verifier-backed client. Never shared with the agent. */
@@ -42,8 +43,23 @@ export interface FixtureSession {
 }
 
 /**
+ * Returns the error unchanged when its message holds no known secret. Otherwise returns a new
+ * error with the secret masked, because a failed open has no session for the caller to read the
+ * secrets from.
+ */
+function redactError(e: unknown, secrets: readonly string[]): unknown {
+  const message = e instanceof Error ? e.message : String(e);
+  const redacted = redactKnownSecrets(message, secrets);
+  if (redacted === message) return e;
+  const safe = new Error(redacted);
+  if (e instanceof Error) safe.name = e.name;
+  return safe;
+}
+
+/**
  * Seeds the fixture and takes the pre-run snapshot. If either step throws,
  * cleanup runs before the error propagates so a failed seed leaves nothing behind.
+ * An error that quotes a known secret is masked before it propagates.
  */
 export async function openFixture(def: FixtureDef, options: OpenFixtureOptions): Promise<FixtureSession> {
   const secrets: string[] = [];
@@ -82,7 +98,8 @@ export async function openFixture(def: FixtureDef, options: OpenFixtureOptions):
     if (def.snapshot) pre = await def.snapshot(context);
   } catch (e) {
     await close();
-    throw e;
+    // The session never reaches the caller, so this is the last place that still knows the secrets.
+    throw redactError(e, [...(options.extraSecrets ?? []), ...secrets]);
   }
 
   let post: unknown;

@@ -57,13 +57,19 @@ export function fixtureGradingFromArtifact(data: FixtureArtifactData): FixtureGr
  * many files were rewritten. Files without a secret are not touched. Files that cannot be read are
  * skipped, because the workspace snapshot skips them too. Fails closed: a file that was read and
  * holds a secret but cannot be rewritten (after one retry that makes it writable) throws, because
- * the snapshot would otherwise copy the unmasked file into the artefact.
+ * the snapshot would otherwise copy the unmasked file into the artefact. Also throws, before any file
+ * is rewritten, when a file path holds a secret: the artefact records every path, and a path cannot
+ * be masked without breaking the file it names. The error never quotes the path.
  */
 export function maskWorkspaceSecrets(workspace: string, secrets: readonly string[]): number {
   const known = secrets.filter((s) => s.length > 0);
   if (known.length === 0) return 0;
+  const files = listGradingFiles(workspace).files;
+  if (files.some((rel) => known.some((s) => rel.includes(s)))) {
+    throw new Error('A workspace file path contains a known secret, so the artefact cannot be written safely');
+  }
   let rewritten = 0;
-  for (const rel of listGradingFiles(workspace).files) {
+  for (const rel of files) {
     const path = join(workspace, rel);
     let content: string;
     try {
