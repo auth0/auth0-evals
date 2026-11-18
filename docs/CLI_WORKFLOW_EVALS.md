@@ -113,8 +113,9 @@ What this means in practice:
 - Snapshots are now stored in the artefact. They are masked, but the artefact is still sensitive, so handle it like any other artefact. The scores file still never holds them.
 - Content graders in the grade phase read workspace files where known secret values are replaced with `[REDACTED SECRET]`.
 - Masking matches exact values only. A transformed secret, such as a base64 copy, is neither masked nor detected, the same as in the combined path.
-- A workspace file or folder whose path contains a known secret fails the agent job with an error that does not quote the path, because the artefact lists every path and a path cannot be masked.
-- A fixture error that quotes a known secret, including a failure while opening the fixture, is masked before it is logged or stored.
+- A workspace file whose path contains a known secret is left out of the artefact, because a path cannot be masked. The agent phase records the exposure by file name, without quoting it, so `secretNotExposed` fails in the grade phase the same way as in a combined run. Folders the artefact skips, such as `node_modules`, are not checked.
+- A fixture error that quotes a known secret, including one in its `cause` chain or in a failed cleanup, is masked before it is logged or stored. This includes a failure while opening the fixture.
+- In the masked snapshots each distinct secret gets its own marker (`[REDACTED SECRET 1]`, `[REDACTED SECRET 2]`), so a `tenantState` predicate that compares two credentials reaches the same verdict in the grade phase as in a combined run. A snapshot whose object key contains a known secret fails the agent job, because keys cannot be masked without merging entries.
 - Both partial phases need `--dangerously-skip-sandbox`. Only the agent phase needs a verifier credential.
 - `--phase all`, `npm run replay` and AXIS work as before.
 
@@ -126,10 +127,10 @@ Graders for a live tenant are easy to get wrong in both directions: a grader tha
 npm run replay -- --eval <id>
 ```
 
-Each eval keeps its scripts in a `replay/` folder next to `fixture.ts`:
+Each eval keeps its scripts in a `replay/` folder next to `fixture.ts`. The first reference eval, `provision-app-api`, arrives with the CLI workflow evals that follow this change:
 
 ```
-src/evals/cli-workflows/<eval-dir>/
+apps/auth0-evals/src/evals/cli-workflows/<eval-dir>/
 ├── PROMPT.md
 ├── graders.ts
 ├── fixture.ts
@@ -140,7 +141,7 @@ src/evals/cli-workflows/<eval-dir>/
         └── reveal.sh
 ```
 
-A script is a list of steps separated by blank lines. Each step runs as its own `bash -c` in a fresh workspace and is recorded as one `run_command` tool call, the same shape as an agent's shell calls, so command graders see a realistic trace. Comment lines are dropped. Steps get `RUN_ID` and every scalar seeded value as `SEED_<KEY>`, so `appId` becomes `SEED_APP_ID`.
+A script is a list of steps separated by blank lines. Each step runs as its own `bash -c` in a fresh workspace and is recorded as one `run_command` tool call, the same shape as an agent's shell calls, so command graders see a realistic trace. Comment lines are dropped. Steps get `RUN_ID` and every scalar seeded value as `SEED_<KEY>`, so `appId` becomes `SEED_APP_ID`. A blank line always ends a step, even inside a heredoc or a multi-line `--data '{...}'` body, and lines starting with `#` are always dropped, even inside a heredoc. So keep each step free of blank lines and `#` lines, and put pretty-printed JSON or a generated `.env` on a single line or build it with `printf`.
 
 ```bash
 # breaks: Callback set

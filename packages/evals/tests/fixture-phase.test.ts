@@ -301,8 +301,9 @@ describe('agent phase with a well behaved agent', () => {
 
     const stored = readRunArtifact(artifactDir);
     if (stored.kind !== 'agent') throw new Error('expected an agent artefact');
-    // The stored snapshot has the known secret masked, so the predicate on `token` sees the marker.
-    expect(stored.run.fixture?.state).toMatchObject({ post: { token: '[REDACTED SECRET]' } });
+    // The stored snapshot has the known secret masked with its own numbered marker (the verifier
+    // secret is the first known secret, the registered sentinel is the second).
+    expect(stored.run.fixture?.state).toMatchObject({ post: { token: '[REDACTED SECRET 2]' } });
     expect(stored.run.fixture?.exposure).toEqual({ checked: 2, locations: [] });
 
     const graders = graderSummary(await gradePhase(artifactDir, root));

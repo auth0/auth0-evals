@@ -324,7 +324,9 @@ function sealFixtureRun(
   });
   const rewritten = maskWorkspaceSecrets(workspace, grading.secrets);
   if (rewritten > 0) {
-    logger.info(`  [Fixture] Masked known secrets in ${rewritten} workspace file(s) before saving the artefact`);
+    logger.info(
+      `  [Fixture] Masked or removed ${rewritten} workspace file(s) holding known secrets before saving the artefact`,
+    );
   }
   return {
     run: {
@@ -354,7 +356,11 @@ async function gradeAgentRun(
   fixtureGrading?: FixtureGrading,
 ): Promise<JobResult> {
   const { generateRunRecommendations } = await import('../recommendations/index.js');
-  const { record, resolvedModel, compileResult } = run;
+  const { record, resolvedModel } = run;
+  // Masked before the graders run: the compile grader keeps only the last 500 characters of the
+  // output, and a secret cut at that boundary would leave a tail that exact-match masking misses.
+  // In a grade phase from an artefact the secrets are empty and the output is already masked.
+  const compileResult = redactKnownSecrets(run.compileResult, fixtureGrading?.secrets ?? []);
 
   let graderResults: Awaited<ReturnType<typeof runGraders>> = [];
   if (evalDef.graders.length > 0) {
@@ -478,6 +484,83 @@ function jobStem(evalId: string, model: string, mode: Mode, tools: string[]): st
   return `${evalId}-${safeModel}-${mode}${toolsSuffix}`;
 }
 
+/** Directory for one job's agent phase artefact: `<artifactDir>/<slug>`. */
+function agentPhaseArtifactPath(
+  artifactDir: string,
+  evalId: string,
+  model: string,
+  mode: Mode,
+  tools: string[],
+): string {
+  return join(artifactDir, `${jobStem(evalId, model, mode, tools)}-${randomBytes(3).toString('hex')}`);
+}
+
+function agentPhaseArtifactCommon(
+  evalConfig: EvalConfig,
+  model: string,
+  mode: Mode,
+  tools: string[],
+  agentType: AgentType,
+) {
+  return {
+    evalId: evalConfig.id,
+    category: evalConfig.category,
+    model,
+    tools,
+    ...(mode === 'agent' ? { agentType } : {}),
+  };
+}
+
+/**
+ * Records a job that failed before its agent phase could start (for example the parent could not
+ * prepare the subprocess credentials) as an `error` artefact, so the grade phase reports it
+ * instead of silently having no entry for the job.
+ */
+export function writeAgentPhaseErrorArtifact(
+  evalConfig: EvalConfig,
+  model: string,
+  mode: Mode,
+  tools: string[],
+  agentType: AgentType,
+  artifactDir: string,
+  error: string,
+): void {
+  writeRunArtifact(agentPhaseArtifactPath(artifactDir, evalConfig.id, model, mode, tools), {
+    ...agentPhaseArtifactCommon(evalConfig, model, mode, tools, agentType),
+    kind: 'error',
+    mode,
+    error,
+  });
+}
+
+/**
+ * `jobSubprocessEnv` for the parent process. A bad verifier config fails this job only, so in the
+ * agent phase it is also recorded as an `error` artefact, and then rethrown for the caller to log.
+ */
+export function prepareJobSubprocessEnv(
+  evalCfg: EvalConfig,
+  model: string,
+  mode: Mode,
+  tools: string[],
+  agentType: AgentType,
+  phase: string | undefined,
+  artifactDir: string | undefined,
+  frameworkRoot: string,
+): { env?: NodeJS.ProcessEnv; tempDir?: string } {
+  try {
+    return jobSubprocessEnv(evalCfg, mode, frameworkRoot);
+  } catch (e) {
+    if (phase === 'agent' && artifactDir) {
+      try {
+        writeAgentPhaseErrorArtifact(evalCfg, model, mode, tools, agentType, artifactDir, String(e));
+      } catch (writeErr) {
+        logger.error(`  [${evalCfg.id}] Failed to write error artefact: ${writeErr}`);
+      }
+    }
+    throw e;
+  }
+}
+
 /**
  * Runs one job's agent phase: executes the model and writes a run artefact to
  * `<artifactDir>/<slug>/`. No grader runs and no grader file is read. Any failure is
@@ -495,19 +578,10 @@ export async function runAgentPhaseJob(
   frameworkRoot: string,
   artifactDir: string,
 ): Promise<boolean> {
-  const artifactPath = join(
-    artifactDir,
-    `${jobStem(evalConfig.id, model, mode, tools)}-${randomBytes(3).toString('hex')}`,
-  );
+  const artifactPath = agentPhaseArtifactPath(artifactDir, evalConfig.id, model, mode, tools);
   const agentLabel = mode === 'agent' ? ` (${agentType})` : '';
   logger.info(`  [${mode}${agentLabel}] ${evalConfig.id} / ${model}  (agent phase)`);
-  const common = {
-    evalId: evalConfig.id,
-    category: evalConfig.category,
-    model,
-    tools,
-    ...(mode === 'agent' ? { agentType } : {}),
-  };
+  const common = agentPhaseArtifactCommon(evalConfig, model, mode, tools, agentType);
 
   let workspace: string | undefined;
   // Declared here so the catch block can mask known secrets out of the error text.
@@ -940,7 +1014,16 @@ export async function runCli(): Promise<void> {
             jobAgentType,
             ...(jobTools.length > 0 ? ['--tools', jobTools.join(',')] : []),
           ];
-          const { env, tempDir } = jobSubprocessEnv(evalCfg, mode, frameworkRoot);
+          const { env, tempDir } = prepareJobSubprocessEnv(
+            evalCfg,
+            model,
+            mode,
+            jobTools,
+            jobAgentType,
+            phase,
+            artifactDir,
+            frameworkRoot,
+          );
           try {
             // Agent-phase subprocesses write artefacts, never a scores file (and reject --output).
             if (phase === 'agent') {

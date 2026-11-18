@@ -142,7 +142,7 @@ function runSteps(steps: string[], workspace: string, env: NodeJS.ProcessEnv): E
   });
 }
 
-async function replayScript(
+export async function replayScript(
   evalDef: EvalDefinition,
   credentials: VerifierCredentials,
   script: ReplayScript,
@@ -166,11 +166,15 @@ async function replayScript(
         ? [`step ${i + 1} failed: ${redactSecrets(redactKnownSecrets(tc.result, secrets)).trim().slice(0, 300)}`]
         : [],
     );
-    const compileResult =
+    // Same order as a real run: the post snapshot is taken as soon as the "agent" is done, before the
+    // compile command, so a compile command that touches the tenant cannot change the graded state.
+    await session.capturePost();
+    const rawCompile =
       evalDef.compileCommand !== undefined
         ? runCompileCommand(workspace, evalDef.compileCommand, { setupCommand: evalDef.setupCommand })
         : undefined;
-    await session.capturePost();
+    // Mask before the graders slice the output, so a secret cut at the slice boundary leaves no tail.
+    const compileResult = redactKnownSecrets(rawCompile, secrets);
     // Judges need an LLM, so replay grades only the deterministic graders.
     const graders = evalDef.graders.filter((g) => g.kind !== 'judge');
     const results = await runGraders(
@@ -185,11 +189,56 @@ async function replayScript(
       '',
       session.gradingInput(),
     );
-    return { results, failedSteps };
+    // Grader details can quote command output (the compile grader does), and the caller prints them.
+    const masked = results.map((r) => ({ ...r, detail: redactSecrets(redactKnownSecrets(r.detail, secrets)) }));
+    return { results: masked, failedSteps };
   } finally {
     await session?.close();
     cleanupWorkspace(workspace);
   }
+}
+
+/** One script to replay: where it lives and what a correct verdict looks like. */
+export interface ReplayJob {
+  label: string;
+  kind: 'reference' | 'mutant';
+  path: string;
+}
+
+/**
+ * Replays every script in order and prints each verdict. Returns `false` when any script misses its
+ * verdict or fails to run. A script that throws (a failing seed, setup or snapshot) is reported and
+ * skipped, so one broken script never hides the verdicts of the others.
+ */
+export async function replayScripts(
+  evalDef: EvalDefinition,
+  credentials: VerifierCredentials,
+  scripts: ReplayJob[],
+): Promise<boolean> {
+  // Sequential on purpose: scripts share one tenant, and parallel runs would race on it.
+  let allOk = true;
+  for (const { label, kind, path } of scripts) {
+    logger.info(`\n[Replay] ${evalDef.id}: ${label}`);
+    let script: ReplayScript;
+    let outcome: Awaited<ReturnType<typeof replayScript>>;
+    try {
+      script = parseReplayScript(readFileSync(path, 'utf-8'));
+      outcome = await replayScript(evalDef, credentials, script);
+    } catch (err) {
+      // One broken script must not hide the verdicts of the others. Fixture errors are already masked.
+      logger.error(`  ✗ ${label}: ${redactSecrets(String(err))}`);
+      allOk = false;
+      continue;
+    }
+    const { results, failedSteps } = outcome;
+    for (const line of failedSteps) logger.warn(`  ${line}`);
+    for (const r of results) logger.info(`  ${r.passed ? 'PASS' : 'FAIL'}  ${r.name}  | ${r.detail}`);
+    const verdict = judgeReplay(kind, results, script.breaks);
+    logger.info(`  ${verdict.ok ? '✓' : '✗'} ${label}: ${verdict.reason}`);
+    allOk &&= verdict.ok;
+  }
+
+  return allOk;
 }
 
 export async function runReplay(opts: ReplayOptions): Promise<void> {
@@ -227,23 +276,11 @@ export async function runReplay(opts: ReplayOptions): Promise<void> {
         .map((f) => join(mutantsDir, f))
     : [];
 
-  const scripts: Array<{ label: string; kind: 'reference' | 'mutant'; path: string }> = [
+  const scripts: ReplayJob[] = [
     { label: 'reference', kind: 'reference', path: referencePath },
     ...mutantPaths.map((p) => ({ label: `mutant ${basename(p, '.sh')}`, kind: 'mutant' as const, path: p })),
   ];
 
-  // Sequential on purpose: scripts share one tenant, and parallel runs would race on it.
-  let allOk = true;
-  for (const { label, kind, path } of scripts) {
-    logger.info(`\n[Replay] ${evalDef.id}: ${label}`);
-    const script = parseReplayScript(readFileSync(path, 'utf-8'));
-    const { results, failedSteps } = await replayScript(evalDef, credentials, script);
-    for (const line of failedSteps) logger.warn(`  ${line}`);
-    for (const r of results) logger.info(`  ${r.passed ? 'PASS' : 'FAIL'}  ${r.name}  | ${r.detail}`);
-    const verdict = judgeReplay(kind, results, script.breaks);
-    logger.info(`  ${verdict.ok ? '✓' : '✗'} ${label}: ${verdict.reason}`);
-    allOk &&= verdict.ok;
-  }
-
+  const allOk = await replayScripts(evalDef, credentials, scripts);
   if (!allOk) process.exit(1);
 }

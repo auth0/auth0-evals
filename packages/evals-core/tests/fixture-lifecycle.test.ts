@@ -4,7 +4,9 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import type { FixtureContext, FixtureDef, ManagementApi } from '@a0/evals-graders';
+import { inspect } from 'node:util';
 import { openFixture } from '../src/fixture/lifecycle.js';
+import { logger } from '../src/utils/logger.js';
 
 vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -103,6 +105,73 @@ describe('openFixture', () => {
     expect(message).not.toContain(secret);
     expect(name).toBe('TypeError');
     expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops a cause that quotes a secret even when the message is clean', async () => {
+    const def = {
+      seed: async (ctx: FixtureContext) => {
+        ctx.registerSecret('registered-secret-12345');
+        throw new Error('seed failed', { cause: new Error('token registered-secret-12345 was rejected') });
+      },
+    } as unknown as FixtureDef;
+
+    const err = (await openFixture(def, opts()).catch((e: unknown) => e)) as Error;
+
+    expect(err.message).toBe('seed failed');
+    expect(err.cause).toBeUndefined();
+    // inspect() is what console.error prints, including the cause chain.
+    expect(inspect(err)).not.toContain('registered-secret-12345');
+  });
+
+  it('keeps the original error, cause included, when nothing in it holds a secret', async () => {
+    const err = new Error('seed failed', { cause: new Error('network down') });
+    const def = {
+      seed: async (ctx: FixtureContext) => {
+        ctx.registerSecret('registered-secret-12345');
+        throw err;
+      },
+    } as unknown as FixtureDef;
+
+    await expect(openFixture(def, opts())).rejects.toBe(err);
+  });
+
+  it('masks a secret in the cleanup warning when seed and cleanup both fail', async () => {
+    vi.mocked(logger.warn).mockClear();
+    const def = {
+      seed: async (ctx: FixtureContext) => {
+        ctx.registerSecret('registered-secret-12345');
+        throw new Error('seed boom');
+      },
+      cleanup: async () => {
+        throw new Error('cannot delete client registered-secret-12345');
+      },
+    } as unknown as FixtureDef;
+
+    await expect(openFixture(def, opts())).rejects.toThrow('seed boom');
+
+    const warned = vi.mocked(logger.warn).mock.calls.flat().join('\n');
+    expect(warned).toContain('Cleanup failed');
+    expect(warned).toContain('[REDACTED SECRET]');
+    expect(warned).not.toContain('registered-secret-12345');
+  });
+
+  it('masks a secret in the cleanup warning of a session closed after a successful open', async () => {
+    vi.mocked(logger.warn).mockClear();
+    const def = {
+      seed: async (ctx: FixtureContext) => {
+        ctx.registerSecret('registered-secret-12345');
+        return {};
+      },
+      cleanup: async () => {
+        throw new Error('cannot delete client registered-secret-12345');
+      },
+    } as unknown as FixtureDef;
+
+    const session = await openFixture(def, opts());
+    await session.close();
+
+    const warned = vi.mocked(logger.warn).mock.calls.flat().join('\n');
+    expect(warned).not.toContain('registered-secret-12345');
   });
 
   it('masks a secret thrown as a non-Error value', async () => {

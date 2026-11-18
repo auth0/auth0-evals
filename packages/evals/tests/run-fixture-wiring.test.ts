@@ -190,6 +190,32 @@ describe('runAgentJob tenant fixture wiring', () => {
     expect(mocks.order.indexOf('snapshot')).toBeLessThan(mocks.order.indexOf('compile'));
   });
 
+  it('masks a known secret in the compile output before the graders run, so the 500 character slice cannot cut it', async () => {
+    setCredentials();
+    mocks.evalDef.compileCommand = 'npm run build';
+    mocks.evalDef.graders = [{ kind: 'compile' }];
+    mocks.openFixture.mockImplementation(async () => ({
+      close: mocks.close,
+      capturePost: mocks.capturePost,
+      gradingInput: () => ({ state: undefined, secrets: ['dummy-secret-value'] }),
+      pre: undefined,
+      secrets: [],
+      context: { runId: 'rid', seeded: {} },
+    }));
+    mocks.runCompileCommand.mockReturnValue({
+      ok: false,
+      command: 'npm run build',
+      exitCode: 1,
+      output: 'build failed: token=dummy-secret-value',
+    });
+    const run = await freshRunJob();
+
+    await run();
+
+    const compileArg = mocks.runGraders.mock.calls[0]![7] as { output: string };
+    expect(compileArg.output).toBe('build failed: token=[REDACTED SECRET]');
+  });
+
   it('closes the fixture session when the compile command throws', async () => {
     setCredentials();
     mocks.evalDef.compileCommand = 'npm run build';

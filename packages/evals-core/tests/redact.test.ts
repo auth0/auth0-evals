@@ -329,6 +329,18 @@ describe('redactKnownSecrets', () => {
     });
   });
 
+  it('masks a secret used as an object key, at any depth', () => {
+    const input = { 'hunter2-secret': 1, nested: { list: [{ 'id-hunter2-secret': true }] }, ok: 2 };
+    const out = redactKnownSecrets(input, ['hunter2-secret']);
+    expect(out).toEqual({ [M]: 1, nested: { list: [{ [`id-${M}`]: true }] }, ok: 2 });
+    expect(JSON.stringify(out)).not.toContain('hunter2-secret');
+  });
+
+  it('leaves ordinary keys unchanged', () => {
+    const input = { 'client-id': 1, nested: { appId: 'abc' } };
+    expect(redactKnownSecrets(input, ['hunter2-secret'])).toEqual(input);
+  });
+
   it('replaces multiple occurrences and multiple secrets', () => {
     const out = redactKnownSecrets('one-secret-aaa and one-secret-aaa and two-secret-bbb', [
       'one-secret-aaa',

@@ -200,7 +200,9 @@ export function redactKnownSecrets<T>(value: T, secrets: readonly string[]): T {
     if (typeof v === 'string') return known.reduce((out, s) => out.split(s).join(REDACTION_MARKER), v);
     if (Array.isArray(v)) return v.map(walk);
     if (v !== null && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype) {
-      return Object.fromEntries(Object.entries(v).map(([k, inner]) => [k, walk(inner)]));
+      // Keys are masked too. Two keys that differ only in the secret collapse into one, which loses
+      // data but never leaks.
+      return Object.fromEntries(Object.entries(v).map(([k, inner]) => [walk(k) as string, walk(inner)]));
     }
     return v;
   };

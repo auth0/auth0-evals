@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import * as fs from 'node:fs';
-import { chmodSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { EventToolCall } from '@a0/evals-graders';
 import { makeTmpDir } from './tmp.js';
@@ -20,6 +20,9 @@ const tmp = makeTmpDir('fixture_artifact_');
 const realWriteFileSync = (await vi.importActual<typeof import('node:fs')>('node:fs')).writeFileSync;
 
 const SECRET = 'xK9-very-secret-value-123';
+// In a snapshot each distinct secret gets its own numbered marker.
+const STATE_MARKER_1 = '[REDACTED SECRET 1]';
+const STATE_MARKER_2 = '[REDACTED SECRET 2]';
 
 function tool(args: Record<string, unknown>, result = ''): EventToolCall {
   return { name: 'Bash', args, result, causedError: false };
@@ -33,8 +36,54 @@ describe('sealFixtureData', () => {
       { toolCalls: [tool({ command: 'ls' }, `secret=${SECRET}`)], agentText: 'done', files: {} },
     );
     expect(sealed.exposure).toEqual({ checked: 1, locations: ['tool call 1 output'] });
-    expect(sealed.state?.post).toEqual({ clients: [{ client_secret: REDACTION_MARKER }] });
+    expect(sealed.state?.post).toEqual({ clients: [{ client_secret: STATE_MARKER_1 }] });
     expect(JSON.stringify(sealed)).not.toContain(SECRET);
+  });
+
+  it('keeps two different credentials different after masking, so a rotation check gives the same verdict', () => {
+    const OLD = 'old-credential-1111';
+    const NEW = 'new-credential-2222';
+    const rotated = { pre: { cred: OLD }, post: { cred: NEW }, seeded: {} };
+    const unchanged = { pre: { cred: OLD }, post: { cred: OLD }, seeded: {} };
+    const evidence = { toolCalls: [], agentText: '', files: {} };
+
+    const a = sealFixtureData({ state: rotated, secrets: [OLD, NEW] }, evidence).state as typeof rotated;
+    const b = sealFixtureData({ state: unchanged, secrets: [OLD, NEW] }, evidence).state as typeof unchanged;
+
+    expect(a.pre.cred).not.toBe(a.post.cred);
+    expect(b.pre.cred).toBe(b.post.cred);
+    expect(JSON.stringify([a, b])).not.toMatch(/credential-/);
+  });
+
+  it('masks a secret that contains another secret whole, with the marker of the longer one', () => {
+    const short = 'abc-secret-core';
+    const long = `${short}-with-a-tail`;
+    const sealed = sealFixtureData(
+      { state: { pre: {}, post: { v: `x=${long} y=${short}` }, seeded: {} }, secrets: [short, long] },
+      { toolCalls: [], agentText: '', files: {} },
+    );
+    expect(sealed.state?.post).toEqual({ v: `x=${STATE_MARKER_2} y=${STATE_MARKER_1}` });
+  });
+
+  it.each([
+    ['a top level key', { pre: {}, post: { [SECRET]: 1 }, seeded: {} }],
+    ['a nested key', { pre: {}, post: { clients: [{ meta: { [`id-${SECRET}`]: true } }] }, seeded: {} }],
+    ['a seeded key', { pre: {}, post: {}, seeded: { [SECRET]: 'x' } }],
+  ])('throws, without quoting the key, when %s holds a secret', (_label, state) => {
+    let thrown: Error | undefined;
+    try {
+      sealFixtureData({ state, secrets: [SECRET] }, { toolCalls: [], agentText: '', files: {} });
+    } catch (e) {
+      thrown = e as Error;
+    }
+    expect(thrown?.message).toContain('snapshot key contains a known secret');
+    expect(thrown?.message).not.toContain(SECRET);
+  });
+
+  it('leaves ordinary keys unchanged', () => {
+    const state = { pre: { 'client-id': 1 }, post: { 'client-id': 2 }, seeded: { appId: 'abc' } };
+    const sealed = sealFixtureData({ state, secrets: [SECRET] }, { toolCalls: [], agentText: '', files: {} });
+    expect(sealed.state).toEqual(state);
   });
 
   it('masks nested objects and arrays in pre, post and seeded', () => {
@@ -45,9 +94,9 @@ describe('sealFixtureData', () => {
     };
     const sealed = sealFixtureData({ state, secrets: [SECRET] }, { agentText: '', files: {} });
     expect(sealed.state).toEqual({
-      pre: { a: { b: [`x ${REDACTION_MARKER} y`] } },
-      post: [{ deep: { list: [REDACTION_MARKER, 'keep'] } }],
-      seeded: { id: REDACTION_MARKER, n: 3 },
+      pre: { a: { b: [`x ${STATE_MARKER_1} y`] } },
+      post: [{ deep: { list: [STATE_MARKER_1, 'keep'] } }],
+      seeded: { id: STATE_MARKER_1, n: 3 },
     });
   });
 
@@ -150,21 +199,43 @@ describe('maskWorkspaceSecrets', () => {
   it.each([
     ['a file name', `${SECRET}.txt`],
     ['a directory name', `${SECRET}/index.ts`],
-  ])('fails closed when %s holds a secret, rewrites nothing and never quotes the path', (_label, rel) => {
+  ])('deletes a file when %s holds a secret, and still masks the other files', (_label, rel) => {
     const ws = tmp();
     put(ws, rel, 'clean content');
     put(ws, 'src/a.ts', `const s = '${SECRET}';`);
+    put(ws, 'src/clean.ts', 'export const ok = 1;');
 
-    let thrown: Error | undefined;
-    try {
-      maskWorkspaceSecrets(ws, [SECRET]);
-    } catch (e) {
-      thrown = e as Error;
-    }
+    expect(maskWorkspaceSecrets(ws, [SECRET])).toBe(2);
 
-    expect(thrown?.message).toContain('file path contains a known secret');
-    expect(thrown?.message).not.toContain(SECRET);
-    expect(readFileSync(join(ws, 'src/a.ts'), 'utf-8')).toBe(`const s = '${SECRET}';`);
+    expect(existsSync(join(ws, rel))).toBe(false);
+    expect(readFileSync(join(ws, 'src/a.ts'), 'utf-8')).toBe(`const s = '${REDACTION_MARKER}';`);
+    expect(readFileSync(join(ws, 'src/clean.ts'), 'utf-8')).toBe('export const ok = 1;');
+  });
+
+  it('leaves no secret in the artefact paths or manifest after a file name held one', () => {
+    const ws = tmp();
+    put(ws, `${SECRET}.txt`, `token=${SECRET}`);
+    put(ws, 'src/a.ts', 'export {};');
+    maskWorkspaceSecrets(ws, [SECRET]);
+
+    const dir = tmp();
+    writeRunArtifact(dir, {
+      kind: 'agent',
+      evalId: 'x',
+      category: 'c',
+      model: 'm',
+      mode: 'agent',
+      tools: [],
+      workspace: ws,
+      record: { toolCalls: [] } as never,
+      resolvedModel: 'm',
+      compileResult: undefined,
+      skillFiles: [],
+    } as never);
+
+    expect(readFileSync(join(dir, 'manifest.json'), 'utf-8')).not.toContain(SECRET);
+    expect(readdirSync(join(dir, 'workspace'), { recursive: true }).join('\n')).not.toContain(SECRET);
+    expect(readdirSync(join(dir, 'workspace'))).toEqual(['src']);
   });
 
   it('masks overlapping secrets longest first so no tail is left behind', () => {

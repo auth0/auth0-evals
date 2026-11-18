@@ -57,9 +57,14 @@ describe('findSecretExposure', () => {
 
   it('keeps a secret that appears in a file name out of the reported location', () => {
     const exposure = findSecretExposure([SECRET], evidence({ files: { [`src/${SECRET}.env`]: `value ${SECRET}` } }));
-    expect(exposure.locations).toHaveLength(1);
-    expect(exposure.locations[0]).toBe('file src/[REDACTED SECRET].env');
-    expect(exposure.locations[0]).not.toContain(SECRET);
+    expect(exposure.locations).toEqual(['file src/[REDACTED SECRET].env', 'file name src/[REDACTED SECRET].env']);
+    expect(JSON.stringify(exposure)).not.toContain(SECRET);
+  });
+
+  it('reports a secret that is only in a file name, even when the contents are clean', () => {
+    const exposure = findSecretExposure([SECRET], evidence({ files: { [`${SECRET}/index.ts`]: 'export {};' } }));
+    expect(exposure.locations).toEqual(['file name [REDACTED SECRET]/index.ts']);
+    expect(JSON.stringify(exposure)).not.toContain(SECRET);
   });
 
   const hidden: Array<[string, string]> = [
