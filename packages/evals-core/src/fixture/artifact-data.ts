@@ -56,7 +56,7 @@ function maskStateSecrets<T>(value: T, secrets: readonly string[]): T {
   const walk = (v: unknown): unknown => {
     if (typeof v === 'string') return ordered.reduce((out, { secret, marker }) => out.split(secret).join(marker), v);
     if (Array.isArray(v)) return v.map(walk);
-    if (v !== null && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype) {
+    if (v !== null && typeof v === 'object' && [Object.prototype, null].includes(Object.getPrototypeOf(v))) {
       return Object.fromEntries(Object.entries(v).map(([k, inner]) => [k, walk(inner)]));
     }
     return v;
@@ -99,46 +99,60 @@ export function fixtureGradingFromArtifact(data: FixtureArtifactData): FixtureGr
  * Prepares the grading-corpus workspace files for the artefact. Returns how many files it changed.
  *
  * - A file that contains a known secret is rewritten with the exact values masked. Files without a
- *   secret are not touched. Files that cannot be read are skipped, because the workspace snapshot
- *   skips them too.
+ *   secret are not touched. A file that cannot be read for another reason (for example permissions)
+ *   is skipped, because the snapshot's copy of it fails the same way.
  * - A file whose path contains a known secret is deleted, so the artefact neither copies it nor
  *   lists its path. A path cannot be masked without changing the file it names. The exposure scan
  *   runs on the unmasked evidence first (see `sealFixtureData`), so `secret_not_exposed` still
  *   fails for it, the same as in a combined run.
  *
+ * The file listing is capped, so deleting a file can bring a previously unlisted file into the next
+ * listing, which is the one the artefact copies. The pass therefore repeats until a pass deletes
+ * nothing, so every file the artefact copies has been checked.
+ *
  * Fails closed: a file that holds a secret but cannot be rewritten or deleted (after one retry that
- * makes it writable) throws, because the snapshot would otherwise copy it into the artefact. The
- * error never quotes the path.
+ * makes it writable), or that is too large to be read as text, throws, because the snapshot would
+ * otherwise copy it into the artefact. The error never quotes the path.
  */
 export function maskWorkspaceSecrets(workspace: string, secrets: readonly string[]): number {
   const known = secrets.filter((s) => s.length > 0);
   if (known.length === 0) return 0;
   let changed = 0;
-  for (const rel of listGradingFiles(workspace).files) {
-    const path = join(workspace, rel);
-    if (known.some((s) => rel.includes(s))) {
+  for (let removedAny = true; removedAny;) {
+    removedAny = false;
+    for (const rel of listGradingFiles(workspace).files) {
+      const path = join(workspace, rel);
+      if (known.some((s) => rel.includes(s))) {
+        try {
+          rmSync(path, { force: true });
+        } catch {
+          throw new Error('Cannot remove a workspace file whose path contains a known secret');
+        }
+        changed++;
+        removedAny = true;
+        continue;
+      }
+      let content: string;
       try {
-        rmSync(path, { force: true });
+        content = readFileSync(path, 'utf-8');
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code;
+        if (code === 'ERR_STRING_TOO_LONG' || code === 'ERR_FS_FILE_TOO_LARGE') {
+          throw new Error('Cannot check a workspace file for known secrets: it is too large to read as text', {
+            cause: e,
+          });
+        }
+        continue;
+      }
+      if (!known.some((s) => content.includes(s))) continue;
+      const masked = redactKnownSecrets(content, known);
+      try {
+        writeMasked(path, masked);
       } catch {
-        throw new Error('Cannot remove a workspace file whose path contains a known secret');
+        throw new Error(`Cannot mask a known secret in workspace file ${rel}: the file could not be rewritten`);
       }
       changed++;
-      continue;
     }
-    let content: string;
-    try {
-      content = readFileSync(path, 'utf-8');
-    } catch {
-      continue; // unreadable files are skipped, the snapshot skips them too
-    }
-    if (!known.some((s) => content.includes(s))) continue;
-    const masked = redactKnownSecrets(content, known);
-    try {
-      writeMasked(path, masked);
-    } catch {
-      throw new Error(`Cannot mask a known secret in workspace file ${rel}: the file could not be rewritten`);
-    }
-    changed++;
   }
   return changed;
 }

@@ -61,6 +61,11 @@ describe('findSecretExposure', () => {
     expect(JSON.stringify(exposure)).not.toContain(SECRET);
   });
 
+  it('reports a secret used as a key of a tool call argument object', () => {
+    const exposure = findSecretExposure([SECRET], evidence({ toolCalls: [tool({ env: { [SECRET]: 'on' } }, 'ok')] }));
+    expect(exposure.locations).toEqual(['tool call 1 arguments']);
+  });
+
   it('reports a secret that is only in a file name, even when the contents are clean', () => {
     const exposure = findSecretExposure([SECRET], evidence({ files: { [`${SECRET}/index.ts`]: 'export {};' } }));
     expect(exposure.locations).toEqual(['file name [REDACTED SECRET]/index.ts']);

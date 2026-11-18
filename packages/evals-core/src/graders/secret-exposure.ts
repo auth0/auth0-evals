@@ -27,7 +27,10 @@ export interface SecretExposure {
 function stringLeaves(value: unknown): string[] {
   if (typeof value === 'string') return [value];
   if (Array.isArray(value)) return value.flatMap(stringLeaves);
-  if (value !== null && typeof value === 'object') return Object.values(value).flatMap(stringLeaves);
+  if (value !== null && typeof value === 'object') {
+    // Keys count too: an argument object can be keyed by a secret.
+    return Object.entries(value).flatMap(([key, inner]) => [key, ...stringLeaves(inner)]);
+  }
   return [];
 }
 

@@ -151,8 +151,8 @@ describe('redactSecrets — markdown emphasis after a credential word', () => {
     ['underscore emphasis', 'the token:__ was rotated'],
   ])('keeps text that has no value to mask — %s', (_label, line) => {
     // Regression: the bare value branch matched `**` and replaced it, so a reply came
-    // out as `password:[REDACTED SECRET] I turned on identifier-first`. A credential
-    // always holds a letter or a digit, so punctuation alone is never a value.
+    // out as `password:[REDACTED SECRET] I turned on identifier-first`. A value made only of
+    // emphasis marks is markdown, not a credential.
     expect(redactSecrets(line)).toBe(line);
   });
 
@@ -166,6 +166,8 @@ describe('redactSecrets — markdown emphasis after a credential word', () => {
     ['Authorization: Bearer abc.def', `Authorization: Bearer ${REDACTION_MARKER}`],
     ['password:**hunter2**', `password:${REDACTION_MARKER}`],
     ['password: "**"', `password: ${REDACTION_MARKER}`],
+    ['password: !!!!!!!!', `password: ${REDACTION_MARKER}`],
+    ['PASSWORD=!@#$%', `PASSWORD=${REDACTION_MARKER}`],
   ])('still masks a value — %s', (line, expected) => {
     expect(redactSecrets(line)).toBe(expected);
   });
@@ -334,6 +336,15 @@ describe('redactKnownSecrets', () => {
     const out = redactKnownSecrets(input, ['hunter2-secret']);
     expect(out).toEqual({ [M]: 1, nested: { list: [{ [`id-${M}`]: true }] }, ok: 2 });
     expect(JSON.stringify(out)).not.toContain('hunter2-secret');
+  });
+
+  it('masks a secret inside a null-prototype object, keys included', () => {
+    const input = Object.create(null) as Record<string, unknown>;
+    input['hunter2-secret'] = 'token=hunter2-secret';
+    input.nested = Object.assign(Object.create(null), { v: ['hunter2-secret'] });
+    const out = JSON.stringify(redactKnownSecrets(input, ['hunter2-secret']));
+    expect(out).not.toContain('hunter2-secret');
+    expect(out).toContain(M);
   });
 
   it('leaves ordinary keys unchanged', () => {

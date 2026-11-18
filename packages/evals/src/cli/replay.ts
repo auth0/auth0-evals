@@ -142,6 +142,13 @@ function runSteps(steps: string[], workspace: string, env: NodeJS.ProcessEnv): E
   });
 }
 
+/** A copy of `e` with every exact occurrence of a known secret masked in its message and name. */
+function maskedError(e: unknown, secrets: readonly string[]): Error {
+  const err = new Error(redactKnownSecrets(e instanceof Error ? e.message : String(e), secrets));
+  if (e instanceof Error) err.name = redactKnownSecrets(String(e.name), secrets);
+  return err;
+}
+
 export async function replayScript(
   evalDef: EvalDefinition,
   credentials: VerifierCredentials,
@@ -159,6 +166,10 @@ export async function replayScript(
     if (evalDef.setupCommand) runSetupCommand(workspace, evalDef.setupCommand);
     const env = { ...process.env, RUN_ID: session.context.runId, ...seededEnv(session.context.seeded) };
     const toolCalls = runSteps(script.steps, workspace, env);
+    // Same order as a real run: the post snapshot is taken as soon as the "agent" is done, before the
+    // compile command, so a compile command that touches the tenant cannot change the graded state.
+    await session.capturePost();
+    // Read after the snapshot, because the snapshot hook can register secrets too.
     const { secrets } = session.gradingInput();
     // A failing step usually means a broken script, not a grader verdict, so surface its output (redacted).
     const failedSteps = toolCalls.flatMap((tc, i) =>
@@ -166,9 +177,6 @@ export async function replayScript(
         ? [`step ${i + 1} failed: ${redactSecrets(redactKnownSecrets(tc.result, secrets)).trim().slice(0, 300)}`]
         : [],
     );
-    // Same order as a real run: the post snapshot is taken as soon as the "agent" is done, before the
-    // compile command, so a compile command that touches the tenant cannot change the graded state.
-    await session.capturePost();
     const rawCompile =
       evalDef.compileCommand !== undefined
         ? runCompileCommand(workspace, evalDef.compileCommand, { setupCommand: evalDef.setupCommand })
@@ -192,6 +200,9 @@ export async function replayScript(
     // Grader details can quote command output (the compile grader does), and the caller prints them.
     const masked = results.map((r) => ({ ...r, detail: redactSecrets(redactKnownSecrets(r.detail, secrets)) }));
     return { results: masked, failedSteps };
+  } catch (e) {
+    // The last place that still knows the secrets. Pattern redaction alone would miss a plain value.
+    throw maskedError(e, [credentials.clientSecret, ...(session?.gradingInput().secrets ?? [])]);
   } finally {
     await session?.close();
     cleanupWorkspace(workspace);

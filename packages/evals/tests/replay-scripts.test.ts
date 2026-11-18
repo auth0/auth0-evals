@@ -105,6 +105,51 @@ describe('replay', () => {
       expect(compileArg.output).toContain('[REDACTED SECRET]');
     });
 
+    it('masks a secret that the post snapshot registered, which only exists after capturePost', async () => {
+      const LATE = 'registered-late-secret-4321';
+      let registered = false;
+      mocks.openFixture.mockImplementation(async () => ({
+        ...session(),
+        gradingInput: () => ({ secrets: registered ? [SECRET, LATE] : [SECRET], state: undefined }),
+      }));
+      mocks.capturePost.mockImplementation(async () => {
+        registered = true;
+      });
+      mocks.runCompileCommand.mockReturnValue({ ok: false, command: 'build', exitCode: 1, output: `leaked ${LATE}` });
+      mocks.runGraders.mockResolvedValue([
+        { name: 'compiles', kind: 'compile', passed: false, detail: `failed: ${LATE}` },
+      ]);
+
+      const { results } = await replayScript(evalDef(), CREDENTIALS, { steps: ['true'], breaks: [] });
+
+      expect((mocks.runGraders.mock.calls[0]![7] as { output: string }).output).not.toContain(LATE);
+      expect(results[0]!.detail).not.toContain(LATE);
+    });
+
+    it('masks a registered secret by exact value in an error from the post snapshot', async () => {
+      // A plain value like this is not caught by pattern redaction, only by exact match.
+      mocks.capturePost.mockRejectedValue(new Error(`snapshot failed for ${SECRET}`));
+
+      const err = (await replayScript(evalDef(), CREDENTIALS, { steps: ['true'], breaks: [] }).catch(
+        (e: unknown) => e,
+      )) as Error;
+
+      expect(err).toBeInstanceOf(Error);
+      expect(String(err)).not.toContain(SECRET);
+      expect(err.message).toBe('snapshot failed for [REDACTED SECRET]');
+      expect(mocks.close).toHaveBeenCalledTimes(1);
+    });
+
+    it('masks the verifier secret in an error that happens before a session exists', async () => {
+      mocks.openFixture.mockRejectedValue(new Error(`seed failed for ${SECRET}`));
+
+      const err = (await replayScript(evalDef(), CREDENTIALS, { steps: ['true'], breaks: [] }).catch(
+        (e: unknown) => e,
+      )) as Error;
+
+      expect(err.message).toBe('seed failed for [REDACTED SECRET]');
+    });
+
     it('masks a known secret in the grader details it returns', async () => {
       mocks.runGraders.mockResolvedValue([
         { name: 'compiles', kind: 'compile', passed: false, detail: `failed: ${SECRET}` },
@@ -140,6 +185,10 @@ describe('replay', () => {
       expect(allLogged()).toContain('✓ reference: all graders passed');
       expect(allLogged()).toContain('mutant broken');
       expect(mocks.logger.error).toHaveBeenCalledTimes(1);
+      const errorLine = String(mocks.logger.error.mock.calls[0]![0]);
+      expect(errorLine).toContain('mutant broken');
+      expect(errorLine).toContain('seed failed for [REDACTED SECRET]');
+      expect(errorLine).not.toContain(SECRET);
     });
 
     it('never prints a known secret from grader details', async () => {

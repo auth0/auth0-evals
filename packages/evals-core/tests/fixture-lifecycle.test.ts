@@ -171,7 +171,44 @@ describe('openFixture', () => {
     await session.close();
 
     const warned = vi.mocked(logger.warn).mock.calls.flat().join('\n');
+    expect(warned).toContain('Cleanup failed');
+    expect(warned).toContain('[REDACTED SECRET]');
     expect(warned).not.toContain('registered-secret-12345');
+  });
+
+  it('keeps the seed failure when the error has a custom inspect hook that throws', async () => {
+    const cleanup = vi.fn(async () => {});
+    const def = {
+      seed: async (ctx: FixtureContext) => {
+        ctx.registerSecret('registered-secret-12345');
+        const e = new Error('seed boom');
+        (e as unknown as Record<symbol, unknown>)[inspect.custom] = () => {
+          throw new Error('inspect hook failed with registered-secret-12345');
+        };
+        throw e;
+      },
+      cleanup,
+    } as unknown as FixtureDef;
+
+    const err = (await openFixture(def, opts()).catch((e: unknown) => e)) as Error;
+
+    expect(err.message).toBe('seed boom');
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('masks a secret in the error name as well as the message', async () => {
+    const def = {
+      seed: async (ctx: FixtureContext) => {
+        ctx.registerSecret('registered-secret-12345');
+        const e = new Error('failed with registered-secret-12345');
+        e.name = 'Error registered-secret-12345';
+        throw e;
+      },
+    } as unknown as FixtureDef;
+
+    const err = (await openFixture(def, opts()).catch((e: unknown) => e)) as Error;
+
+    expect(String(err)).toBe('Error [REDACTED SECRET]: failed with [REDACTED SECRET]');
   });
 
   it('masks a secret thrown as a non-Error value', async () => {

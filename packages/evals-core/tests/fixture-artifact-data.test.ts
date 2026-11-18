@@ -12,12 +12,20 @@ import { writeRunArtifact, readRunArtifact } from '../src/artifact/artifact.js';
 // Lets one test make the rewrite of a masked file fail; every other call goes to the real function.
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>();
-  return { ...actual, writeFileSync: vi.fn(actual.writeFileSync) };
+  return {
+    ...actual,
+    writeFileSync: vi.fn(actual.writeFileSync),
+    readFileSync: vi.fn(actual.readFileSync),
+    readdirSync: vi.fn(actual.readdirSync),
+  };
 });
 
 const tmp = makeTmpDir('fixture_artifact_');
 
-const realWriteFileSync = (await vi.importActual<typeof import('node:fs')>('node:fs')).writeFileSync;
+const realFs = await vi.importActual<typeof import('node:fs')>('node:fs');
+const realWriteFileSync = realFs.writeFileSync;
+const realReadFileSync = realFs.readFileSync;
+const realReaddirSync = realFs.readdirSync;
 
 const SECRET = 'xK9-very-secret-value-123';
 // In a snapshot each distinct secret gets its own numbered marker.
@@ -78,6 +86,16 @@ describe('sealFixtureData', () => {
     }
     expect(thrown?.message).toContain('snapshot key contains a known secret');
     expect(thrown?.message).not.toContain(SECRET);
+  });
+
+  it('masks a secret inside a null-prototype snapshot object', () => {
+    const post = Object.assign(Object.create(null), { token: SECRET, list: [{ v: `x ${SECRET}` }] });
+    const sealed = sealFixtureData(
+      { state: { pre: {}, post, seeded: {} }, secrets: [SECRET] },
+      { toolCalls: [], agentText: '', files: {} },
+    );
+    expect(JSON.stringify(sealed)).not.toContain(SECRET);
+    expect(JSON.stringify(sealed.state)).toContain(STATE_MARKER_1);
   });
 
   it('leaves ordinary keys unchanged', () => {
@@ -162,8 +180,9 @@ function filesUnder(dir: string): string[] {
 
 describe('maskWorkspaceSecrets', () => {
   afterEach(() => {
-    const mocked = vi.mocked(fs.writeFileSync);
-    mocked.mockImplementation(realWriteFileSync);
+    vi.mocked(fs.writeFileSync).mockImplementation(realWriteFileSync);
+    vi.mocked(fs.readFileSync).mockImplementation(realReadFileSync as never);
+    vi.mocked(fs.readdirSync).mockImplementation(realReaddirSync as never);
   });
 
   function put(ws: string, rel: string, content: string): void {
@@ -236,6 +255,63 @@ describe('maskWorkspaceSecrets', () => {
     expect(readFileSync(join(dir, 'manifest.json'), 'utf-8')).not.toContain(SECRET);
     expect(readdirSync(join(dir, 'workspace'), { recursive: true }).join('\n')).not.toContain(SECRET);
     expect(readdirSync(join(dir, 'workspace'))).toEqual(['src']);
+  });
+
+  it('masks every file the artefact will copy even when deleting a path lets an unlisted file in', () => {
+    // The listing stops at 200 files. One of 201 files has a secret in its path, so deleting it
+    // brings the file that was cut off into the next listing, which is the one that gets copied.
+    const ws = tmp();
+    for (let i = 0; i < 200; i++) put(ws, `f${String(i).padStart(3, '0')}.txt`, `v=${SECRET}`);
+    // Sorts before the others, so it is inside the first 200 and the last `f` file is cut off.
+    put(ws, `0-${SECRET}.txt`, 'clean');
+    // The listing order of a directory is not guaranteed, so make it alphabetical here.
+    vi.mocked(fs.readdirSync).mockImplementation(((...args: unknown[]) => {
+      const out = (realReaddirSync as (...a: unknown[]) => Array<string | { name: string }>)(...args);
+      return [...out].sort((a, b) =>
+        String(typeof a === 'string' ? a : a.name).localeCompare(typeof b === 'string' ? b : b.name),
+      );
+    }) as never);
+
+    maskWorkspaceSecrets(ws, [SECRET]);
+
+    const left = readdirSync(ws);
+    expect(left.some((f) => f.includes(SECRET))).toBe(false);
+    for (const f of left) expect(readFileSync(join(ws, f), 'utf-8')).not.toContain(SECRET);
+    expect(left.length).toBeGreaterThan(0);
+  });
+
+  it('fails closed, without quoting the path, when a file is too large to read as text', () => {
+    const ws = tmp();
+    put(ws, 'big.log', 'x');
+    vi.mocked(fs.readFileSync).mockImplementation(((p: unknown, ...rest: unknown[]) => {
+      if (String(p).endsWith('big.log')) {
+        throw Object.assign(new Error('Cannot create a string longer than 0x1fffffe8 characters'), {
+          code: 'ERR_STRING_TOO_LONG',
+        });
+      }
+      return (realReadFileSync as (...a: unknown[]) => unknown)(p, ...rest);
+    }) as never);
+
+    let thrown: Error | undefined;
+    try {
+      maskWorkspaceSecrets(ws, [SECRET]);
+    } catch (e) {
+      thrown = e as Error;
+    }
+    expect(thrown?.message).toContain('too large to read as text');
+    expect(thrown?.message).not.toContain('big.log');
+  });
+
+  it('skips a file that cannot be read for another reason, like the copy does', () => {
+    const ws = tmp();
+    put(ws, 'denied.txt', 'x');
+    put(ws, 'a.ts', `v=${SECRET}`);
+    vi.mocked(fs.readFileSync).mockImplementation(((p: unknown, ...rest: unknown[]) => {
+      if (String(p).endsWith('denied.txt')) throw Object.assign(new Error('denied'), { code: 'EACCES' });
+      return (realReadFileSync as (...a: unknown[]) => unknown)(p, ...rest);
+    }) as never);
+
+    expect(maskWorkspaceSecrets(ws, [SECRET])).toBe(1);
   });
 
   it('masks overlapping secrets longest first so no tail is left behind', () => {

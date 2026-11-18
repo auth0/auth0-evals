@@ -52,10 +52,23 @@ export interface FixtureSession {
 function redactError(e: unknown, secrets: readonly string[]): unknown {
   const known = secrets.filter((s) => s.length > 0);
   if (known.length === 0) return e;
-  const printed = e instanceof Error ? inspect(e) : String(e);
-  if (!known.some((s) => printed.includes(s))) return e;
-  const safe = new Error(redactKnownSecrets(e instanceof Error ? e.message : String(e), known));
-  if (e instanceof Error) safe.name = e.name;
+  // `customInspect: false` so an error with a throwing `inspect.custom` hook cannot replace the
+  // fixture failure with its own. When the error cannot be printed at all, treat it as unsafe.
+  let printed: string | undefined;
+  try {
+    printed = e instanceof Error ? inspect(e, { customInspect: false }) : String(e);
+  } catch {
+    printed = undefined;
+  }
+  if (printed !== undefined && !known.some((s) => printed.includes(s))) return e;
+  let message: string;
+  try {
+    message = e instanceof Error ? e.message : String(e);
+  } catch {
+    message = 'Fixture failed';
+  }
+  const safe = new Error(redactKnownSecrets(message, known));
+  if (e instanceof Error) safe.name = redactKnownSecrets(String(e.name), known);
   return safe;
 }
 

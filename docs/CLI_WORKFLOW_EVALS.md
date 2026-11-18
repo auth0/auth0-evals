@@ -141,7 +141,7 @@ apps/auth0-evals/src/evals/cli-workflows/<eval-dir>/
         └── reveal.sh
 ```
 
-A script is a list of steps separated by blank lines. Each step runs as its own `bash -c` in a fresh workspace and is recorded as one `run_command` tool call, the same shape as an agent's shell calls, so command graders see a realistic trace. Comment lines are dropped. Steps get `RUN_ID` and every scalar seeded value as `SEED_<KEY>`, so `appId` becomes `SEED_APP_ID`. A blank line always ends a step, even inside a heredoc or a multi-line `--data '{...}'` body, and lines starting with `#` are always dropped, even inside a heredoc. So keep each step free of blank lines and `#` lines, and put pretty-printed JSON or a generated `.env` on a single line or build it with `printf`.
+A script is a list of steps separated by blank lines. Each step runs as its own `bash -c` process in the script's shared workspace, so a file one step creates is visible to the later ones, and is recorded as one `run_command` tool call, the same shape as an agent's shell calls, so command graders see a realistic trace. Comment lines are dropped. Steps get `RUN_ID` and every scalar seeded value as `SEED_<KEY>`, so `appId` becomes `SEED_APP_ID`. A blank line always ends a step, even inside a heredoc or a multi-line `--data '{...}'` body, and lines starting with `#` are always dropped, even inside a heredoc. So keep each step free of blank lines and `#` lines, and put pretty-printed JSON or a generated `.env` on a single line or build it with `printf`.
 
 ```bash
 # breaks: Callback set
