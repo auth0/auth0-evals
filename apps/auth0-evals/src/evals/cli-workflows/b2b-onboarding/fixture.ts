@@ -54,16 +54,26 @@ export interface Snapshot {
   connectionIds: string[];
 }
 
-const isNotFound = (e: unknown): boolean => (e as { status?: unknown } | null | undefined)?.status === 404;
+/**
+ * True only for a 404 from `method` on exactly `path`. A 404 from the token endpoint or any other
+ * request is not a missing resource, so it must not be treated as one.
+ */
+function isNotFound(e: unknown, method: string, path: string): boolean {
+  const err = e as { name?: unknown; status?: unknown; method?: unknown; path?: unknown } | null | undefined;
+  return err?.name === 'ManagementApiError' && err.status === 404 && err.method === method && err.path === path;
+}
 
 const errorText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-/** Reads a resource the agent may have deleted. Only a 404 counts as missing; anything else is rethrown. */
-async function orNull<T>(read: () => Promise<T>): Promise<T | null> {
+/**
+ * Reads a resource the agent may have deleted. Only a GET 404 on `path` counts as missing; anything
+ * else is rethrown.
+ */
+async function orNull<T>(path: string, read: () => Promise<T>): Promise<T | null> {
   try {
     return await read();
   } catch (e) {
-    if (isNotFound(e)) return null;
+    if (isNotFound(e, 'GET', path)) return null;
     throw e;
   }
 }
@@ -90,13 +100,14 @@ async function deleteAll(mgmt: ManagementApi, created: Created): Promise<string[
     const unique = [...new Set(ids)];
     const results = await Promise.allSettled(unique.map((id) => mgmt.delete(`${path}/${id}`)));
     results.forEach((r, i) => {
-      if (r.status === 'rejected' && !isNotFound(r.reason))
+      if (r.status === 'rejected' && !isNotFound(r.reason, 'DELETE', `${path}/${unique[i]}`))
         failures.push(`delete ${path}/${unique[i]}: ${errorText(r.reason)}`);
     });
   }
   return failures;
 }
 
+/** Offset paging, for endpoints without checkpoint paging. The API rejects a page past the first 1000 records. */
 async function listAll<T>(
   mgmt: ManagementApi,
   path: string,
@@ -110,6 +121,27 @@ async function listAll<T>(
     out.push(...items);
     if (items.length < 100) return out;
   }
+}
+
+/** Checkpoint paging: follows the `next` cursor until a response has none. */
+async function listCheckpoint<T>(
+  mgmt: ManagementApi,
+  path: string,
+  key: string,
+  query: Record<string, string> = {},
+): Promise<T[]> {
+  const out: T[] = [];
+  let from: string | undefined;
+  do {
+    const res = await mgmt.get<Record<string, T[] | string | undefined>>(path, {
+      ...query,
+      take: 100,
+      ...(from ? { from } : {}),
+    });
+    out.push(...((res[key] as T[] | undefined) ?? []));
+    from = typeof res.next === 'string' && res.next ? res.next : undefined;
+  } while (from);
+  return out;
 }
 
 /** Client ids enabled on a connection. This endpoint pages with a `next` cursor. */
@@ -127,13 +159,13 @@ async function connectionClients(mgmt: ManagementApi, id: string): Promise<strin
   return out;
 }
 
-const listOrgs = (mgmt: ManagementApi) => listAll<Organization>(mgmt, 'organizations', 'organizations');
+const listOrgs = (mgmt: ManagementApi) => listCheckpoint<Organization>(mgmt, 'organizations', 'organizations');
 const listClients = (mgmt: ManagementApi) =>
   listAll<{ client_id: string; name: string; client_metadata?: Record<string, string> }>(mgmt, 'clients', 'clients', {
     fields: 'client_id,name,client_metadata',
     include_fields: 'true',
   });
-const listConnections = (mgmt: ManagementApi) => listAll<Connection>(mgmt, 'connections', 'connections');
+const listConnections = (mgmt: ManagementApi) => listCheckpoint<Connection>(mgmt, 'connections', 'connections');
 
 export default defineFixture({
   async seed({ mgmt, runId, registerSecret }) {
@@ -217,8 +249,9 @@ export default defineFixture({
     const orgs = await listOrgs(mgmt);
     const orgConnections: Snapshot['orgConnections'] = {};
     for (const o of orgs.filter((o) => [ACME_ORG, GLOBEX_ORG].includes(o.name))) {
-      const enabled = await orNull(() =>
-        listAll<EnabledConnection>(mgmt, `organizations/${o.id}/enabled_connections`, 'enabled_connections'),
+      const enabledPath = `organizations/${o.id}/enabled_connections`;
+      const enabled = await orNull(enabledPath, () =>
+        listAll<EnabledConnection>(mgmt, enabledPath, 'enabled_connections'),
       );
       if (enabled) orgConnections[o.id] = enabled;
     }
@@ -226,7 +259,7 @@ export default defineFixture({
     // report it instead of the whole snapshot failing.
     const clients: Snapshot['clients'] = {};
     for (const id of [seeded.supplierPortalId, seeded.opsConsoleId].map(String)) {
-      const client = await orNull(() => mgmt.get<Record<string, unknown>>(`clients/${id}`));
+      const client = await orNull(`clients/${id}`, () => mgmt.get<Record<string, unknown>>(`clients/${id}`));
       if (!client) {
         clients[id] = null;
         continue;
@@ -241,17 +274,23 @@ export default defineFixture({
     for (const id of [seeded.acmeUsersId, seeded.globexUsersId].map(String)) {
       // Enabled clients are graded on their own, so a legitimate change there
       // does not count as editing the connection.
-      const connection = await orNull(() => mgmt.get<Record<string, unknown>>(`connections/${id}`));
+      const connection = await orNull(`connections/${id}`, () =>
+        mgmt.get<Record<string, unknown>>(`connections/${id}`),
+      );
       if (connection) delete connection.enabled_clients;
       connections[id] = connection;
     }
     return {
       orgs,
       orgConnections,
-      acmeUsersClients: await orNull(() => connectionClients(mgmt, String(seeded.acmeUsersId))),
+      acmeUsersClients: await orNull(`connections/${String(seeded.acmeUsersId)}/clients`, () =>
+        connectionClients(mgmt, String(seeded.acmeUsersId)),
+      ),
       clients,
       connections,
-      globex: await orNull(() => mgmt.get<Record<string, unknown>>(`organizations/${seeded.globexOrgId}`)),
+      globex: await orNull(`organizations/${String(seeded.globexOrgId)}`, () =>
+        mgmt.get<Record<string, unknown>>(`organizations/${String(seeded.globexOrgId)}`),
+      ),
       clientIds: (await listClients(mgmt)).map((c) => c.client_id),
       connectionIds: (await listConnections(mgmt)).map((c) => c.id),
     } satisfies Snapshot;
