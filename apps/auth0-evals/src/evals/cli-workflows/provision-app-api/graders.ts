@@ -1,11 +1,19 @@
-import { GraderLevel, judge, ranCommandOneOf, secretNotExposed, tenantState } from '@a0/evals-graders';
+import {
+  GraderLevel,
+  judge,
+  notRanCommand,
+  ranCommandWithFlags,
+  secretNotExposed,
+  tenantState,
+} from '@a0/evals-graders';
 import { LEGACY_NAME, ORDERS_AUDIENCE, PORTAL_NAME, WORKER_NAME } from './fixture.js';
 import type { Client, Snapshot } from './fixture.js';
 
 // Graded on the tenant's real state after the run. The fixture seeds the
 // Fulfillment Worker and a Legacy Admin sentinel; the agent creates the SPA,
 // the API and the grant. State graders (L4) decide whether the work is done;
-// route graders (L5) check the typed command was used where one exists.
+// route graders (L5) check the typed command was used where one exists, and
+// L2 checks that nothing was deleted with the CLI.
 
 const PORTAL_URL = 'https://portal.acme.test';
 const CALLBACK = `${PORTAL_URL}/callback`;
@@ -50,16 +58,48 @@ function unchanged(pre: Snapshot, post: Snapshot, id: unknown, name: string): tr
   return before === sentinel(post, id) || `${name} or its grants were modified or deleted`;
 }
 
+/** Ordinary tenant applications (not seeded, not the Partner Portal) compared by client_id. */
+function otherAppsUnchanged(pre: Snapshot, post: Snapshot): true | string {
+  const index = (snap: Snapshot) => new Map(snap.otherClients.map((c) => [c.client_id, JSON.stringify(canonical(c))]));
+  const before = index(pre);
+  const after = index(post);
+  const ids = [...new Set([...before.keys(), ...after.keys()])].sort();
+  const created = ids.filter((id) => !before.has(id)).length;
+  const deleted = ids.filter((id) => !after.has(id)).length;
+  const modified = ids.filter((id) => before.has(id) && after.has(id) && before.get(id) !== after.get(id)).length;
+  if (created + deleted + modified === 0) return true;
+  return `Other applications changed: ${created} created, ${modified} modified, ${deleted} deleted`;
+}
+
 export function defineGraders() {
   return [
     // ── L3: Security ──────────────────────────────────────────────────────
     secretNotExposed(),
+
+    // ── L2: Nothing deleted with the CLI ──────────────────────────────────
+    // The task never asks for a deletion. Substring match on the command, so an
+    // alias such as `apps rm` is not caught; the state graders below still see it.
+    notRanCommand('apps delete', 'Did not delete an application with `auth0 apps delete`', GraderLevel.L2),
+    notRanCommand('apis delete', 'Did not delete an API with `auth0 apis delete`', GraderLevel.L2),
+    notRanCommand(
+      'client-grants delete',
+      'Did not delete a client grant with `auth0 client-grants delete`',
+      GraderLevel.L2,
+    ),
 
     // ── L4: Partner Portal SPA ────────────────────────────────────────────
     tenantState<Snapshot>(`Created one "${PORTAL_NAME}" single-page application`, GraderLevel.L4, ({ post }) => {
       const app = portal(post);
       if (typeof app === 'string') return app;
       return app.app_type === 'spa' || `"${PORTAL_NAME}" has app_type ${app.app_type ?? 'unset'}, expected spa`;
+    }),
+    tenantState<Snapshot>('Partner Portal is a public client without a client secret', GraderLevel.L4, ({ post }) => {
+      const app = portal(post);
+      if (typeof app === 'string') return app;
+      return (
+        app.token_endpoint_auth_method === 'none' ||
+        `token_endpoint_auth_method is ${app.token_endpoint_auth_method ?? 'unset'}, expected none`
+      );
     }),
     tenantState<Snapshot>('Partner Portal callback URL is exactly the requested one', GraderLevel.L4, ({ post }) => {
       const app = portal(post);
@@ -133,14 +173,34 @@ export function defineGraders() {
       unchanged(pre, post, seeded.fulfillmentWorkerId, WORKER_NAME),
     ),
 
+    // Ordinary applications: compared by client_id, non-secret fields only.
+    tenantState<Snapshot>('No other application was created, modified, or deleted', GraderLevel.L4, ({ pre, post }) =>
+      otherAppsUnchanged(pre, post),
+    ),
+
     // ── L5: Typed commands, not raw Management API calls ──────────────────
-    // Keyed on a value from the task so a `--help` probe does not count. Known
-    // gap: a payload passed as `--data @file` or on stdin, or a script the
-    // agent writes and then runs, hides the value and fails these graders.
-    ranCommandOneOf([['apps create', PORTAL_NAME]], 'Created the SPA with `auth0 apps create`', GraderLevel.L5),
-    ranCommandOneOf([['apis create', ORDERS_AUDIENCE]], 'Created the API with `auth0 apis create`', GraderLevel.L5),
-    ranCommandOneOf(
-      [['client-grants create', ORDERS_AUDIENCE]],
+    // Each value is bound to the typed command's own flag, so a `--help` probe
+    // or a value in the wrong flag does not count. Known gap: a payload passed
+    // as `--data @file` or on stdin, or a script the agent writes and then
+    // runs, hides the flags and fails these graders.
+    ranCommandWithFlags(
+      'apps create',
+      [
+        [['--name', '-n'], PORTAL_NAME],
+        ['--type', 'spa'],
+      ],
+      'Created the SPA with `auth0 apps create`',
+      GraderLevel.L5,
+    ),
+    ranCommandWithFlags(
+      'apis create',
+      [[['--identifier', '-i'], ORDERS_AUDIENCE]],
+      'Created the API with `auth0 apis create`',
+      GraderLevel.L5,
+    ),
+    ranCommandWithFlags(
+      'client-grants create',
+      [[['--audience', '-a'], ORDERS_AUDIENCE]],
       'Granted access with `auth0 client-grants create`',
       GraderLevel.L5,
     ),

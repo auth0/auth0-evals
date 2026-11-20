@@ -20,6 +20,7 @@ export interface Client {
   web_origins?: string[];
   allowed_origins?: string[];
   grant_types?: string[];
+  token_endpoint_auth_method?: string;
   client_metadata?: Record<string, string>;
 }
 
@@ -44,15 +45,25 @@ export interface ClientGrant {
 export interface Snapshot {
   /** Agent-visible clients: the seeded pair and any Partner Portal. */
   clients: Client[];
+  /** Every other client on the tenant, non-secret fields only, sorted by client_id. */
+  otherClients: Client[];
   apis: ResourceServer[];
   /** Every grant on the Orders API, plus every grant held by a seeded client. */
   grants: ClientGrant[];
-  /** Full seeded client objects, keyed by id, with the secret replaced by a hash. */
+  /** Full seeded client objects, keyed by id, with the secret replaced by a hash. A deleted client is left out. */
   sentinels: Record<string, Record<string, unknown>>;
 }
 
 const CLIENT_FIELDS =
-  'client_id,name,app_type,callbacks,allowed_logout_urls,web_origins,allowed_origins,grant_types,client_metadata';
+  'client_id,name,app_type,callbacks,allowed_logout_urls,web_origins,allowed_origins,grant_types,token_endpoint_auth_method,client_metadata';
+
+/** The Management API client rejects with a `status` on any HTTP error. */
+function isNotFound(e: unknown): boolean {
+  return (
+    (e as { name?: string; status?: number } | undefined)?.name === 'ManagementApiError' &&
+    (e as { status?: number }).status === 404
+  );
+}
 
 async function listAll<T>(
   mgmt: ManagementApi,
@@ -113,14 +124,22 @@ export default defineFixture({
     const grants = [...new Map(grantLists.flat().map((g) => [g.id, g])).values()];
     const sentinels: Snapshot['sentinels'] = {};
     for (const id of ids) {
-      const { client_secret, ...rest } = await mgmt.get<Record<string, unknown>>(`clients/${id}`);
-      sentinels[id] = {
-        ...rest,
-        client_secret_sha256: createHash('sha256').update(String(client_secret)).digest('hex'),
-      };
+      try {
+        const { client_secret, ...rest } = await mgmt.get<Record<string, unknown>>(`clients/${id}`);
+        sentinels[id] = {
+          ...rest,
+          client_secret_sha256: createHash('sha256').update(String(client_secret)).digest('hex'),
+        };
+      } catch (e) {
+        // A deleted client is a result for the graders, not a reason to lose the whole snapshot.
+        if (!isNotFound(e)) throw e;
+      }
     }
     return {
       clients: clients.filter((c) => ids.includes(c.client_id) || c.name === PORTAL_NAME),
+      otherClients: clients
+        .filter((c) => !ids.includes(c.client_id) && c.name !== PORTAL_NAME)
+        .sort((a, b) => a.client_id.localeCompare(b.client_id)),
       apis: (await listApis(mgmt)).filter((a) => a.identifier === ORDERS_AUDIENCE || a.name === 'Orders API'),
       grants,
       sentinels,
@@ -128,21 +147,43 @@ export default defineFixture({
   },
 
   async cleanup({ mgmt, seeded, runId }) {
-    // Seeded clients carry this run's id. Only look for the agent's resources
-    // when seed got far enough to prove the tenant started without them.
-    // Each delete is attempted even if an earlier one fails, so one error does
-    // not leave the rest behind to trip the clean-tenant guard next run.
-    const paths: string[] = [];
-    const clients = await listClients(mgmt);
-    for (const c of clients) {
-      if (c.client_metadata?.eval_run === runId) paths.push(`clients/${c.client_id}`);
+    // Seeded clients are deleted by their recorded ids. The eval_run lookup is
+    // a fallback in case seed stopped early. Only look for the agent's
+    // resources when seed proved the tenant started without them. Every delete
+    // is attempted even if discovery or an earlier delete fails, so one error
+    // does not leave the rest behind to trip the clean-tenant guard next run.
+    // Auth0 removes a client's grants when the client is deleted.
+    const paths = new Set<string>();
+    let discoveryFailures = 0;
+    for (const id of [seeded.fulfillmentWorkerId, seeded.legacyAdminId]) {
+      if (typeof id === 'string' && id) paths.add(`clients/${id}`);
+    }
+    try {
+      for (const c of await listClients(mgmt)) {
+        if (c.client_metadata?.eval_run === runId) paths.add(`clients/${c.client_id}`);
+        if (seeded.fulfillmentWorkerId && c.name === PORTAL_NAME) paths.add(`clients/${c.client_id}`);
+      }
+    } catch {
+      discoveryFailures++;
     }
     if (seeded.fulfillmentWorkerId) {
-      for (const c of clients) if (c.name === PORTAL_NAME) paths.push(`clients/${c.client_id}`);
-      for (const a of await listApis(mgmt))
-        if (a.identifier === ORDERS_AUDIENCE) paths.push(`resource-servers/${a.id}`);
+      try {
+        for (const a of await listApis(mgmt))
+          if (a.identifier === ORDERS_AUDIENCE) paths.add(`resource-servers/${a.id}`);
+      } catch {
+        discoveryFailures++;
+      }
     }
-    const failed = (await Promise.allSettled(paths.map((p) => mgmt.delete(p)))).filter((r) => r.status === 'rejected');
-    if (failed.length > 0) throw new Error(`${failed.length} of ${paths.length} cleanup deletes failed`);
+    const results = await Promise.allSettled(
+      [...paths].map((p) =>
+        // Already gone, for example deleted by the agent.
+        mgmt.delete(p).catch((e: unknown) => {
+          if (!isNotFound(e)) throw e;
+        }),
+      ),
+    );
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    if (failed > 0 || discoveryFailures > 0)
+      throw new Error(`${failed} of ${paths.size} cleanup deletes failed, ${discoveryFailures} lookups failed`);
   },
 });
