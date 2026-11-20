@@ -9,9 +9,58 @@ import type { EventToolCall, GraderDef } from '@a0/evals-graders';
 
 // Tool names that run a shell command (Claude: run_command, Gemini: bash).
 const RUN_COMMAND_NAMES = new Set(['run_command', 'bash']);
-// Splits a shell call into simple commands.
-const SEGMENT_SPLIT = /\s*(?:&&|\|\||;|\||\n)\s*/;
 const HELP = /(?:^|\s)(?:--help|-h)(?=\s|$)/;
+
+/**
+ * Splits a shell call into simple commands at `&&`, `||`, `;`, `|` and newlines. It does not split
+ * inside quotes, `$(...)` or backticks, and a backslash-newline continues the same command.
+ */
+export function splitCommands(call: string): string[] {
+  const parts: string[] = [];
+  let current = '';
+  let quote: string | undefined;
+  let depth = 0;
+  let backtick = false;
+  for (let i = 0; i < call.length; i++) {
+    const ch = call[i] as string;
+    const next = call[i + 1];
+    if (ch === '\\' && quote !== "'") {
+      if (next === '\n' || (next === '\r' && call[i + 2] === '\n')) {
+        current += ' ';
+        i += next === '\r' ? 2 : 1;
+      } else {
+        current += ch + (next ?? '');
+        i++;
+      }
+      continue;
+    }
+    if (quote) {
+      if (ch === quote) quote = undefined;
+      current += ch;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+    } else if (ch === '`') {
+      backtick = !backtick;
+    } else if (ch === '$' && next === '(') {
+      depth++;
+      current += '$(';
+      i++;
+      continue;
+    } else if (ch === ')' && depth > 0) {
+      depth--;
+    } else if (depth === 0 && !backtick && (ch === ';' || ch === '\n' || ch === '|' || (ch === '&' && next === '&'))) {
+      parts.push(current);
+      current = '';
+      if ((ch === '|' && next === '|') || ch === '&') i++;
+      continue;
+    }
+    current += ch;
+  }
+  parts.push(current);
+  return parts.map((p) => p.trim()).filter(Boolean);
+}
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -54,16 +103,19 @@ export function boundCommand(
     level,
     predicate: (toolCalls: EventToolCall[]) =>
       runCommands(toolCalls)
-        .flatMap((cmd) => cmd.replace(/\\\r?\n/g, ' ').split(SEGMENT_SPLIT))
+        .flatMap(splitCommands)
         .some(
           (segment) =>
-            commands.some((c) => segment.includes(c)) && !HELP.test(segment) && bindings.every((b) => b(segment)),
+            commands.some((c) => segment.includes(c)) &&
+            !HELP.test(segment.replace(/'[^']*'|"[^"]*"/g, '')) &&
+            bindings.every((b) => b(segment)),
         ),
   };
 }
 
 // What the CLI prints when it is given a command or flag it does not have.
-const UNKNOWN_INPUT = /unknown (?:command|flag|shorthand flag)/i;
+const UNKNOWN_INPUT =
+  /(?:^|\n)\s*(?:Error:\s*)?unknown (?:command|flag|shorthand flag)\b|"message"\s*:\s*"unknown (?:command|flag|shorthand flag)\b|"reason"\s*:\s*"flag_parse"/;
 
 /** Passes when no shell command's output says the CLI rejected a command or flag. Failed calls count. */
 export function noInventedCliInput(description: string): GraderDef {
