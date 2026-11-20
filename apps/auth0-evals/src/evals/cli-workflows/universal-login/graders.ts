@@ -1,11 +1,5 @@
-import {
-  GraderLevel,
-  judge,
-  notRanCommand,
-  ranCommandWithFlags,
-  secretNotExposed,
-  tenantState,
-} from '@a0/evals-graders';
+import { GraderLevel, judge, notRanCommand, secretNotExposed, tenantState } from '@a0/evals-graders';
+import { boundCommand, noInventedCliInput, positionalValue } from './bound-command.js';
 import { BUTTON_COLOR, HEADING } from './fixture.js';
 import type { Snapshot } from './fixture.js';
 
@@ -38,12 +32,6 @@ function changedKeys(
     .filter((k) => !ignore.includes(k) && !same(before[k], after[k]))
     .sort();
 }
-
-// `prompts update` with the prompt name as its first argument, with or without a language flag
-// before it. The name has to follow the subcommand directly, so a `login-id` that belongs to
-// another command in the same shell call (a `show`, or a path) does not count.
-const UPDATE_SUBCOMMANDS = ['prompts update', 'texts update'];
-const UPDATE_PREFIXES = UPDATE_SUBCOMMANDS.flatMap((c) => [c, `${c} -l en`, `${c} --language en`]);
 
 const unchanged = (
   name: string,
@@ -134,15 +122,17 @@ export function defineGraders() {
       'Did not switch the rendering mode with `auth0 universal-login switch`',
       GraderLevel.L2,
     ),
+    noInventedCliInput('The CLI accepted every command and flag the agent used'),
 
     // ── L5: Typed commands, not raw Management API calls ──────────────────
     // Identifier-first and the theme have no typed command in the CLI, so
     // those steps have no route grader. `texts` is an alias of `prompts`. The
-    // prompt name is bound to the subcommand, so it cannot come from another
-    // command in the same shell call.
-    ranCommandWithFlags(
-      UPDATE_SUBCOMMANDS,
-      [[UPDATE_PREFIXES, 'login-id']],
+    // prompt name has to be the whole argument right after the subcommand (with
+    // or without a language flag before it), so it cannot come from another
+    // command in the same shell call, a longer name, or a `--help` probe.
+    boundCommand(
+      ['prompts update', 'texts update'],
+      [positionalValue('(?:prompts|texts)\\s+update(?:\\s+(?:-l|--language)(?:=|\\s+)en)?', 'login-id')],
       'Updated the email screen text with `auth0 universal-login prompts update`',
       GraderLevel.L5,
     ),
