@@ -1,5 +1,6 @@
 # Enables the connection on the organization but never lets the portal use it.
 # breaks: Supplier Portal is enabled on the acme-users connection
+# breaks: Enabled the portal on the connection with `auth0 connections enabled-clients update`
 auth0 orgs create --name acme --display "Acme Corp" --no-input
 
 ORG_ID=$(auth0 api get organizations/name/acme | jq -r .id)

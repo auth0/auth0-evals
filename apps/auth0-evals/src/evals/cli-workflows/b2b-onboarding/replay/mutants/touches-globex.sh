@@ -1,5 +1,6 @@
 # Does the task, then renames the Globex organization it was told to leave alone.
 # breaks: Globex organization and its connection were not modified
+# breaks: No existing organization was modified or deleted
 auth0 orgs create --name acme --display "Acme Corp" --no-input
 
 ORG_ID=$(auth0 api get organizations/name/acme | jq -r .id)
