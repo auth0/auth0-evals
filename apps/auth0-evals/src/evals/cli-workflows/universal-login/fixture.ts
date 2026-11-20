@@ -93,6 +93,22 @@ const TENANT_FIELDS = [
   'support_url',
   'session_lifetime',
   'idle_session_lifetime',
+  'ephemeral_session_lifetime',
+  'idle_ephemeral_session_lifetime',
+  'enabled_locales',
+  'default_audience',
+  'default_directory',
+  'default_redirection_uri',
+  'allowed_logout_urls',
+  'session_cookie',
+  'sessions',
+  'sandbox_version',
+  'oidc_logout',
+  'flags',
+  'error_page',
+  'change_password',
+  'guardian_mfa_page',
+  'device_flow',
 ] as const;
 
 const BRANDING_FIELDS = ['colors', 'logo_url', 'favicon_url', 'font'] as const;
@@ -135,6 +151,20 @@ async function readTheme(mgmt: ManagementApi): Promise<Record<string, unknown> |
   });
 }
 
+// Compares values by content, so a different key order in the API response is not a difference.
+const canonical = (v: unknown): unknown =>
+  Array.isArray(v)
+    ? v.map(canonical)
+    : v && typeof v === 'object'
+      ? Object.fromEntries(
+          Object.entries(v)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([k, x]) => [k, canonical(x)]),
+        )
+      : v;
+
+const sameValue = (a: unknown, b: unknown) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
+
 const pick = (obj: Record<string, unknown>, keys: readonly string[]) =>
   Object.fromEntries(keys.filter((k) => obj[k] !== undefined).map((k) => [k, obj[k]]));
 
@@ -145,10 +175,14 @@ const pick = (obj: Record<string, unknown>, keys: readonly string[]) =>
  */
 async function restoreChanged(mgmt: ManagementApi, path: string, saved: Record<string, unknown>): Promise<void> {
   const current = await mgmt.get<Record<string, unknown>>(path);
-  const changed = Object.fromEntries(
-    Object.entries(saved).filter(([key, value]) => JSON.stringify(current[key]) !== JSON.stringify(value)),
-  );
+  const changed = Object.fromEntries(Object.entries(saved).filter(([key, value]) => !sameValue(current[key], value)));
   if (Object.keys(changed).length > 0) await mgmt.patch(path, changed);
+}
+
+/** Names of the tenant settings fields that still differ from the saved values. Values are not reported. */
+async function tenantFieldsStillChanged(mgmt: ManagementApi, saved: Record<string, unknown>): Promise<string[]> {
+  const current = await mgmt.get<Record<string, unknown>>('tenants/settings');
+  return TENANT_FIELDS.filter((key) => !sameValue(current[key], saved[key]));
 }
 
 async function restore(mgmt: ManagementApi, saved: Saved): Promise<void> {
@@ -192,9 +226,19 @@ async function restore(mgmt: ManagementApi, saved: Saved): Promise<void> {
     }),
   );
   const failures = results.filter((f): f is string => f !== undefined);
-  if (failures.length > 0) {
-    throw new Error(`${failures.length} restore writes failed: ${failures.join(', ')}`);
+  const problems: string[] = [];
+  if (failures.length > 0) problems.push(`${failures.length} restore writes failed: ${failures.join(', ')}`);
+
+  // A write can succeed and still leave a field unchanged, or the run may have set a field that
+  // was unset before, which a PATCH cannot clear. Read the settings back so that surfaces here.
+  try {
+    const still = await tenantFieldsStillChanged(mgmt, saved.tenant);
+    if (still.length > 0) problems.push(`tenant settings still differ from the saved values: ${still.join(', ')}`);
+  } catch (e) {
+    const status = /\b[45]\d\d\b/.exec(String(e))?.[0];
+    problems.push(status ? `tenant settings could not be re-read (${status})` : 'tenant settings could not be re-read');
   }
+  if (problems.length > 0) throw new Error(problems.join('; '));
 }
 
 export default defineFixture({
@@ -227,7 +271,15 @@ export default defineFixture({
       return { saved, themeId: String(seeded.themeId) };
     } catch (e) {
       // Cleanup only sees `seeded` when seed returns, so undo here.
-      await restore(mgmt, saved).catch(() => undefined);
+      try {
+        await restore(mgmt, saved);
+      } catch (restoreError) {
+        // The restore message lists step names and HTTP statuses only, so it is safe to include.
+        const detail = restoreError instanceof Error ? restoreError.message : String(restoreError);
+        throw new Error(`Seed failed (${String(e)}) and restoring the tenant also failed (${detail})`, {
+          cause: restoreError,
+        });
+      }
       throw e;
     }
   },
