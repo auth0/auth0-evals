@@ -1,12 +1,6 @@
-import {
-  GraderLevel,
-  judge,
-  notRanCommand,
-  ranCommandWithFlags,
-  secretNotExposed,
-  tenantState,
-} from '@a0/evals-graders';
-import { LEGACY_NAME, ORDERS_AUDIENCE, PORTAL_NAME, WORKER_NAME } from './fixture.js';
+import { GraderLevel, judge, notRanCommand, secretNotExposed, tenantState } from '@a0/evals-graders';
+import { boundCommand, flagValue, noInventedCliInput } from './bound-command.js';
+import { LEGACY_NAME, ORDERS_AUDIENCE, PORTAL_NAME, WORKER_NAME, canonical } from './fixture.js';
 import type { Client, Snapshot } from './fixture.js';
 
 // Graded on the tenant's real state after the run. The fixture seeds the
@@ -29,17 +23,6 @@ function portal(post: Snapshot): Client | string {
   return found[0]!;
 }
 
-const canonical = (v: unknown): unknown =>
-  Array.isArray(v)
-    ? v.map(canonical)
-    : v && typeof v === 'object'
-      ? Object.fromEntries(
-          Object.entries(v)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([k, x]) => [k, canonical(x)]),
-        )
-      : v;
-
 /** A seeded client and its grants outside the Orders API, in a stable form. Undefined if the client was missing. */
 function sentinel(snap: Snapshot, id: unknown): string | undefined {
   const client = snap.sentinels[String(id)];
@@ -58,17 +41,35 @@ function unchanged(pre: Snapshot, post: Snapshot, id: unknown, name: string): tr
   return before === sentinel(post, id) || `${name} or its grants were modified or deleted`;
 }
 
-/** Ordinary tenant applications (not seeded, not the Partner Portal) compared by client_id. */
+/** Counts of ids added, removed or changed between two keyed snapshots. */
+function diffCounts(before: Map<string, string>, after: Map<string, string>) {
+  const ids = [...new Set([...before.keys(), ...after.keys()])];
+  return {
+    created: ids.filter((id) => !before.has(id)).length,
+    deleted: ids.filter((id) => !after.has(id)).length,
+    modified: ids.filter((id) => before.has(id) && after.has(id) && before.get(id) !== after.get(id)).length,
+  };
+}
+
+/**
+ * Ordinary tenant applications (not seeded, not the Partner Portal) and their grants, compared in full.
+ * Applications are keyed by client_id and grants by grant id.
+ */
 function otherAppsUnchanged(pre: Snapshot, post: Snapshot): true | string {
-  const index = (snap: Snapshot) => new Map(snap.otherClients.map((c) => [c.client_id, JSON.stringify(canonical(c))]));
-  const before = index(pre);
-  const after = index(post);
-  const ids = [...new Set([...before.keys(), ...after.keys()])].sort();
-  const created = ids.filter((id) => !before.has(id)).length;
-  const deleted = ids.filter((id) => !after.has(id)).length;
-  const modified = ids.filter((id) => before.has(id) && after.has(id) && before.get(id) !== after.get(id)).length;
-  if (created + deleted + modified === 0) return true;
-  return `Other applications changed: ${created} created, ${modified} modified, ${deleted} deleted`;
+  const apps = (snap: Snapshot) => new Map(snap.otherClients.map((c) => [c.client_id, JSON.stringify(canonical(c))]));
+  const grants = (snap: Snapshot) =>
+    new Map(
+      Object.values(snap.otherGrants)
+        .flat()
+        .map((g) => [g.id, JSON.stringify(canonical(g))]),
+    );
+  const a = diffCounts(apps(pre), apps(post));
+  const g = diffCounts(grants(pre), grants(post));
+  if (a.created + a.deleted + a.modified + g.created + g.deleted + g.modified === 0) return true;
+  return (
+    `Other applications changed: ${a.created} created, ${a.modified} modified, ${a.deleted} deleted; ` +
+    `their client grants: ${g.created} created, ${g.modified} modified, ${g.deleted} deleted`
+  );
 }
 
 export function defineGraders() {
@@ -86,6 +87,9 @@ export function defineGraders() {
       'Did not delete a client grant with `auth0 client-grants delete`',
       GraderLevel.L2,
     ),
+
+    // The CLI prints "unknown command" or "unknown flag" for input it does not have.
+    noInventedCliInput('The CLI accepted every command and flag the agent used'),
 
     // ── L4: Partner Portal SPA ────────────────────────────────────────────
     tenantState<Snapshot>(`Created one "${PORTAL_NAME}" single-page application`, GraderLevel.L4, ({ post }) => {
@@ -173,7 +177,7 @@ export function defineGraders() {
       unchanged(pre, post, seeded.fulfillmentWorkerId, WORKER_NAME),
     ),
 
-    // Ordinary applications: compared by client_id, non-secret fields only.
+    // Ordinary applications: every member compared (secrets as hashes), plus the grants they hold.
     tenantState<Snapshot>('No other application was created, modified, or deleted', GraderLevel.L4, ({ pre, post }) =>
       otherAppsUnchanged(pre, post),
     ),
@@ -183,24 +187,21 @@ export function defineGraders() {
     // or a value in the wrong flag does not count. Known gap: a payload passed
     // as `--data @file` or on stdin, or a script the agent writes and then
     // runs, hides the flags and fails these graders.
-    ranCommandWithFlags(
-      'apps create',
-      [
-        [['--name', '-n'], PORTAL_NAME],
-        ['--type', 'spa'],
-      ],
+    boundCommand(
+      ['apps create'],
+      [flagValue(['--name', '-n'], PORTAL_NAME, 'name'), flagValue(['--type', '-t'], 'spa', 'app_type')],
       'Created the SPA with `auth0 apps create`',
       GraderLevel.L5,
     ),
-    ranCommandWithFlags(
-      'apis create',
-      [[['--identifier', '-i'], ORDERS_AUDIENCE]],
+    boundCommand(
+      ['apis create'],
+      [flagValue(['--identifier', '-i'], ORDERS_AUDIENCE, 'identifier')],
       'Created the API with `auth0 apis create`',
       GraderLevel.L5,
     ),
-    ranCommandWithFlags(
-      'client-grants create',
-      [[['--audience', '-a'], ORDERS_AUDIENCE]],
+    boundCommand(
+      ['client-grants create'],
+      [flagValue(['--audience', '-a'], ORDERS_AUDIENCE, 'audience')],
       'Granted access with `auth0 client-grants create`',
       GraderLevel.L5,
     ),

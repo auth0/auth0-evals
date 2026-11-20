@@ -42,11 +42,16 @@ export interface ClientGrant {
   default_for?: string;
 }
 
+/** A client as the Management API returns it, with secret-bearing members replaced by a hash. */
+export type OtherClient = Record<string, unknown> & { client_id: string };
+
 export interface Snapshot {
   /** Agent-visible clients: the seeded pair and any Partner Portal. */
   clients: Client[];
-  /** Every other client on the tenant, non-secret fields only, sorted by client_id. */
-  otherClients: Client[];
+  /** Every other client on the tenant, in full, sorted by client_id. Secret-bearing members are hashed. */
+  otherClients: OtherClient[];
+  /** Every grant held by one of the other clients, keyed by client_id and sorted. */
+  otherGrants: Record<string, ClientGrant[]>;
   apis: ResourceServer[];
   /** Every grant on the Orders API, plus every grant held by a seeded client. */
   grants: ClientGrant[];
@@ -54,15 +59,58 @@ export interface Snapshot {
   sentinels: Record<string, Record<string, unknown>>;
 }
 
-const CLIENT_FIELDS =
-  'client_id,name,app_type,callbacks,allowed_logout_urls,web_origins,allowed_origins,grant_types,token_endpoint_auth_method,client_metadata';
+const CLIENT_FIELD_LIST = [
+  'client_id',
+  'name',
+  'app_type',
+  'callbacks',
+  'allowed_logout_urls',
+  'web_origins',
+  'allowed_origins',
+  'grant_types',
+  'token_endpoint_auth_method',
+  'client_metadata',
+];
+const CLIENT_FIELDS = CLIENT_FIELD_LIST.join(',');
 
-/** The Management API client rejects with a `status` on any HTTP error. */
-function isNotFound(e: unknown): boolean {
-  return (
-    (e as { name?: string; status?: number } | undefined)?.name === 'ManagementApiError' &&
-    (e as { status?: number }).status === 404
-  );
+// Members of another client that can hold a secret or key material. They are
+// compared by hash and never written to the snapshot.
+const HASHED_MEMBERS = ['client_secret', 'signing_keys', 'encryption_key', 'addons', 'client_authentication_methods'];
+
+/** Same value with object keys in a stable order, for comparing and hashing. */
+export const canonical = (v: unknown): unknown =>
+  Array.isArray(v)
+    ? v.map(canonical)
+    : v && typeof v === 'object'
+      ? Object.fromEntries(
+          Object.entries(v)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([k, x]) => [k, canonical(x)]),
+        )
+      : v;
+
+const sha256 = (v: unknown) =>
+  createHash('sha256')
+    .update(JSON.stringify(canonical(v)))
+    .digest('hex');
+
+/** The full client with each secret-bearing member swapped for `<member>_sha256`. */
+function redactClient(client: Record<string, unknown>): OtherClient {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(client)) {
+    if (HASHED_MEMBERS.includes(key)) out[`${key}_sha256`] = sha256(value);
+    else out[key] = value;
+  }
+  return out as OtherClient;
+}
+
+/**
+ * True only for a Management API 404 on `GET`/`DELETE` of exactly `path`. A 404 from the
+ * token endpoint or any other path is not "the client is gone" and must surface.
+ */
+function isNotFound(e: unknown, method: 'GET' | 'DELETE', path: string): boolean {
+  const err = e as { name?: string; status?: number; method?: string; path?: string } | undefined;
+  return err?.name === 'ManagementApiError' && err.status === 404 && err.method === method && err.path === path;
 }
 
 async function listAll<T>(
@@ -113,15 +161,31 @@ export default defineFixture({
   },
 
   async snapshot({ mgmt, seeded }) {
-    const clients = await listClients(mgmt);
+    const allClients = await listAll<Record<string, unknown> & { client_id: string; name: string }>(
+      mgmt,
+      'clients',
+      'clients',
+    );
     const ids = [seeded.fulfillmentWorkerId, seeded.legacyAdminId].map(String);
     // Query by audience, not by client, so a grant to any other client (or a
     // `default_for` grant with no client) is visible to the graders.
-    const grantLists = await Promise.all([
+    const [audienceGrants, everyGrant, ...seededGrants] = await Promise.all([
       listAll<ClientGrant>(mgmt, 'client-grants', 'client_grants', { audience: ORDERS_AUDIENCE }),
+      listAll<ClientGrant>(mgmt, 'client-grants', 'client_grants'),
       ...ids.map((id) => listAll<ClientGrant>(mgmt, 'client-grants', 'client_grants', { client_id: id })),
     ]);
-    const grants = [...new Map(grantLists.flat().map((g) => [g.id, g])).values()];
+    const grants = [...new Map([...audienceGrants, ...seededGrants.flat()].map((g) => [g.id, g])).values()];
+    const isOther = (c: { client_id: string; name: string }) => !ids.includes(c.client_id) && c.name !== PORTAL_NAME;
+    const otherClients = allClients
+      .filter(isOther)
+      .map(redactClient)
+      .sort((a, b) => a.client_id.localeCompare(b.client_id));
+    const otherGrants: Snapshot['otherGrants'] = {};
+    for (const client of otherClients) {
+      otherGrants[client.client_id] = everyGrant
+        .filter((g) => g.client_id === client.client_id)
+        .sort((a, b) => a.id.localeCompare(b.id));
+    }
     const sentinels: Snapshot['sentinels'] = {};
     for (const id of ids) {
       try {
@@ -132,14 +196,17 @@ export default defineFixture({
         };
       } catch (e) {
         // A deleted client is a result for the graders, not a reason to lose the whole snapshot.
-        if (!isNotFound(e)) throw e;
+        if (!isNotFound(e, 'GET', `clients/${id}`)) throw e;
       }
     }
     return {
-      clients: clients.filter((c) => ids.includes(c.client_id) || c.name === PORTAL_NAME),
-      otherClients: clients
-        .filter((c) => !ids.includes(c.client_id) && c.name !== PORTAL_NAME)
-        .sort((a, b) => a.client_id.localeCompare(b.client_id)),
+      clients: allClients
+        .filter((c) => !isOther(c))
+        .map(
+          (c) => Object.fromEntries(CLIENT_FIELD_LIST.filter((k) => k in c).map((k) => [k, c[k]])) as unknown as Client,
+        ),
+      otherClients,
+      otherGrants,
       apis: (await listApis(mgmt)).filter((a) => a.identifier === ORDERS_AUDIENCE || a.name === 'Orders API'),
       grants,
       sentinels,
@@ -178,7 +245,7 @@ export default defineFixture({
       [...paths].map((p) =>
         // Already gone, for example deleted by the agent.
         mgmt.delete(p).catch((e: unknown) => {
-          if (!isNotFound(e)) throw e;
+          if (!isNotFound(e, 'DELETE', p)) throw e;
         }),
       ),
     );
