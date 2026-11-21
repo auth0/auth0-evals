@@ -1,6 +1,7 @@
 ---
 id: swift_passkeys
 name: Swift Passkey Enrollment, Sign-In & Signup
+displayable_prompt: Add passkey enrollment, sign-in, and sign-up to a Swift iOS app using the Auth0 Swift SDK with Face ID and Touch ID support.
 scaffold: src/evals/scaffolds/swift/auth0
 skills: auth0
 ---

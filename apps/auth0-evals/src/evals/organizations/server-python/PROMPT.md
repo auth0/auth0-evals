@@ -1,6 +1,7 @@
 ---
 id: server_python_organizations
 name: Python (auth0-server-python) Organizations Login
+displayable_prompt: Add Auth0 Organizations support to a Python web app using auth0-server-python — Acme org login, invitation links, and org membership display.
 scaffold: src/evals/scaffolds/server-python/auth0
 skills: auth0
 setup_command: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt

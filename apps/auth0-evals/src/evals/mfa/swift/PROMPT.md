@@ -1,6 +1,7 @@
 ---
 id: swift_mfa
 name: Swift MFA Step-Up
+displayable_prompt: Handle MFA step-up in a Swift iOS app using the Auth0 Authentication API — detect the error, complete the in-app OTP challenge, and finish login with credentials stored.
 scaffold: src/evals/scaffolds/swift/auth0
 skills: auth0
 ---

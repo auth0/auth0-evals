@@ -1,6 +1,7 @@
 ---
 id: auth0_auth_js_passkeys
 name: auth0-auth-js Passkey Sign-In & Signup
+displayable_prompt: Add passkey sign-in and sign-up to a Node.js auth service using @auth0/auth0-auth-js, including both the browser-side WebAuthn step and server routes for returning and new users.
 scaffold: src/evals/scaffolds/auth0-auth-js/auth0
 skills: auth0
 setup_command: npm install

@@ -1,6 +1,7 @@
 ---
 id: express_api_organizations
 name: Express API Organizations
+displayable_prompt: Add Organizations support to an Express API using express-oauth2-jwt-bearer — restrict a members endpoint to the Acme org and expose org profile data from the token.
 scaffold: src/evals/scaffolds/express-api/auth0
 skills: auth0
 setup_command: npm install

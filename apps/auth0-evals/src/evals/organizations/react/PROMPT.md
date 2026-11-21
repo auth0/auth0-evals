@@ -1,6 +1,7 @@
 ---
 id: react_organizations
 name: React Organizations Login
+displayable_prompt: Add Auth0 Organizations support to a React app using @auth0/auth0-react — Acme org login, invitation links, and org membership display.
 scaffold: src/evals/scaffolds/react/auth0
 skills: auth0
 setup_command: npm install

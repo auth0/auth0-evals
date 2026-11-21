@@ -1,6 +1,7 @@
 ---
 id: express_quickstart
 name: Express Quickstart
+displayable_prompt: Add Auth0 login, a protected profile route, and an authenticated external API call to an Express.js app.
 skills: auth0
 setup_command: npm install
 compile_command: node --check server.js

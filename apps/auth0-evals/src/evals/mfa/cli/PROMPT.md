@@ -1,6 +1,7 @@
 ---
 id: mfa_cli
 name: MFA Config (CLI)
+displayable_prompt: Configure SMS phone and email MFA factors on an Auth0 tenant via the CLI and enforce MFA for all users across all applications.
 category: mfa
 skills: auth0
 provision: auth0-tenant

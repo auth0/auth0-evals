@@ -1,6 +1,7 @@
 ---
 id: aspnetcore_api_mfa
 name: ASP.NET Core API MFA Step-Up
+displayable_prompt: Gate a high-value transfer endpoint on an MFA-gated scope in an ASP.NET Core Web API, while keeping existing scope checks intact.
 scaffold: src/evals/scaffolds/aspnetcore-api/auth0
 skills: auth0
 ---

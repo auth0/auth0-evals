@@ -1,6 +1,7 @@
 ---
 id: go_jwt_middleware_mfa
 name: Go (go-jwt-middleware) MFA Step-Up
+displayable_prompt: Gate a high-value transfer endpoint on an MFA-gated scope in a Go API using go-jwt-middleware, while keeping existing scope checks intact.
 scaffold: src/evals/scaffolds/go-jwt-middleware/auth0
 skills: auth0
 ---

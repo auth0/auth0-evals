@@ -1,6 +1,7 @@
 ---
 id: fastify_api_quickstart
 name: Fastify API Quickstart
+displayable_prompt: Add Auth0 JWT validation to a Fastify API with a scope-gated messages route and a general protected route returning the user's sub claim.
 skills: auth0
 setup_command: npm install
 compile_command: node --check server.js

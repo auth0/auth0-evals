@@ -1,6 +1,7 @@
 ---
 id: react_native_organizations
 name: React Native (react-native-auth0) Organizations Login
+displayable_prompt: Add Auth0 Organizations support to a React Native app — Acme org login, invitation links, and org membership display.
 scaffold: src/evals/scaffolds/react-native/auth0
 skills: auth0
 ---

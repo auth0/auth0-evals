@@ -1,6 +1,7 @@
 ---
 id: auth0_api_js_organizations
 name: auth0-api-js Organizations API Protection
+displayable_prompt: Add org_id claim validation to an Express API using @auth0/auth0-api-js, rejecting tokens from outside the Acme org and including the org in API responses.
 scaffold: src/evals/scaffolds/auth0-api-js/auth0
 skills: auth0
 setup_command: npm install

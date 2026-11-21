@@ -1,6 +1,7 @@
 ---
 id: nuxt_quickstart
 name: Nuxt Quickstart
+displayable_prompt: Add Auth0 login to a Nuxt 3 app using @auth0/auth0-nuxt, with a protected profile route and authenticated API calls using an access token.
 skills: auth0
 setup_command: npm install
 compile_command: npm run build

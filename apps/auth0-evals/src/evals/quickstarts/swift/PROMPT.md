@@ -1,6 +1,7 @@
 ---
 id: swift_quickstart
 name: Swift iOS Quickstart
+displayable_prompt: Add Auth0 login and logout to a Swift iOS app using the Auth0 Swift SDK.
 skills: auth0
 ---
 

@@ -1,6 +1,7 @@
 ---
 id: oidc_client_net_ios_organizations
 name: .NET iOS (Auth0.OidcClient.iOS) Organizations Login
+displayable_prompt: Add Auth0 Organizations support to an iOS app using Auth0.OidcClient.iOS — Acme org login, invitation links, and org membership display.
 scaffold: src/evals/scaffolds/oidc-client-net-ios/auth0
 skills: auth0
 ---
