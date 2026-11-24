@@ -450,6 +450,7 @@ async function runAgentJob(
         apiKey,
         ghToken: process.env.GH_TOKEN,
         passthroughEnv: getFrameworkConfig().sandbox.passthroughEnv,
+        recommendationsEnabled: getFrameworkConfig().recommendations.enabled,
       });
     }
 
