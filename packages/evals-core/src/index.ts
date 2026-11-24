@@ -77,6 +77,7 @@ export type {
   BraintrustConfig,
   ScoringConfig,
   SandboxConfig,
+  RecommendationsConfig,
 } from './config/framework.js';
 export { DEFAULT_FRAMEWORK_CONFIG } from './config/defaults.js';
 export { defineConfig, loadConfig, deepMerge } from './config/loader.js';

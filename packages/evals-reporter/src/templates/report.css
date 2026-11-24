@@ -535,6 +535,11 @@ a { color: var(--link); }
 .rec-failed-reason { font-size: 12px; color: var(--text-primary); font-family: monospace; overflow-wrap: anywhere; }
 .rec-failed-note { font-size: 11px; color: var(--text-ter); margin-top: 6px; font-style: italic; }
 
+/* Generation turned off — neutral rather than amber, since nothing went wrong. */
+.rec-panel--skipped { padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); }
+.rec-skipped-title { font-size: 13px; font-weight: 600; color: var(--text-sec); margin-bottom: 4px; }
+.rec-skipped-note { font-size: 11px; color: var(--text-ter); font-style: italic; }
+
 /* ── Metrics compact table (turn metrics / session trace) ────────────────── */
 .metrics-table       { width: 100%; border-collapse: collapse; font-size: 12px; }
 .metrics-thead       { background: var(--surface-2); }

@@ -41,6 +41,10 @@ describe('DEFAULT_FRAMEWORK_CONFIG', () => {
     expect(DEFAULT_FRAMEWORK_CONFIG.skills.localDirs).toEqual(['skills']);
   });
 
+  it('enables recommendations', () => {
+    expect(DEFAULT_FRAMEWORK_CONFIG.recommendations.enabled).toBe(true);
+  });
+
   it('has empty braintrust defaults', () => {
     expect(DEFAULT_FRAMEWORK_CONFIG.braintrust.projectId).toBe('');
     expect(DEFAULT_FRAMEWORK_CONFIG.braintrust.datasetName).toBe('');

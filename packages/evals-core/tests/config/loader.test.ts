@@ -89,6 +89,23 @@ describe('loadConfig', () => {
     expect(config.judge.maxTokens).toBe(4096); // default preserved
   });
 
+  it('enables recommendations by default', async () => {
+    const config = await loadConfig({ searchDir: join(FIXTURES_DIR, 'valid') });
+    expect(config.recommendations.enabled).toBe(true);
+  });
+
+  it('lets a config file turn recommendations off', async () => {
+    const config = await loadConfig({ searchDir: join(FIXTURES_DIR, 'recommendations-disabled') });
+    expect(config.recommendations.enabled).toBe(false);
+  });
+
+  it('rejects a non-boolean recommendations.enabled such as the string "false"', async () => {
+    // The string is truthy, so accepting it would silently leave recommendations on.
+    const promise = loadConfig({ searchDir: join(FIXTURES_DIR, 'recommendations-string') });
+    await expect(promise).rejects.toThrow(EvalConfigError);
+    await expect(promise).rejects.toThrow('recommendations.enabled must be a boolean');
+  });
+
   it('throws EvalConfigError when configPath does not exist', async () => {
     await expect(loadConfig({ configPath: join(FIXTURES_DIR, 'does-not-exist.js') })).rejects.toThrow(EvalConfigError);
   });

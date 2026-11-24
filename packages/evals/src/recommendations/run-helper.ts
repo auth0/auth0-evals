@@ -33,8 +33,9 @@ export function resolveSkillFiles(evalDef: EvalDefinition, tools: string[]): Ski
  * exactly those runs threw away the only evidence that separates a grader defect
  * from a documentation defect.
  *
- * Never throws — a failed analysis comes back carrying its reason (see
- * `generateRecommendations`).
+ * Returns `null` without any LLM call or skill lookup when `recommendations.enabled` is
+ * false in the framework config. Otherwise never throws — a failed analysis comes back
+ * carrying its reason (see `generateRecommendations`).
  */
 export async function generateRunRecommendations(
   evalDef: EvalDefinition,
@@ -46,8 +47,10 @@ export async function generateRunRecommendations(
   apiKey: string,
   skillFilesOverride?: SkillFile[],
   redact?: (text: string) => string,
-): Promise<Recommendations> {
+): Promise<Recommendations | null> {
   const config = getFrameworkConfig();
+
+  if (config.recommendations?.enabled === false) return null;
 
   // Only send the skill when the skill was actually in the agent's context. Handing
   // the analyst documentation the agent never saw is how a control run acquires an
