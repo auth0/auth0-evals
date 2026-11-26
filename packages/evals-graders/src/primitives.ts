@@ -187,7 +187,7 @@ export function judge(question: string, level?: GraderLevel, options: JudgeOptio
 
 const VALID_EVENT_LEVELS = new Set<GraderLevel>([GraderLevel.L4, GraderLevel.L5]);
 
-function validateEventLevel(level: EventGraderLevel | undefined, primitive: string): void {
+export function validateEventLevel(level: EventGraderLevel | undefined, primitive: string): void {
   if (level !== undefined && !VALID_EVENT_LEVELS.has(level)) {
     throw new Error(
       `${primitive}: event-based graders only support L4 (structural) or L5 (version_correctness), got '${level}'`,
@@ -196,7 +196,7 @@ function validateEventLevel(level: EventGraderLevel | undefined, primitive: stri
 }
 
 // Tool names that represent shell execution across runners (Claude: run_command, Gemini: bash).
-const RUN_COMMAND_NAMES = new Set(['run_command', 'bash']);
+export const RUN_COMMAND_NAMES = new Set(['run_command', 'bash']);
 
 function getRunCommands(toolCalls: EventToolCall[], opts: { resolveWriteRefs?: boolean } = {}): string[] {
   const commands = toolCalls
@@ -528,11 +528,11 @@ export function ranCommandsInOrder(
 const WRITE_TOOL_NAMES = new Set(['write_file', 'write', 'edit']);
 
 // Runners normalize write-tool args to { path, content } before they reach graders.
-function getWritePath(tc: EventToolCall): string {
+export function getWritePath(tc: EventToolCall): string {
   return String(tc.args.path ?? '');
 }
 
-function getWriteContent(tc: EventToolCall): string {
+export function getWriteContent(tc: EventToolCall): string {
   return String(tc.args.content ?? '');
 }
 

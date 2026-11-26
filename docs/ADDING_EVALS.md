@@ -108,6 +108,9 @@ Graders define the acceptance criteria. Export a single `defineGraders()` functi
 | `calledTool(toolName, description, level)` | Agent invoked an MCP tool whose name contains the substring (trace-based; L4/L5 only) |
 | `calledToolOneOf(toolNames, description, level)` | Agent invoked at least one of the named MCP tools (trace-based; L4/L5 only) |
 | `notRanCommand(command, description, level)` | Agent did NOT run a shell command containing the substring (trace-based; L2 only) |
+| `ranCliCommand(command, bindings, description, level)` | Agent ran one parsed CLI command (executable and subcommand words) and every binding (`flagArg`, `positionalArg`) holds for that same command. Ignores `--help` probes; counts commands inside `bash -c`, `eval`, `$(...)` and failed calls (except a failed call's last command); skips auth0 global flags; reads a `--data @file` the agent wrote (L4/L5 only) |
+| `notRanCliCommand(command, description, level)` | Agent did NOT run the parsed CLI command; help probes and text that only mentions it do not count (L2 only) |
+| `noInventedCliInput(description?)` | No shell output holds the CLI's own "unknown command/flag" diagnostics (L2) |
 | `tenantState(description, level, predicate)` | Predicate over the tenant state a `fixture.ts` snapshotted before and after the run (`{ pre, post, seeded }`). Returns `true`, `false`, or a failure reason string. Requires a fixture with a `snapshot` hook; L4/L5 only. See [CLI_WORKFLOW_EVALS.md](./CLI_WORKFLOW_EVALS.md) |
 | `secretNotExposed(description?)` | The verifier credential and any `ctx.registerSecret` values do not appear in the trace, final reply, or workspace files (L3). See [CLI_WORKFLOW_EVALS.md](./CLI_WORKFLOW_EVALS.md) |
 
