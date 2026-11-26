@@ -1,5 +1,14 @@
-import { GraderLevel, judge, notRanCommand, secretNotExposed, tenantState } from '@a0/evals-graders';
-import { boundCommand, noInventedCliInput, positionalValue } from './bound-command.js';
+import {
+  GraderLevel,
+  judge,
+  noInventedCliInput,
+  notRanCliCommand,
+  positionalArg,
+  ranCliCommand,
+  secretNotExposed,
+  tenantState,
+} from '@a0/evals-graders';
+import type { CliBinding } from '@a0/evals-graders';
 import { BUTTON_COLOR, HEADING } from './fixture.js';
 import type { Snapshot } from './fixture.js';
 
@@ -42,6 +51,12 @@ const unchanged = (
   const changed = changedKeys(before, after, ignore);
   return changed.length === 0 || `${name} was modified: ${changed.join(', ')}`;
 };
+
+// A language flag, when there is one, selects English. The screen text the task asks for is English.
+const languageIsEnglish: CliBinding = (args) =>
+  args.every((w, i) =>
+    w === '-l' || w === '--language' ? args[i + 1] === 'en' : !/^(?:-l|--language)=(?!en$)/.test(w),
+  );
 
 export function defineGraders() {
   return [
@@ -114,11 +129,15 @@ export function defineGraders() {
 
     // ── L2: No destructive or reset commands ───────────────────────────
     // The task keeps everything else as it is. None of these is needed to make the three changes.
-    notRanCommand('api delete', 'Did not delete any setting with a raw API call', GraderLevel.L2),
-    notRanCommand('templates update', 'Did not replace the Universal Login page template', GraderLevel.L2),
-    notRanCommand('ul switch', 'Did not switch the rendering mode with `auth0 ul switch`', GraderLevel.L2),
-    notRanCommand(
-      'universal-login switch',
+    notRanCliCommand('auth0 api delete', 'Did not delete any setting with a raw API call', GraderLevel.L2),
+    notRanCliCommand(
+      ['auth0 universal-login templates update', 'auth0 ul templates update'],
+      'Did not replace the Universal Login page template',
+      GraderLevel.L2,
+    ),
+    notRanCliCommand('auth0 ul switch', 'Did not switch the rendering mode with `auth0 ul switch`', GraderLevel.L2),
+    notRanCliCommand(
+      'auth0 universal-login switch',
       'Did not switch the rendering mode with `auth0 universal-login switch`',
       GraderLevel.L2,
     ),
@@ -127,12 +146,17 @@ export function defineGraders() {
     // ── L5: Typed commands, not raw Management API calls ──────────────────
     // Identifier-first and the theme have no typed command in the CLI, so
     // those steps have no route grader. `texts` is an alias of `prompts`. The
-    // prompt name has to be the whole argument right after the subcommand (with
-    // or without a language flag before it), so it cannot come from another
+    // prompt name has to be a whole argument of the same command (a language
+    // flag may come with it, and has to be `en`), so it cannot come from another
     // command in the same shell call, a longer name, or a `--help` probe.
-    boundCommand(
-      ['prompts update', 'texts update'],
-      [positionalValue('(?:prompts|texts)\\s+update(?:\\s+(?:-l|--language)(?:=|\\s+)en)?', 'login-id')],
+    ranCliCommand(
+      [
+        'auth0 universal-login prompts update',
+        'auth0 universal-login texts update',
+        'auth0 ul prompts update',
+        'auth0 ul texts update',
+      ],
+      [positionalArg('login-id', { valueFlags: ['-l', '--language'] }), languageIsEnglish],
       'Updated the email screen text with `auth0 universal-login prompts update`',
       GraderLevel.L5,
     ),
