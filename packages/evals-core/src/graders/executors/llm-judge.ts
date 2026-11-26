@@ -56,7 +56,7 @@ const RUN_COMMAND_NAMES = new Set(['run_command', 'bash']);
 
 /**
  * Render the agent's successful shell commands as a judge-input section. Used
- * only when a judge opts in via `includeCommandTrace` — for evals whose artifact
+ * only when a judge opts in via `input: 'trace' | 'both'` — for evals whose artifact
  * is CLI invocations (no files to inspect). Errored calls are dropped so the
  * judge sees the commands that actually took effect.
  *
@@ -102,7 +102,9 @@ export const llmJudgeExecutor: GraderExecutor = {
     const { model, baseUrl, maxTokens, maxCodeChars, enforceMaxChars } = ctx.judge;
 
     const source = def.source ?? 'files';
-    const includeFiles = source !== 'response';
+    // `includeCommandTrace` is the deprecated alias, honoured for defs built without `input`.
+    const input = def.input ?? (def.includeCommandTrace ? 'both' : 'files');
+    const includeFiles = source !== 'response' && input !== 'trace';
     const includeAgentReply = (source === 'response' || source === 'both') && ctx.agentText.length > 0;
 
     const judgeEntries = includeFiles ? Object.entries(ctx.files).filter(([k]) => !isJudgeExcluded(k)) : [];
@@ -111,7 +113,19 @@ export const llmJudgeExecutor: GraderExecutor = {
     // For CLI-only evals the artifact is the command trace, not files. When the
     // judge opts in, append it so there is content to evaluate; otherwise the
     // judge sees only files (unchanged behaviour for every existing judge).
-    const traceText = def.includeCommandTrace ? formatCommandTrace(ctx.toolCalls ?? []) : '';
+    const traceText = input !== 'files' ? formatCommandTrace(ctx.toolCalls ?? []) : '';
+
+    // A trace-only judge with no trace has nothing to evaluate; fail rather than
+    // let the judge rule on empty input.
+    if (input === 'trace' && traceText.length === 0) {
+      return {
+        name: def.name,
+        kind: def.kind,
+        passed: false,
+        detail: 'no command trace available for judge',
+        level: def.level,
+      };
+    }
 
     // For MCP-only evals the agent never writes files — include the agent's final
     // reply only when the grader explicitly opts in via source: 'response' | 'both'.

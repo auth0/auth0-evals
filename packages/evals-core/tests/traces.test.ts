@@ -641,6 +641,30 @@ describe('serialiseAgent — judge cost fields', () => {
   });
 });
 
+describe('serialiseAgent — recommendations', () => {
+  const record: RunRecord = { ...makeRunRecord(), status: 'success', costUsd: 0.05, startTime: 0, endTime: 10 };
+  const scored: ScoredResult = {
+    runRecord: record,
+    dimensions: [],
+    overallScore: 90,
+    overallGrade: 'A',
+    graderResults: [],
+    graderPassRate: 1.0,
+  };
+
+  it('keeps null (not generated) through serialisation', () => {
+    const result = serialiseAgent(stubEvalDef, record, scored, [], 'gpt-4o', 'agent', [], null);
+    expect(result.recommendations).toBeNull();
+    expect(JSON.parse(JSON.stringify(result))).toHaveProperty('recommendations', null);
+  });
+
+  it('leaves recommendations absent when none are passed', () => {
+    const result = serialiseAgent(stubEvalDef, record, scored, [], 'gpt-4o', 'agent', []);
+    expect(result.recommendations).toBeUndefined();
+    expect(JSON.parse(JSON.stringify(result))).not.toHaveProperty('recommendations');
+  });
+});
+
 // ── Redaction at each publish boundary ──────────────────────────────────────
 
 describe('redaction at the publish boundaries', () => {

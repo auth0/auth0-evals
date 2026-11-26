@@ -198,6 +198,40 @@ describe('judge', () => {
     expect(def.includeCommandTrace).toBe(true);
   });
 
+  it('defaults input to "files"', () => {
+    expect(judge('Is this correct?').input).toBe('files');
+  });
+
+  it('passes input through and keeps includeCommandTrace consistent', () => {
+    const trace = judge('Did the CLI enforce MFA?', undefined, { input: 'trace' });
+    expect(trace.input).toBe('trace');
+    expect(trace.includeCommandTrace).toBe(true);
+    const both = judge('Did the CLI enforce MFA?', undefined, { input: 'both' });
+    expect(both.input).toBe('both');
+    expect(both.includeCommandTrace).toBe(true);
+  });
+
+  it('maps includeCommandTrace: true to input "both"', () => {
+    expect(judge('Did the CLI enforce MFA?', undefined, { includeCommandTrace: true }).input).toBe('both');
+  });
+
+  it('throws when includeCommandTrace contradicts input', () => {
+    expect(() => judge('Is this correct?', undefined, { input: 'files', includeCommandTrace: true })).toThrow(
+      /contradicts/,
+    );
+    expect(() => judge('Is this correct?', undefined, { input: 'trace', includeCommandTrace: false })).toThrow(
+      /contradicts/,
+    );
+    expect(() => judge('Is this correct?', undefined, { input: 'both', includeCommandTrace: false })).toThrow(
+      /contradicts/,
+    );
+  });
+
+  it('accepts consistent input and includeCommandTrace', () => {
+    expect(judge('Is this correct?', undefined, { input: 'both', includeCommandTrace: true }).input).toBe('both');
+    expect(judge('Is this correct?', undefined, { input: 'files', includeCommandTrace: false }).input).toBe('files');
+  });
+
   it('stores context from options without leaking it into name', () => {
     const def = judge('Does the code use the current SDK API?', undefined, {
       context: 'the scaffold pins @auth0/foo 3.0, whose bar() method is current.',

@@ -139,8 +139,13 @@ export interface AgentJobResult {
   session_trace: TraceStep[];
   /** Per-turn token and latency metrics. */
   turn_metrics: TurnMetricEntry[];
-  /** Structured recommendations for improving graders, skills, MCP, and efficiency. Present only when skills or MCP tools are enabled. */
-  recommendations?: Recommendations;
+  /**
+   * Structured recommendations for improving graders, skills, MCP, and efficiency.
+   * An object means the analysis ran (it may carry an `error`), `null` means it was not
+   * generated because `recommendations.enabled` is false, and absent means the result
+   * predates this field.
+   */
+  recommendations?: Recommendations | null;
 }
 
 /**

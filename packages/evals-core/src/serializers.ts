@@ -191,7 +191,7 @@ export function serialiseAgent(
   model: string,
   mode: 'agent',
   tools: string[],
-  recommendations?: Recommendations,
+  recommendations?: Recommendations | null,
 ): AgentJobResult {
   const judgeCost = computeJudgeCost(graderResults);
   return {

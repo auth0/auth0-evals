@@ -4,6 +4,7 @@
  * The report renders findings only inside each run's own panel: a run's findings
  * show up once in that run, the tab leads with how bad the findings are, and a run
  * whose analysis failed shows the reason instead of looking like it had nothing to say.
+ * A run whose generation was turned off (null) says so rather than looking clean.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -78,5 +79,29 @@ describe('renderHtml — recommendations panel', () => {
     const body = renderHtml([failed], '2024-01-01 00:00').slice(0);
     expect(body).toContain('The analysis did not run');
     expect(body).toContain('HTTP 500 Internal Server Error');
+  });
+
+  it('shows a "not generated" panel when generation was turned off (null)', () => {
+    // Off is neither "nothing to fix" nor "the analysis crashed".
+    const off = result('gpt-5.2', undefined, { recommendations: null });
+    const body = renderHtml([off], '2024-01-01 00:00');
+    expect(body).toContain('Recommendations were not generated');
+    expect(body).toContain('rec-panel--skipped');
+    expect(body).toContain('recommendations.enabled: false');
+    expect(body).not.toContain('No recommendations generated for this run.');
+    expect(body).not.toContain('The analysis did not run');
+    // The tab itself is visible (not carrying the hidden modifier).
+    expect(body).toMatch(/<label class="tab-label" for="tab-r-[^"]*">Recommendations<\/label>/);
+  });
+
+  it('keeps the Recommendations tab hidden and the panel absent when the field is absent', () => {
+    // Older results and baselines have no field at all; that must not read as "turned off".
+    const withMetrics = result('gpt-5.2', undefined, {
+      turn_metrics: [{ turn: 1, input_tokens: 100, output_tokens: 50, llm_latency: 2.0, tool_call_count: 1 }],
+    });
+    const body = renderHtml([withMetrics], '2024-01-01 00:00');
+    expect(body).toMatch(/<label class="tab-label tab-label--hidden" for="tab-r-[^"]*">Recommendations<\/label>/);
+    expect(body).not.toContain('Recommendations were not generated');
+    expect(body).not.toContain('The analysis did not run');
   });
 });

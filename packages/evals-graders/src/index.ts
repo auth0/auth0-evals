@@ -7,6 +7,7 @@ export type {
   GraderDef,
   GraderOptions,
   GraderSource,
+  JudgeInput,
   EventToolCall,
   EventGraderLevel,
   NotRanCommandLevel,
@@ -38,3 +39,7 @@ export {
   tenantState,
   secretNotExposed,
 } from './primitives.js';
+
+// Graders that read shell calls as parsed commands
+export { ranCliCommand, notRanCliCommand, noInventedCliInput, flagArg, positionalArg } from './cli-graders.js';
+export type { CliBinding } from './cli-graders.js';

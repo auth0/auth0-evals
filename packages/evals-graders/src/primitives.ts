@@ -9,6 +9,7 @@ import type {
   GraderDef,
   GraderOptions,
   GraderSource,
+  JudgeInput,
   EventToolCall,
   EventGraderLevel,
   NotRanCommandLevel,
@@ -88,9 +89,16 @@ export function notContainsInSource(
 /** Options for the `judge` primitive. */
 export interface JudgeOptions {
   /**
-   * Append the agent's successful command trace to the judge's input. Use for
-   * evals whose artifact is CLI invocations rather than files (no files to
-   * inspect). Defaults to false, so file-based judges are unaffected.
+   * What the judge reads: workspace `'files'` (default), the agent's successful
+   * command `'trace'`, or `'both'`. Use `'trace'`/`'both'` for evals whose
+   * artifact is CLI invocations rather than files. With `'trace'`, the grader
+   * fails (without calling the judge) if the agent ran no successful commands.
+   */
+  input?: JudgeInput;
+  /**
+   * Append the agent's successful command trace to the judge's input.
+   *
+   * @deprecated Use `{ input: 'both' }`. Throws if combined with a contradicting `input`.
    */
   includeCommandTrace?: boolean;
   /**
@@ -152,12 +160,24 @@ export function judge(question: string, level?: GraderLevel, options: JudgeOptio
         'has/can/should/will/must and ends with a question mark.',
     );
   }
+  if (
+    options.input !== undefined &&
+    options.includeCommandTrace !== undefined &&
+    options.includeCommandTrace !== (options.input !== 'files')
+  ) {
+    throw new Error(
+      `judge: includeCommandTrace: ${options.includeCommandTrace} contradicts input: '${options.input}'. ` +
+        "Drop includeCommandTrace (deprecated) and use `input: 'files' | 'trace' | 'both'`.",
+    );
+  }
+  const input: JudgeInput = options.input ?? (options.includeCommandTrace ? 'both' : 'files');
   return {
     kind: 'judge',
     question,
     name: question,
     level,
-    includeCommandTrace: options.includeCommandTrace ?? false,
+    input,
+    includeCommandTrace: input !== 'files',
     source: options.source,
     context: options.context,
   };
@@ -167,7 +187,7 @@ export function judge(question: string, level?: GraderLevel, options: JudgeOptio
 
 const VALID_EVENT_LEVELS = new Set<GraderLevel>([GraderLevel.L4, GraderLevel.L5]);
 
-function validateEventLevel(level: EventGraderLevel | undefined, primitive: string): void {
+export function validateEventLevel(level: EventGraderLevel | undefined, primitive: string): void {
   if (level !== undefined && !VALID_EVENT_LEVELS.has(level)) {
     throw new Error(
       `${primitive}: event-based graders only support L4 (structural) or L5 (version_correctness), got '${level}'`,
@@ -176,7 +196,7 @@ function validateEventLevel(level: EventGraderLevel | undefined, primitive: stri
 }
 
 // Tool names that represent shell execution across runners (Claude: run_command, Gemini: bash).
-const RUN_COMMAND_NAMES = new Set(['run_command', 'bash']);
+export const RUN_COMMAND_NAMES = new Set(['run_command', 'bash']);
 
 function getRunCommands(toolCalls: EventToolCall[], opts: { resolveWriteRefs?: boolean } = {}): string[] {
   const commands = toolCalls
@@ -508,11 +528,11 @@ export function ranCommandsInOrder(
 const WRITE_TOOL_NAMES = new Set(['write_file', 'write', 'edit']);
 
 // Runners normalize write-tool args to { path, content } before they reach graders.
-function getWritePath(tc: EventToolCall): string {
+export function getWritePath(tc: EventToolCall): string {
   return String(tc.args.path ?? '');
 }
 
-function getWriteContent(tc: EventToolCall): string {
+export function getWriteContent(tc: EventToolCall): string {
   return String(tc.args.content ?? '');
 }
 

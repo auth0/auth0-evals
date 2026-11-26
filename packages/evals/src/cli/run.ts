@@ -450,6 +450,7 @@ async function runAgentJob(
         apiKey,
         ghToken: process.env.GH_TOKEN,
         passthroughEnv: getFrameworkConfig().sandbox.passthroughEnv,
+        recommendationsEnabled: getFrameworkConfig().recommendations.enabled,
       });
     }
 
@@ -926,6 +927,11 @@ export async function runCli(): Promise<void> {
         `Check your eval.config.js or pass --config <path>.`,
     );
     process.exit(1);
+  }
+
+  // One line per run rather than per job; the agent phase makes no recommendations call.
+  if (frameworkConfig.recommendations.enabled === false && phase !== 'agent') {
+    logger.info('[Config] Recommendations are disabled (recommendations.enabled = false); results will record null.');
   }
 
   const frameworkRoot = process.cwd();

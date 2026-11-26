@@ -51,6 +51,12 @@ export const DOCKER_WORKSPACE_MOUNT = '/workspace';
 export const SANDBOX_RESULTS_FILE = '.eval-results.json';
 
 /**
+ * Carries the host's `recommendations.enabled` ('true' | 'false') into the container,
+ * whose `eval.config.js` is the copy baked into the image and may differ from the host's.
+ */
+export const SANDBOX_RECOMMENDATIONS_ENABLED_ENV = 'EVALS_RECOMMENDATIONS_ENABLED';
+
+/**
  * Parses the `--tools` flag value into a sorted, deduplicated, lowercase array.
  *
  * Supports both bare comma-separated values (`skills,mcp`) and the brace-wrapped
