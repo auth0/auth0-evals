@@ -191,6 +191,24 @@ describe('loadEval - provision', () => {
   });
 });
 
+describe('loadEval - split', () => {
+  it('copies the split from the eval config', async () => {
+    makeEvalDir(tmpBase);
+
+    const result = await loadEval({ ...EVAL_CONFIG, split: 'heldout' }, tmpBase);
+
+    expect(result.split).toBe('heldout');
+  });
+
+  it('omits the split key when the config has none', async () => {
+    makeEvalDir(tmpBase);
+
+    const result = await loadEval(EVAL_CONFIG, tmpBase);
+
+    expect('split' in result).toBe(false);
+  });
+});
+
 // ── System prompt tests ───────────────────────────────────────────────────────
 
 describe('loadEval - system prompt', () => {

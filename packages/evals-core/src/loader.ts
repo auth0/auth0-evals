@@ -17,6 +17,7 @@ import { parseFrontmatter } from './utils/frontmatter.js';
 import { resolveInside } from './workspace/path-utils.js';
 import type { EvalDefinition, GraderDef } from './types/eval.js';
 import type { FixtureDef } from '@a0/evals-graders';
+import type { EvalSplit } from './splits/types.js';
 
 export { EvalDefinition, GraderDef } from './types/eval.js';
 
@@ -26,6 +27,8 @@ export interface EvalConfig {
   name: string;
   category: string;
   path: string;
+  /** Tuning or held-out, set from the split file (see `loadSplitsForEvals`). */
+  split?: EvalSplit;
 }
 
 /** Options for customising how the loader parses PROMPT.md. */
@@ -102,6 +105,7 @@ export async function loadEval(
     provision,
     ...(fixture ? { fixture } : {}),
     skills,
+    ...(evalConfig.split ? { split: evalConfig.split } : {}),
     metadata: {
       provider_name: meta.provider_name ?? 'Auth0',
       provider_url: meta.provider_url ?? 'auth0.com',

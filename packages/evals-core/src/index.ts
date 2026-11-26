@@ -126,6 +126,14 @@ export type { FixtureArtifactData } from './fixture/artifact-data.js';
 
 // Discovery
 export { discoverEvals } from './discovery.js';
+export {
+  applySplits,
+  loadSplitFile,
+  loadSplitsForEvals,
+  validateSplitFile,
+  MIN_HELDOUT_EVALS,
+} from './splits/index.js';
+export type { EvalSplit, SplitFile, SplitHistoryEntry, SplitSelector } from './splits/index.js';
 export type { DiscoverEvalsOptions } from './discovery.js';
 
 // Serializers

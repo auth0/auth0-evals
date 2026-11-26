@@ -11,6 +11,8 @@ import { JUDGE_DEFAULT_MAX_TOKENS } from '../graders/llm-judge.js';
 export const DEFAULT_FRAMEWORK_CONFIG: Required<FrameworkConfig> = {
   evalsDir: 'src/evals',
 
+  splitsFile: '',
+
   proxy: {
     baseUrl: '',
   },
