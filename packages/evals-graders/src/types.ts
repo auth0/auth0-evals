@@ -67,9 +67,18 @@ export interface GraderDef {
    * judge's input alongside workspace files. Needed for evals whose work is
    * entirely CLI invocations (no files to inspect) — e.g. tenant config via the
    * Auth0 CLI — so the judge has something to evaluate. Defaults to false so
-   * file-based judges are unaffected.
+   * file-based judges are unaffected. Kept in sync with `input` (`input !== 'files'`).
+   *
+   * @deprecated Read `input` instead.
    */
   includeCommandTrace?: boolean;
+  /**
+   * Judge graders only. What the judge reads: workspace files, the command
+   * trace, or both. Defaults to `'files'`. `source` still independently controls
+   * whether the agent's final reply is included (and `source: 'response'`
+   * suppresses files).
+   */
+  input?: JudgeInput;
   /**
    * Where to search for the needle / pattern / judge input.
    *
@@ -139,3 +148,11 @@ export type NotRanCommandLevel = GraderLevel.L2;
  * - `'both'` — workspace files AND agent reply text.
  */
 export type GraderSource = 'files' | 'response' | 'both';
+
+/**
+ * What a judge grader reads from the agent's run.
+ * - `'files'` (default) — workspace files.
+ * - `'trace'` — the agent's successful command trace only.
+ * - `'both'` — workspace files AND command trace.
+ */
+export type JudgeInput = 'files' | 'trace' | 'both';

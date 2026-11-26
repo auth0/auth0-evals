@@ -9,6 +9,7 @@ import type {
   GraderDef,
   GraderOptions,
   GraderSource,
+  JudgeInput,
   EventToolCall,
   EventGraderLevel,
   NotRanCommandLevel,
@@ -88,9 +89,16 @@ export function notContainsInSource(
 /** Options for the `judge` primitive. */
 export interface JudgeOptions {
   /**
-   * Append the agent's successful command trace to the judge's input. Use for
-   * evals whose artifact is CLI invocations rather than files (no files to
-   * inspect). Defaults to false, so file-based judges are unaffected.
+   * What the judge reads: workspace `'files'` (default), the agent's successful
+   * command `'trace'`, or `'both'`. Use `'trace'`/`'both'` for evals whose
+   * artifact is CLI invocations rather than files. With `'trace'`, the grader
+   * fails (without calling the judge) if the agent ran no successful commands.
+   */
+  input?: JudgeInput;
+  /**
+   * Append the agent's successful command trace to the judge's input.
+   *
+   * @deprecated Use `{ input: 'both' }`. Throws if combined with a contradicting `input`.
    */
   includeCommandTrace?: boolean;
   /**
@@ -152,12 +160,24 @@ export function judge(question: string, level?: GraderLevel, options: JudgeOptio
         'has/can/should/will/must and ends with a question mark.',
     );
   }
+  if (
+    options.input !== undefined &&
+    options.includeCommandTrace !== undefined &&
+    options.includeCommandTrace !== (options.input !== 'files')
+  ) {
+    throw new Error(
+      `judge: includeCommandTrace: ${options.includeCommandTrace} contradicts input: '${options.input}'. ` +
+        "Drop includeCommandTrace (deprecated) and use `input: 'files' | 'trace' | 'both'`.",
+    );
+  }
+  const input: JudgeInput = options.input ?? (options.includeCommandTrace ? 'both' : 'files');
   return {
     kind: 'judge',
     question,
     name: question,
     level,
-    includeCommandTrace: options.includeCommandTrace ?? false,
+    input,
+    includeCommandTrace: input !== 'files',
     source: options.source,
     context: options.context,
   };
