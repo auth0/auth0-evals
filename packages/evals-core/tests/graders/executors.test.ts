@@ -505,6 +505,83 @@ describe('llmJudgeExecutor — includeCommandTrace gate', () => {
     const { code } = llmJudgeMock.mock.calls[0][0];
     expect(code).not.toContain('// COMMAND TRACE');
   });
+
+  describe('input modes', () => {
+    const files = { 'app.ts': 'console.log(1)' };
+    const run = async (overrides: Partial<GraderDef>, toolCalls: EventToolCall[] = trace) => {
+      const ctx = { ...judgeCtx(files, toolCalls), agentText: 'the final reply' };
+      const result = await llmJudgeExecutor.execute(
+        makeDef({ kind: 'judge', question: 'Is this correct?', ...overrides }),
+        ctx,
+      );
+      const code: string | undefined = llmJudgeMock.mock.calls[0]?.[0].code;
+      return { result, code };
+    };
+
+    it("input 'files' sends files only", async () => {
+      const { code } = await run({ input: 'files' });
+      expect(code).toContain('// FILE: app.ts');
+      expect(code).not.toContain('// COMMAND TRACE');
+    });
+
+    it("input 'trace' sends trace only", async () => {
+      const { code } = await run({ input: 'trace' });
+      expect(code).toContain('// COMMAND TRACE');
+      expect(code).not.toContain('// FILE:');
+    });
+
+    it("input 'both' sends files then trace", async () => {
+      const { code } = await run({ input: 'both' });
+      expect(code!.indexOf('// FILE: app.ts')).toBeGreaterThanOrEqual(0);
+      expect(code!.indexOf('// COMMAND TRACE')).toBeGreaterThan(code!.indexOf('// FILE: app.ts'));
+    });
+
+    it("source 'both' adds the agent reply after files and trace", async () => {
+      const { code } = await run({ input: 'both', source: 'both' });
+      expect(code!.indexOf('// AGENT REPLY:')).toBeGreaterThan(code!.indexOf('// COMMAND TRACE'));
+    });
+
+    it("source 'both' with input 'files' sends files and reply, no trace", async () => {
+      const { code } = await run({ input: 'files', source: 'both' });
+      expect(code).toContain('// FILE: app.ts');
+      expect(code).toContain('// AGENT REPLY:');
+      expect(code).not.toContain('// COMMAND TRACE');
+    });
+
+    it("source 'response' suppresses files even with input 'both'", async () => {
+      const { code } = await run({ input: 'both', source: 'response' });
+      expect(code).not.toContain('// FILE:');
+      expect(code).toContain('// COMMAND TRACE');
+      expect(code).toContain('// AGENT REPLY:');
+    });
+
+    it("input 'trace' with source 'response' sends trace and reply", async () => {
+      const { code } = await run({ input: 'trace', source: 'response' });
+      expect(code).not.toContain('// FILE:');
+      expect(code).toContain('// COMMAND TRACE');
+      expect(code).toContain('// AGENT REPLY:');
+    });
+
+    it("includeCommandTrace alias produces the same code as input 'both'", async () => {
+      const { code: viaInput } = await run({ input: 'both' });
+      llmJudgeMock.mockClear();
+      const { code: viaAlias } = await run({ includeCommandTrace: true });
+      expect(viaAlias).toBe(viaInput);
+    });
+
+    it("input 'trace' with an empty trace fails without calling the judge", async () => {
+      const { result } = await run({ input: 'trace' }, []);
+      expect(result.passed).toBe(false);
+      expect(result.detail).toBe('no command trace available for judge');
+      expect(llmJudgeMock).not.toHaveBeenCalled();
+    });
+
+    it("input 'both' with an empty trace still judges the files", async () => {
+      const { result, code } = await run({ input: 'both' }, []);
+      expect(result.passed).toBe(true);
+      expect(code).toContain('// FILE: app.ts');
+    });
+  });
 });
 
 // ── compile ───────────────────────────────────────────────────────────────────

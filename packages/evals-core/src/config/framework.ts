@@ -141,6 +141,16 @@ export interface ScoringConfig {
   docUrlSources?: readonly [string, string][];
 }
 
+export interface RecommendationsConfig {
+  /**
+   * Whether to generate recommendations (suggestions) after scoring each agent job.
+   * When false, no recommendation LLM call is made and results record
+   * `recommendations: null` (not generated). Default true, so normal runs are unchanged.
+   * Typical use is a regrade where only the graders changed, to save tokens.
+   */
+  enabled?: boolean;
+}
+
 // ── Root config ──────────────────────────────────────────────────────────────
 
 export interface SandboxConfig {
@@ -176,6 +186,8 @@ export interface FrameworkConfig {
   scoring?: ScoringConfig;
   /** Docker sandbox settings (e.g. env vars to forward into the container). */
   sandbox?: SandboxConfig;
+  /** Recommendations (post-scoring analysis) settings, e.g. turning them off for a regrade. */
+  recommendations?: RecommendationsConfig;
   /**
    * CLI/platform context injected for evals that declare a `provision`
    * frontmatter kind, keyed by that kind. When an eval sets

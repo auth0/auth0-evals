@@ -110,6 +110,14 @@ function validate(config: Required<FrameworkConfig>, filePath: string): void {
   if (!config.evalsDir || typeof config.evalsDir !== 'string') {
     throw new EvalConfigError('evalsDir is required and must be a non-empty string', filePath);
   }
+  // Strict boolean: a string such as 'false' (e.g. from an env var) is truthy and would
+  // silently keep recommendations on, so reject anything that is not a real boolean.
+  if (typeof config.recommendations.enabled !== 'boolean') {
+    throw new EvalConfigError(
+      `recommendations.enabled must be a boolean (true or false), got ${JSON.stringify(config.recommendations.enabled)}`,
+      filePath,
+    );
+  }
 }
 
 /**

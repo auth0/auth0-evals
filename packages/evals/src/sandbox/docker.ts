@@ -11,7 +11,13 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { logger } from '@a0/evals-core';
 import type { JobResult, AgentType, Mode } from '@a0/evals-core';
-import { DOCKER_IMAGE_NAME, DOCKER_WORKSPACE_MOUNT, LLM_API_KEY_ENV, SANDBOX_RESULTS_FILE } from '../cli/constants.js';
+import {
+  DOCKER_IMAGE_NAME,
+  DOCKER_WORKSPACE_MOUNT,
+  LLM_API_KEY_ENV,
+  SANDBOX_RECOMMENDATIONS_ENABLED_ENV,
+  SANDBOX_RESULTS_FILE,
+} from '../cli/constants.js';
 
 export interface DockerRunOptions {
   /** Absolute host path to the workspace directory. */
@@ -35,6 +41,11 @@ export interface DockerRunOptions {
    * Each is resolved from `process.env` here; only currently-set vars are forwarded.
    */
   passthroughEnv?: string[];
+  /**
+   * The host's resolved `recommendations.enabled`. Forwarded so it wins over the
+   * `eval.config.js` baked into the image. Omitted, the container's own config decides.
+   */
+  recommendationsEnabled?: boolean;
 }
 
 // Serialises concurrent ensureDockerImage calls so only one build runs at a time.
@@ -119,7 +130,8 @@ function findRepoRoot(): string {
  * after the container exits.
  */
 export async function runJobInDocker(options: DockerRunOptions): Promise<JobResult> {
-  const { workspace, evalId, model, mode, tools, agentType, apiKey, ghToken, passthroughEnv } = options;
+  const { workspace, evalId, model, mode, tools, agentType, apiKey, ghToken, passthroughEnv, recommendationsEnabled } =
+    options;
 
   await ensureDockerImage();
 
@@ -152,6 +164,10 @@ export async function runJobInDocker(options: DockerRunOptions): Promise<JobResu
 
   if (ghToken) {
     envFlags.push('-e', `GH_TOKEN=${ghToken}`);
+  }
+
+  if (recommendationsEnabled !== undefined) {
+    envFlags.push('-e', `${SANDBOX_RECOMMENDATIONS_ENABLED_ENV}=${String(recommendationsEnabled)}`);
   }
 
   // Forward app-declared passthrough env vars (e.g. MCP server credentials).

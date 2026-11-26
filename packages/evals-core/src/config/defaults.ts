@@ -56,5 +56,9 @@ export const DEFAULT_FRAMEWORK_CONFIG: Required<FrameworkConfig> = {
 
   sandbox: {},
 
+  recommendations: {
+    enabled: true,
+  },
+
   cliContext: {},
 };

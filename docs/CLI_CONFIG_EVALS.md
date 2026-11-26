@@ -11,7 +11,7 @@ This guide covers only what differs from a standard eval. For everything else (f
 | Artifact | files the agent wrote | the agent's **command trace** |
 | Scaffold | a starter app (`scaffold:`) | none for an app — but optionally a `seed.sh` that provisions tenant prerequisites (see [Seeding tenant prerequisites](#3-seeding-tenant-prerequisites-setup_command--scaffold)) |
 | Graders | `contains` / `matches` / `notContains` / `compiles` | event-based `ranCommand` / `ranCommandOneOf` / `ranCommandsInOrder` |
-| Judge | reads workspace files | reads the command trace (`includeCommandTrace: true`) |
+| Judge | reads workspace files | reads the command trace (`input: 'both'`) |
 | Environment | local workspace | a live, throwaway tenant provisioned per run |
 
 Because the graders inspect the tool-call trace, these evals **only produce a meaningful signal in agent mode** — baseline mode runs no tools, so every grader fails there.
@@ -55,7 +55,7 @@ Grade the trace. The event primitives (all L4/L5, level required):
 - `ranCommandOneOf(commands, description, level)` — at least one acceptable command ran (enabling *any* MFA factor — `otp` **or** `push` **or** `sms` — counts).
 - `ranCommandsInOrder(steps, description, level)` — commands ran in relative order. **Order is correctness, not style**: a factor must be enabled *before* the policy that enforces it. Each step may itself be a one-of array.
 
-End with one holistic `judge` (no level) with `{ includeCommandTrace: true }` — the eval writes no files, so the judge must see the commands to evaluate them.
+End with one holistic `judge` (no level) with `{ input: 'both' }` — the eval writes no files, so the judge must see the commands to evaluate them.
 
 ```typescript
 import { ranCommand, ranCommandOneOf, ranCommandsInOrder, judge, GraderLevel } from '@a0/evals-graders';
@@ -82,7 +82,7 @@ export function defineGraders() {
         'enforce MFA via guardian/policies with the all-applications policy — WITHOUT using the ' +
         'dashboard or Terraform?',
       undefined,
-      { includeCommandTrace: true },
+      { input: 'both' },
     ),
   ];
 }
