@@ -380,6 +380,47 @@ describe('runJobInDocker — results parsing', () => {
     if (origSecret !== undefined) process.env.MCP_CLIENT_SECRET = origSecret;
     rmSync(workspace, { recursive: true, force: true });
   });
+
+  it.each([false, true])(
+    'forwards recommendationsEnabled=%s so the host setting wins over the image config',
+    async (enabled) => {
+      const runJobInDocker = await getRunJobInDocker();
+      const workspace = mkdtempSync(join(tmpdir(), 'docker-recs-'));
+
+      mockExecFileSync.mockReturnValue('');
+
+      let capturedArgs: string[] = [];
+      mockSpawn.mockImplementation((_cmd: string, args: string[]) => {
+        capturedArgs = args;
+        writeFileSync(join(workspace, '.eval-results.json'), JSON.stringify({ ok: true }));
+        return makeCloseEmitter();
+      });
+
+      await runJobInDocker({ ...makeOptions(workspace), recommendationsEnabled: enabled });
+
+      expect(extractEnvPairs(capturedArgs)).toContain(`EVALS_RECOMMENDATIONS_ENABLED=${enabled}`);
+      rmSync(workspace, { recursive: true, force: true });
+    },
+  );
+
+  it('does not forward EVALS_RECOMMENDATIONS_ENABLED when recommendationsEnabled is omitted', async () => {
+    const runJobInDocker = await getRunJobInDocker();
+    const workspace = mkdtempSync(join(tmpdir(), 'docker-recs-'));
+
+    mockExecFileSync.mockReturnValue('');
+
+    let capturedArgs: string[] = [];
+    mockSpawn.mockImplementation((_cmd: string, args: string[]) => {
+      capturedArgs = args;
+      writeFileSync(join(workspace, '.eval-results.json'), JSON.stringify({ ok: true }));
+      return makeCloseEmitter();
+    });
+
+    await runJobInDocker(makeOptions(workspace));
+
+    expect(extractEnvPairs(capturedArgs).some((e) => e.startsWith('EVALS_RECOMMENDATIONS_ENABLED='))).toBe(false);
+    rmSync(workspace, { recursive: true, force: true });
+  });
 });
 
 // ── Host-side timeout ────────────────────────────────────────────────────────

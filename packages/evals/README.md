@@ -113,6 +113,7 @@ export default defineConfig({
 | `models.default` | `string` | Yes | Default model when `--model` is omitted |
 | `agents.<runner>.proxy` | `{ baseUrl }` | No | Per-agent proxy overrides |
 | `workspace.excludedDirs` | `string[]` | No | Directories excluded from grading |
+| `recommendations.enabled` | `boolean` | No | Generate recommendations after scoring each agent job (default `true`). Must be a real boolean. When `false`, no recommendation LLM call is made and results record `recommendations: null`. Useful for a regrade where only graders changed. |
 
 ## CLI usage
 

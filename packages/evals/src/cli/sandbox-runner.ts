@@ -33,7 +33,7 @@ import {
 import type { AgentType } from '@a0/evals-core';
 import { generateRunRecommendations } from '../recommendations/index.js';
 
-import { LLM_API_KEY_ENV } from './constants.js';
+import { LLM_API_KEY_ENV, SANDBOX_RECOMMENDATIONS_ENABLED_ENV } from './constants.js';
 import { score } from '../scorer.js';
 import { ClaudeCodeRunner } from '../runners/claude-code/runner.js';
 import { CopilotCliRunner } from '../runners/copilot/runner.js';
@@ -82,6 +82,11 @@ async function main(): Promise<void> {
 
   // Load framework config
   const frameworkConfig = await loadConfig({ configPath: join(frameworkRoot, 'eval.config.js') });
+  // The config above is the image's copy; the host's setting, when forwarded, wins.
+  const hostRecommendations = process.env[SANDBOX_RECOMMENDATIONS_ENABLED_ENV];
+  if (hostRecommendations === 'true' || hostRecommendations === 'false') {
+    frameworkConfig.recommendations = { ...frameworkConfig.recommendations, enabled: hostRecommendations === 'true' };
+  }
   setFrameworkConfig(frameworkConfig);
 
   const evaluations = discoverEvals(frameworkConfig.evalsDir, frameworkRoot);

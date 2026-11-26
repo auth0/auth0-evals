@@ -2,11 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeTmpDir } from './tmp.js';
-import './setup-config.js';
+import { TEST_CONFIG } from './setup-config.js';
 import { collectSkillContent, collectSkillFiles } from '../src/recommendations/collect-skill-content.js';
 import type { RecommendationInput } from '../src/recommendations/generator.js';
-import { redactKnownSecrets } from '@a0/evals-core';
-import type { RunRecord, ScoredResult } from '@a0/evals-core';
+import { redactKnownSecrets, setFrameworkConfig } from '@a0/evals-core';
+import type { RunRecord, ScoredResult, EvalDefinition } from '@a0/evals-core';
+import { generateRunRecommendations } from '../src/recommendations/run-helper.js';
 
 const tmpDir = makeTmpDir('recommendations_test_');
 
@@ -900,5 +901,43 @@ describe('generateRecommendations', () => {
     expect(userContent).not.toContain('super-secret');
     expect(userContent).not.toContain('also-secret');
     expect(userContent).toContain('app.ts');
+  });
+});
+
+describe('generateRunRecommendations', () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    setFrameworkConfig(TEST_CONFIG);
+  });
+
+  const call = (tools: string[]) =>
+    generateRunRecommendations(
+      { id: 'e', skills: ['auth0'], userPrompt: 'Do it' } as unknown as EvalDefinition,
+      'test-model',
+      tools,
+      '/nonexistent-workspace',
+      {} as ScoredResult,
+      {} as RunRecord,
+      'test-key',
+    );
+
+  it('returns null without calling the LLM or resolving skills when recommendations are disabled', async () => {
+    setFrameworkConfig({ ...TEST_CONFIG, recommendations: { enabled: false } });
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock;
+
+    // `skills` in tools would otherwise trigger the skills lookup, which has no manager here.
+    await expect(call(['skills'])).resolves.toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('does not return null when enabled', async () => {
+    setFrameworkConfig({ ...TEST_CONFIG, recommendations: { enabled: true } });
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error('network down'));
+
+    // A failed analysis still comes back as an object carrying its reason, never null.
+    await expect(call([])).resolves.not.toBeNull();
   });
 });
