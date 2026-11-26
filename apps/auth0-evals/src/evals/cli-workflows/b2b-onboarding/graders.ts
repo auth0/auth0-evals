@@ -1,7 +1,14 @@
-import { GraderLevel, judge, notRanCommand, secretNotExposed, tenantState } from '@a0/evals-graders';
-import type { GraderDef } from '@a0/evals-graders';
-import { boundCommand, flagValue, noInventedCliInput } from './bound-command.js';
-import type { Binding } from './bound-command.js';
+import {
+  GraderLevel,
+  flagArg,
+  judge,
+  noInventedCliInput,
+  notRanCliCommand,
+  ranCliCommand,
+  secretNotExposed,
+  tenantState,
+} from '@a0/evals-graders';
+import type { CliBinding, GraderDef } from '@a0/evals-graders';
 import { ACME_CONNECTION, ACME_DISPLAY, ACME_ORG, GLOBEX_ORG, OPS_NAME, PORTAL_NAME } from './fixture.js';
 import type { Organization, Snapshot } from './fixture.js';
 
@@ -28,15 +35,12 @@ const same = (a: unknown, b: unknown) => JSON.stringify(canonical(a)) === JSON.s
 const sameSet = (a: readonly string[], b: readonly string[]) => a.length === b.length && b.every((v) => a.includes(v));
 
 /** Passes when none of the given command spellings ran. Covers a subcommand and its aliases in one check. */
-function neverRan(commands: string[], description: string): GraderDef {
-  const checks = commands.map((c) => notRanCommand(c, undefined, GraderLevel.L2));
-  const first = checks[0] as GraderDef;
-  return {
-    ...first,
-    name: description,
-    predicate: (toolCalls) => checks.every((c) => c.predicate?.(toolCalls)),
-  };
-}
+const neverRan = (commands: string[], description: string): GraderDef =>
+  notRanCliCommand(
+    commands.map((c) => `auth0 ${c}`),
+    description,
+    GraderLevel.L2,
+  );
 
 function acme(post: Snapshot): Organization | string {
   const found = post.orgs.filter((o) => o.name === ACME_ORG);
@@ -78,14 +82,14 @@ function unchanged(
 }
 
 const hasFlag =
-  (flag: string): Binding =>
-  (segment) =>
-    new RegExp(`(?:^|\\s)${flag}(?:=|\\s|$)`).test(segment);
+  (flag: string): CliBinding =>
+  (args) =>
+    args.some((w) => w === flag || w.startsWith(`${flag}=`));
 
 // The connection id (or a shell variable or substitution holding it) right after the command,
 // or a `--data` payload.
-const enabledClientsTarget: Binding = (segment) =>
-  /enabled-clients update\s+['"]?(?:con_[A-Za-z0-9]+|\$)/.test(segment) || hasFlag('--data')(segment);
+const enabledClientsTarget: CliBinding = (args) =>
+  /^(?:con_[A-Za-z0-9]+|\$)/.test(args[0] ?? '') || hasFlag('--data')(args);
 
 // The two settings the task asks for on the portal. Every other field must match.
 const PORTAL_ORG_FIELDS = ['organization_usage', 'organization_require_behavior'];
@@ -237,20 +241,20 @@ export function defineGraders() {
     // variable holding it) right after the command, or `--data`.
     // Enabling a connection on an organization has no typed command in the CLI,
     // so that step has no route grader.
-    boundCommand(
-      ['orgs create', 'organizations create'],
-      [flagValue(['--name', '-n'], ACME_ORG, 'name')],
+    ranCliCommand(
+      ['auth0 orgs create', 'auth0 organizations create'],
+      [flagArg(['--name', '-n'], ACME_ORG, 'name')],
       'Created the organization with `auth0 orgs create`',
       GraderLevel.L5,
     ),
-    boundCommand(
-      ['connections enabled-clients update'],
+    ranCliCommand(
+      'auth0 connections enabled-clients update',
       [enabledClientsTarget],
       'Enabled the portal on the connection with `auth0 connections enabled-clients update`',
       GraderLevel.L5,
     ),
-    boundCommand(
-      ['apps update'],
+    ranCliCommand(
+      'auth0 apps update',
       [hasFlag('--organization-usage')],
       'Set the organization settings with `auth0 apps update`',
       GraderLevel.L5,
