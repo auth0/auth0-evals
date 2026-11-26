@@ -287,6 +287,35 @@ describe('matchesExecutor', () => {
     expect(result.passed).toBe(true);
   });
 
+  it('ignoreComments: a comment-only match fails', async () => {
+    const ctx = makeCtx({
+      'server.js': "// requiredScopes('transfer:funds')\n/* requiredScopes('transfer:funds') */\nconst a = 1;",
+    });
+    const def = makeDef({ kind: 'matches', pattern: "requiredScopes\\('transfer:funds'\\)", ignoreComments: true });
+    expect((await matchesExecutor.execute(def, ctx)).passed).toBe(false);
+  });
+
+  it('ignoreComments: a match in code or in a string literal still passes', async () => {
+    const code = makeCtx({ 'server.js': "// note\nrequiredScopes('transfer:funds');" });
+    const str = makeCtx({ 'server.js': "const s = 'http://x/requiredScopes(transfer:funds)';" });
+    const codeDef = makeDef({ kind: 'matches', pattern: "requiredScopes\\('transfer:funds'\\)", ignoreComments: true });
+    const strDef = makeDef({ kind: 'matches', pattern: 'requiredScopes\\(transfer:funds\\)', ignoreComments: true });
+    expect((await matchesExecutor.execute(codeDef, code)).passed).toBe(true);
+    expect((await matchesExecutor.execute(strDef, str)).passed).toBe(true);
+  });
+
+  it('ignoreComments: keeps FILE headers so anchored patterns still match', async () => {
+    const ctx = makeCtx({ 'server.js': '// only a comment\nconst a = 1;' });
+    const def = makeDef({ kind: 'matches', pattern: '^// FILE: server\\.js$', ignoreComments: true });
+    expect((await matchesExecutor.execute(def, ctx)).passed).toBe(true);
+  });
+
+  it('without ignoreComments a comment-only match still passes', async () => {
+    const ctx = makeCtx({ 'server.js': "// requiredScopes('transfer:funds')" });
+    const def = makeDef({ kind: 'matches', pattern: "requiredScopes\\('transfer:funds'\\)" });
+    expect((await matchesExecutor.execute(def, ctx)).passed).toBe(true);
+  });
+
   it('handles invalid regex gracefully', async () => {
     const ctx = makeCtx({ 'app.ts': 'some content' });
     const def = makeDef({ kind: 'matches', pattern: '[invalid(' });

@@ -9,7 +9,7 @@
 
 import type { GraderSource } from '@a0/evals-graders';
 import type { GraderContext } from './types.js';
-import { stripComments } from './text-search-utils.js';
+import { joinFilesWithHeaders, stripComments } from './text-search-utils.js';
 
 export interface SearchResult {
   inFiles: boolean;
@@ -47,11 +47,23 @@ export function searchCorpus(
   return { inFiles, inAgent };
 }
 
-export function searchCorpusRegex(ctx: GraderContext, re: RegExp, source: GraderSource): SearchResult {
+export function searchCorpusRegex(
+  ctx: GraderContext,
+  re: RegExp,
+  source: GraderSource,
+  ignoreComments = false,
+): SearchResult {
   const checkFiles = source !== 'response';
   const checkResponse = source !== 'files';
 
-  const inFiles = checkFiles ? re.test(ctx.combinedText) : false;
+  // With ignoreComments, keep the `// FILE: <path>` headers so anchored patterns still work.
+  const filesText = () =>
+    ignoreComments
+      ? joinFilesWithHeaders(
+          Object.fromEntries(Object.entries(ctx.files).map(([path, content]) => [path, stripComments(content, path)])),
+        )
+      : ctx.combinedText;
+  const inFiles = checkFiles ? re.test(filesText()) : false;
   const inAgent = checkResponse && ctx.agentText.length > 0 ? re.test(ctx.agentText) : false;
 
   return { inFiles, inAgent };

@@ -162,6 +162,15 @@ describe('matches', () => {
     const def = matches('pattern', undefined, undefined, { caseSensitive: true });
     expect(def.caseSensitive).toBe(true);
   });
+
+  it('passes through ignoreComments when provided', () => {
+    const def = matches('pattern', undefined, undefined, { ignoreComments: true });
+    expect(def.ignoreComments).toBe(true);
+  });
+
+  it('leaves ignoreComments undefined by default', () => {
+    expect(matches('pattern').ignoreComments).toBeUndefined();
+  });
 });
 
 // ── judge ─────────────────────────────────────────────────────────────────────

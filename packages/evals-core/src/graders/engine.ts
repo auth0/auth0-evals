@@ -20,6 +20,7 @@ import { containsExecutor } from './executors/contains.js';
 import { notContainsExecutor } from './executors/not-contains.js';
 import { notContainsInSourceExecutor } from './executors/not-contains-in-source.js';
 import { matchesExecutor } from './executors/matches.js';
+import { joinFilesWithHeaders } from './executors/text-search-utils.js';
 import { llmJudgeExecutor } from './executors/llm-judge.js';
 import { eventExecutor } from './executors/event.js';
 import { compileExecutor } from './executors/compile.js';
@@ -135,9 +136,7 @@ export function* walkFiles(dir: string): Generator<string> {
 }
 
 function combined(files: Record<string, string>): string {
-  return Object.entries(files)
-    .map(([k, v]) => `// FILE: ${k}\n${v}`)
-    .join('\n\n');
+  return joinFilesWithHeaders(files);
 }
 
 // ── Runner ────────────────────────────────────────────────────────────────────

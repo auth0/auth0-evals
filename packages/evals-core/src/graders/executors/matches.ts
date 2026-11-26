@@ -23,7 +23,7 @@ export const matchesExecutor: GraderExecutor = {
       const re = new RegExp(pattern, flags);
       const source = def.source ?? 'files';
 
-      const { inFiles, inAgent } = searchCorpusRegex(ctx, re, source);
+      const { inFiles, inAgent } = searchCorpusRegex(ctx, re, source, def.ignoreComments ?? false);
 
       passed = inFiles || inAgent;
       const matchedIn = inAgent && !inFiles ? 'agent reply' : 'written files';
