@@ -10,6 +10,7 @@ import type {
   GraderOptions,
   GraderSource,
   JudgeInput,
+  TraceCommands,
   EventToolCall,
   EventGraderLevel,
   NotRanCommandLevel,
@@ -89,12 +90,19 @@ export function notContainsInSource(
 /** Options for the `judge` primitive. */
 export interface JudgeOptions {
   /**
-   * What the judge reads: workspace `'files'` (default), the agent's successful
+   * What the judge reads: workspace `'files'` (default), the agent's shell
    * command `'trace'`, or `'both'`. Use `'trace'`/`'both'` for evals whose
-   * artifact is CLI invocations rather than files. With `'trace'`, the grader
-   * fails (without calling the judge) if the agent ran no successful commands.
+   * artifact is CLI invocations rather than files. Failed commands are omitted
+   * unless `traceCommands: 'all'`. With `'trace'`, the grader fails (without
+   * calling the judge) only when zero commands are listed.
    */
   input?: JudgeInput;
+  /**
+   * Which commands the trace lists: `'succeeded'` (default) or `'all'`, which
+   * keeps failed commands tagged `[FAILED]`. Throws with `input: 'files'`
+   * (the default), since no trace is sent.
+   */
+  traceCommands?: TraceCommands;
   /**
    * Append the agent's successful command trace to the judge's input.
    *
@@ -171,6 +179,12 @@ export function judge(question: string, level?: GraderLevel, options: JudgeOptio
     );
   }
   const input: JudgeInput = options.input ?? (options.includeCommandTrace ? 'both' : 'files');
+  if (options.traceCommands !== undefined && input === 'files') {
+    throw new Error(
+      `judge: traceCommands: '${options.traceCommands}' has no effect with input: 'files' (no command trace is sent). ` +
+        "Set input: 'trace' | 'both', or drop traceCommands.",
+    );
+  }
   return {
     kind: 'judge',
     question,
@@ -178,6 +192,7 @@ export function judge(question: string, level?: GraderLevel, options: JudgeOptio
     level,
     input,
     includeCommandTrace: input !== 'files',
+    traceCommands: options.traceCommands,
     source: options.source,
     context: options.context,
   };

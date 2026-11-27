@@ -215,6 +215,40 @@ describe('judge', () => {
     expect(judge('Did the CLI enforce MFA?', undefined, { includeCommandTrace: true }).input).toBe('both');
   });
 
+  it('leaves traceCommands unset by default', () => {
+    expect(judge('Is this correct?').traceCommands).toBeUndefined();
+    expect(judge('Is this correct?', undefined, { input: 'trace' }).traceCommands).toBeUndefined();
+  });
+
+  it("passes traceCommands through with input 'trace' and 'both'", () => {
+    expect(judge('Did the CLI run?', undefined, { input: 'trace', traceCommands: 'all' }).traceCommands).toBe('all');
+    expect(judge('Did the CLI run?', undefined, { input: 'both', traceCommands: 'succeeded' }).traceCommands).toBe(
+      'succeeded',
+    );
+  });
+
+  it('accepts traceCommands with the includeCommandTrace: true alias', () => {
+    const def = judge('Did the CLI run?', undefined, { includeCommandTrace: true, traceCommands: 'all' });
+    expect(def.input).toBe('both');
+    expect(def.traceCommands).toBe('all');
+  });
+
+  it("throws when traceCommands is set with input 'files'", () => {
+    expect(() => judge('Is this correct?', undefined, { input: 'files', traceCommands: 'all' })).toThrow(
+      /traceCommands: 'all' has no effect with input: 'files'/,
+    );
+  });
+
+  it("throws when traceCommands is set and input defaults to 'files'", () => {
+    expect(() => judge('Is this correct?', undefined, { traceCommands: 'all' })).toThrow(/has no effect/);
+  });
+
+  it("throws for traceCommands 'succeeded' with input 'files' too", () => {
+    expect(() => judge('Is this correct?', undefined, { input: 'files', traceCommands: 'succeeded' })).toThrow(
+      /traceCommands: 'succeeded' has no effect/,
+    );
+  });
+
   it('throws when includeCommandTrace contradicts input', () => {
     expect(() => judge('Is this correct?', undefined, { input: 'files', includeCommandTrace: true })).toThrow(
       /contradicts/,

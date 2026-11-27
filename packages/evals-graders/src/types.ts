@@ -80,6 +80,12 @@ export interface GraderDef {
    */
   input?: JudgeInput;
   /**
+   * Judge graders only. Which shell commands go into the judge's command trace:
+   * `'succeeded'` (default) omits failed commands; `'all'` keeps them, tagged
+   * `[FAILED]`. Only meaningful when `input !== 'files'`.
+   */
+  traceCommands?: TraceCommands;
+  /**
    * Where to search for the needle / pattern / judge input.
    *
    * - `'files'` (default) — workspace files only (existing behavior, unchanged).
@@ -152,7 +158,14 @@ export type GraderSource = 'files' | 'response' | 'both';
 /**
  * What a judge grader reads from the agent's run.
  * - `'files'` (default) — workspace files.
- * - `'trace'` — the agent's successful command trace only.
+ * - `'trace'` — the agent's command trace only (successful commands unless `traceCommands: 'all'`).
  * - `'both'` — workspace files AND command trace.
  */
 export type JudgeInput = 'files' | 'trace' | 'both';
+
+/**
+ * Which shell commands a judge's command trace includes.
+ * - `'succeeded'` (default) — failed commands are omitted.
+ * - `'all'` — failed commands are kept, tagged `[FAILED]`.
+ */
+export type TraceCommands = 'succeeded' | 'all';

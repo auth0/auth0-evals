@@ -412,8 +412,8 @@ describe('formatCommandTrace', () => {
     // A judge left to infer these read "no output shown" and "id re-declared in a later
     // command" as evidence the agent fabricated the values, and failed a correct run.
     const out = formatCommandTrace([cmd('auth0 orgs list')]);
-    expect(out).toContain('exited');
-    expect(out).toContain('output is NOT captured');
+    expect(out).toContain('reported as');
+    expect(out).toMatch(/output is NOT\s+\/\/ captured/);
     expect(out).toContain('own shell');
   });
 
@@ -451,6 +451,81 @@ describe('formatCommandTrace', () => {
     expect(out).not.toContain('fixture_not_a_real_secret_abcdef0123456789');
     expect(out).toContain('[REDACTED SECRET]');
     expect(out).toContain('auth0 api post clients');
+  });
+
+  const SUCCEEDED_HEADER = [
+    "// COMMAND TRACE (shell commands the agent ran, in order). Only commands the agent's",
+    '// runner reported as successful are listed — commands it reported as failed (non-zero',
+    '// exit, tool error, timeout/cancellation, or no result) are omitted. Their output is NOT',
+    '// captured, so the absence of output is not evidence a command did nothing. Each command',
+    '// runs in its own shell, so an id assigned as a literal in a later command is a value read',
+    "// from an earlier command's output, not a fabricated one.",
+  ].join('\n');
+
+  const ALL_HEADER = [
+    '// COMMAND TRACE (every shell command the agent ran, in order). A command prefixed [FAILED]',
+    "// was reported as failed by the agent's runner (non-zero exit, tool error, timeout/",
+    '// cancellation, or no result) and may have had no effect; unprefixed commands were reported',
+    '// as successful. Output is NOT captured, so the absence of output is not evidence a command',
+    '// did nothing. Each command runs in its own shell, so an id assigned as a literal in a later',
+    "// command is a value read from an earlier command's output, not a fabricated one.",
+  ].join('\n');
+
+  it("pins the exact 'succeeded' and 'all' headers", () => {
+    expect(formatCommandTrace([cmd('a')], 'succeeded')).toBe(`${SUCCEEDED_HEADER}\na`);
+    expect(formatCommandTrace([cmd('a', true), cmd('b')], 'all')).toBe(`${ALL_HEADER}\n[FAILED] a\nb`);
+  });
+
+  it("defaults to 'succeeded' (identical to explicit)", () => {
+    const calls = [cmd('a', true), cmd('b')];
+    expect(formatCommandTrace(calls)).toBe(formatCommandTrace(calls, 'succeeded'));
+    expect(formatCommandTrace(calls)).not.toContain('[FAILED]');
+  });
+
+  it("'all' keeps failed commands in original order, tagged [FAILED]", () => {
+    const out = formatCommandTrace([cmd('cmd-A', true), cmd('cmd-B'), cmd('cmd-C', true)], 'all');
+    expect(out.split('\n').slice(-3)).toEqual(['[FAILED] cmd-A', 'cmd-B', '[FAILED] cmd-C']);
+  });
+
+  it("'all' does not tag successful commands", () => {
+    const out = formatCommandTrace([cmd('cmd-ok')], 'all');
+    expect(out.split('\n').pop()).toBe('cmd-ok');
+    expect(out).not.toContain('[FAILED] cmd-ok');
+  });
+
+  it("'all' redacts secrets on failed commands", () => {
+    const out = formatCommandTrace(
+      [cmd('auth0 api post clients --client-secret fixture_not_a_real_secret_abcdef0123456789', true)],
+      'all',
+    );
+    expect(out).not.toContain('fixture_not_a_real_secret_abcdef0123456789');
+    expect(out).toContain('[FAILED] auth0 api post clients');
+    expect(out).toContain('[REDACTED SECRET]');
+  });
+
+  it("'all' with only failed commands is non-empty", () => {
+    expect(formatCommandTrace([cmd('auth0 login', true)], 'all')).toContain('[FAILED] auth0 login');
+  });
+
+  it("'all' still drops non-shell and empty commands", () => {
+    const out = formatCommandTrace(
+      [
+        { name: 'write_file', args: { path: 'x.ts', content: 'y' }, result: '', causedError: true },
+        cmd('   ', true),
+        cmd('real'),
+      ],
+      'all',
+    );
+    expect(out.split('\n').slice(-1)).toEqual(['real']);
+    expect(out).not.toContain('x.ts');
+    expect(out).not.toContain('[FAILED] ');
+  });
+
+  it("'all' header does not claim every command succeeded", () => {
+    const out = formatCommandTrace([cmd('a', true)], 'all');
+    expect(out).not.toContain('Only commands');
+    expect(out).not.toContain('are omitted');
+    expect(out).toContain('reported as failed');
   });
 });
 
@@ -580,6 +655,48 @@ describe('llmJudgeExecutor — includeCommandTrace gate', () => {
       const { result, code } = await run({ input: 'both' }, []);
       expect(result.passed).toBe(true);
       expect(code).toContain('// FILE: app.ts');
+    });
+
+    it("traceCommands 'all' sends failed commands tagged [FAILED]", async () => {
+      const calls: EventToolCall[] = [
+        { name: 'run_command', args: { command: 'auth0 login' }, result: '', causedError: true },
+        ...trace,
+      ];
+      const { code } = await run({ input: 'trace', traceCommands: 'all' }, calls);
+      expect(code).toContain('[FAILED] auth0 login');
+      expect(code).toContain('auth0 api put guardian/policies');
+    });
+
+    it("unset traceCommands sends the same code as 'succeeded'", async () => {
+      const calls: EventToolCall[] = [
+        { name: 'run_command', args: { command: 'auth0 login' }, result: '', causedError: true },
+        ...trace,
+      ];
+      const { code: unset } = await run({ input: 'trace' }, calls);
+      llmJudgeMock.mockClear();
+      const { code: explicit } = await run({ input: 'trace', traceCommands: 'succeeded' }, calls);
+      expect(unset).toBe(explicit);
+      expect(unset).not.toContain('auth0 login');
+    });
+
+    it("input 'trace' + 'all' with only failed commands calls the judge", async () => {
+      const failedOnly: EventToolCall[] = [
+        { name: 'run_command', args: { command: 'auth0 login' }, result: '', causedError: true },
+      ];
+      const { result, code } = await run({ input: 'trace', traceCommands: 'all' }, failedOnly);
+      expect(result.passed).toBe(true);
+      expect(llmJudgeMock).toHaveBeenCalledOnce();
+      expect(code).toContain('[FAILED] auth0 login');
+    });
+
+    it("input 'trace' with only failed commands (default mode) fails without calling the judge", async () => {
+      const failedOnly: EventToolCall[] = [
+        { name: 'run_command', args: { command: 'auth0 login' }, result: '', causedError: true },
+      ];
+      const { result } = await run({ input: 'trace' }, failedOnly);
+      expect(result.passed).toBe(false);
+      expect(result.detail).toBe('no command trace available for judge');
+      expect(llmJudgeMock).not.toHaveBeenCalled();
     });
   });
 });
