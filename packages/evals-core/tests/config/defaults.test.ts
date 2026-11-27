@@ -45,6 +45,10 @@ describe('DEFAULT_FRAMEWORK_CONFIG', () => {
     expect(DEFAULT_FRAMEWORK_CONFIG.recommendations.enabled).toBe(true);
   });
 
+  it('securityJudge.enabled defaults true', () => {
+    expect(DEFAULT_FRAMEWORK_CONFIG.securityJudge.enabled).toBe(true);
+  });
+
   it('has empty braintrust defaults', () => {
     expect(DEFAULT_FRAMEWORK_CONFIG.braintrust.projectId).toBe('');
     expect(DEFAULT_FRAMEWORK_CONFIG.braintrust.datasetName).toBe('');

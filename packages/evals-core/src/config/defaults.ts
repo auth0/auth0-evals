@@ -60,5 +60,9 @@ export const DEFAULT_FRAMEWORK_CONFIG: Required<FrameworkConfig> = {
     enabled: true,
   },
 
+  securityJudge: {
+    enabled: true,
+  },
+
   cliContext: {},
 };

@@ -53,6 +53,8 @@ vi.mock('@a0/evals-core', async (importOriginal) => ({
   getRunner: mocks.getRunner,
   getFrameworkConfig: mocks.getFrameworkConfig,
   runGraders: mocks.runGraders,
+  // The real one reads the core config singleton, which this file replaces with a mock.
+  agentGraderDefs: (e: { graders: unknown[] }) => e.graders,
   serialiseAgent: mocks.serialiseAgent,
   writeRunArtifact: (...args: Parameters<typeof import('@a0/evals-core').writeRunArtifact>) => {
     if (mocks.failNextWrite) {

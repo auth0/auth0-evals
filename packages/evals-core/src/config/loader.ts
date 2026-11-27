@@ -118,6 +118,12 @@ function validate(config: Required<FrameworkConfig>, filePath: string): void {
       filePath,
     );
   }
+  if (typeof config.securityJudge.enabled !== 'boolean') {
+    throw new EvalConfigError(
+      `securityJudge.enabled must be a boolean (true or false), got ${JSON.stringify(config.securityJudge.enabled)}`,
+      filePath,
+    );
+  }
 }
 
 /**

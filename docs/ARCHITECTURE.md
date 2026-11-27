@@ -49,14 +49,15 @@ flowchart TB
         direction LR
         subgraph Grade["4 · Grade the code — @a0/evals-core"]
             direction TB
+            Defs["Agent runs add a security judge<br/>agentGraderDefs() (+ security judge)"]
             Engine["Automated checks<br/>runGraders() · L1–L5"]
             Judge["AI judge<br/>llmJudge() · claude-opus-5-5"]
-            Engine --> Judge
+            Defs --> Engine --> Judge
         end
 
         subgraph Score["5 · Score the run — @a0/evals"]
             direction TB
-            Scorer["8-dimension score<br/>score() + A–F grade"]
+            Scorer["8-dimension score<br/>score() + A–F grade<br/>graders → graders"]
             Recs["Suggested fixes<br/>generateRunRecommendations()"]
             Scorer --> Recs
         end
@@ -73,7 +74,7 @@ flowchart TB
 
     Pool ==> Discover
     WS ==> Runners
-    Runners ==> Engine
+    Runners ==> Defs
     Judge ==> Scorer
     Recs ==> Results
 
@@ -81,7 +82,7 @@ flowchart TB
     classDef work    fill:#FFE8CC,stroke:#E8590C,color:#1A1A2E;
     classDef data    fill:#D3F9D8,stroke:#2F9E44,color:#1A1A2E;
 
-    class Bin,Matrix,Pool,Discover,WS,Engine,Judge,Scorer,Recs control;
+    class Bin,Matrix,Pool,Discover,WS,Defs,Engine,Judge,Scorer,Recs control;
     class Runners,Invest work;
     class Results,Report,BT data;
 
@@ -105,6 +106,7 @@ Bottom-up, with a clean acyclic dependency graph (`@a0/evals-graders` is the lea
 - **Purpose**: Evaluation engine.
 - **Responsibilities**: Eval discovery (`discoverEvals`) and loading (`loadEval`); framework config load/merge (`loadConfig`, `defineConfig`); workspace lifecycle (`setupWorkspace`, `cleanupWorkspace`, `writeAgentGuidance`); grader engine with a pluggable executor **registry** (`registerExecutor`/`getExecutor`/`executeGrader`); LLM judge; the `AgentRunner` and `ToolTranslator` interfaces; trace classification; result serializers.
 - **Dependencies**: `@a0/evals-graders`.
+- **Security judge**: `agentGraderDefs(evalDef)` (`graders/security-judge.ts`) appends the "Security judge" to every agent run's grader list before `runGraders`. The CLI runner, the sandbox runner and AXIS all call it. Its L3 result scores under Security like any other L3 grader. See [SCORING_METHODOLOGY.md](./SCORING_METHODOLOGY.md#security-judge).
 - **Type**: Application infrastructure / engine.
 
 ### `@a0/evals`
@@ -193,6 +195,7 @@ sequenceDiagram
         participant Agent as Runner
     end
     box rgba(211,249,216,0.5) Engine
+        participant Defs as agentGraderDefs
         participant Grade as runGraders
         participant Score as score()
     end
@@ -209,7 +212,9 @@ sequenceDiagram
         CLI->>Exec: setupWorkspace() + dispatch (Docker / local)
         Exec->>Agent: run task in workspace
         Agent-->>Exec: edited workspace + RunRecord trace (includes finalSummary)
-        Exec->>Grade: runGraders(workspace, levels, agentText?)
+        Exec->>Defs: agentGraderDefs(evalDef)
+        Note over Defs: agent runs only: adds the security judge<br/>baseline runs skip this step
+        Defs->>Grade: runGraders(workspace, levels, agentText?)
         Note over Grade: agentText = record.finalSummary<br/>searched only when grader sets source: 'response' | 'both'
         Grade->>Grade: LLM-judge for judge graders
         Grade-->>Score: GraderResult[]
@@ -248,6 +253,7 @@ sequenceDiagram
     end
     box rgba(211,249,216,0.5) Graders
         participant Hook as runAuth0Graders()
+        participant Defs as agentGraderDefs()
         participant GE as runGraders()
     end
     box rgba(243,232,255,0.55) Output
@@ -264,7 +270,8 @@ sequenceDiagram
         Axis->>Agent: run task in isolated workspace
         Agent-->>Axis: edited workspace + transcript
         Axis->>Hook: onResult hook (before workspace teardown)
-        Hook->>GE: runGraders(workspace, L1–L4, agentText?)
+        Hook->>Defs: agentGraderDefs(evalDef) (+ security judge)
+        Defs->>GE: runGraders(workspace, L1–L4, agentText?)
         Note over GE: agentText = result.output.result<br/>searched only when grader sets source: 'response' | 'both'
         GE-->>Hook: GraderResult[]
         Hook-->>Axis: GraderResult[]

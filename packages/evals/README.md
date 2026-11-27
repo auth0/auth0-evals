@@ -114,6 +114,7 @@ export default defineConfig({
 | `agents.<runner>.proxy` | `{ baseUrl }` | No | Per-agent proxy overrides |
 | `workspace.excludedDirs` | `string[]` | No | Directories excluded from grading |
 | `recommendations.enabled` | `boolean` | No | Generate recommendations after scoring each agent job (default `true`). Must be a real boolean. When `false`, no recommendation LLM call is made and results record `recommendations: null`. Useful for a regrade where only graders changed. |
+| `securityJudge.enabled` | `boolean` | No | Add the security judge to every agent run (default `true`). Must be a real boolean. It scores as an L3 grader under Security; see [Security judge](../../docs/SCORING_METHODOLOGY.md#security-judge). `--no-security-judge` turns it off for one run. |
 
 ## CLI usage
 
@@ -143,6 +144,7 @@ a0-eval [options]
 | `--phase <phase>` | `all`, `agent`, `grade` | `all` | `agent` runs the model and writes a run artefact (no grader files needed); `grade` grades stored artefacts (newest per eval/model/mode/tools; explicit `--eval`/`--model`/`--mode`/`--tools`/`--agent-type` filter them) and emits the usual results. `agent`/`grade` require `--artifact-dir` and `--dangerously-skip-sandbox`; `agent` rejects `--output` (it writes no scores file) |
 | `--artifact-dir <dir>` | path | — | Where `--phase agent` writes artefacts (`<dir>/<eval>-<model>-<mode>[-<tools>]-<rand>/`) and `--phase grade` reads them. Artefacts hold unredacted traces and agent-written files (e.g. `.env`): treat them as sensitive |
 | `--braintrust` | flag | off | Log results to Braintrust |
+| `--no-security-judge` | flag | off | Skip the security judge on agent runs |
 | `--config <path>` | file path | auto-discovered | Path to `eval.config.js` (overrides auto-discovery) |
 
 **Examples:**

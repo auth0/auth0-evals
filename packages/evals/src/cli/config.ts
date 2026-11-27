@@ -72,6 +72,8 @@ export interface RunConfig {
    * "filter to this" from "not given".
    */
   gradeFilters: GradeFilters;
+  /** `false` when `--no-security-judge` is passed: agent runs skip the security judge. */
+  securityJudge: boolean;
 }
 
 /** Artefact filters for `--phase grade`; an absent field means "do not filter on it". */
@@ -165,6 +167,7 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
       '--phase <phase>',
       'Run phase: agent (run model, write artefact) | grade (grade stored artefacts) | all (default). agent/grade require --artifact-dir and --dangerously-skip-sandbox.',
     )
+    .option('--no-security-judge', 'Skip the security judge on agent runs')
     .option('--artifact-dir <dir>', 'Directory where run artefacts are written (agent phase) or read (grade phase)');
 
   program.parse(argv);
@@ -208,5 +211,6 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
     phase,
     artifactDir,
     gradeFilters,
+    securityJudge: opts.securityJudge as boolean,
   };
 }

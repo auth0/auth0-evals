@@ -310,6 +310,11 @@ describe('--workers', () => {
 // ── Boolean and string flags ──────────────────────────────────────────────────
 
 describe('flags', () => {
+  it('--no-security-judge sets securityJudge false; default true', () => {
+    expect(parse().securityJudge).toBe(true);
+    expect(parse('--no-security-judge').securityJudge).toBe(false);
+  });
+
   it('--keep-workspace sets keepWorkspace to true', () => {
     expect(parse('--keep-workspace').keepWorkspace).toBe(true);
   });

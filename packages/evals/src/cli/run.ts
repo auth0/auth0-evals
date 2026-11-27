@@ -70,6 +70,7 @@ import {
   sealFixtureData,
   fixtureGradingFromArtifact,
   maskWorkspaceSecrets,
+  agentGraderDefs,
 } from '@a0/evals-core';
 import type {
   EvalConfig,
@@ -363,10 +364,11 @@ async function gradeAgentRun(
   const compileResult = redactKnownSecrets(run.compileResult, fixtureGrading?.secrets ?? []);
 
   let graderResults: Awaited<ReturnType<typeof runGraders>> = [];
-  if (evalDef.graders.length > 0) {
+  const graderDefs = agentGraderDefs(evalDef);
+  if (graderDefs.length > 0) {
     const agentLevels = tools.includes('mcp') ? AGENT_MCP_LEVELS : AGENT_LEVELS;
     graderResults = await runGraders(
-      evalDef.graders,
+      graderDefs,
       workspace,
       apiKey,
       undefined,
@@ -451,6 +453,7 @@ async function runAgentJob(
         ghToken: process.env.GH_TOKEN,
         passthroughEnv: getFrameworkConfig().sandbox.passthroughEnv,
         recommendationsEnabled: getFrameworkConfig().recommendations.enabled,
+        securityJudgeEnabled: getFrameworkConfig().securityJudge.enabled,
       });
     }
 
@@ -899,6 +902,7 @@ export async function runCli(): Promise<void> {
     knownModels: frameworkConfig.models.known,
     defaultModel: frameworkConfig.models.default,
   });
+  if (!config.securityJudge) frameworkConfig.securityJudge = { enabled: false };
   const {
     models,
     modes,

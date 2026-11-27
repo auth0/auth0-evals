@@ -53,6 +53,7 @@ Full CLI flags and AXIS flags: see [`packages/evals/README.md`](packages/evals/R
 | `--model <model>` | Any model string | per-agent default | Override model for all configured agents |
 | `--output <path>` | file path | `scores-axis.json` in app root | Where to write the scores file |
 | `--debug` | flag | off | Capture raw adapter stdout as `.raw.ndjson` for debugging |
+| `--no-security-judge` | flag | off | Skip the security judge |
 
 ---
 

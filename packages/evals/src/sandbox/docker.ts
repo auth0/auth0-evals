@@ -16,6 +16,7 @@ import {
   DOCKER_WORKSPACE_MOUNT,
   LLM_API_KEY_ENV,
   SANDBOX_RECOMMENDATIONS_ENABLED_ENV,
+  SANDBOX_SECURITY_JUDGE_ENABLED_ENV,
   SANDBOX_RESULTS_FILE,
 } from '../cli/constants.js';
 
@@ -46,6 +47,8 @@ export interface DockerRunOptions {
    * `eval.config.js` baked into the image. Omitted, the container's own config decides.
    */
   recommendationsEnabled?: boolean;
+  /** The host's resolved `securityJudge.enabled`, forwarded like `recommendationsEnabled`. */
+  securityJudgeEnabled?: boolean;
 }
 
 // Serialises concurrent ensureDockerImage calls so only one build runs at a time.
@@ -130,8 +133,19 @@ function findRepoRoot(): string {
  * after the container exits.
  */
 export async function runJobInDocker(options: DockerRunOptions): Promise<JobResult> {
-  const { workspace, evalId, model, mode, tools, agentType, apiKey, ghToken, passthroughEnv, recommendationsEnabled } =
-    options;
+  const {
+    workspace,
+    evalId,
+    model,
+    mode,
+    tools,
+    agentType,
+    apiKey,
+    ghToken,
+    passthroughEnv,
+    recommendationsEnabled,
+    securityJudgeEnabled,
+  } = options;
 
   await ensureDockerImage();
 
@@ -168,6 +182,9 @@ export async function runJobInDocker(options: DockerRunOptions): Promise<JobResu
 
   if (recommendationsEnabled !== undefined) {
     envFlags.push('-e', `${SANDBOX_RECOMMENDATIONS_ENABLED_ENV}=${String(recommendationsEnabled)}`);
+  }
+  if (securityJudgeEnabled !== undefined) {
+    envFlags.push('-e', `${SANDBOX_SECURITY_JUDGE_ENABLED_ENV}=${String(securityJudgeEnabled)}`);
   }
 
   // Forward app-declared passthrough env vars (e.g. MCP server credentials).

@@ -403,6 +403,25 @@ describe('runJobInDocker — results parsing', () => {
     },
   );
 
+  it.each([false, true])('forwards EVALS_SECURITY_JUDGE_ENABLED=%s', async (enabled) => {
+    const runJobInDocker = await getRunJobInDocker();
+    const workspace = mkdtempSync(join(tmpdir(), 'docker-sj-'));
+
+    mockExecFileSync.mockReturnValue('');
+
+    let capturedArgs: string[] = [];
+    mockSpawn.mockImplementation((_cmd: string, args: string[]) => {
+      capturedArgs = args;
+      writeFileSync(join(workspace, '.eval-results.json'), JSON.stringify({ ok: true }));
+      return makeCloseEmitter();
+    });
+
+    await runJobInDocker({ ...makeOptions(workspace), securityJudgeEnabled: enabled });
+
+    expect(extractEnvPairs(capturedArgs)).toContain(`EVALS_SECURITY_JUDGE_ENABLED=${enabled}`);
+    rmSync(workspace, { recursive: true, force: true });
+  });
+
   it('does not forward EVALS_RECOMMENDATIONS_ENABLED when recommendationsEnabled is omitted', async () => {
     const runJobInDocker = await getRunJobInDocker();
     const workspace = mkdtempSync(join(tmpdir(), 'docker-recs-'));
