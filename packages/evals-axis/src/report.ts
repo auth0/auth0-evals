@@ -172,6 +172,7 @@ export function buildAxisScores(
       if ((g.inputTokens || g.outputTokens) && g.judgeModel) {
         summary.cost_usd = estimateCost(g.judgeModel, g.inputTokens ?? 0, g.outputTokens ?? 0);
       }
+      if (g.judgeInputHash) summary.judge_input_hash = g.judgeInputHash;
       return summary;
     });
 

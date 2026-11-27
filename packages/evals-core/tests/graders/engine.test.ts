@@ -1029,6 +1029,51 @@ describe('runGraders - judge overflow handling', () => {
   });
 });
 
+// ── runGraders — judgeInputHash ───────────────────────────────────────────────
+
+describe('runGraders - judgeInputHash', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('carries a hash on a successful judge result and none on other kinds', async () => {
+    vi.stubGlobal('fetch', mockFetchResponse('Looks correct.\n\nyes'));
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'App.js'), 'x');
+    const { judge, contains } = await import('@a0/evals-graders');
+
+    const results = await runGraders([judge('Does the code work?'), contains('x')], dir, 'key');
+    expect(results[0].judgeInputHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(results[1].judgeInputHash).toBeUndefined();
+  });
+
+  it.each([
+    ['an unexpected verdict', () => mockFetchResponse('Hard to say.\n\nmaybe')],
+    ['a truncated response', () => mockTruncatedResponse('Looks correct, but')],
+    [
+      'an HTTP error',
+      () => vi.fn().mockResolvedValue({ ok: false, status: 400, text: async () => 'bad' } as unknown as Response),
+    ],
+  ])('leaves the hash off a judge that errored on %s, so it can never be reused', async (_name, mockFetch) => {
+    vi.stubGlobal('fetch', mockFetch());
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'App.js'), 'x');
+    const { judge } = await import('@a0/evals-graders');
+
+    const results = await runGraders([judge('Does the code work?')], dir, 'key');
+    expect(results[0].passed).toBe(false);
+    expect(results[0].judgeInputHash).toBeUndefined();
+  });
+
+  it('leaves the hash off a judge skipped for a missing apiKey', async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, 'App.js'), 'x');
+    const { judge } = await import('@a0/evals-graders');
+
+    const results = await runGraders([judge('Does the code work?')], dir, '');
+    expect(results[0].passed).toBe(false);
+    expect(results[0].judgeInputHash).toBeUndefined();
+  });
+});
+
 // ── runGraders — enforceMaxChars=false propagation ──────────────────────────
 
 describe('runGraders - enforceMaxChars=false propagation', () => {

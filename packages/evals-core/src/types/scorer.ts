@@ -52,6 +52,11 @@ export interface GraderResult {
   outputTokens?: number;
   /** Model used for this grader call (judge graders only). */
   judgeModel?: string;
+  /**
+   * sha256 of the judge request body (judge graders only; absent when the judge errored).
+   * A missing hash means the verdict must be re-run, never reused.
+   */
+  judgeInputHash?: string;
 }
 
 // ── Run record (input to scorer) ─────────────────────────────────────────────

@@ -85,6 +85,49 @@ export function formatCommandTrace(toolCalls: EventToolCall[]): string {
   return `${header}\n${commands.join('\n')}`;
 }
 
+/** What a judge reads to answer its question, as the grader def selects it. */
+export interface JudgeEvidence {
+  /** Files, command trace and agent reply joined into the text sent to the judge as `code`. */
+  text: string;
+  /** Workspace files included in `text`, after {@link isJudgeExcluded}, in order. */
+  files: [path: string, content: string][];
+}
+
+/**
+ * Builds the evidence a judge reads from the run's files, command trace and final reply.
+ * The executor and an offline regrade share it, so a regrade passes `buildJudgeRequest`
+ * the same text the original judge was sent and gets the same `judgeInputHash`.
+ *
+ * Returns `undefined` for a trace-only judge when the agent ran no commands: there is
+ * nothing to evaluate.
+ */
+export function buildJudgeEvidence(
+  def: GraderDef,
+  ctx: Pick<GraderContext, 'files' | 'toolCalls' | 'agentText'>,
+): JudgeEvidence | undefined {
+  const source = def.source ?? 'files';
+  // `includeCommandTrace` is the deprecated alias, honoured for defs built without `input`.
+  const input = def.input ?? (def.includeCommandTrace ? 'both' : 'files');
+  const includeFiles = source !== 'response' && input !== 'trace';
+  const includeAgentReply = (source === 'response' || source === 'both') && ctx.agentText.length > 0;
+
+  const files = includeFiles ? Object.entries(ctx.files).filter(([k]) => !isJudgeExcluded(k)) : [];
+  const fileText = files.map(([k, v]) => `// FILE: ${k}\n${v}`).join('\n\n');
+
+  // For CLI-only evals the artifact is the command trace, not files. When the
+  // judge opts in, append it so there is content to evaluate; otherwise the
+  // judge sees only files (unchanged behaviour for every existing judge).
+  const traceText = input !== 'files' ? formatCommandTrace(ctx.toolCalls ?? []) : '';
+  if (input === 'trace' && traceText.length === 0) return undefined;
+
+  // For MCP-only evals the agent never writes files — include the agent's final
+  // reply only when the grader explicitly opts in via source: 'response' | 'both'.
+  const agentReplyText = includeAgentReply ? `// AGENT REPLY:\n${ctx.agentText}` : '';
+
+  const text = [fileText, traceText, agentReplyText].filter((s) => s.length > 0).join('\n\n');
+  return { text, files };
+}
+
 export const llmJudgeExecutor: GraderExecutor = {
   kind: 'judge',
 
@@ -101,23 +144,10 @@ export const llmJudgeExecutor: GraderExecutor = {
 
     const { model, baseUrl, maxTokens, maxCodeChars, enforceMaxChars } = ctx.judge;
 
-    const source = def.source ?? 'files';
-    // `includeCommandTrace` is the deprecated alias, honoured for defs built without `input`.
-    const input = def.input ?? (def.includeCommandTrace ? 'both' : 'files');
-    const includeFiles = source !== 'response' && input !== 'trace';
-    const includeAgentReply = (source === 'response' || source === 'both') && ctx.agentText.length > 0;
-
-    const judgeEntries = includeFiles ? Object.entries(ctx.files).filter(([k]) => !isJudgeExcluded(k)) : [];
-    const fileText = judgeEntries.map(([k, v]) => `// FILE: ${k}\n${v}`).join('\n\n');
-
-    // For CLI-only evals the artifact is the command trace, not files. When the
-    // judge opts in, append it so there is content to evaluate; otherwise the
-    // judge sees only files (unchanged behaviour for every existing judge).
-    const traceText = input !== 'files' ? formatCommandTrace(ctx.toolCalls ?? []) : '';
-
     // A trace-only judge with no trace has nothing to evaluate; fail rather than
     // let the judge rule on empty input.
-    if (input === 'trace' && traceText.length === 0) {
+    const evidence = buildJudgeEvidence(def, ctx);
+    if (!evidence) {
       return {
         name: def.name,
         kind: def.kind,
@@ -126,12 +156,7 @@ export const llmJudgeExecutor: GraderExecutor = {
         level: def.level,
       };
     }
-
-    // For MCP-only evals the agent never writes files — include the agent's final
-    // reply only when the grader explicitly opts in via source: 'response' | 'both'.
-    const agentReplyText = includeAgentReply ? `// AGENT REPLY:\n${ctx.agentText}` : '';
-
-    const judgeText = [fileText, traceText, agentReplyText].filter((s) => s.length > 0).join('\n\n');
+    const { text: judgeText, files: judgeEntries } = evidence;
 
     logger.info(`[judge] ${judgeEntries.length} files, ${judgeText.length} chars total (limit: ${maxCodeChars})`);
     for (const [k, v] of judgeEntries) {
@@ -141,7 +166,7 @@ export const llmJudgeExecutor: GraderExecutor = {
       logger.warn(`[judge] WARNING: content exceeds limit (${judgeText.length} > ${maxCodeChars} chars)`);
     }
 
-    const { passed, detail, inputTokens, outputTokens } = await llmJudge({
+    const { passed, detail, inputTokens, outputTokens, judgeInputHash } = await llmJudge({
       question: def.question!,
       context: def.context,
       code: judgeText,
@@ -162,6 +187,7 @@ export const llmJudgeExecutor: GraderExecutor = {
       inputTokens,
       outputTokens,
       judgeModel: model,
+      judgeInputHash,
     };
   },
 };

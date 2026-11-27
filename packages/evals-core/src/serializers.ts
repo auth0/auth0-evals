@@ -114,6 +114,7 @@ function mapGraders(graderResults: GraderResult[]): GraderSummary[] {
     if ((gr.inputTokens || gr.outputTokens) && gr.judgeModel) {
       summary.cost_usd = estimateCost(gr.judgeModel, gr.inputTokens ?? 0, gr.outputTokens ?? 0);
     }
+    if (gr.judgeInputHash) summary.judge_input_hash = gr.judgeInputHash;
     return summary;
   });
 }

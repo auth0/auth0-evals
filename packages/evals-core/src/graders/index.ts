@@ -1,6 +1,7 @@
 export {
   runGraders,
   llmJudge,
+  buildJudgeRequest,
   JUDGE_DEFAULT_MAX_TOKENS,
   passRate,
   collectFiles as collectGraderFiles,
@@ -10,7 +11,9 @@ export {
   EXCLUDED_EVAL_FILES,
 } from './engine.js';
 
-export type { LlmJudgeOptions } from './llm-judge.js';
+export type { LlmJudgeOptions, LlmJudgeResult, JudgeRequest } from './llm-judge.js';
+export { buildJudgeEvidence } from './executors/llm-judge.js';
+export type { JudgeEvidence } from './executors/llm-judge.js';
 
 export { findSecretExposure, describeExposure } from './secret-exposure.js';
 export type { SecretExposure, SecretEvidence } from './secret-exposure.js';

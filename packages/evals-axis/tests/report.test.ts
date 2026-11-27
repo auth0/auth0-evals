@@ -431,6 +431,21 @@ describe('buildAxisScores', () => {
     expect(result.graders[1].cost_usd).toBeUndefined();
   });
 
+  it('carries judgeInputHash into judge_input_hash on judge graders only', () => {
+    const graders: GraderResult[] = [
+      { name: 'Holistic judge', kind: 'judge', passed: true, detail: 'yes', judgeInputHash: 'b'.repeat(64) },
+      { name: 'Errored judge', kind: 'judge', passed: false, detail: 'judge error' },
+      { name: 'Uses SDK', kind: 'contains', passed: true, detail: 'found' },
+    ];
+    const output = makeScoredOutput({});
+    const map = new Map([['react_quickstart|claude-code|global.anthropic.claude-opus-4-8', graders]]);
+    const [result] = buildAxisScores(output, map);
+
+    expect(result.graders[0].judge_input_hash).toBe('b'.repeat(64));
+    expect(result.graders[1]).not.toHaveProperty('judge_input_hash');
+    expect(result.graders[2]).not.toHaveProperty('judge_input_hash');
+  });
+
   it('sets interruptions to 0 when no interruption tools appear in the transcript', () => {
     const output = makeScoredOutput({});
     output.results[0].output.transcript = [

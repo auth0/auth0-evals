@@ -30,7 +30,7 @@ import type { SecretExposure } from './secret-exposure.js';
 import { JUDGE_DEFAULT_MAX_TOKENS } from './llm-judge.js';
 
 // Re-export llmJudge from its dedicated module for backward compatibility.
-export { llmJudge, JUDGE_DEFAULT_MAX_TOKENS } from './llm-judge.js';
+export { llmJudge, buildJudgeRequest, JUDGE_DEFAULT_MAX_TOKENS } from './llm-judge.js';
 
 // ── Register built-in executors ──────────────────────────────────────────────
 
