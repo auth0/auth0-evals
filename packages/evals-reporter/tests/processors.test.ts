@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { loadScores } from '../src/report/processors.js';
+import { loadScores, summariseBySplit } from '../src/report/processors.js';
 import { makeTmpDir } from './tmp.js';
 
 const tmpDir = makeTmpDir('processors_test_');
@@ -51,5 +51,37 @@ describe('loadScores', () => {
     writeFileSync(obj, JSON.stringify({ eval_id: 'x' }));
 
     expect(() => loadScores([obj])).toThrow(new RegExp(`Scores file .*obj\\.json must contain a JSON array`));
+  });
+});
+
+describe('summariseBySplit', () => {
+  const RESULTS: Record<string, unknown>[] = [
+    { eval_id: 'mfa_react', model: 'm', mode: 'agent', split: 'tuning', grader_pass_rate: 0.8 },
+    { eval_id: 'mfa_vue', model: 'm', mode: 'agent', split: 'tuning', grader_pass_rate: 1.0 },
+    { eval_id: 'passkeys_react', model: 'm', mode: 'agent', split: 'heldout', grader_pass_rate: 0.5 },
+    { eval_id: 'passkeys_vue', model: 'm', mode: 'agent', split: 'heldout', status: 'error' },
+  ];
+
+  it('averages tuning results on their own', () => {
+    const tuning = summariseBySplit(RESULTS).tuning.agent!;
+    expect(tuning.runs).toBe(2);
+    expect(tuning.meanPassRate).toBeCloseTo(0.9);
+  });
+
+  it('counts held-out errors as runs but leaves them out of the mean', () => {
+    expect(summariseBySplit(RESULTS).heldout.agent).toEqual({ runs: 2, meanPassRate: 0.5 });
+  });
+
+  it('puts results with no split under unlabelled, keyed by variant', () => {
+    const summary = summariseBySplit([
+      { eval_id: 'x', model: 'm', mode: 'agent', tools: ['skills'], grader_pass_rate: 1 },
+    ]);
+    expect(summary.unlabelled['agent+skills']).toEqual({ runs: 1, meanPassRate: 1 });
+    expect(summary.tuning).toEqual({});
+  });
+
+  it('gives a null mean when a variant has only errors', () => {
+    const summary = summariseBySplit([{ eval_id: 'x', model: 'm', mode: 'agent', split: 'heldout', status: 'error' }]);
+    expect(summary.heldout.agent).toEqual({ runs: 1, meanPassRate: null });
   });
 });

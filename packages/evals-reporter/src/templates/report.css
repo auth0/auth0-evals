@@ -661,3 +661,43 @@ a { color: var(--link); }
   background: var(--surface-2);
   color: var(--text-bright);
 }
+
+/* ── Split summary ──────────────────────────────────────────────────────── */
+.split-summary-note {
+  font-size: 13px;
+  color: var(--text-sec);
+  margin: 0 0 12px;
+}
+.split-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.split-summary-group { min-width: 280px; }
+.split-summary-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-medium);
+  margin: 0 0 6px;
+}
+.split-summary-table { border-collapse: collapse; font-size: 13px; }
+.split-summary-table th,
+.split-summary-table td {
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+  text-align: left;
+}
+.split-summary-table th { color: var(--text-ter); font-weight: 600; }
+.split-badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.split-badge--tuning { background: #e7f1ff; color: #1d4f91; }
+.split-badge--heldout { background: #fff1e0; color: #8a4b00; }

@@ -105,3 +105,11 @@ A low score points at one of three fixes: findability, content quality, or code 
 ## Weight changes require a sensitivity check
 
 Every past reshuffle was justified by the one case that broke, never checked against evals that weren't. Before merge: re-score existing results under old vs. new weights, report which evals change letter grade. No grade change = cosmetic, say so. Every result is stamped with the weight-vector version that scored it.
+## Tuning and held-out
+
+Every eval family is labelled tuning or held-out in `apps/auth0-evals/eval-splits.json`, and every result records its label in `split` (see [ADDING_EVALS](ADDING_EVALS.md#tuning-or-held-out)).
+
+- Scores are reported per split and never blended. The HTML report's "Tuning vs held-out" section shows one table per split (runs and mean grader pass rate per variant); the runner's step summary shows one results table per split.
+- Held-out is the clean check: nobody tuned against those evals, so a held-out score that holds up is evidence a change carries over. A tuning score that rises only shows the change fixed what it targeted.
+- Results with no `split` (from a run without a split file) are reported as "Unlabelled", on their own.
+- Error results count as runs but not in the mean pass rate.

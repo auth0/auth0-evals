@@ -9,10 +9,25 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import nunjucks from 'nunjucks';
 import { registerFilters } from './report-filters.js';
-import { MODES, resultVariant, groupResults, groupByVariant, computeDeltas } from './report/processors.js';
+import {
+  MODES,
+  resultVariant,
+  groupResults,
+  groupByVariant,
+  computeDeltas,
+  summariseBySplit,
+} from './report/processors.js';
 
 // Re-export for backward compatibility with existing consumers and tests.
-export { resultVariant, loadScores, groupResults, groupByVariant, computeDeltas } from './report/processors.js';
+export {
+  resultVariant,
+  loadScores,
+  groupResults,
+  groupByVariant,
+  computeDeltas,
+  summariseBySplit,
+} from './report/processors.js';
+export type { SplitGroup, SplitVariantSummary } from './report/processors.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -50,6 +65,14 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
 
   const groupedSortedKeys = Object.keys(grouped).sort();
 
+  // Tuning / held-out: only shown when results carry a split (a split file was configured).
+  const hasSplits = results.some((r) => r.split === 'tuning' || r.split === 'heldout');
+  const splitSummary = summariseBySplit(results);
+  const evalSplits: Record<string, string> = {};
+  for (const r of results) {
+    if (typeof r.split === 'string') evalSplits[r.eval_id as string] = r.split;
+  }
+
   const env = nunjucks.configure(resolveTemplatesDir(), {
     autoescape: true,
     noCache: true,
@@ -70,6 +93,9 @@ export function renderHtml(results: Record<string, unknown>[], generatedAt: stri
     variants_present: variantsPresent,
     evals_run: evalsRun,
     generated_at: generatedAt,
+    has_splits: hasSplits,
+    split_summary: splitSummary,
+    eval_splits: evalSplits,
     MODES,
   });
 }
