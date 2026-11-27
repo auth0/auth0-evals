@@ -40,6 +40,8 @@ import {
   loadEval,
   loadConfig,
   discoverEvals,
+  loadSplitsForEvals,
+  EvalConfigError,
   serialiseBaseline,
   serialiseAgent,
   serialiseError,
@@ -85,12 +87,14 @@ import type {
   VerifierCredentials,
   FixtureSession,
   FixtureArtifactData,
+  SplitSelector,
 } from '@a0/evals-core';
 
 import { parseRunConfig, extractConfigPath } from './config.js';
 import type { GradeFilters } from './config.js';
 import { spawnEval, mergeIntoOutput } from './subprocess-runner.js';
 import { DEFAULT_AGENT_TYPE } from './constants.js';
+import type { Phase } from './constants.js';
 import { resolveOutputPath, mergeResults, loadResults, saveResults } from '../persistence/index.js';
 import { runBaseline } from '../runners/baseline.js';
 import { score } from '../scorer.js';
@@ -787,6 +791,66 @@ export function buildSubprocessArgs(argv: string[] = process.argv.slice(2)): str
   return stripped;
 }
 
+// ── Tuning / held-out split ──────────────────────────────────────────────────
+
+/** Inputs to {@link selectEvalsBySplit} beyond the evals and the split. */
+export interface SplitSelectionOptions {
+  /** Eval IDs named with `--eval`. A named eval the split would drop is an error, never a silent skip. */
+  explicitEvalIds: string[];
+  /** `true` when the framework config names a split file, so every eval carries a `split` label. */
+  splitsConfigured: boolean;
+  /** `true` when `--split` was passed explicitly. */
+  splitFromCli: boolean;
+}
+
+/**
+ * Keeps the evals on the requested side of the tuning / held-out split.
+ *
+ * With no split file configured and no `--split` flag, returns `evals` unchanged, so
+ * a config without `splitsFile` behaves exactly as before.
+ *
+ * @throws {Error} When `--split heldout|tuning` is passed without a split file, or when
+ *   an eval named with `--eval` is on the other side of the split.
+ */
+export function selectEvalsBySplit(
+  evals: EvalConfig[],
+  split: SplitSelector,
+  opts: SplitSelectionOptions,
+): EvalConfig[] {
+  if (!opts.splitsConfigured) {
+    if (opts.splitFromCli && split !== 'all') {
+      throw new Error(`--split ${split} needs splitsFile in eval.config.js; no split file is configured.`);
+    }
+    return evals;
+  }
+  if (split === 'all') return evals;
+
+  const kept = evals.filter((e) => e.split === split);
+  const keptIds = new Set(kept.map((e) => e.id));
+  const dropped = opts.explicitEvalIds.filter((id) => !keptIds.has(id));
+  if (dropped.length > 0) {
+    const other = split === 'tuning' ? 'heldout' : 'tuning';
+    throw new Error(
+      `Eval(s) ${dropped.join(', ')} are not in the ${split} split. ` +
+        `Pass --split ${other} or --split all to run them.`,
+    );
+  }
+  return kept;
+}
+
+/**
+ * Applies {@link selectEvalsBySplit} to every phase except `grade`. The grade phase
+ * grades whatever artefacts the agent phase produced, so it never filters by split.
+ */
+export function selectEvalsForPhase(
+  evals: EvalConfig[],
+  phase: Phase,
+  split: SplitSelector,
+  opts: SplitSelectionOptions,
+): EvalConfig[] {
+  return phase === 'grade' ? evals : selectEvalsBySplit(evals, split, opts);
+}
+
 // ── Job routing ───────────────────────────────────────────────────────────────
 
 /**
@@ -914,6 +978,8 @@ export async function runCli(): Promise<void> {
     phase,
     artifactDir,
     gradeFilters,
+    split,
+    splitFromCli,
   } = config;
 
   // Validate required runtime fields
@@ -936,9 +1002,18 @@ export async function runCli(): Promise<void> {
 
   const frameworkRoot = process.cwd();
   // The agent phase must not need grader files on disk, so it discovers evals by PROMPT.md alone.
-  const evaluations = discoverEvals(frameworkConfig.evalsDir, frameworkRoot, {
+  const discovered = discoverEvals(frameworkConfig.evalsDir, frameworkRoot, {
     requireGraders: phase !== 'agent',
   });
+  // Label every eval tuning or held-out from the split file (no-op without splitsFile).
+  let evaluations: EvalConfig[];
+  try {
+    evaluations = loadSplitsForEvals(discovered, frameworkRoot, frameworkConfig.splitsFile ?? '');
+  } catch (e) {
+    if (!(e instanceof EvalConfigError)) throw e;
+    logger.error(`[Config] ${e.message}`);
+    process.exit(1);
+  }
   if (evaluations.length === 0) {
     logger.error(
       `[Config] No evaluations found in evalsDir '${frameworkConfig.evalsDir}'. ` +
@@ -959,7 +1034,25 @@ export async function runCli(): Promise<void> {
 
   logger.info(`[Config] evalsDir=${frameworkConfig.evalsDir}`);
 
-  const registry = evalIds.length > 0 ? evaluations.filter((e) => evalIds.includes(e.id)) : evaluations;
+  const requested = evalIds.length > 0 ? evaluations.filter((e) => evalIds.includes(e.id)) : evaluations;
+
+  const splitsConfigured = Boolean(frameworkConfig.splitsFile);
+  let registry: EvalConfig[];
+  try {
+    registry = selectEvalsForPhase(requested, phase, split, {
+      explicitEvalIds: evalIds,
+      splitsConfigured,
+      splitFromCli,
+    });
+  } catch (e) {
+    logger.error(`[Split] ${(e as Error).message}`);
+    process.exit(1);
+  }
+  if (splitsConfigured && phase !== 'grade') {
+    const line = `[Split] split=${split} (${registry.length} eval(s))`;
+    if (split === 'tuning') logger.info(line);
+    else logger.warn(`${line}. Held-out results are for the held-out check; do not tune against them.`);
+  }
 
   if (registry.length === 0) {
     logger.error('No evals to run. Check your --eval flag.');

@@ -9,7 +9,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { buildJobList, buildSubprocessArgs, dropBaselineFixtureJobs, resolveAgentType } from '../src/cli/run.js';
+import {
+  buildJobList,
+  buildSubprocessArgs,
+  dropBaselineFixtureJobs,
+  resolveAgentType,
+  selectEvalsBySplit,
+  selectEvalsForPhase,
+} from '../src/cli/run.js';
 import { DEFAULT_AGENT_TYPE } from '../src/cli/constants.js';
 import type { EvalConfig } from '@a0/evals-core';
 import { makeTmpDir } from './tmp.js';
@@ -466,5 +473,69 @@ describe('resolveAgentType', () => {
     expect(resolveAgentType('gemini-3.8-flash', undefined)).toBe('gemini-cli');
     expect(resolveAgentType('gpt-5.6-sol', undefined)).toBe('codex');
     expect(resolveAgentType('some-other-model', undefined)).toBe(DEFAULT_AGENT_TYPE);
+  });
+});
+
+// ── tuning / held-out split ──────────────────────────────────────────────────
+
+describe('selectEvalsBySplit', () => {
+  const TUNING = { ...makeEvalCfg('mfa_react'), category: 'mfa', split: 'tuning' } as EvalConfig;
+  const HELDOUT = { ...makeEvalCfg('passkeys_react'), category: 'passkeys', split: 'heldout' } as EvalConfig;
+  const EVALS = [TUNING, HELDOUT];
+  const configured = { explicitEvalIds: [] as string[], splitsConfigured: true, splitFromCli: false };
+
+  it('keeps only tuning evals by default', () => {
+    expect(selectEvalsBySplit(EVALS, 'tuning', configured).map((e) => e.id)).toEqual(['mfa_react']);
+  });
+
+  it('keeps only held-out evals for heldout', () => {
+    const opts = { ...configured, splitFromCli: true };
+    expect(selectEvalsBySplit(EVALS, 'heldout', opts).map((e) => e.id)).toEqual(['passkeys_react']);
+  });
+
+  it('keeps everything for all', () => {
+    const opts = { ...configured, splitFromCli: true };
+    expect(selectEvalsBySplit(EVALS, 'all', opts)).toEqual(EVALS);
+  });
+
+  it('refuses to drop a held-out eval named with --eval, and says how to run it', () => {
+    const opts = { ...configured, explicitEvalIds: ['passkeys_react'] };
+    expect(() => selectEvalsBySplit([HELDOUT], 'tuning', opts)).toThrow(/passkeys_react[\s\S]*--split heldout/);
+  });
+
+  it('returns the evals unchanged when no split file is configured and --split was not passed', () => {
+    const unlabelled = [makeEvalCfg('a'), makeEvalCfg('b')];
+    const opts = { explicitEvalIds: [], splitsConfigured: false, splitFromCli: false };
+    expect(selectEvalsBySplit(unlabelled, 'tuning', opts)).toBe(unlabelled);
+  });
+
+  it('rejects --split heldout when no split file is configured', () => {
+    const opts = { explicitEvalIds: [], splitsConfigured: false, splitFromCli: true };
+    expect(() => selectEvalsBySplit([makeEvalCfg('a')], 'heldout', opts)).toThrow(/splitsFile/);
+  });
+
+  it('accepts --split all when no split file is configured', () => {
+    const unlabelled = [makeEvalCfg('a')];
+    const opts = { explicitEvalIds: [], splitsConfigured: false, splitFromCli: true };
+    expect(selectEvalsBySplit(unlabelled, 'all', opts)).toEqual(unlabelled);
+  });
+});
+
+describe('selectEvalsForPhase', () => {
+  const HELDOUT = { ...makeEvalCfg('passkeys_react'), category: 'passkeys', split: 'heldout' } as EvalConfig;
+  const opts = { explicitEvalIds: [] as string[], splitsConfigured: true, splitFromCli: false };
+
+  it('never filters the grade phase, so held-out artefacts are still graded under the default split', () => {
+    expect(selectEvalsForPhase([HELDOUT], 'grade', 'tuning', opts)).toEqual([HELDOUT]);
+  });
+
+  it.each(['agent', 'all'] as const)('filters the %s phase by split', (phase) => {
+    expect(selectEvalsForPhase([HELDOUT], phase, 'tuning', opts)).toEqual([]);
+  });
+});
+
+describe('buildSubprocessArgs — --split', () => {
+  it('keeps --split so a child job can run a held-out eval', () => {
+    expect(buildSubprocessArgs(['--eval', 'a', '--split', 'heldout'])).toEqual(['--split', 'heldout']);
   });
 });

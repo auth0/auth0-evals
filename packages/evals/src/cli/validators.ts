@@ -6,6 +6,7 @@
  */
 
 import { logger } from '@a0/evals-core';
+import type { SplitSelector } from '@a0/evals-core';
 import {
   ALL_MODES,
   KNOWN_TOOLS,
@@ -126,6 +127,19 @@ export function validateAgentType(agentType: string | undefined): AgentType | un
     process.exit(1);
   }
   return agentType as AgentType | undefined;
+}
+
+/** Values accepted by `--split`. */
+export const KNOWN_SPLITS: readonly SplitSelector[] = ['tuning', 'heldout', 'all'];
+
+/** Validates the `--split` flag. Defaults to `tuning`, so held-out evals only run when asked for. */
+export function validateSplit(split: string | undefined): SplitSelector {
+  if (split === undefined) return 'tuning';
+  if (!(KNOWN_SPLITS as readonly string[]).includes(split)) {
+    logger.error(`Invalid --split: ${split}. Choose from: ${KNOWN_SPLITS.join(', ')}`);
+    process.exit(1);
+  }
+  return split as SplitSelector;
 }
 
 /** Validates the `--phase` flag against KNOWN_PHASES. Defaults to `all`. */

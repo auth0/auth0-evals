@@ -6,6 +6,7 @@
  */
 
 import { Command } from 'commander';
+import type { SplitSelector } from '@a0/evals-core';
 import {
   DEFAULT_MODEL,
   KNOWN_TOOLS,
@@ -25,6 +26,7 @@ import {
   validateAgentType,
   validatePhase,
   validatePhaseOptions,
+  validateSplit,
 } from './validators.js';
 
 /** Validated, fully-resolved configuration derived from the CLI flags. */
@@ -72,6 +74,13 @@ export interface RunConfig {
    * "filter to this" from "not given".
    */
   gradeFilters: GradeFilters;
+  /**
+   * Which side of the tuning / held-out split to run (`--split`). Defaults to `tuning`.
+   * Ignored by `--phase grade`, which grades every artefact it is given.
+   */
+  split: SplitSelector;
+  /** `true` when `--split` was passed explicitly, rather than defaulted. */
+  splitFromCli: boolean;
 }
 
 /** Artefact filters for `--phase grade`; an absent field means "do not filter on it". */
@@ -165,7 +174,11 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
       '--phase <phase>',
       'Run phase: agent (run model, write artefact) | grade (grade stored artefacts) | all (default). agent/grade require --artifact-dir and --dangerously-skip-sandbox.',
     )
-    .option('--artifact-dir <dir>', 'Directory where run artefacts are written (agent phase) or read (grade phase)');
+    .option('--artifact-dir <dir>', 'Directory where run artefacts are written (agent phase) or read (grade phase)')
+    .option(
+      '--split <split>',
+      'Tuning / held-out split: tuning (default) | heldout | all. Needs splitsFile in eval.config.js. Ignored by --phase grade.',
+    );
 
   program.parse(argv);
   const opts = program.opts();
@@ -185,6 +198,7 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
   const sandbox = !(opts.dangerouslySkipSandbox as boolean);
   validatePhaseOptions(phase, artifactDir, sandbox, opts.output as string | undefined);
   const fromCli = (key: string): boolean => program.getOptionValueSource(key) === 'cli';
+  const split = validateSplit(opts.split as string | undefined);
   const gradeFilters: GradeFilters = {
     ...(fromCli('model') ? { models } : {}),
     ...(fromCli('mode') ? { modes } : {}),
@@ -208,5 +222,7 @@ export function parseRunConfig(argv: string[], options: ParseRunConfigOptions = 
     phase,
     artifactDir,
     gradeFilters,
+    split,
+    splitFromCli: fromCli('split'),
   };
 }
