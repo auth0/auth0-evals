@@ -21,6 +21,10 @@ const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK_PROXY === '1';
 export default {
   evalsDir: 'src/evals',
 
+  // Tuning / held-out split by feature family. Every family must be listed;
+  // see docs/ADDING_EVALS.md "Tuning or held-out".
+  splitsFile: 'eval-splits.json',
+
   proxy: {
     baseUrl: PROXY_BASE_URL,
   },

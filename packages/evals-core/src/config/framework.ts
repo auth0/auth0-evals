@@ -200,4 +200,11 @@ export interface FrameworkConfig {
    * by default.
    */
   cliContext?: Record<string, string>;
+  /**
+   * Path, relative to the project root, of the tuning / held-out split file
+   * (e.g. `'eval-splits.json'`). Every eval family must be labelled in it; the
+   * CLI then selects evals by split and stamps the split on every result.
+   * Empty (the default) disables splits: every eval runs, and results carry no split.
+   */
+  splitsFile?: string;
 }

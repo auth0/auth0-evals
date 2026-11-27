@@ -240,3 +240,16 @@ describe('runGradePhase', () => {
     expect(outcome.failed).toBe(true);
   });
 });
+
+describe('runGradePhase — split', () => {
+  it('stamps the eval split on a graded error artefact', async () => {
+    const frameworkRoot = tmp();
+    const artifacts = join(frameworkRoot, 'art');
+    writeError(artifacts, { name: 'pk', evalId: 'passkeys_react', createdAt: '2026-10-01T00:00:00Z' });
+    const registry = [{ id: 'passkeys_react', category: 'passkeys', path: 'p', split: 'heldout' }] as EvalConfig[];
+    const errors = vi.spyOn(logger, 'error').mockImplementation(() => {});
+    const outcome = await runGradePhase(options(frameworkRoot, artifacts, { registry }));
+    errors.mockRestore();
+    expect(outcome.results.map((r) => r.split)).toEqual(['heldout']);
+  });
+});

@@ -74,6 +74,8 @@ function mapResult(result: JobResult): {
   if (result.category) tags.push(result.category);
   const tools = 'tools' in result ? result.tools : [];
   if (tools.length > 0) tags.push(...tools);
+  // Lets Braintrust filter tuning and held-out rows apart; they must never be read together.
+  if (result.split) tags.push(result.split);
 
   // Per-grader and per-dimension detail — available on row drill-down, not as columns
   const graderDetail = graders.map((g) => ({ name: g.name, kind: g.kind, passed: g.passed }));
@@ -89,6 +91,7 @@ function mapResult(result: JobResult): {
       mode: result.mode,
       eval_id: result.eval_id,
       category: result.category,
+      split: result.split,
       tools,
       session_id: 'session_id' in result ? result.session_id : undefined,
       status: result.status,

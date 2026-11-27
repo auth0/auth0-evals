@@ -98,6 +98,25 @@ describe('mapResult', () => {
     };
   }
 
+  // ── split ──
+
+  it('records a held-out split in metadata and tags', () => {
+    const { metadata, tags } = mapResult({ ...makeAgentResult(), split: 'heldout' });
+    expect(metadata.split).toBe('heldout');
+    expect(tags).toContain('heldout');
+  });
+
+  it('records the split of an error result', () => {
+    expect(mapResult(makeErrorResult({ split: 'tuning' })).tags).toContain('tuning');
+  });
+
+  it('adds no split tag when the result has none', () => {
+    const { metadata, tags } = mapResult(makeAgentResult());
+    expect(metadata.split).toBeUndefined();
+    expect(tags).not.toContain('tuning');
+    expect(tags).not.toContain('heldout');
+  });
+
   // ── spanAttributes (row name) ──
 
   it('sets span name to eval_id / model', () => {

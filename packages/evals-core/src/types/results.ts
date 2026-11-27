@@ -6,6 +6,7 @@ import type { GraderLevel } from './graders.js';
 import type { TraceStep, TurnMetricEntry } from './agents.js';
 import type { AgentType } from './agents.js';
 import type { Recommendations } from '../recommendations/types.js';
+import type { EvalSplit } from '../splits/types.js';
 
 /** Serialised outcome of a single grader check, included in every result type. */
 export interface GraderSummary {
@@ -48,6 +49,8 @@ export interface BaselineJobResult {
   eval_id: string;
   /** Eval category, e.g. `"quickstarts"`. */
   category: string;
+  /** Tuning / held-out split of the eval's family. Absent when no split file is configured. */
+  split?: EvalSplit;
   /** The user prompt that was sent to the model. */
   prompt: string;
   /** Raw text returned by the model. */
@@ -93,6 +96,8 @@ export interface AgentJobResult {
   eval_id: string;
   /** Eval category, e.g. `"quickstarts"`. */
   category: string;
+  /** Tuning / held-out split of the eval's family. Absent when no split file is configured. */
+  split?: EvalSplit;
   /** The user prompt that was sent to the agent. */
   prompt: string;
   /** The agent's final summary text. */
@@ -165,6 +170,8 @@ export interface ErrorJobResult {
   tools: string[];
   /** Eval category. */
   category: string;
+  /** Tuning / held-out split of the eval's family. Absent when no split file is configured. */
+  split?: EvalSplit;
   /** Always `"error"` — discriminant for this variant. */
   status: 'error';
   /** Stringified error message. */

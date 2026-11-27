@@ -39,3 +39,13 @@ describe('serialiseError', () => {
     expect(result.error).toBe(`Request failed: Authorization: Bearer ${REDACTION_MARKER}`);
   });
 });
+
+describe('serialiseError — split', () => {
+  it('records the split when given', () => {
+    expect(serialiseError('mfa_react', 'mfa', 'm', 'agent', [], 'boom', 'tuning').split).toBe('tuning');
+  });
+
+  it('omits the split key when not given', () => {
+    expect('split' in serialiseError('mfa_react', 'mfa', 'm', 'agent', [], 'boom')).toBe(false);
+  });
+});

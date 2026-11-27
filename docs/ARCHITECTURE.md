@@ -25,9 +25,10 @@ flowchart TB
         subgraph CLI["1 · Kick off — @a0/evals"]
             direction TB
             Bin["Start a run<br/>bin.ts (local or CI)"]
+            Split["Pick tuning or held-out evals<br/>loadSplitsForEvals() · --split"]
             Matrix["Plan the work<br/>buildJobList()<br/>eval × model × mode × tools"]
             Pool["Run jobs in parallel<br/>pLimit(workers) · spawnEval()"]
-            Bin --> Matrix --> Pool
+            Bin --> Split --> Matrix --> Pool
         end
 
         subgraph Setup["2 · Prepare each job — @a0/evals-core"]
@@ -81,7 +82,7 @@ flowchart TB
     classDef work    fill:#FFE8CC,stroke:#E8590C,color:#1A1A2E;
     classDef data    fill:#D3F9D8,stroke:#2F9E44,color:#1A1A2E;
 
-    class Bin,Matrix,Pool,Discover,WS,Engine,Judge,Scorer,Recs control;
+    class Bin,Split,Matrix,Pool,Discover,WS,Engine,Judge,Scorer,Recs control;
     class Runners,Invest work;
     class Results,Report,BT data;
 
@@ -103,7 +104,7 @@ Bottom-up, with a clean acyclic dependency graph (`@a0/evals-graders` is the lea
 
 ### `@a0/evals-core`
 - **Purpose**: Evaluation engine.
-- **Responsibilities**: Eval discovery (`discoverEvals`) and loading (`loadEval`); framework config load/merge (`loadConfig`, `defineConfig`); workspace lifecycle (`setupWorkspace`, `cleanupWorkspace`, `writeAgentGuidance`); grader engine with a pluggable executor **registry** (`registerExecutor`/`getExecutor`/`executeGrader`); LLM judge; the `AgentRunner` and `ToolTranslator` interfaces; trace classification; result serializers.
+- **Responsibilities**: Eval discovery (`discoverEvals`) and loading (`loadEval`); framework config load/merge (`loadConfig`, `defineConfig`); workspace lifecycle (`setupWorkspace`, `cleanupWorkspace`, `writeAgentGuidance`); grader engine with a pluggable executor **registry** (`registerExecutor`/`getExecutor`/`executeGrader`); LLM judge; the `AgentRunner` and `ToolTranslator` interfaces; trace classification; result serializers; the tuning / held-out split (`loadSplitsForEvals` validates `eval-splits.json` against the discovered evals and labels each one). The CLI applies `--split` right after discovery, before building jobs; `--phase grade` never filters by split.
 - **Dependencies**: `@a0/evals-graders`.
 - **Type**: Application infrastructure / engine.
 

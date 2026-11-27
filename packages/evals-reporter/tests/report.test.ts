@@ -396,3 +396,36 @@ describe('computeDeltas', () => {
     expect(deltas['agent+Skills']['react_quickstart']['gpt-5.2']).toBeCloseTo(0.5);
   });
 });
+
+describe('renderHtml — tuning vs held-out', () => {
+  const RESULTS = [
+    makeResult('mfa_react', 'm', 'agent', { split: 'tuning', grader_pass_rate: 0.8 }),
+    makeResult('mfa_vue', 'm', 'agent', { split: 'tuning', grader_pass_rate: 1.0 }),
+    makeResult('passkeys_react', 'm', 'agent', { split: 'heldout', grader_pass_rate: 0.5 }),
+  ];
+
+  it('renders separate Tuning and Held-out tables', () => {
+    const html = renderHtml(RESULTS, '2026-11-27 00:00');
+    expect(html).toContain('Tuning vs held-out');
+    expect(html).toMatch(/split-summary-title">\s*Tuning/);
+    expect(html).toMatch(/split-summary-title">\s*Held-out/);
+    expect(html).toContain('90%');
+    expect(html).toContain('50%');
+  });
+
+  it('never shows a blended mean of tuning and held-out', () => {
+    // (0.8 + 1.0 + 0.5) / 3 = 77%
+    expect(renderHtml(RESULTS, '2026-11-27 00:00')).not.toContain('77%');
+  });
+
+  it('badges each eval column with its split', () => {
+    const html = renderHtml(RESULTS, '2026-11-27 00:00');
+    expect(html).toMatch(/passkeys_react<\/div>\s*<span class="split-badge split-badge--heldout">held-out<\/span>/);
+  });
+
+  it('omits the section when no result has a split', () => {
+    const html = renderHtml([makeResult()], '2026-11-27 00:00');
+    expect(html).not.toContain('Tuning vs held-out');
+    expect(html).not.toContain('class="split-badge');
+  });
+});

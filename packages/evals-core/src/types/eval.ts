@@ -7,6 +7,7 @@
  */
 
 import type { FixtureDef, GraderDef } from '@a0/evals-graders';
+import type { EvalSplit } from '../splits/types.js';
 export type { GraderDef } from '@a0/evals-graders';
 
 export interface EvalDefinition {
@@ -37,4 +38,6 @@ export interface EvalDefinition {
   fixture?: FixtureDef;
   skills: string[];
   metadata: Record<string, string>;
+  /** Tuning or held-out, from the split file. Absent when no split file is configured. */
+  split?: EvalSplit;
 }

@@ -367,6 +367,24 @@ Three things to know about how the copy works:
 
 No manual registration step is needed. The framework auto-discovers evals by scanning `evalsDir` for directories containing both `PROMPT.md` and `graders.ts`. The `id` field in `PROMPT.md` frontmatter is used as the eval identifier.
 
+### Tuning or held-out
+
+Evals are split by feature family (the eval's `category`: its folder under `src/evals/`, or `category:` in frontmatter). Each family is either **tuning** or **held-out**, and the label lives in [`apps/auth0-evals/eval-splits.json`](../apps/auth0-evals/eval-splits.json):
+
+- **Tuning** evals are the ones you run, read, and fix against day to day.
+- **Held-out** evals check that a change carries over to evals nobody tuned on. A reviewer who did not make the change runs them before merge.
+
+Families are paired (e.g. `mfa` with `passkeys`): one side of each pair is tuning and the other held out, and the pair swaps when the split rotates. `history` records each rotation.
+
+When you add an eval:
+
+- **In an existing family:** nothing to do. The eval inherits its family's label.
+- **In a new family:** add the family to `families` as `"tuning"`. The build fails until you do (`packages/evals/tests/eval-splits-file.test.ts`). A family needs at least 3 evals before it can be held out.
+
+While tuning, never read held-out evals' failures, traces, or graders to decide what to change. That would turn them into tuning evals and the held-out check would stop meaning anything.
+
+Background and the agreed approach: [Evals Foundation: Tuning and Held-Out Evals](https://oktainc.atlassian.net/wiki/spaces/DXSDK/pages/1225656981).
+
 ---
 
 ## 5. Run and Iterate

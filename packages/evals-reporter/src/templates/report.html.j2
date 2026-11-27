@@ -36,7 +36,7 @@
 {# ── summary table for a single mode ────────────────────────────────────── #}
 {# Rows = models, Columns = evals                                            #}
 
-{% macro render_summary_table_for_mode(variant, variant_grouped, evals_run, models_run, deltas) %}
+{% macro render_summary_table_for_mode(variant, variant_grouped, evals_run, models_run, deltas, eval_splits) %}
 {% set mode_data = variant_grouped[variant] if variant_grouped[variant] else {} %}
 {% set mode_deltas = deltas[variant] if deltas[variant] else {} %}
 <div class="summary-wrap">
@@ -47,6 +47,9 @@
         {% for eval_id in evals_run %}
         <th class="summary-column-heading">
           <div class="summary-column-model">{{ eval_id }}</div>
+          {% if eval_splits[eval_id] %}
+          <span class="split-badge split-badge--{{ eval_splits[eval_id] }}">{{ 'held-out' if eval_splits[eval_id] == 'heldout' else eval_splits[eval_id] }}</span>
+          {% endif %}
         </th>
         {% endfor %}
       </tr>
@@ -460,6 +463,41 @@
     </div>
   </div>
 
+  {% if has_splits %}
+  {# Tuning and held-out are reported side by side and never blended into one number. #}
+  <h2 class="section-heading">Tuning vs held-out</h2>
+  <p class="split-summary-note">Held-out evals check whether a change carried over to evals nobody tuned on. Do not tune against them.</p>
+  <div class="split-summary">
+    {% for group, title in [['tuning', 'Tuning'], ['heldout', 'Held-out'], ['unlabelled', 'Unlabelled']] %}
+    {% set variants = split_summary[group] %}
+    {% if variants | length %}
+    <div class="split-summary-group">
+      <h3 class="split-summary-title">{{ title }}</h3>
+      <table class="split-summary-table">
+        <thead><tr><th>Variant</th><th>Runs</th><th>Mean grader pass rate</th></tr></thead>
+        <tbody>
+          {% for variant in variants_present %}
+          {% if variants[variant] %}
+          {% set s = variants[variant] %}
+          <tr>
+            <td>{{ variant }}</td>
+            <td>{{ s.runs }}</td>
+            {% if s.meanPassRate is not none %}
+            <td><span class="pct-value {{ s.meanPassRate | rate_css_class }}">{{ (s.meanPassRate * 100) | round | int }}%</span></td>
+            {% else %}
+            <td class="empty-cell">&mdash;</td>
+            {% endif %}
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <h2 class="section-heading">Summary</h2>
 
   {# Variant toggle buttons #}
@@ -472,7 +510,7 @@
   {# One summary panel per variant #}
   {% for variant in variants_present %}
   <div class="summary-panel {{ 'active' if loop.first }}" data-variant="{{ variant }}">
-    {{ render_summary_table_for_mode(variant, variant_grouped, evals_run, models_run, deltas) }}
+    {{ render_summary_table_for_mode(variant, variant_grouped, evals_run, models_run, deltas, eval_splits) }}
   </div>
   {% endfor %}
 

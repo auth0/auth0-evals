@@ -14,6 +14,49 @@ export function resultVariant(r: Record<string, unknown>): string {
   return tools.length > 0 ? `${mode}+${tools.join(',')}` : mode;
 }
 
+/** The three groups a result can fall into: its split, or `unlabelled` when it has none. */
+export type SplitGroup = 'tuning' | 'heldout' | 'unlabelled';
+
+/** Runs and mean grader pass rate for one variant within one split group. */
+export interface SplitVariantSummary {
+  /** Every result in the group, including errors. */
+  runs: number;
+  /** Mean `grader_pass_rate` of graded results; `null` when none were graded. */
+  meanPassRate: number | null;
+}
+
+/**
+ * Summarises results per split group and variant (mode+tools). Tuning and held-out
+ * results are never blended into one number. Error results count as runs but not in
+ * the mean, since they have no pass rate.
+ */
+export function summariseBySplit(
+  results: Record<string, unknown>[],
+): Record<SplitGroup, Record<string, SplitVariantSummary>> {
+  const sums: Record<SplitGroup, Record<string, { runs: number; total: number; graded: number }>> = {
+    tuning: {},
+    heldout: {},
+    unlabelled: {},
+  };
+  for (const r of results) {
+    const group: SplitGroup = r.split === 'tuning' || r.split === 'heldout' ? r.split : 'unlabelled';
+    const variant = resultVariant(r);
+    const acc = (sums[group][variant] ??= { runs: 0, total: 0, graded: 0 });
+    acc.runs++;
+    if (r.status !== 'error' && typeof r.grader_pass_rate === 'number') {
+      acc.total += r.grader_pass_rate;
+      acc.graded++;
+    }
+  }
+  const out: Record<SplitGroup, Record<string, SplitVariantSummary>> = { tuning: {}, heldout: {}, unlabelled: {} };
+  for (const group of Object.keys(sums) as SplitGroup[]) {
+    for (const [variant, acc] of Object.entries(sums[group])) {
+      out[group][variant] = { runs: acc.runs, meanPassRate: acc.graded > 0 ? acc.total / acc.graded : null };
+    }
+  }
+  return out;
+}
+
 export function loadScores(paths: string[]): Record<string, unknown>[] {
   const results: Record<string, unknown>[] = [];
   for (const p of paths) {

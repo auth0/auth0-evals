@@ -1,0 +1,26 @@
+{
+  "families": {
+    "quickstarts": "tuning",
+    "mfa": "tuning",
+    "passkeys": "heldout",
+    "organizations": "tuning",
+    "enterprise-connect": "heldout",
+    "custom-token-exchange": "tuning",
+    "token-vault": "heldout",
+    "dpop": "tuning",
+    "rbac": "tuning",
+    "multi-tenant": "tuning"
+  },
+  "pairs": [
+    ["mfa", "passkeys"],
+    ["organizations", "enterprise-connect"],
+    ["custom-token-exchange", "token-vault"]
+  ],
+  "history": [
+    {
+      "date": "2026-11-26",
+      "heldout": ["passkeys", "enterprise-connect", "token-vault"],
+      "note": "First period. Approach: https://oktainc.atlassian.net/wiki/spaces/DXSDK/pages/1225656981"
+    }
+  ]
+}

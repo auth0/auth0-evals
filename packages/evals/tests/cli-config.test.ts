@@ -436,3 +436,27 @@ describe('parseRunConfig — grade filters', () => {
     expect(parse(...GRADE, '--model', 'gpt-5.6-sol').gradeFilters).toEqual({ models: ['gpt-5.6-sol'] });
   });
 });
+
+// ── --split ──────────────────────────────────────────────────────────────────
+
+describe('parseRunConfig — --split', () => {
+  it('defaults to tuning, not from the CLI', () => {
+    const cfg = parse('--eval', VALID_EVAL_ID);
+    expect(cfg.split).toBe('tuning');
+    expect(cfg.splitFromCli).toBe(false);
+  });
+
+  it('accepts --split heldout and records that it came from the CLI', () => {
+    const cfg = parse('--split', 'heldout');
+    expect(cfg.split).toBe('heldout');
+    expect(cfg.splitFromCli).toBe(true);
+  });
+
+  it('accepts --split all', () => {
+    expect(parse('--split', 'all').split).toBe('all');
+  });
+
+  it('rejects an unknown split', () => {
+    expect(() => parse('--split', 'train')).toThrow('process.exit(1)');
+  });
+});
