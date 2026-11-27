@@ -11,7 +11,7 @@ This guide covers only what differs from a standard eval. For everything else (f
 | Artifact | files the agent wrote | the agent's **command trace** |
 | Scaffold | a starter app (`scaffold:`) | none for an app — but optionally a `seed.sh` that provisions tenant prerequisites (see [Seeding tenant prerequisites](#3-seeding-tenant-prerequisites-setup_command--scaffold)) |
 | Graders | `contains` / `matches` / `notContains` / `compiles` | event-based `ranCommand` / `ranCommandOneOf` / `ranCommandsInOrder` |
-| Judge | reads workspace files | reads the command trace (`input: 'both'`) |
+| Judge | reads workspace files | reads the command trace (`input: 'both'`; `traceCommands: 'all'` adds failed commands) |
 | Environment | local workspace | a live, throwaway tenant provisioned per run |
 
 Because the graders inspect the tool-call trace, these evals **only produce a meaningful signal in agent mode** — baseline mode runs no tools, so every grader fails there.
@@ -56,6 +56,8 @@ Grade the trace. The event primitives (all L4/L5, level required):
 - `ranCommandsInOrder(steps, description, level)` — commands ran in relative order. **Order is correctness, not style**: a factor must be enabled *before* the policy that enforces it. Each step may itself be a one-of array.
 
 End with one holistic `judge` (no level) with `{ input: 'both' }` — the eval writes no files, so the judge must see the commands to evaluate them.
+
+By default the trace lists only commands the runner reported as successful. To grade recovery, retries, or "did the agent try X", add `traceCommands: 'all'`, for example `{ input: 'trace', traceCommands: 'all' }`. Failed commands then stay in order, prefixed `[FAILED]`. The option throws when `input` is `'files'` or omitted. "Failed" uses each runner's own signal: a Claude Code tool error (`is_error`), a non-zero Codex exit code, a Gemini non-success status or timeout cancel, or a non-success Copilot result. A command with no result counts as failed. The trace still holds commands only, not their output.
 
 ```typescript
 import { ranCommand, ranCommandOneOf, ranCommandsInOrder, judge, GraderLevel } from '@a0/evals-graders';

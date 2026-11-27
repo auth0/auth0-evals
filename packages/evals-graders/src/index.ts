@@ -8,6 +8,7 @@ export type {
   GraderOptions,
   GraderSource,
   JudgeInput,
+  TraceCommands,
   EventToolCall,
   EventGraderLevel,
   NotRanCommandLevel,
