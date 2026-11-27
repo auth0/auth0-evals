@@ -99,9 +99,9 @@ export interface GraderDef {
    */
   context?: string;
   /**
-   * contains / not_contains / not_contains_in_source only. When true, comments
+   * contains / not_contains / not_contains_in_source / matches only. When true, comments
    * are stripped from source files before searching (string literals kept), so
-   * the needle matches real code but not a mention in a line or block comment.
+   * the needle (or regex) matches real code but not a mention in a line or block comment.
    * Defaults to false (search raw file text, unchanged). Only affects the file
    * corpus, not the agent reply.
    */

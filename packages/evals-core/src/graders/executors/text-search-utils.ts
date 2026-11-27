@@ -8,6 +8,13 @@ export const NON_SOURCE_EXTS = /\.(?:env|json|plist|xml|yaml|yml|toml|ini|cfg|co
 /** Filename prefixes that identify non-source (config-only) files. */
 export const NON_SOURCE_PREFIXES = /^\.env/;
 
+/** Joins files into one searchable string, each preceded by a `// FILE: <path>` header. */
+export function joinFilesWithHeaders(files: Record<string, string>): string {
+  return Object.entries(files)
+    .map(([k, v]) => `// FILE: ${k}\n${v}`)
+    .join('\n\n');
+}
+
 interface LangSyntax {
   /** Line-comment starters (e.g. `//`, `#`). */
   line: string[];

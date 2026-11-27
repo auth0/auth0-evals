@@ -1,18 +1,65 @@
-import { contains, notContains, notContainsInSource, judge, wroteFile, compiles, GraderLevel } from '@a0/evals-graders';
+import { matches, notContains, notContainsInSource, judge, wroteFile, compiles, GraderLevel } from '@a0/evals-graders';
+
+// ── Route-bound scope patterns ────────────────────────────────────────────────
+// Each pattern ties a scope to the route it guards, so a scope on the wrong route, in a global
+// app.use, after the handler, or only in a comment (ignoreComments) does not count.
+
+/** Any JS string quote. */
+const Q = String.raw`['"\`]`;
+/** One character inside a single-line string literal. */
+const STR_CHAR = String.raw`[^'"\`\n]`;
+/** Ends a route's middleware list: the handler (arrow/function), a statement end, or the next route call. */
+const STOP = String.raw`=>|\bfunction\b|;|\.(?:get|post|put|patch|delete|all|use|route)\s*\(`;
+/** Middleware arguments of one route call, up to its handler. */
+const ROUTE_ARGS = String.raw`(?:(?!${STOP})[\s\S]){0,400}?`;
+/** The value of one `const x = …` declaration (stops at the next declaration or route). */
+const DECL_VALUE = String.raw`(?:(?!${STOP}|\b(?:const|let|var)\b)[\s\S]){0,200}?`;
+
+/** A quoted string holding `scope` as one space-delimited token, e.g. 'write:transfers transfer:funds'. */
+const scopeString = (scope: string) => String.raw`${Q}(?:${STR_CHAR}*\s)?${scope}(?:\s${STR_CHAR}*)?${Q}`;
+
+/**
+ * requiredScopes(...) whose first argument requires `scope`, as a string or an array element.
+ * requiredScopes reads only its first argument, so requiredScopes('write:transfers', 'transfer:funds')
+ * never enforces transfer:funds and does not match it.
+ */
+const requiredScopesCall = (scope: string) =>
+  String.raw`\brequiredScopes\s*\(\s*(?:${scopeString(scope)}|\[[^\]]*?${Q}${scope}${Q}[^\]]*\])\s*[,)]`;
+
+/** `app.post('/path', …` or `app.route('/path').post(…`. */
+const routeHead = (method: string, path: string) =>
+  String.raw`(?:\.${method}\s*\(\s*${Q}${path}${Q}\s*,|\.route\s*\(\s*${Q}${path}${Q}\s*\)\s*\.${method}\s*\()`;
+
+/**
+ * `scope` guards `method path`: a requiredScopes call sits in the route's middleware arguments, or a
+ * variable holding one (const requireStepUp = requiredScopes('transfer:funds'), or an array of
+ * middleware) is passed there.
+ */
+const scopeOnRoute = (method: string, path: string, scope: string) =>
+  String.raw`(?:${routeHead(method, path)}${ROUTE_ARGS}${requiredScopesCall(scope)})` +
+  String.raw`|(?:\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=${DECL_VALUE}${requiredScopesCall(scope)}` +
+  String.raw`[\s\S]*?${routeHead(method, path)}${ROUTE_ARGS}(?<![\w$.])\1(?![\w$]))`;
+
+const CODE = { caseSensitive: true, ignoreComments: true } as const;
 
 export function defineGraders() {
   return [
     // ── L1: Required step-up symbols present ──────────────────────────────
-    contains('express-oauth2-jwt-bearer', 'Uses express-oauth2-jwt-bearer SDK', GraderLevel.L1),
-    contains('requiredScopes', 'Enforces the scope with the SDK requiredScopes middleware', GraderLevel.L1),
-    contains('transfer:funds', 'Gates the transfer on the step-up scope transfer:funds', GraderLevel.L1),
+    matches(
+      requiredScopesCall('transfer:funds'),
+      'Requires the step-up scope transfer:funds with requiredScopes',
+      GraderLevel.L1,
+      CODE,
+    ),
 
     // ── L2: Hallucination / wrong approach ───────────────────────────────
-    notContains('jsonwebtoken', 'No manual JWT decoding with jsonwebtoken', GraderLevel.L2),
-    notContains('speakeasy', 'No server-side TOTP library (speakeasy)', GraderLevel.L2),
-    notContains('otplib', 'No server-side TOTP library (otplib)', GraderLevel.L2),
-    notContains('@auth0/guardian', 'No fake Guardian server SDK', GraderLevel.L2),
-    notContains('mfa/challenge', 'Does not call the raw MFA challenge endpoint', GraderLevel.L2),
+    notContains('jsonwebtoken', 'No manual JWT decoding with jsonwebtoken', GraderLevel.L2, { ignoreComments: true }),
+    notContains('speakeasy', 'No server-side TOTP library (speakeasy)', GraderLevel.L2, { ignoreComments: true }),
+    notContains('otplib', 'No server-side TOTP library (otplib)', GraderLevel.L2, { ignoreComments: true }),
+    notContains('@auth0/guardian', 'No fake Guardian server SDK', GraderLevel.L2, { ignoreComments: true }),
+    notContains('mfa/challenge', 'Does not call the raw MFA challenge endpoint', GraderLevel.L2, {
+      ignoreComments: true,
+    }),
 
     // ── L3: Security checks ──────────────────────────────────────────────
     notContainsInSource(
@@ -28,26 +75,40 @@ export function defineGraders() {
       'api.barkbook.com',
     ]),
     compiles('Project compiles (node --check succeeds)', GraderLevel.L4),
-    contains('read:balance', 'Existing read:balance scope check on GET /api/balance retained', GraderLevel.L4),
-    // Grade the outcome (the transfer is gated on the step-up scope), not the exact call shape — a solution
-    // may require the scope with a second requiredScopes call, a combined requiredScopes('write:transfers',
-    // 'transfer:funds'), or a claimCheck on the scope claim.
+    matches(
+      scopeOnRoute('post', '/api/transfers', 'transfer:funds'),
+      'POST /api/transfers requires the step-up scope transfer:funds',
+      GraderLevel.L4,
+      CODE,
+    ),
+    matches(
+      scopeOnRoute('post', '/api/transfers', 'write:transfers'),
+      'POST /api/transfers requires write:transfers',
+      GraderLevel.L4,
+      CODE,
+    ),
+    matches(
+      scopeOnRoute('get', '/api/balance', 'read:balance'),
+      'GET /api/balance requires read:balance',
+      GraderLevel.L4,
+      CODE,
+    ),
     judge(
-      'Does POST /api/transfers require the transfer:funds scope so a token that lacks it is rejected — ' +
-        'while the existing write:transfers requirement is retained — using the SDK (requiredScopes, or a ' +
-        'claimCheck/claimIncludes on the scope claim) rather than proceeding with the transfer?',
+      'Does POST /api/transfers reject a token that lacks transfer:funds and also reject a token that lacks ' +
+        'write:transfers, with both scopes enforced through the express-oauth2-jwt-bearer requiredScopes ' +
+        'middleware? Answer no if transfer:funds is passed to requiredScopes as a second argument: ' +
+        'requiredScopes reads only its first argument, so that scope is never checked.',
       GraderLevel.L4,
     ),
     judge(
-      'Is the transfer:funds gate applied specifically to POST /api/transfers (not globally or to ' +
-        'GET /api/balance), and does read:balance scope enforcement still apply to GET /api/balance?',
+      'Is the transfer:funds requirement applied only to POST /api/transfers, so that GET /api/balance ' +
+        'requires read:balance but not transfer:funds, and no app-wide middleware demands transfer:funds?',
       GraderLevel.L4,
     ),
     judge(
-      'Does the scope-checking middleware run AFTER checkJwt in the route middleware chain for ' +
-        'POST /api/transfers? The scope claim is only available on req.auth.payload after checkJwt has ' +
-        'validated the token — if the scope check is registered before checkJwt, req.auth is undefined and ' +
-        'every request is rejected regardless of the scopes the caller actually holds.',
+      'Does every scope check run after checkJwt in its route middleware chain? The scope claim is only on ' +
+        'req.auth.payload once checkJwt has validated the token, so a scope check registered before checkJwt ' +
+        'rejects every request whatever scopes the caller holds.',
       GraderLevel.L4,
     ),
 
@@ -56,25 +117,22 @@ export function defineGraders() {
       'req.user',
       'No req.user (express-oauth2-jwt-bearer exposes claims on req.auth.payload)',
       GraderLevel.L5,
+      { ignoreComments: true },
     ),
-    // requiredScopes / claimCheck raise the SDK's own 403 insufficient_scope — the pattern the SDK
-    // examples teach. Manually parsing the space-delimited scope string or hand-decoding the JWT is the
-    // deprecated path this check rules out.
     judge(
-      'Does the solution enforce the scope through the SDK — requiredScopes, or claimCheck/claimIncludes ' +
-        'reading the scope claim off req.auth.payload — rather than manually splitting the space-delimited ' +
-        'scope string or hand-decoding the access token?',
+      'Does the solution enforce scopes with requiredScopes from express-oauth2-jwt-bearer, rather than ' +
+        'splitting the space-delimited scope string by hand, decoding the access token itself, or reading ' +
+        'claims from req.user?',
       GraderLevel.L5,
     ),
 
     // ── Holistic judge (no level — always runs) ───────────────────────────
     judge(
-      'Does the solution correctly add step-up enforcement to the Express API using ' +
-        'express-oauth2-jwt-bearer? POST /api/transfers must be gated on the transfer:funds scope — the ' +
-        'scope the tenant issues only after MFA step-up — so a token without it is rejected with the SDK’s ' +
-        '403 insufficient_scope, while the existing write:transfers check is retained. GET /api/balance must ' +
-        'still require read:balance. Claims are read from req.auth.payload, and issuer/audience come from ' +
-        'ISSUER_BASE_URL / AUDIENCE environment variables — judge only from source code.',
+      'Does the solution enforce MFA step-up on the Express API with express-oauth2-jwt-bearer? The tenant ' +
+        'adds transfer:funds to the access token only after the customer completes MFA, so POST /api/transfers ' +
+        'must require both transfer:funds and write:transfers, and GET /api/balance must require read:balance ' +
+        'but not transfer:funds. Each scope check must run after checkJwt, and the issuer and audience must ' +
+        'come from the ISSUER_BASE_URL and AUDIENCE environment variables. Judge only from source code.',
     ),
   ];
 }

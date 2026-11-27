@@ -67,6 +67,7 @@ export function matches(
     // caseSensitive: true to require an exact-case match.
     caseSensitive: options.caseSensitive,
     source: options.source,
+    ignoreComments: options.ignoreComments,
   };
 }
 
