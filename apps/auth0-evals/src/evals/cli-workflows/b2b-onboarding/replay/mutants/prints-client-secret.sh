@@ -9,4 +9,4 @@ auth0 connections enabled-clients update "$SEED_ACME_USERS_ID" --data "[{\"clien
 
 auth0 apps update "$SEED_SUPPLIER_PORTAL_ID" --organization-usage require --organization-require-behavior pre_login_prompt --no-input
 
-auth0 api get "clients/$SEED_SUPPLIER_PORTAL_ID" | jq -r .client_secret
+auth0 apps show "$SEED_SUPPLIER_PORTAL_ID" --reveal-secrets --no-input
