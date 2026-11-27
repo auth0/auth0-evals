@@ -1,8 +1,8 @@
-# Creates an extra organization on top of Acme. It is tagged with the run id so cleanup removes it.
+# Creates an extra organization on top of Acme. It has no run id tag, so cleanup removes it because it was not on the tenant before the run.
 # breaks: Created one "acme" organization displayed as "Acme Corp"
 auth0 orgs create --name acme --display "Acme Corp" --no-input
 
-auth0 orgs create --name acme-staging --display "Acme Corp Staging" --metadata "eval_run=$RUN_ID" --no-input
+auth0 orgs create --name acme-staging --display "Acme Corp Staging" --no-input
 
 ORG_ID=$(auth0 api get organizations/name/acme | jq -r .id)
 auth0 api post "organizations/$ORG_ID/enabled_connections" --data "{\"connection_id\":\"$SEED_ACME_USERS_ID\",\"assign_membership_on_login\":false}"

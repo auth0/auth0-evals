@@ -1,4 +1,4 @@
-# Does the task, then leaves an extra application behind. It is tagged with the run id so cleanup removes it.
+# Does the task, then leaves an extra application behind. It has no run id tag, so cleanup removes it because it was not on the tenant before the run.
 # breaks: No application or connection was created or deleted
 auth0 orgs create --name acme --display "Acme Corp" --no-input
 
@@ -9,4 +9,4 @@ auth0 connections enabled-clients update "$SEED_ACME_USERS_ID" --data "[{\"clien
 
 auth0 apps update "$SEED_SUPPLIER_PORTAL_ID" --organization-usage require --organization-require-behavior pre_login_prompt --no-input
 
-auth0 apps create --name "Scratch App" --type regular --metadata "eval_run=$RUN_ID" --no-input
+auth0 apps create --name "Scratch App" --type regular --no-input

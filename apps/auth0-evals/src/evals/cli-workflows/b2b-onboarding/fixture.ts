@@ -172,10 +172,13 @@ export default defineFixture({
     // These names are fixed by the prompt, so a leftover from an earlier run
     // would make the task ambiguous. Refuse to start instead of deleting
     // something this run did not create.
+    const existingClients = await listClients(mgmt);
+    const existingOrgs = await listOrgs(mgmt);
+    const existingConnections = await listConnections(mgmt);
     const taken = [
-      ...(await listClients(mgmt)).filter((c) => [PORTAL_NAME, OPS_NAME].includes(c.name)).map((c) => c.name),
-      ...(await listOrgs(mgmt)).filter((o) => [ACME_ORG, GLOBEX_ORG].includes(o.name)).map((o) => `org ${o.name}`),
-      ...(await listConnections(mgmt))
+      ...existingClients.filter((c) => [PORTAL_NAME, OPS_NAME].includes(c.name)).map((c) => c.name),
+      ...existingOrgs.filter((o) => [ACME_ORG, GLOBEX_ORG].includes(o.name)).map((o) => `org ${o.name}`),
+      ...existingConnections
         .filter((c) => [ACME_CONNECTION, GLOBEX_CONNECTION].includes(c.name))
         .map((c) => `connection ${c.name}`),
     ];
@@ -237,6 +240,11 @@ export default defineFixture({
         acmeUsersId: acmeUsers.id,
         globexUsersId: globexUsers.id,
         globexOrgId: globex.id,
+        // What the tenant held before this run created anything. Cleanup removes whatever
+        // appeared after that, including what the agent created without a run id tag.
+        preOrgIds: existingOrgs.map((o) => o.id),
+        preClientIds: existingClients.map((c) => c.client_id),
+        preConnectionIds: existingConnections.map((c) => c.id),
       };
     } catch (e) {
       const failures = await deleteAll(mgmt, made);
@@ -299,9 +307,9 @@ export default defineFixture({
   async cleanup({ mgmt, seeded, runId }) {
     // Seeded resources are removed by the ids seed recorded, so a metadata edit
     // by the agent cannot hide them. The run id in the metadata is a fallback for
-    // when seed failed partway and recorded nothing. The agent's acme org has no
-    // known id, so it is found by name, and only when seed got far enough to prove
-    // the tenant started without one. Every step is attempted even if an earlier
+    // when seed failed partway and recorded nothing. What the agent created has no
+    // known id and no tag, so anything that was not on the tenant when seed started
+    // counts as created by this run. Every step is attempted even if an earlier
     // one fails, and the failures are reported together.
     const failures: string[] = [];
     const find = async <T>(what: string, list: () => Promise<T[]>): Promise<T[]> => {
@@ -317,6 +325,11 @@ export default defineFixture({
       return typeof id === 'string' && id ? [id] : [];
     };
 
+    const addedSince = (key: string, now: string[]): string[] => {
+      const before = seeded[key];
+      return Array.isArray(before) ? now.filter((id) => !before.includes(id)) : [];
+    };
+
     const orgs = await find('organizations', () => listOrgs(mgmt));
     const connections = await find('connections', () => listConnections(mgmt));
     const clients = await find('applications', () => listClients(mgmt));
@@ -324,19 +337,29 @@ export default defineFixture({
       ...(await deleteAll(mgmt, {
         orgs: [
           ...seededId('globexOrgId'),
-          ...orgs
-            .filter((o) => o.metadata?.eval_run === runId || (seeded.globexOrgId && o.name === ACME_ORG))
-            .map((o) => o.id),
+          ...orgs.filter((o) => o.metadata?.eval_run === runId).map((o) => o.id),
+          ...addedSince(
+            'preOrgIds',
+            orgs.map((o) => o.id),
+          ),
         ],
         connections: [
           ...seededId('acmeUsersId'),
           ...seededId('globexUsersId'),
           ...connections.filter((c) => c.metadata?.eval_run === runId).map((c) => c.id),
+          ...addedSince(
+            'preConnectionIds',
+            connections.map((c) => c.id),
+          ),
         ],
         clients: [
           ...seededId('supplierPortalId'),
           ...seededId('opsConsoleId'),
           ...clients.filter((c) => c.client_metadata?.eval_run === runId).map((c) => c.client_id),
+          ...addedSince(
+            'preClientIds',
+            clients.map((c) => c.client_id),
+          ),
         ],
       })),
     );
