@@ -21,6 +21,8 @@ export interface GraderSummary {
   level?: GraderLevel;
   /** Estimated cost in USD for this grader call (judge graders only). */
   cost_usd?: number;
+  /** sha256 of the judge request body (judge graders only; absent when the judge errored). */
+  judge_input_hash?: string;
 }
 
 /** Serialised outcome of a single scoring dimension, included in agent results. */

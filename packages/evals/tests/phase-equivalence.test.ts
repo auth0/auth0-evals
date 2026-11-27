@@ -267,6 +267,13 @@ describe('--phase all vs --phase agent + --phase grade', () => {
       if (all.result.status === 'error') throw new Error('unreachable');
       expect('graders' in all.result && all.result.graders.length).toBeGreaterThanOrEqual(4);
 
+      // Judge graders carry a request fingerprint, identical on both paths.
+      const judgeHashes = (r: JobResult) =>
+        'graders' in r ? r.graders.filter((g) => g.kind === 'judge').map((g) => g.judge_input_hash) : [];
+      expect(judgeHashes(all.result)).toHaveLength(2);
+      for (const h of judgeHashes(all.result)) expect(h).toMatch(/^[0-9a-f]{64}$/);
+      expect(judgeHashes(split.result)).toEqual(judgeHashes(all.result));
+
       // No field is excluded: the stub run is fully deterministic, and every time/random
       // value (session_id, wall_time, active_time, costs) comes from the stored RunRecord.
       expect(split.result).toEqual(all.result);

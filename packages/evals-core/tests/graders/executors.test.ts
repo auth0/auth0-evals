@@ -5,7 +5,12 @@ import { containsExecutor } from '../../src/graders/executors/contains.js';
 import { notContainsExecutor } from '../../src/graders/executors/not-contains.js';
 import { notContainsInSourceExecutor } from '../../src/graders/executors/not-contains-in-source.js';
 import { matchesExecutor } from '../../src/graders/executors/matches.js';
-import { isJudgeExcluded, formatCommandTrace, llmJudgeExecutor } from '../../src/graders/executors/llm-judge.js';
+import {
+  isJudgeExcluded,
+  formatCommandTrace,
+  buildJudgeEvidence,
+  llmJudgeExecutor,
+} from '../../src/graders/executors/llm-judge.js';
 import type { EventToolCall } from '@a0/evals-graders';
 import { compileExecutor } from '../../src/graders/executors/compile.js';
 import type { GraderContext } from '../../src/graders/executors/types.js';
@@ -475,7 +480,26 @@ describe('llmJudgeExecutor — includeCommandTrace gate', () => {
 
   beforeEach(() => {
     llmJudgeMock.mockReset();
-    llmJudgeMock.mockResolvedValue({ passed: true, detail: 'ok', inputTokens: 1, outputTokens: 1 });
+    llmJudgeMock.mockResolvedValue({
+      passed: true,
+      detail: 'ok',
+      inputTokens: 1,
+      outputTokens: 1,
+      judgeInputHash: 'abc123',
+    });
+  });
+
+  it('carries the judge input hash onto the grader result', async () => {
+    const def = makeDef({ kind: 'judge', question: 'Is this correct?' });
+    const result = await llmJudgeExecutor.execute(def, judgeCtx({ 'app.ts': 'console.log(1)' }, []));
+    expect(result.judgeInputHash).toBe('abc123');
+  });
+
+  it('has no hash when the judge is not configured', async () => {
+    const def = makeDef({ kind: 'judge', question: 'Is this correct?' });
+    const result = await llmJudgeExecutor.execute(def, makeCtx({ 'app.ts': 'x' }));
+    expect(result.passed).toBe(false);
+    expect(result.judgeInputHash).toBeUndefined();
   });
 
   it('appends the command trace to the judge input when includeCommandTrace is true', async () => {
@@ -573,6 +597,7 @@ describe('llmJudgeExecutor — includeCommandTrace gate', () => {
       const { result } = await run({ input: 'trace' }, []);
       expect(result.passed).toBe(false);
       expect(result.detail).toBe('no command trace available for judge');
+      expect(result.judgeInputHash).toBeUndefined();
       expect(llmJudgeMock).not.toHaveBeenCalled();
     });
 
@@ -581,6 +606,54 @@ describe('llmJudgeExecutor — includeCommandTrace gate', () => {
       expect(result.passed).toBe(true);
       expect(code).toContain('// FILE: app.ts');
     });
+  });
+});
+
+describe('buildJudgeEvidence', () => {
+  const files = { 'app.ts': 'console.log(1)', 'README.md': '# docs', '.env': 'SECRET=1' };
+  const toolCalls: EventToolCall[] = [
+    { name: 'run_command', args: { command: 'auth0 apps list' }, result: '', causedError: false },
+  ];
+
+  it('needs only files, trace and reply, so a regrade can build it without judge config', () => {
+    const evidence = buildJudgeEvidence(makeDef({ kind: 'judge', question: 'Is this correct?' }), {
+      files,
+      agentText: '',
+    });
+    expect(evidence).toEqual({ text: '// FILE: app.ts\nconsole.log(1)', files: [['app.ts', 'console.log(1)']] });
+  });
+
+  it('is the exact text the executor sends to the judge', async () => {
+    llmJudgeMock.mockReset();
+    llmJudgeMock.mockResolvedValue({
+      passed: true,
+      detail: 'ok',
+      inputTokens: 1,
+      outputTokens: 1,
+      judgeInputHash: 'h',
+    });
+    const def = makeDef({ kind: 'judge', question: 'Is this correct?', input: 'both', source: 'both' });
+    const ctx: GraderContext = {
+      ...makeCtx(files),
+      toolCalls,
+      agentText: 'done',
+      apiKey: 'test-key',
+      judge: { model: 'm', baseUrl: 'https://proxy.example', maxTokens: 1, maxCodeChars: 32768, enforceMaxChars: true },
+    };
+
+    await llmJudgeExecutor.execute(def, ctx);
+
+    expect(llmJudgeMock.mock.calls[0][0].code).toBe(buildJudgeEvidence(def, ctx)!.text);
+  });
+
+  it('returns undefined for a trace-only judge when no commands ran', () => {
+    const def = makeDef({ kind: 'judge', question: 'Is this correct?', input: 'trace' });
+    expect(buildJudgeEvidence(def, { files, toolCalls: [], agentText: '' })).toBeUndefined();
+  });
+
+  it('returns empty text rather than undefined when a files judge has no files', () => {
+    const def = makeDef({ kind: 'judge', question: 'Is this correct?' });
+    expect(buildJudgeEvidence(def, { files: {}, agentText: '' })).toEqual({ text: '', files: [] });
   });
 });
 

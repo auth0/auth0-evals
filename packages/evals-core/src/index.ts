@@ -167,6 +167,8 @@ export { isBedrockModel, isClaudeModel, isGeminiModel, isGptModel } from './conf
 export {
   runGraders,
   llmJudge,
+  buildJudgeRequest,
+  buildJudgeEvidence,
   JUDGE_DEFAULT_MAX_TOKENS,
   passRate,
   collectGraderFiles,
@@ -180,7 +182,7 @@ export {
   executeGrader,
 } from './graders/index.js';
 
-export type { GraderContext, GraderExecutor } from './graders/index.js';
+export type { GraderContext, GraderExecutor, JudgeRequest, JudgeEvidence } from './graders/index.js';
 export { findSecretExposure, describeExposure } from './graders/index.js';
 export type { SecretExposure, SecretEvidence } from './graders/index.js';
 export type { CompileResult } from '@a0/evals-graders';

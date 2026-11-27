@@ -77,6 +77,8 @@ Discovery calls (`list`, `show`, `--help`) excluded — Setup Speed/Friction alr
 
 A holistic judge closes out whatever those three miss — the one subjective check in the set.
 
+Each successful judge result in the results JSON `graders` array (and `scores-axis.json`) carries `judge_input_hash`: the sha256 of the exact request body sent to the judge endpoint (model, `max_tokens`, thinking setting, system prompt, and user prompt including the workspace/trace/reply corpus after exclusions and truncation). It is absent on non-judge graders and on judges that errored. It is bookkeeping for detecting whether a judge's input changed between runs and has no effect on scoring.
+
 **Hallucination — 15%.** L2 only. Two guiding principles:
 1. Invented — the package, method, or field doesn't exist at all.
 2. Real but misapplied — it exists, just wrong for this context (server SDK used in a SPA; `client_secret` set on a public client).

@@ -5,6 +5,8 @@
  * engine.ts and executors/llm-judge.ts.
  */
 
+import { createHash } from 'node:crypto';
+
 import { JudgeError, LlmApiError } from '../errors.js';
 import { withRetry } from '../utils/retry.js';
 import { logger } from '../utils/logger.js';
@@ -45,10 +47,35 @@ export interface LlmJudgeResult {
   detail: string;
   inputTokens: number;
   outputTokens: number;
+  /** sha256 (hex) of the exact request body sent to the judge. See {@link buildJudgeRequest}. */
+  judgeInputHash: string;
 }
 
-export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
-  const { question, context, code, apiKey, model, baseUrl, enforceMaxChars = true } = opts;
+/** The judge request body and its fingerprint. */
+export interface JudgeRequest {
+  /** JSON request body, sent verbatim as the fetch body. */
+  payload: string;
+  /**
+   * sha256 (hex) of `payload`: model, max_tokens, thinking, system prompt and the user prompt
+   * (context, question and the final, possibly truncated, corpus). `apiKey` and `baseUrl` are not
+   * part of the payload, so they do not affect it.
+   */
+  judgeInputHash: string;
+}
+
+/**
+ * Builds the judge request without calling the LLM. The hash is computed over the same string
+ * `llmJudge` sends, so a regrade can recompute it offline and compare it with a recorded one.
+ *
+ * @throws JudgeError when `model` or `baseUrl` is missing.
+ */
+export function buildJudgeRequest(
+  opts: Pick<
+    LlmJudgeOptions,
+    'question' | 'context' | 'code' | 'model' | 'baseUrl' | 'maxTokens' | 'enforceMaxChars' | 'maxCodeChars'
+  >,
+): JudgeRequest {
+  const { question, context, code, model, baseUrl, enforceMaxChars = true } = opts;
   // Prepend grounding context (if any) before the question. The judge sees it;
   // the leaderboard UI renders only the grader name, so it stays hidden there.
   const promptQuestion = context ? `Context: ${context}\n\n${question}` : question;
@@ -120,6 +147,14 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
     thinking: { type: 'disabled' },
   });
 
+  return { payload, judgeInputHash: createHash('sha256').update(payload).digest('hex') };
+}
+
+export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
+  const { apiKey, model, baseUrl } = opts;
+  const judgeMaxTokens = opts.maxTokens ?? JUDGE_DEFAULT_MAX_TOKENS;
+  const { payload, judgeInputHash } = buildJudgeRequest(opts);
+
   try {
     const data = await withRetry(async () => {
       const resp = await fetch(`${baseUrl}/chat/completions`, {
@@ -179,7 +214,7 @@ export async function llmJudge(opts: LlmJudgeOptions): Promise<LlmJudgeResult> {
     const inputTokens = usage?.prompt_tokens ?? usage?.input_tokens ?? 0;
     const outputTokens = usage?.completion_tokens ?? usage?.output_tokens ?? 0;
 
-    return { passed: m[1] === 'yes', detail: `Judge (${model}): ${answer}`, inputTokens, outputTokens };
+    return { passed: m[1] === 'yes', detail: `Judge (${model}): ${answer}`, inputTokens, outputTokens, judgeInputHash };
   } catch (e) {
     if (e instanceof JudgeError) throw e;
     throw new JudgeError(model, String(e));

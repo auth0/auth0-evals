@@ -607,6 +607,20 @@ describe('serialiseBaseline — judge cost fields', () => {
   });
 });
 
+describe('serialiseBaseline — judge_input_hash', () => {
+  it('copies the hash onto judge summaries and leaves other kinds without the key', () => {
+    const graders: GraderResult[] = [
+      { name: 'check', kind: 'contains', passed: true, detail: 'found' },
+      { name: 'judge q', kind: 'judge', passed: true, detail: 'yes', judgeInputHash: 'a'.repeat(64) },
+      { name: 'judge err', kind: 'judge', passed: false, detail: 'judge error' },
+    ];
+    const result = serialiseBaseline(stubEvalDef, stubBaselineResult, graders, 'response');
+    expect(result.graders[0]).not.toHaveProperty('judge_input_hash');
+    expect(result.graders[1].judge_input_hash).toBe('a'.repeat(64));
+    expect(result.graders[2]).not.toHaveProperty('judge_input_hash');
+  });
+});
+
 describe('serialiseAgent — judge cost fields', () => {
   it('computes judge_cost_usd from graders with token usage', () => {
     const record: RunRecord = {
