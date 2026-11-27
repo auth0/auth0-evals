@@ -70,6 +70,7 @@ See [`@a0/evals` CLI docs](../../packages/evals/) for the full list of flags and
 | `organizations_cli` | organizations | Set up B2B organization login on a live tenant using the Auth0 CLI - create an org, enable a connection with auto-membership, and require org login on the SPA |
 | `token_vault_cli` | token-vault | Set up Token Vault on a live tenant using the Auth0 CLI - enable it on the Google connection, add the Token Vault grant to the app without dropping existing grants, and make refresh tokens non-rotating |
 | `provision_app_api_cli` | cli-workflows | Create an SPA and an API on a live tenant with the Auth0 CLI and grant an existing M2M app access, graded on the tenant's final state |
+| `b2b_onboarding_cli` | cli-workflows | Onboard a B2B customer on a live tenant with the Auth0 CLI: create an organization, enable an existing connection on it and on the app, and require organization login, graded on the tenant's final state. Uses fixed resource names, so run it with `--workers 1` |
 | `universal_login_change_cli` | cli-workflows | Update the Universal Login experience on a live tenant using the Auth0 CLI - turn on identifier-first, change the email screen heading, and set the theme button color while keeping every other setting |
 
 ## Configuration
