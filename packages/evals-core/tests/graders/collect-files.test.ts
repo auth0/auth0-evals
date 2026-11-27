@@ -45,6 +45,21 @@ describe('collectFiles', () => {
     expect(Object.keys(collectFiles(dir))).toEqual(['android/app/build.gradle']);
   });
 
+  it('prunes .NET and Maven build output (obj/, bin/, target/) but keeps project and source files', () => {
+    const dir = tmpDir();
+    mkdirSync(join(dir, 'obj'), { recursive: true });
+    mkdirSync(join(dir, 'bin', 'Debug', 'net8.0'), { recursive: true });
+    mkdirSync(join(dir, 'target', 'classes'), { recursive: true });
+    writeFileSync(join(dir, 'obj', 'project.assets.json'), '');
+    writeFileSync(join(dir, 'bin', 'Debug', 'net8.0', 'App.deps.json'), '');
+    writeFileSync(join(dir, 'target', 'classes', 'App.class'), '');
+    writeFileSync(join(dir, 'BarkbookApi.csproj'), '<Project />');
+    writeFileSync(join(dir, 'pom.xml'), '<project />');
+    writeFileSync(join(dir, 'Program.cs'), 'class P {}');
+
+    expect(Object.keys(collectFiles(dir)).sort()).toEqual(['BarkbookApi.csproj', 'Program.cs', 'pom.xml']);
+  });
+
   it('caps the listing at 200 kept files and warns when it truncates', () => {
     const dir = tmpDir();
     for (let i = 0; i < 205; i++) writeFileSync(join(dir, `f${String(i).padStart(3, '0')}.ts`), '');

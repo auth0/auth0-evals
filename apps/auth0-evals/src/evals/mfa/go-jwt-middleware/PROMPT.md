@@ -3,6 +3,7 @@ id: go_jwt_middleware_mfa
 name: Go (go-jwt-middleware) MFA Step-Up
 scaffold: src/evals/scaffolds/go-jwt-middleware/auth0
 skills: auth0
+compile_command: go mod tidy && go build -o /dev/null .
 ---
 
 ## System

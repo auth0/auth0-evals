@@ -1,4 +1,4 @@
-import { contains, notContains, notContainsInSource, judge, wroteFile, GraderLevel } from '@a0/evals-graders';
+import { contains, notContains, notContainsInSource, judge, wroteFile, compiles, GraderLevel } from '@a0/evals-graders';
 
 export function defineGraders() {
   return [
@@ -28,6 +28,7 @@ export function defineGraders() {
       'dev-barkbook.us.auth0.com',
       'api.barkbook.com',
     ]),
+    compiles('Project compiles (go build succeeds)', GraderLevel.L4),
     contains('write:transfers', 'Existing write:transfers scope check retained', GraderLevel.L4),
     contains('read:balance', 'Existing read:balance scope check on GET /api/balance retained', GraderLevel.L4),
     // Grade the outcome (the transfer is gated on the step-up scope), not the exact call shape — a solution

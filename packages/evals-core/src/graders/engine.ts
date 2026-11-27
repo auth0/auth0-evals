@@ -70,6 +70,10 @@ export const EXCLUDED_EVAL_DIRS = new Set([
   // Gradle output (e.g. `app/build`, `android/app/build` after `./gradlew build`)
   'build',
   '.gradle',
+  // .NET (bin/, obj/) and Maven (target/) build output
+  'obj',
+  'bin',
+  'target',
 ]);
 export const EXCLUDED_EVAL_FILES = new Set([
   'package-lock.json',

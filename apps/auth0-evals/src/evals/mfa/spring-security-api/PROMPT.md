@@ -3,6 +3,7 @@ id: spring_security_api_mfa
 name: Spring Boot API MFA Step-Up
 scaffold: src/evals/scaffolds/spring-security-api/auth0
 skills: auth0
+compile_command: mvn -q -B compile
 ---
 
 ## System

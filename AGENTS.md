@@ -123,7 +123,7 @@ Use `notContainsInSource` (not `notContains`) when a value is allowed in config 
 
 For MCP-only evals (agent replies with text, no files written): use `source: 'response'` on graders. See `docs/ADDING_EVALS.md` for examples.
 
-> **Corpus scope:** `contains`, `notContains`, and `matches` search source files only. `.claude`, `node_modules`, `dist`, and `CLAUDE.md` are excluded from the grading corpus (see `engine.ts`).
+> **Corpus scope:** `contains`, `notContains`, and `matches` search source files only. `.claude`, `node_modules`, `dist`, build output (`bin`, `obj`, `target`), and `CLAUDE.md` are excluded from the grading corpus (see `engine.ts`).
 
 ---
 
