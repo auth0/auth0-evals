@@ -10,6 +10,13 @@ We use `auth0-evals` to measure how well AI agents integrate Auth0 across our SD
 
 [![Auth0 Agent Experience](assets/images/agent-experience.png)](https://auth0.com/agent-experience)
 
+Each run opens to a breakdown of its score, cost, time, and agent trace:
+
+<p>
+  <img alt="Run overview: with vs without Auth0 tools, build, cost, and time" src="assets/images/run-overview.png" width="49%">
+  <img alt="Agent trace and score breakdown for a run" src="assets/images/score-breakdown.png" width="49%">
+</p>
+
 > [!NOTE]
 > We develop `auth0-evals` in public for our own internal use. It is not intended for external use cases, and we provide no support, guarantees, or stability commitments for anyone building on top of it. You're welcome to read it, learn from it, provide feedback, and use it - but do so at your own risk.
 
