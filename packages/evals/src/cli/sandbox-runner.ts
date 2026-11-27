@@ -18,6 +18,7 @@ import {
   loadEval,
   loadConfig,
   discoverEvals,
+  loadSplitsForEvals,
   setFrameworkConfig,
   runGraders,
   runSetupCommand,
@@ -89,7 +90,12 @@ async function main(): Promise<void> {
   }
   setFrameworkConfig(frameworkConfig);
 
-  const evaluations = discoverEvals(frameworkConfig.evalsDir, frameworkRoot);
+  // Label evals from the split file, as the host CLI does, so results carry their split.
+  const evaluations = loadSplitsForEvals(
+    discoverEvals(frameworkConfig.evalsDir, frameworkRoot),
+    frameworkRoot,
+    frameworkConfig.splitsFile ?? '',
+  );
   if (evaluations.length === 0) {
     throw new Error('No evaluations found in evalsDir');
   }
@@ -164,7 +170,7 @@ async function main(): Promise<void> {
     logger.error(`[sandbox] Error: ${errorMsg}`);
 
     const result = {
-      ...serialiseError(evalId, evalDef.category, model, mode, tools, errorMsg),
+      ...serialiseError(evalId, evalDef.category, model, mode, tools, errorMsg, evalDef.split),
       agent_type: agentType,
     };
 

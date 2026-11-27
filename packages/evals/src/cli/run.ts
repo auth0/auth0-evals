@@ -153,7 +153,7 @@ export async function runJob(
     const errorMsg = String(e);
     logger.error(`  ✗ [${evalDef.id}] ${model} - ERROR: ${errorMsg.slice(0, 100)}`);
     return {
-      ...serialiseError(evalDef.id, evalDef.category, model, mode, tools, errorMsg),
+      ...serialiseError(evalDef.id, evalDef.category, model, mode, tools, errorMsg, evalDef.split),
       ...(mode === 'agent' ? { agent_type: agentType } : {}),
     };
   }
@@ -682,7 +682,7 @@ export async function gradeArtifact(
   const { evalId, category, model, mode, tools } = artifact.manifest;
   const agentType = artifact.manifest.agentType ?? DEFAULT_AGENT_TYPE;
   const errorResult = (errorMsg: string, evalCategory: string): JobResult => ({
-    ...serialiseError(evalId, evalCategory, model, mode, tools, errorMsg),
+    ...serialiseError(evalId, evalCategory, model, mode, tools, errorMsg, evalsById.get(evalId)?.split),
     ...(mode === 'agent' ? { agent_type: agentType } : {}),
   });
 
@@ -1236,7 +1236,7 @@ export async function runCli(): Promise<void> {
           const toolLabel = jobTools.length > 0 ? ` [tools=${jobTools.join('+')}]` : '';
           logger.error(`  [ERROR] ${evalCfg.id}/${model}/${mode}${toolLabel}: ${exc}`);
           const errResult = {
-            ...serialiseError(evalCfg.id, evalCfg.category, model, mode, jobTools, String(exc)),
+            ...serialiseError(evalCfg.id, evalCfg.category, model, mode, jobTools, String(exc), evalCfg.split),
             ...(mode === 'agent' ? { agent_type: jobAgentType } : {}),
           };
           results.push(errResult);

@@ -16,6 +16,7 @@ import type { TraceStep, TurnMetricEntry } from './types/agents.js';
 import type { AgentJobResult, BaselineJobResult, ErrorJobResult, GraderSummary } from './types/results.js';
 import type { EvalDefinition } from './types/eval.js';
 import type { Recommendations } from './recommendations/types.js';
+import type { EvalSplit } from './splits/types.js';
 import { estimateCost } from './config/costs.js';
 import { redactArgs, redactSecrets } from './utils/redact.js';
 
@@ -161,6 +162,7 @@ export function serialiseBaseline(
   return {
     eval_id: evalDef.id,
     category: evalDef.category,
+    ...(evalDef.split ? { split: evalDef.split } : {}),
     prompt: redactSecrets(evalDef.userPrompt),
     response_text: redactSecrets(responseText),
     model: result.model,
@@ -197,6 +199,7 @@ export function serialiseAgent(
   return {
     eval_id: evalDef.id,
     category: evalDef.category,
+    ...(evalDef.split ? { split: evalDef.split } : {}),
     // Redacted for the same reasons as in serialiseBaseline.
     prompt: redactSecrets(evalDef.userPrompt),
     response_text: redactSecrets(record.finalSummary ?? ''),
@@ -232,6 +235,7 @@ export function serialiseAgent(
 
 /**
  * Builds an `ErrorJobResult` for a job that threw before producing any output.
+ * `split` is the eval's tuning / held-out label, when a split file is configured.
  *
  * The error text is redacted: an exception thrown mid-request is one of the few
  * places a credential travels as prose rather than as a keyed value.
@@ -243,6 +247,7 @@ export function serialiseError(
   mode: Mode,
   tools: string[],
   error: string,
+  split?: EvalSplit,
 ): ErrorJobResult {
   return {
     eval_id: evalId,
@@ -250,6 +255,7 @@ export function serialiseError(
     mode,
     tools,
     category,
+    ...(split ? { split } : {}),
     status: 'error',
     error: redactSecrets(error),
     wall_time: 0,
