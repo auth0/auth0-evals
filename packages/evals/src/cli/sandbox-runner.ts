@@ -20,6 +20,7 @@ import {
   discoverEvals,
   setFrameworkConfig,
   runGraders,
+  agentGraderDefs,
   runSetupCommand,
   runCompileCommand,
   AGENT_LEVELS,
@@ -33,7 +34,11 @@ import {
 import type { AgentType } from '@a0/evals-core';
 import { generateRunRecommendations } from '../recommendations/index.js';
 
-import { LLM_API_KEY_ENV, SANDBOX_RECOMMENDATIONS_ENABLED_ENV } from './constants.js';
+import {
+  LLM_API_KEY_ENV,
+  SANDBOX_RECOMMENDATIONS_ENABLED_ENV,
+  SANDBOX_SECURITY_JUDGE_ENABLED_ENV,
+} from './constants.js';
 import { score } from '../scorer.js';
 import { ClaudeCodeRunner } from '../runners/claude-code/runner.js';
 import { CopilotCliRunner } from '../runners/copilot/runner.js';
@@ -87,6 +92,10 @@ async function main(): Promise<void> {
   if (hostRecommendations === 'true' || hostRecommendations === 'false') {
     frameworkConfig.recommendations = { ...frameworkConfig.recommendations, enabled: hostRecommendations === 'true' };
   }
+  const hostSecurityJudge = process.env[SANDBOX_SECURITY_JUDGE_ENABLED_ENV];
+  if (hostSecurityJudge === 'true' || hostSecurityJudge === 'false') {
+    frameworkConfig.securityJudge = { ...frameworkConfig.securityJudge, enabled: hostSecurityJudge === 'true' };
+  }
   setFrameworkConfig(frameworkConfig);
 
   const evaluations = discoverEvals(frameworkConfig.evalsDir, frameworkRoot);
@@ -120,10 +129,11 @@ async function main(): Promise<void> {
         : undefined;
 
     let graderResults: Awaited<ReturnType<typeof runGraders>> = [];
-    if (evalDef.graders.length > 0) {
+    const graderDefs = agentGraderDefs(evalDef);
+    if (graderDefs.length > 0) {
       const agentLevels = tools.includes('mcp') ? AGENT_MCP_LEVELS : AGENT_LEVELS;
       graderResults = await runGraders(
-        evalDef.graders,
+        graderDefs,
         workspace,
         apiKey,
         undefined,

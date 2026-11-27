@@ -58,6 +58,7 @@ const { values: flags } = parseArgs({
     model: { type: 'string', short: 'm' },
     output: { type: 'string', short: 'o' },
     debug: { type: 'boolean' },
+    'no-security-judge': { type: 'boolean' },
   },
   strict: false,
 });
@@ -159,6 +160,7 @@ if (!process.env.GOOGLE_GEMINI_BASE_URL) {
 const frameworkConfig = await loadConfig({
   configPath: join(APP_ROOT, 'eval.config.js'),
 });
+if (flags['no-security-judge']) frameworkConfig.securityJudge = { enabled: false };
 setFrameworkConfig(frameworkConfig);
 
 const apiKey = process.env.LLM_API_KEY;

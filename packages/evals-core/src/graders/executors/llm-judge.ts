@@ -70,11 +70,12 @@ const RUN_COMMAND_NAMES = new Set(['run_command', 'bash']);
  * an id literal as evidence the agent had fabricated it, when it was the id the
  * previous command printed, carried across a shell boundary.
  */
-export function formatCommandTrace(toolCalls: EventToolCall[]): string {
+export function formatCommandTrace(toolCalls: EventToolCall[], opts: { numbered?: boolean } = {}): string {
   const commands = toolCalls
     .filter((tc) => RUN_COMMAND_NAMES.has(tc.name) && !tc.causedError)
     .map((tc) => redactSecrets(String(tc.args.command ?? '').trim()))
-    .filter((cmd) => cmd.length > 0);
+    .filter((cmd) => cmd.length > 0)
+    .map((cmd, i) => (opts.numbered ? `#${i + 1} ${cmd}` : cmd));
   if (commands.length === 0) return '';
   const header =
     '// COMMAND TRACE (shell commands the agent ran). Every command listed here exited\n' +
@@ -82,7 +83,10 @@ export function formatCommandTrace(toolCalls: EventToolCall[]): string {
     '// absence of output is not evidence a command did nothing. Each command runs in its\n' +
     '// own shell, so an id assigned as a literal in a later command is a value read from\n' +
     "// an earlier command's output, not a fabricated one.";
-  return `${header}\n${commands.join('\n')}`;
+  const numberingNote = opts.numbered
+    ? '\n// Each command is prefixed with its step number (#1, #2, …); cite steps by that number.'
+    : '';
+  return `${header}${numberingNote}\n${commands.join('\n')}`;
 }
 
 export const llmJudgeExecutor: GraderExecutor = {
@@ -113,7 +117,8 @@ export const llmJudgeExecutor: GraderExecutor = {
     // For CLI-only evals the artifact is the command trace, not files. When the
     // judge opts in, append it so there is content to evaluate; otherwise the
     // judge sees only files (unchanged behaviour for every existing judge).
-    const traceText = input !== 'files' ? formatCommandTrace(ctx.toolCalls ?? []) : '';
+    const traceText =
+      input !== 'files' ? formatCommandTrace(ctx.toolCalls ?? [], { numbered: def.numberTrace === true }) : '';
 
     // A trace-only judge with no trace has nothing to evaluate; fail rather than
     // let the judge rule on empty input.
@@ -131,7 +136,9 @@ export const llmJudgeExecutor: GraderExecutor = {
     // reply only when the grader explicitly opts in via source: 'response' | 'both'.
     const agentReplyText = includeAgentReply ? `// AGENT REPLY:\n${ctx.agentText}` : '';
 
-    const judgeText = [fileText, traceText, agentReplyText].filter((s) => s.length > 0).join('\n\n');
+    const judgeParts =
+      def.traceFirst === true ? [traceText, fileText, agentReplyText] : [fileText, traceText, agentReplyText];
+    const judgeText = judgeParts.filter((s) => s.length > 0).join('\n\n');
 
     logger.info(`[judge] ${judgeEntries.length} files, ${judgeText.length} chars total (limit: ${maxCodeChars})`);
     for (const [k, v] of judgeEntries) {

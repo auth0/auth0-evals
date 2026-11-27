@@ -106,6 +106,12 @@ describe('loadConfig', () => {
     await expect(promise).rejects.toThrow('recommendations.enabled must be a boolean');
   });
 
+  it('rejects non-boolean securityJudge.enabled', async () => {
+    const promise = loadConfig({ searchDir: join(FIXTURES_DIR, 'security-judge-string') });
+    await expect(promise).rejects.toThrow(EvalConfigError);
+    await expect(promise).rejects.toThrow('securityJudge.enabled must be a boolean');
+  });
+
   it('throws EvalConfigError when configPath does not exist', async () => {
     await expect(loadConfig({ configPath: join(FIXTURES_DIR, 'does-not-exist.js') })).rejects.toThrow(EvalConfigError);
   });

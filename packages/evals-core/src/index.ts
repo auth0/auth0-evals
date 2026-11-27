@@ -54,6 +54,9 @@ export type { RetryOptions } from './utils/retry.js';
 // Agent prompt
 export { agentPrompt } from './utils/agent-prompt.js';
 
+// Graders
+export { SECURITY_JUDGE_QUESTION, securityJudgeGrader, agentGraderDefs } from './graders/security-judge.js';
+
 // Redaction
 export { redactSecrets, redactArgs, redactKnownSecrets, REDACTION_MARKER } from './utils/redact.js';
 
@@ -78,6 +81,7 @@ export type {
   ScoringConfig,
   SandboxConfig,
   RecommendationsConfig,
+  SecurityJudgeConfig,
 } from './config/framework.js';
 export { DEFAULT_FRAMEWORK_CONFIG } from './config/defaults.js';
 export { defineConfig, loadConfig, deepMerge } from './config/loader.js';

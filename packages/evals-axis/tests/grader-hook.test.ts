@@ -19,6 +19,7 @@ vi.mock('@a0/evals-core', () => ({
   discoverEvals: vi.fn(),
   loadEval: vi.fn(),
   runGraders: vi.fn(),
+  agentGraderDefs: vi.fn(),
   runCompileCommand: vi.fn(),
   runSetupCommand: vi.fn(),
   AGENT_LEVELS: AGENT_LEVELS_FIXTURE,
@@ -29,7 +30,14 @@ vi.mock('../src/adapter.js', () => ({
 }));
 
 import { runAuth0Graders } from '../src/grader-hook.js';
-import { discoverEvals, loadEval, runGraders, runCompileCommand, runSetupCommand } from '@a0/evals-core';
+import {
+  discoverEvals,
+  loadEval,
+  runGraders,
+  agentGraderDefs,
+  runCompileCommand,
+  runSetupCommand,
+} from '@a0/evals-core';
 import { axisTranscriptToToolCalls } from '../src/adapter.js';
 import type { EvalDefinition } from '@a0/evals-core';
 
@@ -38,6 +46,7 @@ const mockAxisTranscriptToToolCalls = vi.mocked(axisTranscriptToToolCalls);
 const mockDiscoverEvals = vi.mocked(discoverEvals);
 const mockLoadEval = vi.mocked(loadEval);
 const mockRunGraders = vi.mocked(runGraders);
+const mockAgentGraderDefs = vi.mocked(agentGraderDefs);
 const mockRunCompileCommand = vi.mocked(runCompileCommand);
 const mockRunSetupCommand = vi.mocked(runSetupCommand);
 
@@ -83,6 +92,7 @@ describe('runAuth0Graders', () => {
       setupCommand: undefined,
     } as unknown as EvalDefinition);
     mockRunGraders.mockResolvedValue([]);
+    mockAgentGraderDefs.mockImplementation((e) => e.graders);
   });
 
   it('throws when workingDirectory is missing', async () => {
@@ -140,6 +150,23 @@ describe('runAuth0Graders', () => {
       undefined,
     );
     expect(results).toEqual([graderResult]);
+  });
+
+  it('includes the security judge result as a normal result', async () => {
+    const judgeDef = { kind: 'judge', name: 'Security judge' };
+    const judgeResult = { name: 'Security judge', kind: 'judge', passed: false, detail: '' };
+    mockAgentGraderDefs.mockImplementation((e) => [...e.graders, judgeDef as never]);
+    mockRunGraders.mockResolvedValue([judgeResult]);
+
+    const results = await runAuth0Graders(makeResult(), BASE_OPTIONS);
+
+    expect(mockRunGraders.mock.calls[0][0]).toEqual([judgeDef]);
+    expect(results).toEqual([judgeResult]);
+  });
+
+  it('omits it when disabled', async () => {
+    await runAuth0Graders(makeResult(), BASE_OPTIONS);
+    expect(mockRunGraders.mock.calls[0][0]).toEqual([]);
   });
 
   it('passes judgeModel when provided', async () => {

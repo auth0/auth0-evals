@@ -6,7 +6,15 @@
  * and calls the auth0-evals grader engine against the workspace.
  */
 
-import { discoverEvals, loadEval, runGraders, runCompileCommand, runSetupCommand, AGENT_LEVELS } from '@a0/evals-core';
+import {
+  discoverEvals,
+  loadEval,
+  runGraders,
+  agentGraderDefs,
+  runCompileCommand,
+  runSetupCommand,
+  AGENT_LEVELS,
+} from '@a0/evals-core';
 import type { GraderResult } from '@a0/evals-graders';
 import type { RunResult } from '@netlify/axis';
 import { axisTranscriptToToolCalls } from './adapter.js';
@@ -67,7 +75,7 @@ export async function runAuth0Graders(result: RunResult, options: RunAuth0Grader
   const agentText = result.output.result ?? undefined;
 
   return runGraders(
-    evalDef.graders,
+    agentGraderDefs(evalDef),
     result.workingDirectory,
     apiKey,
     judgeModel,

@@ -51,4 +51,13 @@ describe('gradeText', () => {
     expect(result).toEqual([{ name: 'mock', passed: true }]);
     expect(existsSync(workspace as string)).toBe(false);
   });
+
+  it('baseline never runs the security judge', async () => {
+    const { gradeText } = await import('../src/graders/grade-text.js');
+    const { runGraders } = await import('../src/graders/engine.js');
+    const graders = [{ name: 'only', level: undefined }];
+    await gradeText({ graders, userPrompt: 'task' } as unknown as EvalDefinition, 'text', 'fake-key');
+    const passed = vi.mocked(runGraders).mock.calls[0][0];
+    expect(passed).toBe(graders);
+  });
 });

@@ -151,6 +151,14 @@ export interface RecommendationsConfig {
   enabled?: boolean;
 }
 
+export interface SecurityJudgeConfig {
+  /**
+   * Whether agent runs also get the security judge, which scores under Security (L3).
+   * Default true; false skips the extra judge call.
+   */
+  enabled: boolean;
+}
+
 // ── Root config ──────────────────────────────────────────────────────────────
 
 export interface SandboxConfig {
@@ -188,6 +196,8 @@ export interface FrameworkConfig {
   sandbox?: SandboxConfig;
   /** Recommendations (post-scoring analysis) settings, e.g. turning them off for a regrade. */
   recommendations?: RecommendationsConfig;
+  /** Security judge settings for agent runs. */
+  securityJudge?: SecurityJudgeConfig;
   /**
    * CLI/platform context injected for evals that declare a `provision`
    * frontmatter kind, keyed by that kind. When an eval sets

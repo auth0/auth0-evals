@@ -212,7 +212,10 @@ function gradePhase(artifactDir: string, root: string): Promise<JobResult> {
 function graderSummary(result: JobResult): Array<{ name: string; passed: boolean; detail: string }> {
   if (result.status === 'error' || !('graders' in result))
     throw new Error(`unexpected result: ${JSON.stringify(result)}`);
-  return result.graders.map((g) => ({ name: g.name, passed: g.passed, detail: g.detail }));
+  // The framework-added security judge needs a model call; these tests cover the eval's own graders.
+  return result.graders
+    .filter((g) => g.name !== 'Security judge')
+    .map((g) => ({ name: g.name, passed: g.passed, detail: g.detail }));
 }
 
 /** Every file under `dir`, recursively, as absolute paths. */

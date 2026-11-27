@@ -452,6 +452,38 @@ describe('formatCommandTrace', () => {
     expect(out).toContain('[REDACTED SECRET]');
     expect(out).toContain('auth0 api post clients');
   });
+  const MAIN_HEADER = [
+    '// COMMAND TRACE (shell commands the agent ran). Every command listed here exited',
+    '// successfully — failed commands are omitted. Their output is NOT captured, so the',
+    '// absence of output is not evidence a command did nothing. Each command runs in its',
+    '// own shell, so an id assigned as a literal in a later command is a value read from',
+    "// an earlier command's output, not a fabricated one.",
+  ].join('\n');
+
+  it('numbers listed commands #1..#n when numbered', () => {
+    const out = formatCommandTrace([cmd('a'), cmd('b'), cmd('c')], { numbered: true });
+    expect(out.split('\n').slice(-3)).toEqual(['#1 a', '#2 b', '#3 c']);
+  });
+
+  it('numbers after filtering failed commands', () => {
+    const out = formatCommandTrace([cmd('a'), cmd('bad', true), cmd('c')], { numbered: true });
+    expect(out.split('\n').slice(-2)).toEqual(['#1 a', '#2 c']);
+    expect(out).not.toContain('bad');
+  });
+
+  it('adds numbering header only when numbered', () => {
+    const note = '// Each command is prefixed with its step number (#1, #2, …); cite steps by that number.';
+    expect(formatCommandTrace([cmd('a')], { numbered: true })).toBe(`${MAIN_HEADER}\n${note}\n#1 a`);
+    expect(formatCommandTrace([cmd('a')], { numbered: false })).not.toContain(note);
+    expect(formatCommandTrace([cmd('a')])).not.toContain(note);
+  });
+
+  it('unnumbered output is byte-identical to the default', () => {
+    const calls = [cmd('a', true), cmd('b')];
+    expect(formatCommandTrace(calls)).toBe(`${MAIN_HEADER}\nb`);
+    expect(formatCommandTrace(calls, {})).toBe(`${MAIN_HEADER}\nb`);
+    expect(formatCommandTrace(calls, { numbered: false })).toBe(`${MAIN_HEADER}\nb`);
+  });
 });
 
 // ── llmJudgeExecutor: includeCommandTrace gate ───────────────────────────────
@@ -486,6 +518,34 @@ describe('llmJudgeExecutor — includeCommandTrace gate', () => {
     const { code } = llmJudgeMock.mock.calls[0][0];
     expect(code).toContain('// COMMAND TRACE');
     expect(code).toContain('auth0 api put guardian/policies');
+  });
+
+  it('llmJudgeExecutor sends numbered trace when def.numberTrace', async () => {
+    const def = makeDef({ kind: 'judge', question: 'Is this correct?', input: 'trace', numberTrace: true });
+    await llmJudgeExecutor.execute(def, judgeCtx({}, trace));
+
+    const { code } = llmJudgeMock.mock.calls[0][0];
+    expect(code).toContain('#1 auth0 api put guardian/policies');
+    expect(code).toContain('cite steps by that number');
+  });
+
+  it('traceFirst puts trace before files', async () => {
+    const def = makeDef({ kind: 'judge', question: 'Is this correct?', input: 'both', traceFirst: true });
+    await llmJudgeExecutor.execute(def, judgeCtx({ 'app.ts': 'console.log(1)' }, trace));
+
+    const { code } = llmJudgeMock.mock.calls[0][0];
+    expect(code.indexOf('// COMMAND TRACE')).toBeGreaterThanOrEqual(0);
+    expect(code.indexOf('// COMMAND TRACE')).toBeLessThan(code.indexOf('// FILE: app.ts'));
+  });
+
+  it('default order unchanged without traceFirst', async () => {
+    const def = makeDef({ kind: 'judge', question: 'Is this correct?', input: 'both' });
+    await llmJudgeExecutor.execute(def, judgeCtx({ 'app.ts': 'console.log(1)' }, trace));
+
+    const { code } = llmJudgeMock.mock.calls[0][0];
+    expect(code.indexOf('// FILE: app.ts')).toBeGreaterThanOrEqual(0);
+    expect(code.indexOf('// FILE: app.ts')).toBeLessThan(code.indexOf('// COMMAND TRACE'));
+    expect(code).not.toContain('#1 ');
   });
 
   it('omits the command trace when includeCommandTrace is false', async () => {

@@ -56,6 +56,9 @@ export const SANDBOX_RESULTS_FILE = '.eval-results.json';
  */
 export const SANDBOX_RECOMMENDATIONS_ENABLED_ENV = 'EVALS_RECOMMENDATIONS_ENABLED';
 
+/** Carries the host's `securityJudge.enabled` ('true' | 'false') into the container; same reasoning as above. */
+export const SANDBOX_SECURITY_JUDGE_ENABLED_ENV = 'EVALS_SECURITY_JUDGE_ENABLED';
+
 /**
  * Parses the `--tools` flag value into a sorted, deduplicated, lowercase array.
  *

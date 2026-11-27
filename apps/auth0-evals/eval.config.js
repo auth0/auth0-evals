@@ -116,6 +116,10 @@ export default {
   // `recommendations: null`, e.g. for a regrade where only graders changed.
   // recommendations: { enabled: true },
 
+  // Agent runs also get a security judge that scores under Security (L3). Set
+  // `enabled: false` to skip its extra judge call.
+  // securityJudge: { enabled: true },
+
   // CLI/platform context injected into the agent's context file for evals that
   // declare a matching `provision` frontmatter kind. The framework owns the
   // injection mechanism (see writeAgentGuidance); this Auth0-specific wording

@@ -449,6 +449,38 @@ describe('score - CLI weight redistribution', () => {
   });
 });
 
+describe('score - security judge', () => {
+  const base = (): GraderResult[] => [
+    { name: 'l1', kind: 'contains', passed: true, detail: '', level: GraderLevel.L1 },
+    { name: 'l2', kind: 'notContains', passed: true, detail: '', level: GraderLevel.L2 },
+    { name: 'l4', kind: 'compiles', passed: true, detail: '', level: GraderLevel.L4 },
+  ];
+  const judgeL3 = (passed: boolean): GraderResult => ({
+    name: 'Security judge',
+    kind: 'judge',
+    passed,
+    detail: passed ? 'clean' : 'insecure',
+    level: GraderLevel.L3,
+  });
+
+  it('security judge L3 result counts toward Security', () => {
+    const record = makeRecord({ workspace: tmpDir() });
+    const passing = score(record, [...base(), judgeL3(true)]);
+    const failing = score(record, [...base(), judgeL3(false)]);
+    expect(getDim(failing, 'Security').rawScore).toBeLessThan(getDim(passing, 'Security').rawScore);
+  });
+
+  it('CLI eval whose only L3 is the security judge no longer reweights Security into Correctness', () => {
+    const record = makeRecord({ workspace: tmpDir(), evalType: 'cli' });
+    const result = score(record, [
+      { name: 'l4', kind: 'tenantState', passed: true, detail: '', level: GraderLevel.L4 },
+      judgeL3(true),
+    ]);
+    expect(getDim(result, 'Security').weight).toBeCloseTo(0.1, 5);
+    expect(getDim(result, 'Correctness').weight).toBeCloseTo(0.25, 5);
+  });
+});
+
 // ── analyzeWaste unit tests ───────────────────────────────────────────────────
 
 describe('analyzeWaste', () => {

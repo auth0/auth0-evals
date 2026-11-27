@@ -80,6 +80,17 @@ export interface GraderDef {
    */
   input?: JudgeInput;
   /**
+   * Internal, judge graders only. Prefix each command in the trace with its step
+   * number (`#1`, `#2`, …) so the judge can cite steps. Off by default.
+   */
+  numberTrace?: boolean;
+  /**
+   * Internal, judge graders only. Put the command trace before workspace files in
+   * the judge input, so `maxCodeChars` truncation cuts files rather than the trace.
+   * Off by default.
+   */
+  traceFirst?: boolean;
+  /**
    * Where to search for the needle / pattern / judge input.
    *
    * - `'files'` (default) — workspace files only (existing behavior, unchanged).
