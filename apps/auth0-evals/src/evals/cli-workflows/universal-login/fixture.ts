@@ -8,7 +8,8 @@ import type { ManagementApi } from '@a0/evals-graders';
 //
 // Starting state: identifier-first off, custom text on the email and password
 // screens, and a branding theme. The task changes one field on each; the
-// graders check that every sibling field survived.
+// graders check that every sibling field survived. Custom text is read, restored
+// and graded in English (`en`) only, since the task names the English heading.
 
 export const HEADING = 'Sign in to Acme';
 export const BUTTON_COLOR = '#0B5FFF';
@@ -146,7 +147,15 @@ const putText = (mgmt: ManagementApi, screen: Screen, text: Record<string, strin
 /** The default theme, or null when the tenant has none (the API answers 404). */
 async function readTheme(mgmt: ManagementApi): Promise<Record<string, unknown> | null> {
   return mgmt.get<Record<string, unknown>>('branding/themes/default').catch((e: unknown) => {
-    if (String(e).includes('404')) return null;
+    const err = e as { name?: unknown; status?: unknown; method?: unknown; path?: unknown } | null | undefined;
+    // Only a GET 404 on this exact path means "no theme". A 404 from the token endpoint does not.
+    if (
+      err?.name === 'ManagementApiError' &&
+      err.status === 404 &&
+      err.method === 'GET' &&
+      err.path === 'branding/themes/default'
+    )
+      return null;
     throw e;
   });
 }
@@ -271,13 +280,16 @@ export default defineFixture({
       return { saved, themeId: String(seeded.themeId) };
     } catch (e) {
       // Cleanup only sees `seeded` when seed returns, so undo here.
-      try {
-        await restore(mgmt, saved);
-      } catch (restoreError) {
+      const restoreFailure = await restore(mgmt, saved).then(
+        () => undefined,
+        (restoreError: unknown) => ({ restoreError }),
+      );
+      if (restoreFailure) {
         // The restore message lists step names and HTTP statuses only, so it is safe to include.
+        const { restoreError } = restoreFailure;
         const detail = restoreError instanceof Error ? restoreError.message : String(restoreError);
         throw new Error(`Seed failed (${String(e)}) and restoring the tenant also failed (${detail})`, {
-          cause: restoreError,
+          cause: e,
         });
       }
       throw e;

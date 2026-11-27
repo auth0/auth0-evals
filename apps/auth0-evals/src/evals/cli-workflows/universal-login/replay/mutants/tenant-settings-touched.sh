@@ -1,4 +1,4 @@
-# Renames the tenant to match the new login heading.
+# Renames the tenant to a name that differs from the current one, so the setting changes on any tenant.
 # breaks: Tenant settings were not modified
 auth0 api patch prompts --data '{"identifier_first":true}'
 
@@ -8,4 +8,4 @@ auth0 api get "branding/themes/$SEED_THEME_ID" | jq -c '.colors.primary_button =
 
 auth0 api patch "branding/themes/$SEED_THEME_ID" --data @theme.json
 
-auth0 api patch tenants/settings --data '{"friendly_name":"Acme Supplier Network"}'
+auth0 api patch tenants/settings --data "$(auth0 api get tenants/settings | jq -c '{friendly_name: (if .friendly_name == "Acme Supplier Network" then "Acme Supplier Hub" else "Acme Supplier Network" end)}')"
